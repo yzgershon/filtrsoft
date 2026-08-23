@@ -6,7 +6,11 @@
   "description": "Tells you what a used tech listing is really worth and what's wrong with it, before you drive.",
   "scripts": {
     "seed": "bun run src/scripts/seed.ts",
-    "stats": "bun run src/scripts/stats.ts"
+    "stats": "bun run src/scripts/stats.ts",
+    "ingest": "bun run src/scripts/ingest.ts",
+    "verdict": "bun run src/scripts/verdict.ts",
+    "score": "bun run src/scripts/score.ts",
+    "comps:provisional": "bun run src/scripts/seed-provisional-comps.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
