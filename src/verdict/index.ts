@@ -103,9 +103,9 @@ export function buildVerdict(input: {
     const unknown = partsVal.parts.filter((p) => p.medianCents == null).map((p) => p.query);
     return {
       ...base, call: "INSUFFICIENT_DATA", confidence: "high",
-      headline: `Only ${Math.round(partsVal.coverage * 100)}% of the build can be priced.`,
-      reasoning: `Priced ${known.join(", ") || "nothing"} but have no comps for ${unknown.join(", ") || "the rest of the machine"} — no CPU, RAM, board, PSU or case. Summing what we do have would price a whole PC off one part and call it a valuation.`,
-      decidingUnknown: "comps for the remaining components",
+      headline: `Specs are known — market prices aren't.`,
+      reasoning: `Identified the full build (${Object.entries(match.attributes).filter(([k]) => ["cpu", "gpu", "ram_gb", "storage_gb"].includes(k)).map(([k, v]) => `${k.replace("_gb", "")} ${v}`).join(", ")}). But the comps archive only has sold prices for ${known.join(", ") || "none of it"} — nothing for ${unknown.join(", ") || "the CPU"}, RAM, motherboard, PSU or case. Pricing a whole machine off one part would be a confident wrong answer, so this stays unpriced until the archive covers more components.`,
+      decidingUnknown: "sold prices for the remaining components (not the specs — those are known)",
     };
   }
 
