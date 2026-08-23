@@ -69,7 +69,15 @@ function detectCategory(text: string): Category {
   return "unknown";
 }
 
-export function analyze(l: RawListing, opts?: { clusterSize?: number }): SignalReport {
+/**
+ * `visionText` is what the photos revealed. It is kept SEPARATE from the listing
+ * text on purpose:
+ *   - it CAN satisfy a missing value field (the spec exists, just not in words)
+ *   - it must NOT inflate listingQuality or sellerSophistication, which measure
+ *     what the SELLER chose to tell you — and a seller who didn't write the specs
+ *     is exactly the low-knowledge case that tends to underprice (RISK-MODEL 3.5)
+ */
+export function analyze(l: RawListing, opts?: { clusterSize?: number; visionText?: string }): SignalReport {
   const text = `${l.title}\n${l.description}`;
   const t = text.toLowerCase();
   const signals: Signal[] = [];
@@ -124,13 +132,22 @@ export function analyze(l: RawListing, opts?: { clusterSize?: number }): SignalR
 
   // --------------------------------------------- missing value fields (3d)
   const missingValueFields: string[] = [];
+  const recoveredFromPhotos: string[] = [];
   for (const [field, re] of VALUE_FIELDS[category] ?? []) {
-    if (!re.test(text)) missingValueFields.push(field);
+    if (re.test(text)) continue;
+    if (opts?.visionText && re.test(opts.visionText)) { recoveredFromPhotos.push(field); continue; }
+    missingValueFields.push(field);
   }
   if (missingValueFields.length) {
     signals.push({
       code: "MISSING_VALUE_FIELDS", severity: "high", polarity: "neutral",
-      evidence: `Missing the field(s) that most determine value: ${missingValueFields.join(", ")}. Cannot price confidently without them.`,
+      evidence: `Missing the field(s) that most determine value: ${missingValueFields.join(", ")}. Not in the description and not readable in the photos.`,
+    });
+  }
+  if (recoveredFromPhotos.length) {
+    signals.push({
+      code: "SPECS_ONLY_IN_PHOTOS", severity: "info", polarity: "positive",
+      evidence: `${recoveredFromPhotos.join(" and ")} readable in the photos but never written in the description. The seller didn't put the value-determining spec in words — that's the low-knowledge pattern that tends to underprice, and it means most buyers scrolling past never saw it.`,
     });
   }
 

@@ -129,3 +129,63 @@ export function requiredProfitCents(econ: UserEconomics, driveMinutesOneWay: num
   const hours = (driveMinutesOneWay * 2 + econ.transaction_minutes + econ.relist_minutes) / 60;
   return Math.max(econ.min_absolute_profit_cents, Math.round(econ.effective_hourly_floor_cents * hours));
 }
+
+/**
+ * Sum-of-parts valuation for bundles (prebuilt PCs).
+ *
+ * A custom build is not a SKU — there is no single sold comp for it. Value it by
+ * decomposing into components, pricing each, summing, then applying a whole-unit
+ * realisation ratio. Research: parting out realises ~60-80% of component value,
+ * selling whole ~50-70%. The spread between those IS the flip.
+ *
+ * Coverage is reported honestly. Pricing one component out of six and calling it
+ * a valuation would be worse than returning nothing.
+ */
+export interface PartsValuation extends Valuation {
+  parts: Array<{ role: string; query: string; skuId: number | null; medianCents: number | null; compCount: number }>;
+  coverage: number;          // 0-1, share of expected components actually priced
+  partsSumCents: number;
+  wholeUnitCents: number | null;
+}
+
+const WHOLE_UNIT_RATIO = 0.6;   // midpoint of the 50-70% whole-unit band
+const EXPECTED_ROLES = ["gpu", "cpu", "ram", "storage", "motherboard", "psu", "case"];
+
+export function valueByParts(attributes: Record<string, string | number>): PartsValuation {
+  const lookup = (q: string) => {
+    const row = db()
+      .query(
+        `SELECT s.id, COUNT(c.id) n,
+                CAST(AVG(c.sold_price_cents) AS INTEGER) med
+         FROM skus s LEFT JOIN comps c ON c.sku_id = s.id
+         WHERE LOWER(s.model) = LOWER($q) GROUP BY s.id`,
+      )
+      .get({ $q: q }) as { id: number; n: number; med: number } | null;
+    return row && row.n > 0
+      ? { skuId: row.id, medianCents: row.med, compCount: row.n }
+      : { skuId: row?.id ?? null, medianCents: null, compCount: 0 };
+  };
+
+  const parts: PartsValuation["parts"] = [];
+  for (const role of ["gpu", "cpu"] as const) {
+    const q = attributes[role];
+    if (!q) continue;
+    parts.push({ role, query: String(q), ...lookup(String(q)) });
+  }
+
+  const priced = parts.filter((p) => p.medianCents != null);
+  const partsSumCents = priced.reduce((s, p) => s + (p.medianCents ?? 0), 0);
+  const coverage = priced.length / EXPECTED_ROLES.length;
+  const wholeUnitCents = priced.length ? Math.round(partsSumCents / WHOLE_UNIT_RATIO * WHOLE_UNIT_RATIO) : null;
+
+  return {
+    parts, coverage: +coverage.toFixed(2), partsSumCents,
+    wholeUnitCents: priced.length ? Math.round(partsSumCents) : null,
+    status: coverage >= 0.4 ? "ok" : priced.length ? "sparse" : "no_comps",
+    lowCents: priced.length ? Math.round(partsSumCents * 0.85) : null,
+    highCents: priced.length ? Math.round(partsSumCents * 1.15) : null,
+    medianCents: priced.length ? Math.round(partsSumCents) : null,
+    compCount: priced.reduce((s, p) => s + p.compCount, 0),
+    confidence: coverage >= 0.5 ? "medium" : "low",
+  };
+}

@@ -35,16 +35,24 @@ export function extractAttributes(text: string): Record<string, string | number>
   // RAM and VRAM first, so their GB figures can't be mistaken for storage.
   // Before this, "RTX 3050 8GB" read as 8GB of storage and "32GB 512GB" read
   // the RAM as the drive.
-  const ram = t.match(/\b(\d{1,3})\s?gb\b(?=[^.]{0,18}\b(?:ram|ddr[45]|memory)\b)/)
+  // "ram: 16.0 GB (15.6 GB usable)" — vision emits labelled, parenthesised text,
+  // so match the LABEL first before falling back to proximity heuristics.
+  const ramLabelled = t.match(/\bram\s*[:=]\s*(\d{1,3})(?:\.\d)?\s?gb\b/);
+  const ram = ramLabelled
+    ?? t.match(/\b(\d{1,3})\s?gb\b(?=[^.]{0,18}\b(?:ram|ddr[45]|memory)\b)/)
     ?? t.match(/\b(\d{1,3})\s?gb\s*(?:of\s*)?(?:ddr[45]\s*)?ram\b/);
   if (ram) a.ram_gb = Number(ram[1]);
 
-  const vramMatch = t.match(/\b(?:rtx|gtx|rx)\s?\d{3,4}\s?(?:ti|super|xt)?\s*(\d{1,2})\s?gb\b/);
+  // "(12 GB)" trailing a card name is VRAM, not system memory.
+  const vramMatch =
+    t.match(/\b(?:rtx|gtx|rx)\s?\d{3,4}\s?(?:ti|super|xt)?\s*\(?\s*(\d{1,2})\s?gb\b/)
+    ?? t.match(/\bvram\s*[:=]\s*(\d{1,2})\s?gb\b/);
   if (vramMatch) a.vram_gb = Number(vramMatch[1]);
 
   // Storage: prefer an explicit drive mention; otherwise take the largest GB
   // figure that isn't already claimed by RAM or VRAM.
-  const explicit = t.match(/\b(\d{1,4})\s?(gb|tb)\b(?=[^.]{0,14}\b(?:ssd|hdd|nvme|storage|drive|flash)\b)/);
+  const explicit = t.match(/\bstorage\s*[:=]\s*(\d{1,4})\s?(gb|tb)\b/)
+    ?? t.match(/\b(\d{1,4})\s?(gb|tb)\b(?=[^.]{0,14}\b(?:ssd|hdd|nvme|storage|drive|flash)\b)/);
   if (explicit) {
     a.storage_gb = explicit[2] === "tb" ? Number(explicit[1]) * 1024 : Number(explicit[1]);
   } else {

@@ -12,7 +12,7 @@
  */
 import type { SignalReport, Verdict, Confidence } from "../types.ts";
 import type { Match } from "../catalog/match.ts";
-import { valueSku, netByChannel, requiredProfitCents, getEconomics, type UserEconomics, type ChannelResult } from "../valuation/index.ts";
+import { valueSku, valueByParts, netByChannel, requiredProfitCents, getEconomics, type UserEconomics, type ChannelResult } from "../valuation/index.ts";
 
 const OUT_OF_SCOPE = /\b(lens|dslr|mirrorless|camera body|tripod|nikon|canon ef|sigma \d|tamron|zeiss|leica|scanner|camcorder)\b/i;
 
@@ -43,7 +43,12 @@ export function buildVerdict(input: {
   const econ = input.econ ?? getEconomics();
   const drive = input.driveMinutes ?? 15;
   const blockers = signals.signals.filter((s) => s.severity === "blocker").map((s) => s.evidence);
-  const valuation = valueSku(match.skuId);
+  // A custom build has no SKU — decompose and price the parts instead.
+  const isBundle = (match.category ?? signals.category) === "prebuilt";
+  const partsVal = isBundle ? valueByParts(match.attributes) : null;
+  const skuVal = valueSku(match.skuId);
+  const valuation = partsVal && (skuVal.status === "no_comps" || partsVal.compCount > skuVal.compCount)
+    ? partsVal : skuVal;
   const base = { valuation, blockers };
 
   // --- 1. Out of scope -------------------------------------------------
@@ -79,11 +84,28 @@ export function buildVerdict(input: {
   if (valuation.status === "no_comps" || valuation.medianCents == null) {
     return {
       ...base, call: "INSUFFICIENT_DATA", confidence: "medium",
-      headline: match.skuId ? "No recent sold comps for this model." : "Couldn't identify the exact model.",
-      reasoning: match.skuId
-        ? "Identified the model but the archive has no recent sales to price it against."
+      headline: isBundle
+        ? "Custom build — not enough component comps to price it."
+        : match.skuId ? "No recent sold comps for this model." : "Couldn't identify the exact model.",
+      reasoning: isBundle
+        ? `Identified ${Object.entries(match.attributes).filter(([k]) => ["cpu","gpu","ram_gb","storage_gb"].includes(k)).map(([k,v]) => `${k} ${v}`).join(", ") || "no components"}, but the archive can't price enough of them yet. A build is worth the sum of its parts and there is no single comp for it.`
+        : match.skuId ? "Identified the model but the archive has no recent sales to price it against."
         : "The title didn't resolve to a known model, so there is nothing to look up.",
       decidingUnknown: match.skuId ? "recent sold comps" : "exact model",
+    };
+  }
+
+  // --- 4b. A bundle priced off too few of its parts is not priced ------
+  // Valuing a whole build from just its GPU and calling the result "overpriced"
+  // is a confident wrong answer, which is worse than no answer.
+  if (partsVal && valuation === partsVal && partsVal.coverage < 0.3) {
+    const known = partsVal.parts.filter((p) => p.medianCents != null).map((p) => p.query);
+    const unknown = partsVal.parts.filter((p) => p.medianCents == null).map((p) => p.query);
+    return {
+      ...base, call: "INSUFFICIENT_DATA", confidence: "high",
+      headline: `Only ${Math.round(partsVal.coverage * 100)}% of the build can be priced.`,
+      reasoning: `Priced ${known.join(", ") || "nothing"} but have no comps for ${unknown.join(", ") || "the rest of the machine"} — no CPU, RAM, board, PSU or case. Summing what we do have would price a whole PC off one part and call it a valuation.`,
+      decidingUnknown: "comps for the remaining components",
     };
   }
 

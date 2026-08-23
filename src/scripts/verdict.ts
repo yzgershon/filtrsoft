@@ -6,7 +6,8 @@ import { db, now } from "../db/index.ts";
 import { analyze } from "../signals/index.ts";
 import { matchSku } from "../catalog/match.ts";
 import { buildVerdict } from "../verdict/index.ts";
-import type { RawListing } from "../types.ts";
+import type { RawListing, Signal } from "../types.ts";
+import { loadVision, visionToText, visionSignals } from "../vision/merge.ts";
 
 const drive = Number(process.argv[process.argv.indexOf("--drive") + 1]) || 15;
 const d = db();
@@ -37,8 +38,15 @@ for (const r of rows) {
     photoUrls: new Array(r.photo_count ?? 0).fill(""), attributes: {}, raw: {},
   };
 
-  const signals = analyze(l);
-  const match = matchSku(l.title, l.description, signals.category);
+  // Photos are a first-class source of specs, not a fallback.
+  const vision = loadVision(r.id);
+  const vText = visionToText(vision);
+  const signals = analyze(l, { visionText: vText });
+  for (const vs of visionSignals(vision)) {
+    signals.signals.push({ ...vs, polarity: "negative" } as Signal);
+  }
+  const match = matchSku(l.title, `${l.description}
+${vText}`, signals.category);
   const v = buildVerdict({
     title: l.title, description: l.description,
     askingPriceCents: l.askingPriceCents, signals, match, driveMinutes: drive,
