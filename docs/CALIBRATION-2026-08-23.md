@@ -41,7 +41,62 @@ That single ratio explains most of the 16 harsher corrections:
 
 **The fix:** `FAIR` must mean "at market, no edge, don't drive for it." `BUY` must require a **margin band after fees, time and risk**, not merely a price below comps.
 
-❓ **Yish — this is the highest-value number you can give me:** what discount off real market makes something a BUY? Your 6700K note implies roughly **40–50% off**. Confirm or correct, and say whether it differs by category and by price tier.
+### RESOLVED 2026-08-23 — and the answer reframes the whole verdict layer
+
+**There is no fixed discount. Yish: *"it depends completely on the listing."* He's right, and his own audit proves percentage can't be the driver:**
+
+- Dell Optiplex 7060 — $60 against a $100–180 market. A **40–65% discount**, and he **PASSED**.
+- 2021 iMac M1 — $500 against $600–800. Only **17–37% off**, and he **BOUGHT**.
+
+Percentage is an *output*, not an input. The real drivers, derived from his 69 calls:
+
+**1. Absolute profit, not percent.** 60% off a $60 machine is $36 of margin, which doesn't pay for the drive. Every BUY cleared ~$100+ of spread, most cleared $250+:
+
+| BUY | Spread |
+|---|---|
+| NZXT RTX 5070 build | $275–600 |
+| iPhone 16 Pro Max (negotiated to $750) | $300–550 |
+| Dell Latitude 7420 | $105–255 |
+| 2021 iMac M1 | $100–300 |
+
+vs. PASSes: Optiplex $40–120, XPS 9300 $50–200, E7470 ≈ $0.
+
+**2. Liquidity vetoes margin.** Switch OLED lot and ROG Swift both had workable spreads. Both passed.
+
+**3. Desirability, separate from age.** Bought current-gen gaming hardware, passed on every old business laptop even at good percentages. A $250 X1 Carbon has paper margin; it just sits.
+
+**4. Condition vetoes price.** The Latitude 5520 was his best percentage on the board. Port damage killed it.
+
+### The stated rule, and what it actually is
+
+> *"if its under $100 profit im not leaving and if its under $150 profit im not driving more than 30min away from newton **but thats just me. others would drive 20min for $60 profit**"*
+
+Those two points are internally consistent at a single implied rate:
+
+- $100 ÷ ~0.75 hr (15 min each way + 15 min meet) = **$133/hr**
+- $150 ÷ ~1.25 hr (30 min each way + 15 min meet) = **$120/hr**
+
+**It's one parameter — an effective hourly floor of roughly $120–135 — expressed at two points.** That's far better than a step function: one number interpolates to every distance and every price tier.
+
+### Architectural consequence ⚠️
+
+**"But that's just me" means the BUY threshold is a USER SETTING, not a constant.** The same listing is legitimately a BUY for one user and a PASS for another. Required per-user profile:
+
+```
+user_economics
+  home_location            -- Newton, MA
+  min_absolute_profit      -- hard floor, don't leave the house ($100)
+  effective_hourly_floor   -- the real parameter (~$120-135)
+  max_drive_minutes        -- optional hard cap
+  transaction_minutes      -- default 15
+  relist_minutes           -- photograph, list, pack, ship (NOT yet modeled)
+```
+
+This makes `economics.effective_hourly_low/high_cents` in `VERDICT-SCHEMA.md` the **core** field, not a nice-to-have, and it means `verdict.call` must be computed **relative to the user**, not globally.
+
+**Nobody in this market does this.** Every competitor emits a universal "HOT FLIP" label that ignores who's reading it and where they live.
+
+❓ **Still open:** `relist_minutes` is unmodeled and it's not small. Profit assumes you then photograph, list, pack and ship the thing. Yish — how long does that realistically take you per item, and is your $100 floor before or after that work?
 
 ---
 
@@ -161,7 +216,8 @@ This also resolves Finding 10c (false positives): I was worried I'd flagged a re
 
 ## Actions
 
-- [ ] **Redefine BUY around margin, not market.** Blocked on Yish's discount number.
+- [x] **Redefine BUY around margin, not market** — RESOLVED 2026-08-23. No fixed discount; it is a per-user effective-hourly floor (~$120-135/hr for Yish). BUY is computed relative to the user, not globally.
+- [ ] Model `relist_minutes` — photograph/list/pack/ship time is unmodeled and material
 - [ ] Add `OUT_OF_SCOPE` to the verdict taxonomy
 - [ ] Add category liquidity tiers with veto power over BUY
 - [x] Cut camera and photo gear from scope — DONE 2026-08-23
