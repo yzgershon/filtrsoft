@@ -69,8 +69,18 @@ Omitting the single field that most determines value is itself a signal, distinc
 - Mac with no **year**
 - Laptop with no **CPU generation**
 
-### 3e. Seller and location clustering ✅
+### 3e. Seller and location clustering ✅ — **CORRECTED 2026-08-23**
+
 Multiple near-identical listings from one seller or one town. *Five "Unlocked iPhone" listings from Brockton, all round numbers, all under market.*
+
+**v1 of this rule was wrong as written.** It treated clustering as a red flag full stop. The second Craigslist run turned up a cluster of Dell off-lease business laptops — the $199 Latitude 5520 and the $295 Latitude 7420 — that are almost certainly the same seller, and both are **among the best deals found.**
+
+**Cluster must be weighted by listing quality, exactly like listing age (3c).**
+
+- Cluster + **low** information + under market → bulk fraud pattern
+- Cluster + **high** information + fair pricing → a professional refurbisher, which is frequently the **best source of deals on the board**
+
+Same underlying principle both times: *the signal is never the pattern alone, it's the pattern crossed with how much the seller is willing to tell you.*
 
 ### 3f. Internal contradictions ✅
 The listing arguing with itself. Two live examples from Phase 0:
@@ -95,6 +105,32 @@ $500 / $400 / $300 correlates with bulk and flip sellers. $195 / $295 / $199 cor
 
 ### 3j. Communication friction 🔶
 "Text only," refusal to meet in public, pressure to decide fast, refusal to answer specific questions. **Weight lightly** — cash-only and text-only are completely normal on Craigslist and mean nothing on their own.
+
+### 3k. Irreversible payment rails offered ✅ — **hard flag**
+**PayPal Friends & Family, CashApp, Zelle, Venmo, gift cards, wire.** All strip buyer protection and all are the scammer's preferred rails.
+
+A seller meeting locally for cash has no reason to offer any of them. The strength of this signal is that it's **an offer the seller volunteers** — it isn't inferred, it's stated.
+
+*The Back Bay iPhone 16 Pro Max listing has meticulous, verifiable documentation and still offers PayPal F&F. The correct response is not "this is a scam," it's "cash in person, and if they push F&F, walk."*
+
+### 3l. Geographic contradiction ✅
+Stated location inconsistent with the board it's posted to, or self-contradictory within the listing.
+
+*The Z Fold 5 listing reads "Austin, texas" on a Boston board while the description insists "cash only, locals only." Both cannot be true.*
+
+### 3m. Zero photos on a high-value item ✅
+No photos at all on anything meaningfully priced. Not "few photos" — **none**. On a $750 phone this is close to dispositive on its own.
+
+### 3n. Boot-screen-only photography ✅ — **category-general**
+A device photographed **only at its boot or logo screen**: Samsung Galaxy "Secured by Knox," the Apple logo, a BIOS splash, Windows loading.
+
+**Boot logo proves power. It proves nothing else.**
+
+It cannot rule out FRP lock, activation lock, carrier lock, reset lock, a failing panel, or dead pixels. Sellers do this innocently all the time — but it's also exactly what you'd photograph if the device *couldn't* get past that screen.
+
+*Both Z Flip 6 photos are the Samsung boot logo, on a charger, in a case. Powers on; everything else unverified.*
+
+**The real test per category:** phones → home screen. Laptops → desktop with an About/System screen open. GPUs → running with GPU-Z open. Consoles → dashboard, signed in.
 
 ---
 
@@ -261,6 +297,38 @@ Never output a point estimate. Always a range with a stated confidence.
 
 ---
 
+## 10b. Foldables — their own category ✅
+
+Z Flip and Z Fold devices have failure modes no other phone has, and generic phone comps miss all of them.
+
+- **Inner screen failure line** at the crease — the signature Galaxy foldable failure
+- **Hinge wear and grit ingress** — the mechanism is the weak point
+- **Crease visibility** is normal and is not a defect; a seller claiming "perfect screens" on a foldable is either careless with language or hiding something
+- Inner screen protector is **factory-applied and not user-removable** — peeling is a known issue and looks like damage
+- Steep depreciation: the category scares buyers, so genuine bargains are more common here than elsewhere
+
+**Ask:** unfold it, show the inner screen on with a white or light image, work the hinge fully, check for a line at the crease.
+
+---
+
+## 10c. The cost of a false positive ⚠️
+
+**This model is currently tuned to avoid false negatives — calling a scam a good deal. That is the right priority, and it is not the only one.**
+
+A false positive costs real money too. If Assyze flags every underpriced item as suspicious, it stops being a deal-finder and becomes an anxiety machine, and a flipper who misses three genuine bargains because the app cried wolf will delete it.
+
+**The structural difficulty: underpriced is simultaneously the strongest deal signal and the strongest scam signal.** They are the same observation. Separating them is the actual product.
+
+The discriminator is the same one that shows up in 3c and 3e: **what is the seller willing to tell you, and does it check out?**
+
+*Live example — the Back Bay iPhone 16 Pro Max at ~40% under market. On text alone I called it a scam. The photos contained real iOS screenshots with an AppleCare agreement number, a battery-health screen showing 50 cycles, and manufacture and first-use dates that are internally consistent with a launch-day purchase. It may well be a genuine motivated seller. The right output was **VERIFY with a named test**, not RISK.*
+
+**Rule: a large price gap escalates scrutiny. It does not by itself produce a RISK verdict.** RISK requires a gap **plus** an unresolved hard blocker, a contradiction, or a fraud artifact.
+
+❓ **Yish: calibrate this.** What's the real number in your head where a discount stops being exciting and starts being suspicious? That threshold is a rule and I'd rather have yours than mine.
+
+---
+
 ## 11. Gaps only Yish can fill ❓
 
 These are the parts I can't write. This is where your actual experience goes, and it's the difference between a generic tool and a moat.
@@ -276,4 +344,5 @@ These are the parts I can't write. This is where your actual experience goes, an
 ---
 
 ## Changelog
-- **2026-08-23** — v1 drafted from Phase 0 findings. Awaiting Yish's audit.
+- **2026-08-23** — v1 drafted from Phase 0 findings.
+- **2026-08-23 (2nd run)** — Added 3k–3n (irreversible payment rails, geographic contradiction, zero photos, boot-screen-only). **Corrected 3e** — clustering is not inherently negative. Added 10b (foldables) and 10c (cost of a false positive). Awaiting Yish's audit.

@@ -188,7 +188,55 @@ const DEEP=[
 {id:'psvr2',name:'Sony PSVR2 "barely used"',loc:'Woburn',ask:'$120',
  verdict:'BUY',
  why:'Used market $150–250. For contrast there is another PSVR2 in Haverhill at $300.',
- ev:`Launched at $550, currently ~$350 new. Low risk category — few hidden defects on VR headsets beyond lens scratches and cable wear. Check both.`}
+ ev:`Launched at $550, currently ~$350 new. Low risk category — few hidden defects on VR headsets beyond lens scratches and cable wear. Check both.`},
+
+{id:'latitude7420',name:'Dell Latitude 7420 — i7-1185G7 / 32GB / 512GB',loc:'Sharon',ask:'$295',
+ verdict:'BUY',
+ why:'Market $400–550. The 32GB is the value driver — most of these are 16GB. "Like new" condition, unlike the $199 5520.',
+ ev:`Off-lease business stock. Battery excellent, charges to 100%, passed Dell diagnostics, Win 11 Pro activated. Thunderbolt 4 ×2. Posted Aug 11, only ~11 days out.
+ <br><br><b>Refinement this produced:</b> this is very likely the same refurb seller as the $199 Latitude 5520 — both Dell off-lease, both detailed, both fairly priced. <b>My risk model listed "seller clustering" as a red flag. That's wrong as written.</b> A cluster of detailed, honest, well-priced listings is a professional refurbisher, and those are often the <i>best</i> deal source. Cluster must be weighted by listing quality, exactly like listing age.`},
+
+{id:'iphone16pm',name:'iPhone 16 Pro Max 1TB Black Titanium + AppleCare+',loc:'Back Bay',ask:'$800',
+ verdict:'VERIFY',
+ why:'Market with AppleCare is $1,050–1,300. ~40% under. But the documentation is unusually strong and it checks out.',
+ ev:`<b>I flagged this as a scam on the text alone, then the photos changed my mind. This is the over-flagging test case.</b>
+ <ul><li>Real iOS screenshots, not stock images: AppleCare+ with Theft and Loss, expires <b>Sept 28 2026</b>, agreement <b>LAN5388532</b> — that's independently verifiable</li>
+ <li>Battery Health screen: <b>95% capacity, 50 cycles, manufactured Aug 2024, first use Sept 2024</b></li>
+ <li>iPhone 16 Pro Max launched Sept 20 2024. Manufacture and first-use dates are <b>internally consistent with a launch-day purchase</b>, and a 2-year AppleCare+ expiring Sept 2026 matches exactly.</li>
+ <li>Status bar reads <b>SOS</b> — no cellular service, consistent with their "never connected to a carrier" claim</li>
+ <li>Serial redacted in the screenshot, which is normal privacy behavior, not evasion</li></ul>
+ <b>The one thing that still bothers me:</b> they offer <b>PayPal Friends &amp; Family and CashApp</b>. F&amp;F strips all buyer protection and is the scammer's preferred rail. Also "[WEEKEND SALE!!]" and "high-velocity sale to cover immediate expenses" is urgency framing.
+ <br><br><b>How to play it:</b> cash in person only, refuse F&amp;F outright, verify agreement LAN5388532 at checkcoverage.apple.com, and see it booted to the home screen. If they push F&amp;F, walk.
+ <br><br><b>Why this one matters most for your audit:</b> a motivated seller genuinely does price under market. If Assyze cries scam on every good deal it's useless. <b>False positives destroy this product just as surely as false negatives.</b> Tell me if I'm still too paranoid here.`},
+
+{id:'zflip6',name:'Samsung Galaxy Z Flip 6 512GB',loc:'Winchester',ask:'$350',
+ verdict:'VERIFY',
+ why:'Market $450–650. Good price, but every photo is a boot screen.',
+ ev:`<b>Both photos show the phone on the Samsung Galaxy "Secured by Knox" boot logo, plugged into a charger.</b>
+ <ul><li>Proves it <b>powers on</b>. Proves nothing else.</li>
+ <li>Never shown at the home screen — so <b>FRP lock, carrier lock and reset lock are all unverified</b></li>
+ <li>Inner screen never shown displaying actual content, so dead pixels and the common Z Flip inner-panel failure line can't be assessed</li>
+ <li>Description claims "both screens are perfect" but a <b>crease is visible at the hinge</b> in photo 2. Normal for a foldable, but it contradicts the claim.</li>
+ <li>Carbon fiber case on in both shots hides the body condition</li></ul>
+ <b>New rule:</b> a device photographed only at the boot or logo screen has not been shown to work. Applies to Samsung boot logos, Apple logos, BIOS splashes, Windows loading screens. For phones the real test is the home screen.`},
+
+{id:'zfold5',name:'Samsung Galaxy Z Fold 5 512GB',loc:'"Austin, texas"',ask:'$750',
+ verdict:'RISK',
+ why:'Market is $550–750, so at best you gain nothing. And the listing contradicts itself geographically.',
+ ev:`<ul><li><b>Zero photos.</b> None. On a $750 item.</li>
+ <li>Location field reads <b>"Austin, texas"</b> on a Boston-area board, under a Cambridge URL</li>
+ <li>Description says <b>"cash only, locals only"</b> — which normally reads as an anti-scam signal, except it's flatly incompatible with being in Austin</li></ul>
+ <b>New signal: geographic contradiction.</b> Stated location inconsistent with the board it's posted to, or with the seller's own "locals only" claim.
+ <br><br>Priced at market with no photos means there's no upside to justify the risk. Nothing to gain here even if it's real.`},
+
+{id:'ramscam',name:'Overpriced component cluster (RAM / SSD)',loc:'Andover, Belmont, Boston',ask:'$200–800',
+ verdict:'PASS',
+ why:'Four separate component listings priced at 3–10× actual retail. Grouped because the pattern is the finding.',
+ ev:`<ul><li><b>Crucial Pro DDR5 64GB (2×32GB) 6000MHz — $800</b> (Andover). Retails roughly $180–220. <b>~4× retail.</b></li>
+ <li><b>G.Skill Flare X5 16GB DDR5-6000 — $200</b> (Belmont). Retails roughly $45–60. <b>~3–4× retail.</b></li>
+ <li><b>SK Hynix 32GB PC4-2133P DDR4 ECC LRDIMM — $250</b> (Boston). Old server ECC, worth $25–50. <b>~5–10× retail.</b></li>
+ <li><b>WD_BLACK SN850X 4TB NVMe — $450</b> (Winchester) and <b>Samsung 990 EVO Plus 4TB — $450</b> (JP). Both retail roughly $250–330 <i>brand new</i>.</li></ul>
+ <b>Worth noting for the engine:</b> components are the easiest category to price because they're fungible and comp perfectly. That makes them the easiest place to catch a seller who has not checked current prices. Several of these are likely people pricing off what <i>they</i> paid at peak, not what the thing is worth now.`}
 ];
 
 const QUICK=[
@@ -221,7 +269,31 @@ const QUICK=[
 ['aspire','Acer Aspire E15','Needham','$275','$100–150','PASS'],
 ['a1311','Apple iMac A1311 "needs OS"','Brookline','$165','$60–100','RISK'],
 ['tufa16','Asus A16 TUF 16"','Medford','$800','GPU unknown','UNKNOWN'],
-['mba13','MacBook Air 13.3" i7','Lexington','$125','year unknown','UNKNOWN']
+['mba13','MacBook Air 13.3" i7','Lexington','$125','year unknown','UNKNOWN'],
+['xps9300','Dell XPS 9300 (10th gen)','Malden','$250','$300–450','BUY'],
+['x1carbmal','ThinkPad X1 Carbon','Malden','$250','$250–500','BUY'],
+['dell32_4k','Dell 32" 4K IPS 144Hz','Marblehead','$300','$450–700','BUY'],
+['ipadkb','Apple iPad Pro 12.9" Magic Keyboard','West Roxbury','$100','$120–200','BUY'],
+['tamron1530','Tamron 15-30 f2.8 G2 Nikon F "MINT"','Medford','$400','$500–700','BUY'],
+['dell7786','Dell 7786 Touchscreen i7 2-in-1','Malden','$400','$300–450','FAIR'],
+['ryzen7600x3d','AMD Ryzen 7600X3D AM5','Belmont','$220','$200–260','FAIR'],
+['canon1635','Canon EF 16-35mm f4 L IS "mint-minus"','Quincy','$475','$450–600','FAIR'],
+['tamron70200','Tamron 70-200 f2.8 Di VC Nikon F','Medford','$400','$400–600','FAIR'],
+['sigma16300','Sigma 16-300mm DC OS Sony E','Boston','$495','$500–650','FAIR'],
+['oled39','OLED 39" Gaming Monitor','Billerica','$750','$700–1,000','VERIFY'],
+['sonya1','Sony A1 "pristine"','Wayland','$3,899','$3,500–4,500','VERIFY'],
+['zeiss15','Zeiss ZE 15mm f2.8 Canon EF','North Shore','$600','$1,200–1,800','VERIFY'],
+['mbp17','MacBook Pro 17"','Holliston','$300','$200–400','VERIFY'],
+['gamingpc1000','Gaming Computer (no specs)','Billerica','$1,000','unknown','UNKNOWN'],
+['strixg18','ASUS ROG Strix G18 240Hz','Saugus','$2,400','GPU unknown','UNKNOWN'],
+['iphone15pmw','iPhone 15 Pro Max 256GB white','Boston','$460','$700–850','VERIFY'],
+['lg34uc97','LG 34UC97-S UltraWide (2014 era)','Allston','$599','$150–250','PASS'],
+['appletb27','Apple Thunderbolt 2 27" Display','Cambridge','$249','$200–350','PASS'],
+['evo870x3','3× Samsung 870 EVO 500GB','Lexington','$240','$150–180','PASS'],
+['mavic2','DJI Mavic 2 Pro + Smart Controller bundle','Boston','$1,200','$900–1,200','PASS'],
+['note20u','Galaxy Note20 Ultra 5G unlocked','South Boston','$300','$200–280','PASS'],
+['nikond5000','Nikon D5000 kit + lenses','North Shore','$490','$300–450','PASS'],
+['epsonv700','Epson Perfection V700 scanner','Boston','$550','$300–500','PASS']
 ];
 
 let S=JSON.parse(localStorage.getItem(KEY)||'{}');
