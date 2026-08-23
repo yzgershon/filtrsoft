@@ -96,7 +96,63 @@ This makes `economics.effective_hourly_low/high_cents` in `VERDICT-SCHEMA.md` th
 
 **Nobody in this market does this.** Every competitor emits a universal "HOT FLIP" label that ignores who's reading it and where they live.
 
-❓ **Still open:** `relist_minutes` is unmodeled and it's not small. Profit assumes you then photograph, list, pack and ship the thing. Yish — how long does that realistically take you per item, and is your $100 floor before or after that work?
+### RESOLVED — the $100 is NET, and resale channel is part of the model
+
+> *"for me the relisting work is just cleaning the item... **$100 profit after its sold**"*
+
+**The floor is $100 net after sale, not gross spread.** Every "spread" figure in the table above is market-minus-ask — i.e. gross. Real margins are lower once fees and shipping land, so **several of my FAIR calls should probably be PASS.**
+
+Relisting labor itself is small for him (clean it, photograph it), so `relist_minutes` stays minor. The thing that actually eats margin is **channel**.
+
+### Channel routing — his stated rules
+
+| Item | Channel |
+|---|---|
+| Bigger than a laptop | **Facebook Marketplace only** |
+| Expensive laptop | Facebook **+ eBay** |
+| Small (phones) | Facebook **+ eBay** |
+| Default preference | **Facebook — "no shipping and fees"** |
+
+**This retroactively explains two calls I couldn't account for.** The ROG Swift 27" and the Dell 32" 4K both had workable spreads and he passed. They're bulky → local-only → no access to a national buyer pool → slower and capped. Size is a **shippability threshold**, and it gates which market you can even reach.
+
+(Not size alone though — he bought the 24" M1 iMac, which is bulky but has strong local demand. The real variable is **size × local demand**.)
+
+### The fee asymmetry the engine must model
+
+- **eBay:** higher gross (national pool, buyer protection) − **~13% final value fee** − shipping − packaging
+- **Facebook Marketplace:** lower gross (local pool only) − **zero fees** − zero shipping
+
+These can net out similarly or not at all depending on the item, and **the answer flips by weight**. Net-after-channel has to be computed per platform, then the best one selected. A single "resale value" number is wrong.
+
+### ⚠️ The data problem this exposes
+
+**There is no sold-comps source for Facebook Marketplace.** Facebook does not publish sold prices, has no API, and is login-walled. The archive can only ever be eBay-based.
+
+So Facebook realized prices must be either (a) **derived** — eBay sold × a local-market discount factor — or (b) **learned from actual outcomes**.
+
+**Option (b) is the moat.** The only way to know what things really clear for on Facebook Marketplace locally is to record what *users' own sales* actually got. That dataset does not exist anywhere and cannot be bought.
+
+---
+
+## Finding 9 — The relisting feature IS the outcome loop 🆕 **(Yish, 2026-08-23)**
+
+> *"the app could have a button that automatically drafts the listing in an instant you just need to take photos... its always good practice to take at least 5 photos of the item and maybe even a video and all the person has to do is click publish listing."*
+
+Good feature on its own — it extends Assyze from "should I buy this" to the full flip cycle, and selling is the natural reason to *come back*, which is retention.
+
+**But the strategic value is bigger than convenience.** Look at the data problem directly above: the one thing Assyze cannot buy is what items actually sell for on Facebook Marketplace locally.
+
+**If the app drafts and tracks the listing, the app knows what it sold for.** The relisting feature is not a convenience bolt-on — it is the **collection mechanism for the only proprietary dataset in the entire product.** Yish's feature idea and the data moat are the same thing.
+
+It also closes the loop end to end: buy verdict → purchase → relist → realized price → feed back into valuation. That's a system that gets measurably better with use, which none of the nine competitors can claim.
+
+**Implementation reality:**
+- **eBay has a Sell API** → genuine one-click publish is possible
+- **Facebook has no API** → "draft prepared, you paste and publish." Still saves most of the work; be honest that the last click is manual.
+
+**Capture standard (his):** minimum 5 photos, ideally a short video. Worth enforcing in the UI, since it doubles as the input for the next buyer's Assyze analysis.
+
+Slots into **Phase 5** in `PLAN.md`, alongside the outcome loop it enables.
 
 ---
 
@@ -217,7 +273,9 @@ This also resolves Finding 10c (false positives): I was worried I'd flagged a re
 ## Actions
 
 - [x] **Redefine BUY around margin, not market** — RESOLVED 2026-08-23. No fixed discount; it is a per-user effective-hourly floor (~$120-135/hr for Yish). BUY is computed relative to the user, not globally.
-- [ ] Model `relist_minutes` — photograph/list/pack/ship time is unmodeled and material
+- [x] `relist_minutes` — RESOLVED, minor for Yish (just cleaning). **The real cost is channel:** $100 floor is NET after sale. Model eBay (~13% fee + shipping) vs Facebook (no fees, local-only) per item.
+- [ ] Size/shippability threshold — "bigger than a laptop" = local-only, gates the reachable buyer pool
+- [ ] Listing auto-draft (Phase 5) — the collection mechanism for Facebook realized prices, the only unbuyable dataset
 - [ ] Add `OUT_OF_SCOPE` to the verdict taxonomy
 - [ ] Add category liquidity tiers with veto power over BUY
 - [x] Cut camera and photo gear from scope — DONE 2026-08-23
