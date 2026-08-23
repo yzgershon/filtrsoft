@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Assyze — Phase 0 Audit</title>
+<style>
+  :root{
+    --bg:#0f0d0c; --panel:#191614; --panel2:#221e1b; --line:#302a26;
+    --ink:#ece7e2; --dim:#9a9088; --dimmer:#6b625b;
+    --buy:#4ade80; --fair:#60a5fa; --pass:#fbbf24; --risk:#f87171; --unk:#a78bfa;
+    --accent:#e8823a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  header{position:sticky;top:0;z-index:20;background:rgba(15,13,12,.94);
+    backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:14px 24px;
+    display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+  h1{font-size:16px;margin:0;letter-spacing:.02em}
+  h1 span{color:var(--dimmer);font-weight:400}
+  .bar{flex:1;min-width:180px;height:5px;background:var(--panel2);border-radius:99px;overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
+  .count{font-variant-numeric:tabular-nums;color:var(--dim);font-size:13px;white-space:nowrap}
+  button{font:inherit;cursor:pointer;border-radius:7px;border:1px solid var(--line);
+    background:var(--panel2);color:var(--ink);padding:7px 13px;transition:.13s}
+  button:hover{border-color:var(--dimmer)}
+  .primary{background:var(--accent);border-color:var(--accent);color:#1a0f06;font-weight:600}
+  .primary:hover{filter:brightness(1.1)}
+  main{max-width:920px;margin:0 auto;padding:28px 24px 120px}
+  .intro{color:var(--dim);font-size:14px;border-left:2px solid var(--accent);
+    padding:2px 0 2px 16px;margin-bottom:32px}
+  .intro b{color:var(--ink)}
+  h2.sec{font-size:12px;text-transform:uppercase;letter-spacing:.13em;color:var(--dimmer);
+    margin:44px 0 16px;font-weight:600}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:20px;margin-bottom:16px}
+  .card.done{border-color:#3a4a38}
+  .top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:4px}
+  .name{font-weight:600;font-size:16px}
+  .meta{color:var(--dimmer);font-size:13px;margin-bottom:14px}
+  .ask{font-variant-numeric:tabular-nums;font-size:18px;font-weight:600;white-space:nowrap}
+  .tag{display:inline-block;padding:3px 9px;border-radius:5px;font-size:11px;font-weight:700;
+    letter-spacing:.06em;margin-bottom:12px}
+  .BUY{background:rgba(74,222,128,.14);color:var(--buy)}
+  .FAIR{background:rgba(96,165,250,.14);color:var(--fair)}
+  .PASS{background:rgba(251,191,36,.14);color:var(--pass)}
+  .RISK{background:rgba(248,113,113,.14);color:var(--risk)}
+  .VERIFY{background:rgba(232,130,58,.16);color:var(--accent)}
+  .UNKNOWN{background:rgba(167,139,250,.14);color:var(--unk)}
+  .why{font-size:14.5px;margin:0 0 12px}
+  .ev{background:var(--panel2);border-radius:8px;padding:12px 14px;margin-bottom:14px;
+    font-size:13.5px;color:var(--dim)}
+  .ev b{color:var(--ink);font-weight:600}
+  .ev ul{margin:6px 0 0;padding-left:18px}
+  .ev li{margin:3px 0}
+  .wrong{background:rgba(248,113,113,.09);border:1px solid rgba(248,113,113,.3)}
+  .judge{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+  .judge button.on[data-v="agree"]{background:rgba(74,222,128,.2);border-color:var(--buy);color:var(--buy)}
+  .judge button.on[data-v="partial"]{background:rgba(251,191,36,.2);border-color:var(--pass);color:var(--pass)}
+  .judge button.on[data-v="disagree"]{background:rgba(248,113,113,.2);border-color:var(--risk);color:var(--risk)}
+  select,textarea{font:inherit;background:var(--panel2);color:var(--ink);
+    border:1px solid var(--line);border-radius:7px;padding:8px 10px;width:100%}
+  select{width:auto;min-width:150px}
+  textarea{min-height:64px;resize:vertical;margin-top:8px}
+  textarea::placeholder{color:var(--dimmer)}
+  .hide{display:none}
+  .quick{display:grid;grid-template-columns:1fr auto auto auto;gap:10px;align-items:center;
+    padding:11px 14px;border-bottom:1px solid var(--line);font-size:14px}
+  .quick:last-child{border-bottom:0}
+  .quick .q-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .quick .q-num{color:var(--dim);font-variant-numeric:tabular-nums;font-size:13px;white-space:nowrap}
+  .quick select{padding:4px 8px;font-size:13px;min-width:118px}
+  .list{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  footer{position:fixed;bottom:0;left:0;right:0;background:rgba(15,13,12,.95);
+    backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:12px 24px;
+    display:flex;gap:12px;justify-content:center;align-items:center}
+  .saved{color:var(--dimmer);font-size:12.5px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Assyze <span>/ Phase 0 audit</span></h1>
+  <div class="bar"><i id="bar"></i></div>
+  <div class="count" id="count">0 / 0</div>
+</header>
+
+<main>
+  <div class="intro">
+    Every market value below is <b>my estimate, not a live sold comp</b> — that's the whole reason
+    this needs auditing. Judge the <b>reasoning</b> first and the numbers second.
+    <b>Where you disagree is worth more than where you agree.</b>
+    Answers save automatically as you go. Hit Export when you're done.
+  </div>
+
+  <h2 class="sec">Deep-verified — photos analyzed</h2>
+  <div id="deep"></div>
+
+  <h2 class="sec">Quick scores — priced against market, not photo-verified</h2>
+  <div class="list" id="quick"></div>
+</main>
+
+<footer>
+  <span class="saved" id="saved">saved locally</span>
+  <button onclick="exportMd()">Copy as Markdown</button>
+  <button class="primary" onclick="exportJson()">Export JSON</button>
+  <button onclick="if(confirm('Clear all your answers?')){localStorage.removeItem(KEY);location.reload()}">Reset</button>
+</footer>
+
+<script>
+const KEY='assyze-audit-v1';
+const VERDICTS=['BUY','FAIR','PASS','VERIFY','RISK','UNKNOWN'];
+
+const DEEP=[
+{id:'nzxt750',name:'Gaming PC "SPECS IN PICTURES" (NZXT)',loc:'Dedham',ask:'$750',
+ verdict:'BUY',was:'UNKNOWN',
+ why:'Ryzen 5 9600X + RTX 5070 12GB + 16GB DDR5 + ~1TB + NZXT Kraken LCD AIO. Parts total roughly $1,025–1,350. The GPU alone is $450–550, so the rest of the machine costs you $200–300.',
+ wrong:true,
+ ev:`<b>I got this wrong first pass.</b> I read photos A and B, skipped C to save tokens, and called it INSUFFICIENT_DATA. You found the spec screen in photo C. Corrected verdict is above.
+ <ul><li>Windows installed <b>7/8/2026</b> — the build is six weeks old. Ask why they're selling.</li>
+ <li>PSU is still unknown. On a 5070 that matters.</li>
+ <li>Posted the same day, current-gen parts. Profile of a real deal, not a trap.</li></ul>
+ <b>Rules this produced:</b> read every photo, never sample. Spec screens are the highest-value photo type. "Insufficient data" must be earned by reading everything.`},
+
+{id:'latitude5520',name:'Dell Latitude 5520 — i7-1185G7 / 16GB / 512GB',loc:'Framingham',ask:'$199',
+ verdict:'BUY',
+ why:'Market $300–450. Roughly $100–200 of margin. Highest-confidence buy in the run.',
+ ev:`<b>Why it sat 3 months:</b> seller discloses heavy scratches on the bottom cover and a cracked vent grill. Cosmetic damage scares consumers. A flipper doesn't care.
+ <ul><li>11 photos, full spec list, defects volunteered — high listing quality</li>
+ <li>Battery "excellent" in BIOS but explicitly not guaranteed</li></ul>
+ <b>This is the case that produced the listing-age refinement:</b> long-unsold + high information = opportunity, not trap.`},
+
+{id:'iphone15pm',name:'iPhone 15 Pro Max "Unlocked"',loc:'Brockton',ask:'$500',
+ verdict:'RISK',
+ why:'Almost certainly a phone the seller does not physically have. Market is $700–850.',
+ ev:`<ul><li>Both photos are <b>screenshots of the iOS Messages photo viewer</b> — the bottom bar has a reply arrow and a <b>save icon</b>. You don't save your own photos.</li>
+ <li>Lock screen reads "Tuesday, August 26" — that was a Tuesday in <b>2025</b>, ~9 months before the listing</li>
+ <li>Posted May 21, still live in August. 3 months unsold, far under market.</li>
+ <li>No storage size (a $200+ swing), no battery health, 14-word description</li>
+ <li>One of <b>five</b> near-identical Brockton "Unlocked iPhone" listings</li></ul>`},
+
+{id:'teslap100',name:'NVIDIA Tesla P100 16GB',loc:'Northborough',ask:'$80',
+ verdict:'RISK',
+ why:'Not a GPU in any useful sense for a normal buyer. ~$80 is fair for a CUDA compute card, worthless for what the seller advertises.',
+ ev:`<ul><li>Photo confirms the I/O bracket is a <b>solid vented grille with zero display connectors</b>. You cannot plug in a monitor.</li>
+ <li><b>Passively cooled</b> — no fan. Built for server chassis airflow, will overheat in a desktop.</li>
+ <li>Seller calls it "designed for professionals in animation, video editing" — copy-pasted spec-sheet language, materially wrong.</li></ul>
+ <b>Rule:</b> a GPU listing without a clear I/O bracket photo is incomplete.`},
+
+{id:'imac5k',name:'2019 5K 27" iMac A2115',loc:'Downtown Boston',ask:'$295',
+ verdict:'RISK',
+ why:'Working units clear $500–800, but this one has a detached screen. Repair risk is real and the panel is glued.',
+ ev:`<b>Internal contradiction:</b> described as "like NEW" in the same paragraph that discloses a cracked bottom panel and an <b>LCD detached with incomplete installation, held with tape</b>.
+ <ul><li>Dust ingress behind 5K glass, possible cable damage, flex</li>
+ <li>4+ months unsold at a "firm, non-negotiable" price</li></ul>`},
+
+{id:'gamingpc650',name:'Gaming PC — i7-6700K / RTX 3050',loc:'Bedford',ask:'$650',
+ verdict:'PASS',
+ why:'Parts total $370–515, fair whole-unit ask is $380–450. Asking is 45–70% over.',
+ ev:`Read off photos: <b>MSI RTX 3050 Gaming X, G.SKILL Trident DDR4, Cooler Master cooler, MSI motherboard.</b>
+ <ul><li><b>Impossible spec claim:</b> advertises a "NVMe Gen 4 SSD" on an i7-6700K / LGA1151 platform that physically cannot do PCIe Gen 4</li>
+ <li>2015 CPU bottlenecking the GPU, dead-end socket, no upgrade path</li></ul>`},
+
+{id:'iphone15cam',name:'iPhone 15 128GB',loc:'Cambridge',ask:'$250',
+ verdict:'VERIFY',
+ why:'Market is $400–500. Either a genuine steal or a brick, and one fact decides it.',
+ ev:`<ul><li>Description says <b>"Original carrier T Mobile"</b> while the title never says unlocked</li>
+ <li>A T-Mobile phone with an unpaid financing balance gets <b>IMEI blacklisted</b> — possibly after you buy it</li>
+ <li>Photo is a screenshot of another app's viewer ("2/2" counter, X button), not an original photo</li>
+ <li>Reads otherwise legitimate: original owner, specific battery health (90%), original box</li></ul>
+ <b>Deciding unknown:</b> lock status + carrier balance. Never buy without seeing it booted to the home screen.`},
+
+{id:'xbox2tb',name:'Xbox Series X 2TB Galaxy Black "sealed"',loc:'Lynn',ask:'$1,850',
+ verdict:'RISK',
+ why:'That edition retailed around $600–730. Asking is roughly 2.5–3× retail.',
+ ev:`Posted <b>March 2</b>, still live in late August. <b>Six months unsold is the market's verdict.</b>
+ <br><br><b>Methodology note:</b> when a summarizer was asked why it was $1,850 it <i>invented</i> a justification — "limited editions command higher prices," "market scarcity." That's the exact failure mode Assyze must not have. The engine anchors on sold comps, never on the seller's framing.`},
+
+{id:'mbp2014',name:'MacBook Pro 15" mid-2014',loc:'Boston',ask:'$80',
+ verdict:'FAIR',
+ why:'Roughly fair. Parts alone (screen assembly especially) may exceed $80.',
+ ev:`<ul><li>Stuck on <b>Catalina</b>, its last supported macOS. No security updates.</li>
+ <li>12-year-old battery, 120GB base storage</li>
+ <li>EFI lock unverified — real risk on pre-T2 Macs</li></ul>`},
+
+{id:'psvr2',name:'Sony PSVR2 "barely used"',loc:'Woburn',ask:'$120',
+ verdict:'BUY',
+ why:'Used market $150–250. For contrast there is another PSVR2 in Haverhill at $300.',
+ ev:`Launched at $550, currently ~$350 new. Low risk category — few hidden defects on VR headsets beyond lens scratches and cable wear. Check both.`}
+];
+
+const QUICK=[
+['optiplex','Dell Optiplex 7060 SFF','Waltham','$60','$100–180','BUY'],
+['imac24','2021 24" iMac (M1)','South Shore','$500','$600–800','BUY'],
+['iphone12','iPhone 12 64GB unlocked','Dedham','$195','$180–250','FAIR'],
+['e7470','Dell Latitude E7470 i5','Framingham','$95','$90–140','FAIR'],
+['x1carbon','ThinkPad X1 11th-gen i7 + dock','Metro West','$500','$400–600','FAIR'],
+['zflip4','Galaxy Z Flip 4 256GB','Lowell','$218','$200–280','FAIR'],
+['prec5540','Dell Precision 5540 i9','Malden','$500','$450–700','FAIR'],
+['rogswift','ASUS ROG Swift 27" 1440p','Hopkinton','$300','$200–350','FAIR'],
+['switcholed','Nintendo Switch OLED lot','Westford','$300','$250–330','FAIR'],
+['cyborg14','MSI Cyborg 14 A13VF (RTX 4060)','Boston','$700','$550–700','FAIR'],
+['strix3060','ASUS ROG Strix RTX 3060 12GB','Arlington','$250','$180–240','PASS'],
+['tabs9','Samsung Galaxy Tab S9 256GB','Boston','$550','$450–550','PASS'],
+['prec7510','Dell Precision 7510','Peabody','$250','$180–250','PASS'],
+['xboxonex','Xbox One X 1TB','Brookline','$180','$120–180','PASS'],
+['gtx1080pc','Gaming PC i7-7700K / GTX 1080','Bedford','$560','$350–450','PASS'],
+['xps15','Dell XPS 15 9520','Malden','$1,000','$700–950','PASS'],
+['ps5slim','PlayStation 5 Slim disc','Braintree','$450','$350–420','PASS'],
+['xsxextras','Xbox Series X + extras','Wilmington','$450','$300–380','PASS'],
+['switch2','Nintendo Switch 2','Nashua','$450','~$450 retail','PASS'],
+['rtx5080','PNY RTX 5080 16GB','Andover','$1,150','$950–1,100','PASS'],
+['g16chr','ASUS G16CHR i7-14700K','Charlestown','$1,499','GPU unknown','PASS'],
+['macpro2010','2010 Mac Pro 12-core 32GB','Hingham','$250','$150–300','PASS'],
+['thinkstation','Lenovo ThinkStation Xeon 16c 96GB','Holliston','$700','$300–500','PASS'],
+['quest3s','Meta Quest 3S "sealed"','Lynn','$300','$250–300 new','PASS'],
+['allyx','ASUS ROG Ally X','Boston','$790','$500–650','PASS'],
+['evga3080','EVGA RTX 3080 FTW3 Ultra','Tewksbury','$450','$300–400','PASS + mining risk'],
+['aspire','Acer Aspire E15','Needham','$275','$100–150','PASS'],
+['a1311','Apple iMac A1311 "needs OS"','Brookline','$165','$60–100','RISK'],
+['tufa16','Asus A16 TUF 16"','Medford','$800','GPU unknown','UNKNOWN'],
+['mba13','MacBook Air 13.3" i7','Lexington','$125','year unknown','UNKNOWN']
+];
+
+let S=JSON.parse(localStorage.getItem(KEY)||'{}');
+const save=()=>{localStorage.setItem(KEY,JSON.stringify(S));
+  document.getElementById('saved').textContent='saved '+new Date().toLocaleTimeString();prog()};
+const get=id=>S[id]||(S[id]={});
+
+function prog(){
+  const tot=DEEP.length+QUICK.length;
+  const n=Object.values(S).filter(x=>x.j||x.v).length;
+  document.getElementById('count').textContent=n+' / '+tot;
+  document.getElementById('bar').style.width=(n/tot*100)+'%';
+}
+
+document.getElementById('deep').innerHTML=DEEP.map(d=>{
+  const s=get(d.id);
+  return `<div class="card ${s.j?'done':''}" id="c-${d.id}">
+    <div class="top"><div class="name">${d.name}</div><div class="ask">${d.ask}</div></div>
+    <div class="meta">${d.loc}${d.was?' · originally called '+d.was:''}</div>
+    <span class="tag ${d.verdict}">${d.verdict}</span>
+    <p class="why">${d.why}</p>
+    <div class="ev ${d.wrong?'wrong':''}">${d.ev}</div>
+    <div class="judge" data-id="${d.id}">
+      <button data-v="agree"    class="${s.j==='agree'?'on':''}">Agree</button>
+      <button data-v="partial"  class="${s.j==='partial'?'on':''}">Partly</button>
+      <button data-v="disagree" class="${s.j==='disagree'?'on':''}">Disagree</button>
+      <select class="corr ${s.j==='agree'||!s.j?'hide':''}">
+        <option value="">your verdict…</option>
+        ${VERDICTS.map(v=>`<option ${s.v===v?'selected':''}>${v}</option>`).join('')}
+      </select>
+    </div>
+    <textarea placeholder="Why? What did I miss, what would you check, what's the real number?">${s.n||''}</textarea>
+  </div>`}).join('');
+
+document.getElementById('quick').innerHTML=QUICK.map(q=>{
+  const s=get(q[0]);
+  return `<div class="quick">
+    <div class="q-name" title="${q[1]}">${q[1]}<span style="color:var(--dimmer)"> · ${q[2]}</span></div>
+    <div class="q-num">${q[3]} <span style="color:var(--dimmer)">vs ${q[4]}</span></div>
+    <span class="tag ${q[5].split(' ')[0]}" style="margin:0">${q[5]}</span>
+    <select data-q="${q[0]}">
+      <option value="">—</option>
+      <option ${s.v==='agree'?'selected':''} value="agree">agree</option>
+      ${VERDICTS.map(v=>`<option ${s.v===v?'selected':''} value="${v}">→ ${v}</option>`).join('')}
+    </select>
+  </div>`}).join('');
+
+document.addEventListener('click',e=>{
+  const b=e.target.closest('.judge button'); if(!b)return;
+  const wrap=b.closest('.judge'), id=wrap.dataset.id, s=get(id);
+  s.j=b.dataset.v;
+  wrap.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
+  wrap.querySelector('.corr').classList.toggle('hide',s.j==='agree');
+  document.getElementById('c-'+id).classList.add('done');
+  save();
+});
+document.addEventListener('change',e=>{
+  if(e.target.matches('.corr')){get(e.target.closest('.judge').dataset.id).v=e.target.value;save()}
+  if(e.target.matches('[data-q]')){get(e.target.dataset.q).v=e.target.value;save()}
+});
+document.addEventListener('input',e=>{
+  if(e.target.matches('textarea')){get(e.target.closest('.card').id.slice(2)).n=e.target.value;save()}
+});
+
+function rows(){
+  const out=[];
+  DEEP.forEach(d=>{const s=S[d.id]||{};if(s.j||s.n)out.push(
+    {id:d.id,item:d.name,ask:d.ask,claude:d.verdict,judgment:s.j||'',yish_verdict:s.v||'',notes:s.n||''})});
+  QUICK.forEach(q=>{const s=S[q[0]]||{};if(s.v)out.push(
+    {id:q[0],item:q[1],ask:q[3],claude:q[5],judgment:s.v==='agree'?'agree':'disagree',
+     yish_verdict:s.v==='agree'?'':s.v,notes:''})});
+  return out;
+}
+function exportJson(){
+  const blob=new Blob([JSON.stringify({audited_at:new Date().toISOString(),results:rows()},null,2)],
+    {type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='audit-results.json';a.click();
+}
+function exportMd(){
+  let m='# Phase 0 Audit — Yish\n\n| Item | Ask | Claude | Yish | Correct | Notes |\n|---|---|---|---|---|---|\n';
+  rows().forEach(r=>m+=`| ${r.item} | ${r.ask} | ${r.claude} | ${r.judgment} | ${r.yish_verdict} | ${(r.notes||'').replace(/\n/g,' ')} |\n`);
+  navigator.clipboard.writeText(m).then(()=>alert('Markdown copied to clipboard'));
+}
+prog();
+</script>
+</body>
+</html>
