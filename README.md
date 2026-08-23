@@ -44,10 +44,10 @@ Plus, on bundled listings (a "gaming PC" is seven components), value swings 10x 
 
 ## Status
 
-Pre-build. Research complete. **Gated on the vision accuracy test** — see open items in the session log.
+Phase 0 complete. Phase 1 engine built and self-scoring against Yish's audit. See `HANDOFF.md`.
 
 ## Docs
 
 - `docs/research-2026-08-22.md` — full market, competitor, technical and legal research
 - `docs/sessions/` — session logs, newest last
-- `HANDOFF.md` — current state for whoever picks this up next
+- `HANDOFF.md` — **master plan + current state.** Start here.
