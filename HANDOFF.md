@@ -46,6 +46,10 @@ Product is decided: **standalone mobile app** (React Native + Expo), consumer te
 
 ## Next actions
 
+**Audit tool is built and loaded: `docs/testset/audit.html`** — open it in a browser. 15 deep-verified listings with full reasoning, 54 quick scores. Agree/Partly/Disagree per item, correct-verdict dropdown, notes box, autosaves to localStorage, exports JSON or Markdown. **Yish is auditing this next.**
+
+Second Craigslist run (2026-08-23) added ~29 listings and produced four new risk signals (3k–3n), a **correction to the clustering rule (3e)**, and a new section on **the cost of false positives (10c)** — the model as written is probably too paranoid.
+
 **Yish:**
 1. eBay developer account → Browse API keys (free, 5k calls/day)
 2. **Anthropic API key** at console.anthropic.com, load $20. His Claude Pro/Max subs do NOT include API access — separate product, separate billing.
