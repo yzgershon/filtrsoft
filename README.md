@@ -37,8 +37,9 @@ Plus, on bundled listings (a "gaming PC" is seven components), value swings 10x 
 
 ## Scope
 
-**In:** consumer tech only — laptops, phones, GPUs, consoles, tablets, components.
+**In:** laptops, phones, GPUs, prebuilt PCs, consoles, tablets, components.
 **Out:** furniture, clothing, cars, everything else.
+**Out as of 2026-08-23: cameras and photo/video gear.** Yish marked all 8 camera listings UNKNOWN in the Phase 0 audit — he doesn't know the category. Lenses and bodies comp *well* on eBay, so valuation isn't the problem; the **risk layer** is (fungus, element separation, focus motor wear, mount play, cosmetic grading conventions). Risk is the differentiator, and a category he can't audit is one where the engine could be wrong indefinitely without either of us noticing. Revisit only if a domain informant turns up.
 **Not in v1:** alerts and monitoring (commoditized), cross-listing, auto-messaging.
 
 ## Status

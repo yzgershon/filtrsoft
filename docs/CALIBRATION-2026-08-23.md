@@ -82,7 +82,13 @@ Yish marked **all 8** camera listings UNKNOWN: Tamron 15-30, Tamron 70-200, Cano
 
 That's not disagreement, it's **declining to judge outside his expertise** — and it means camera gear cannot be validated by the person building this.
 
-**Decision needed: cut camera gear from scope, or accept an unvalidatable category.** Recommendation: **cut it.** Lens and body valuation depends on copy variation, mount ecosystems and cosmetic grading conventions that are their own discipline. Scope stays laptops, phones, GPUs, prebuilts, consoles, components.
+**RESOLVED 2026-08-23 — cameras are CUT.** Yish confirmed: *"i dont know anything about cameras thats why."*
+
+The precise split matters: camera gear **comps well** on eBay (specific models, high volume), so valuation isn't the blocker. The **risk layer** is — fungus, element separation, focus motor wear, mount play, what "mint-minus" actually means. Risk is the differentiator, so without domain knowledge there's no product, just a generic price lookup competing with everyone.
+
+And the governing reason: **a category he can't audit is one where the engine can be wrong indefinitely and neither of us would find out.** That violates reliability-first.
+
+Scope: laptops, phones, GPUs, prebuilts, consoles, tablets, components. Revisit only with a domain informant.
 
 ---
 
@@ -158,7 +164,7 @@ This also resolves Finding 10c (false positives): I was worried I'd flagged a re
 - [ ] **Redefine BUY around margin, not market.** Blocked on Yish's discount number.
 - [ ] Add `OUT_OF_SCOPE` to the verdict taxonomy
 - [ ] Add category liquidity tiers with veto power over BUY
-- [ ] Cut camera and photo gear from scope
+- [x] Cut camera and photo gear from scope — DONE 2026-08-23
 - [ ] Platform-specific time-on-market decay
 - [ ] Accessory/interface compatibility checks in 3f (Lightning vs USB-C, PCIe gen, DDR gen)
 - [ ] Ports, hinges and connectors classified as functional damage
