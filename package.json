@@ -1,0 +1,15 @@
+{
+  "name": "assyze",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tells you what a used tech listing is really worth and what's wrong with it, before you drive.",
+  "scripts": {
+    "seed": "bun run src/scripts/seed.ts",
+    "stats": "bun run src/scripts/stats.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5"
+  }
+}
