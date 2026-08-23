@@ -134,6 +134,57 @@ It cannot rule out FRP lock, activation lock, carrier lock, reset lock, a failin
 
 ---
 
+## 3.5 Seller sophistication — the underpricing signal ✅ **(Yish, 2026-08-23)**
+
+**This is a value signal, not a risk signal, and it may be the most commercially important thing in this document.**
+
+Yish's observation: *the length and detail of a description tells you how much the seller actually knows about their own item, and someone who doesn't know what they have is far more likely to undercut themselves.*
+
+Sections 3c and 3e use listing quality to detect **fraud**. This uses the same underlying data to detect **opportunity**. Same input, completely different output, and Assyze should compute both.
+
+### The relationship
+
+**Seller knowledge correlates with pricing accuracy. It does not correlate with price direction.**
+
+A seller who doesn't know the market is mispriced — but the *direction is essentially random*:
+
+- **Low knowledge + underpriced** → the classic flip. They have a 4070 and wrote "gaming computer, works good." **This is where the money is.**
+- **Low knowledge + overpriced** → they're anchored to what they paid, or to a peak-era price. *This is exactly the component cluster: 16GB of DDR5 at $200 that retails for $50, 4TB NVMe above brand-new retail. Same root cause as the underpriced gaming PC — the seller has not checked current prices. Only the direction differs.*
+- **High knowledge + fairly priced** → a real seller who did the work. Little edge either way.
+- **High knowledge + underpriced** → motivated seller with a reason, or defects they've disclosed. Verify the reason.
+
+### Detecting low seller knowledge
+
+- **Generic nouns instead of model numbers** — "gaming computer," "graphics card," "laptop," "Mac"
+- **The value-determining spec is simply absent** and clearly not on purpose (no GPU on a gaming PC, no storage on a phone, no year on a Mac)
+- **"i7" with no generation.** An i7 spans 2008 to now and a 10x value range.
+- Misspelled or mangled brand and model names
+- Estate / inherited / cleaning-out framing: "was my son's," "found in storage," "moving, must go"
+- No reference to retail price, comps, or what it's "worth"
+- Few photos, casually shot, no attempt to show specs
+- Round-number pricing (ties back to 3h)
+
+### Detecting high seller knowledge
+
+- Exact model numbers with variant and VRAM
+- CPU generation stated
+- Mentions comps, retail, or "priced below eBay"
+- Volunteers the things a buyer would worry about: "never mined," "battery health 95%," "no financing, clean IMEI"
+- Off-lease / refurb / diagnostics language
+- Many photos, deliberately composed to show specs
+
+### Why this is worth building carefully
+
+**A "gaming PC" listing with no specs is not just an insufficient-data case. It's a lead.** It's simultaneously the hardest listing to value and the most likely to be underpriced, because the reason it has no specs is the same reason it's cheap.
+
+*The Dedham NZXT build is exactly this: title reads "GAMING PC SPECS IN PICTURES," description is one line in all caps, and inside is a Ryzen 5 9600X and an RTX 5070 priced at roughly 60% of parts value.*
+
+**Product implication:** low-sophistication listings should be **prioritized for deep analysis**, not deprioritized. They cost the most to evaluate and they pay the best. That inverts how a naive funnel would rank them.
+
+❓ **Yish:** how do you actually spot this in the wild? What phrasing makes you immediately think "this person has no idea what they're sitting on"?
+
+---
+
 ## 4. Phones
 
 ### Hard blockers

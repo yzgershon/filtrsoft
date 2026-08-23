@@ -39,6 +39,10 @@
   .card.done{border-color:#3a4a38}
   .top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:4px}
   .name{font-weight:600;font-size:16px}
+  a{color:inherit;text-decoration:none;border-bottom:1px solid var(--line);transition:.13s}
+  a:hover{color:var(--accent);border-color:var(--accent)}
+  .q-name a{border-bottom:0}
+  .q-name a:hover{text-decoration:underline}
   .meta{color:var(--dimmer);font-size:13px;margin-bottom:14px}
   .ask{font-variant-numeric:tabular-nums;font-size:18px;font-weight:600;white-space:nowrap}
   .tag{display:inline-block;padding:3px 9px;border-radius:5px;font-size:11px;font-weight:700;
@@ -112,6 +116,78 @@
 <script>
 const KEY='assyze-audit-v1';
 const VERDICTS=['BUY','FAIR','PASS','VERIFY','RISK','UNKNOWN'];
+const CL='https://www.craigslist.org/view/d/';
+const URLS={
+nzxt750:CL+'dedham-gaming-pc-specs-in-pictures/gMzZYgnKHvutP3SWCv4bbz',
+latitude5520:CL+'framingham-dell-latitude-i7-1185g7-16gb/eR9zDMba1Xz2T1Zgbmsi9B',
+iphone15pm:CL+'brockton-unlocked-iphone-15-pro-max/m82ctFzhDF8gPXFwFdRodm',
+teslap100:CL+'northborough-nvidia-tesla-p100-16gb-ram/iX1r7ArBBtA8ZauspYRp2L',
+imac5k:CL+'boston-a-inch-imac/uwTqk3oKnQq78VGAh7vxMy',
+gamingpc650:CL+'bedford-gaming-desktop-pc-intel-i7/nN7jrXTfv6AVCtnJ8Fpeiy',
+iphone15cam:CL+'cambridge-apple-iphone-gb/4tkkpAuBMH6YKnNsnrESoN',
+xbox2tb:CL+'lynn-xbox-series-2tb-galaxy-black/kNQ5m156CPZHkvcJX1UNsF',
+mbp2014:CL+'dorchester-macbook-pro/fFHoxod1Dw27pJsgfHysWn',
+psvr2:CL+'woburn-sony-psvr2-headset-barely-used/mdcgveRzYaWDsNL2H8dcXX',
+latitude7420:CL+'sharon-dell-latitude-i7-32gb-512gb/8ELzrQjvshdzguCaKRoxne',
+iphone16pm:CL+'boston-iphone-16-pro-max-1tb-black/b1emmvvtydfkcnd9QJj9qH',
+zflip6:CL+'winchester-samsung-galaxy-flip-512gb/d4yAjfyqP8kMrAyvMLDrbA',
+zfold5:CL+'cambridge-unlocked-samsung-galaxy-fold/tQetqP7FWBwPC8JrZzkTcy',
+ramscam:CL+'andover-crucial-pro-ddr5-64gb-2x32gb/w236vfqhbUuDivakrmeWLJ',
+optiplex:CL+'waltham-dell-optiplex-7060-sff-desktop/2RAqixxmi1CJiTJRo9KWTc',
+imac24:CL+'hull-imac/jYbBCSyq79Pkveu6nJoZ27',
+iphone12:CL+'dedham-excellent-iphone-gb-black/a2emJDuFtGR8E1PeYP9ffn',
+e7470:CL+'framingham-dell-latitude-laptop-i5-8gb/d6S5bdDKqjTiG8QyEupC4P',
+x1carbon:CL+'lexington-high-end-light-weight/jMeMwKs2xgPYQSo5GnBhVJ',
+zflip4:CL+'lowell-samsung-galaxy-flip-256g-unlock/9krRoydd2xRp2FMhTG79ya',
+prec5540:CL+'malden-dell-precision-5540-i9-high/9seC6Rkd7Ha3CtaA7h6ybT',
+rogswift:CL+'hopkinton-asus-rog-swift-gaming-monitor/j2XPg6Rbcbzxia5Ty7T9kK',
+switcholed:CL+'westford-nintendo-switch-oled-lot/pV5cCJ1HKw14qvwG5XxWdR',
+cyborg14:CL+'boston-msi-cyborg-14-a13vf-gaming-laptop/8u38fvY7ADTkM2Gbx1iodX',
+strix3060:CL+'arlington-asus-rog-strix-geforce-rtx/bwb6vfBHaPW1ven7ueePw8',
+tabs9:CL+'boston-samsung-galaxy-tab-gb-12gb-ram/mwWKAJN5jqj5EXX7XsaTgK',
+prec7510:CL+'peabody-dell-precision-7510-workstation/1BeFx3ZZJZwVxeMgG4uWKS',
+xboxonex:CL+'brookline-xbox-one-1tb-black-with/kGDoJNVoWAYmU9kP2xiA8c',
+gtx1080pc:CL+'bedford-gaming-pc-desktop-intel-i7/tv7ux2NZmV5S9ESgNygEeQ',
+xps15:CL+'malden-dell-xps-performance-laptop/p2E7UJgd2GPbSB3iKcyEfV',
+ps5slim:CL+'braintree-playstation-slim-disc/mtsGtEYxe2qzKNaxgxS7A8',
+xsxextras:CL+'wilmington-xbox-series-with-extras/34uLw2gDkfyG3FQ1Y8KtJU',
+switch2:CL+'nashua-nintendo-switch/e48wXjfyrNzmQ8wFoAW1Bo',
+rtx5080:CL+'andover-pny-geforce-rtx-gb-oc-triple/xy2TnKVD39BJhUptrwLiAV',
+g16chr:CL+'charlestown-asus-g16chr-gaming-pc-intel/iqbW2di7RB7qWB6kJhrEJ8',
+macpro2010:CL+'hull-upgraded-2010-mac-pro-12-core-32gb/jH4vXzu1F2t3FX5yokKD7d',
+thinkstation:CL+'holliston-lenovo-thinkstation-desktop/vemoS99PXectXeUzu4AuBP',
+quest3s:CL+'lynn-brand-new-and-sealed-meta-quest-3s/3Bci1waLKJBYuHUpWyu5Sa',
+allyx:CL+'dorchester-center-asus-rog-ally/fyp56A1LUyU5cqW5caDznA',
+evga3080:CL+'tewksbury-evga-geforce-rtx-3080-ftw3/wr7jCDEABgrigkj986fXVh',
+aspire:CL+'needham-heights-acer-laptop-aspire-e15/1mCoVV8nfuPVMGFV8aroj4',
+a1311:CL+'brookline-apple-215-imac-a1311-needs/9YaUMjiQnZE2s6kxuDCVds',
+tufa16:CL+'medford-asus-a16-tuf-16-gaming-laptop/wvSEC5nNGSgsRLrLpnZRGh',
+mba13:CL+'lexington-mac-book-air-133-i7-cpu/5kvBsSTuEpSwapdQSWBysC',
+xps9300:CL+'malden-dell-xps-9300-high-performance/9B3QBvY6P1FvRwY6hrwe4j',
+x1carbmal:CL+'malden-thinkpad-x1-carbon-high/axdN3KLYwXVu8YuBRzUP8M',
+dell32_4k:CL+'marblehead-dell-32-4k-ips-gaming/fXJ4qLU55PmZyMVSjRokwf',
+ipadkb:CL+'west-roxbury-apple-ipad-pro-129-keyboard/8ecG6nHC71VJEtTo94yHCT',
+tamron1530:CL+'medford-tamron-15-30mm-f28-mint-g2/iwbEcgisdfJzpYs43aAb1c',
+dell7786:CL+'malden-dell-7786-touchscreen-i7-laptop/mTmbXqYVi4LhxYEqEa46CJ',
+ryzen7600x3d:CL+'belmont-amd-ryzen-7600x3d-am5-41ghz/baCxoRt8rtw43fPFfsuGce',
+canon1635:CL+'quincy-mint-minus-canon-ef-16-35mm-f4/aVminuxsEUpDAzZ9QfQpyC',
+tamron70200:CL+'somerville-tamron-f28-di-vc-nikon-mount/5yD12Fi3P9aP6mFaiQbskQ',
+sigma16300:CL+'georgetown-sigma-mm-dc-os-for-sony/bA4i6GURMuyCTVxUSsLTQ7',
+oled39:CL+'billerica-oled-39-gaming-monitor/r3Gk2nd6Ld2pSnRgFenEYi',
+sonya1:CL+'wayland-sony-a1-pristine-condition/dfEakqv2rGmNXVcDpkBVhq',
+zeiss15:CL+'lincoln-zeiss-ze-for-canon-ef-mount/s9Drjz6RYQXPRDspWDWmxE',
+mbp17:CL+'holliston-macbook-pro-17/qwhyAu5FG3ePvmeeFdySyV',
+gamingpc1000:CL+'billerica-gaming-computer/8rJNDK9wC2Pvb1WJKkw5ar',
+strixg18:CL+'saugus-asus-rog-strix-k-240hz-gaming/omtnZKc6XqrzwCVXyM2KSj',
+iphone15pmw:CL+'boston-iphone-15-pro-max-256gb-white/4xPpkvZ9TT5LsqZAa8Bz8s',
+lg34uc97:CL+'allston-lg-34uc-97-curvwed-ultra-wide/upxkZ1ymFVK4ueugFcquzR',
+appletb27:CL+'cambridge-apple-qhd-27-thunderbolt-to/gqzwPAoKRa7eAMUcSyAdQN',
+evo870x3:CL+'lexington-samsung-500gb-870-evo-sata/4cpCHbxFJUUMLv2wEvSeVM',
+mavic2:CL+'smithfield-dji-mavic-pro-smart/qcW9NhisdCyAsNhfkV3mWC',
+note20u:CL+'boston-samsung-galaxy-note20-ultra-5g/7MW4KmxGr5hzLJ1GU9EHm1',
+nikond5000:CL+'newburyport-nikon-d5000-camera-kit/1unZHeN7jYyBARZQ452wFt',
+epsonv700:CL+'north-falmouth-epson-perfection-v700/iVY1yxdF8U7gPCcDsMKATY'
+};
 
 const DEEP=[
 {id:'nzxt750',name:'Gaming PC "SPECS IN PICTURES" (NZXT)',loc:'Dedham',ask:'$750',
@@ -311,7 +387,7 @@ function prog(){
 document.getElementById('deep').innerHTML=DEEP.map(d=>{
   const s=get(d.id);
   return `<div class="card ${s.j?'done':''}" id="c-${d.id}">
-    <div class="top"><div class="name">${d.name}</div><div class="ask">${d.ask}</div></div>
+    <div class="top"><div class="name"><a href="${URLS[d.id]}" target="_blank" rel="noopener">${d.name} ↗</a></div><div class="ask">${d.ask}</div></div>
     <div class="meta">${d.loc}${d.was?' · originally called '+d.was:''}</div>
     <span class="tag ${d.verdict}">${d.verdict}</span>
     <p class="why">${d.why}</p>
@@ -331,7 +407,7 @@ document.getElementById('deep').innerHTML=DEEP.map(d=>{
 document.getElementById('quick').innerHTML=QUICK.map(q=>{
   const s=get(q[0]);
   return `<div class="quick">
-    <div class="q-name" title="${q[1]}">${q[1]}<span style="color:var(--dimmer)"> · ${q[2]}</span></div>
+    <div class="q-name" title="${q[1]}"><a href="${URLS[q[0]]}" target="_blank" rel="noopener">${q[1]} ↗</a><span style="color:var(--dimmer)"> · ${q[2]}</span></div>
     <div class="q-num">${q[3]} <span style="color:var(--dimmer)">vs ${q[4]}</span></div>
     <span class="tag ${q[5].split(' ')[0]}" style="margin:0">${q[5]}</span>
     <select data-q="${q[0]}">
