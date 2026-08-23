@@ -7,6 +7,7 @@ import { fetchListing } from "../sources/craigslist.ts";
 import { analyze } from "../signals/index.ts";
 import { db, now } from "../db/index.ts";
 import { downloadPhoto, dhash, distance } from "../photos/index.ts";
+import { analyzePhotos } from "../vision/index.ts";
 
 const CL = "https://www.craigslist.org/view/d/";
 const TESTSET: Array<[string, string]> = [
@@ -20,7 +21,9 @@ const TESTSET: Array<[string, string]> = [
   ["sharon-dell-latitude-i7-32gb-512gb/8ELzrQjvshdzguCaKRoxne", "expect high quality + high sophistication, few negatives"],
 ];
 
-const args = process.argv.slice(2);
+const argv = process.argv.slice(2);
+const useVision = argv.includes("--vision");
+const args = argv.filter((a) => a !== "--vision");
 const targets = args[0] === "--testset"
   ? TESTSET.map(([p, note]) => ({ url: CL + p, note }))
   : args.map((url) => ({ url, note: "" }));
@@ -107,9 +110,36 @@ for (const { url, note } of targets) {
       console.log(`  \x1b[35m! DUPLICATE_PHOTOS\x1b[0m — ${dmsg}. Same seller cross-posting means the real time-on-market is the OLDER date; a different seller means one of them took the other's photos.`);
     }
     if (!r.signals.length && !dupes.length) console.log("  (no signals)");
+
     for (const s of r.signals) {
       const color = s.polarity === "positive" ? "\x1b[32m" : s.polarity === "negative" ? "\x1b[33m" : "\x1b[36m";
       console.log(`  ${color}${SEV[s.severity]} ${s.code}\x1b[0m — ${s.evidence}`);
+    }
+    if (useVision) {
+      const t0 = Date.now();
+      const v = await analyzePhotos(row.id);
+      const ms = Date.now() - t0;
+      if (v) {
+        d.query(
+          `INSERT INTO vision_results (listing_id, model, payload, duration_ms, created_at)
+           VALUES ($lid,'claude-code-headless',$p,$ms,$now)`,
+        ).run({ $lid: row.id, $p: JSON.stringify(v), $ms: ms, $now: now() });
+
+        const found = Object.entries(v.components).filter(([, x]) => x);
+        console.log(`  \x1b[36m→ vision (${(ms / 1000).toFixed(0)}s)\x1b[0m ${found.map(([k, x]) => `${k}=${x}`).join(" · ") || "nothing legible"}`);
+        if (v.specScreens?.length) console.log(`    spec screen in photo ${v.specScreens.join(", ")}`);
+        if (v.displayOutputsVisible === false)
+          console.log(`    \x1b[33m!! no display outputs on the I/O bracket — not usable as a graphics card\x1b[0m`);
+        if (v.bootScreenOnly)
+          console.log(`    \x1b[33m! boot screen only — proves power, rules out nothing (lock status unverified)\x1b[0m`);
+        if (v.screenshotArtifacts)
+          console.log(`    \x1b[33m! screenshot artifacts — ${v.screenshotArtifacts}\x1b[0m`);
+        if (v.portDamage && v.portCondition)
+          console.log(`    \x1b[33m! port condition (FUNCTIONAL, not cosmetic) — ${v.portCondition.slice(0, 120)}\x1b[0m`);
+        if (v.unreadable?.length) console.log(`    \x1b[2munreadable photos: ${v.unreadable.join(", ")}\x1b[0m`);
+      } else {
+        console.log(`  \x1b[2m→ vision failed or timed out\x1b[0m`);
+      }
     }
   } catch (e) {
     console.error(`\n✗ ${url}\n  ${(e as Error).message}`);

@@ -167,3 +167,16 @@ CREATE TABLE IF NOT EXISTS user_economics (
   prefers_channel              TEXT,      -- facebook|ebay
   updated_at                   TEXT NOT NULL
 );
+
+-- ----------------------------------------------------------------- vision
+-- Structured facts extracted from photos. Kept separate from verdicts because
+-- vision is expensive and re-runnable independently of valuation logic.
+CREATE TABLE IF NOT EXISTS vision_results (
+  id          INTEGER PRIMARY KEY,
+  listing_id  INTEGER NOT NULL REFERENCES listings(id),
+  model       TEXT NOT NULL,          -- which model produced it
+  payload     TEXT NOT NULL,          -- full VisionResult JSON
+  duration_ms INTEGER,
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_vision_listing ON vision_results(listing_id);
