@@ -1,0 +1,626 @@
+{
+  "audited_at": "2026-08-23T18:27:30.468Z",
+  "results": [
+    {
+      "id": "nzxt750",
+      "item": "Gaming PC \"SPECS IN PICTURES\" (NZXT)",
+      "ask": "$750",
+      "claude": "BUY",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": "This is honestly an amazing price one of the best ive seen in a while"
+    },
+    {
+      "id": "latitude5520",
+      "item": "Dell Latitude 5520 — i7-1185G7 / 16GB / 512GB",
+      "ask": "$199",
+      "claude": "BUY",
+      "judgment": "partial",
+      "yish_verdict": "FAIR",
+      "notes": "so looking into the images the bottom is super messed up and the side ports look in pretty bad shape. referbished on amazon goes for $425"
+    },
+    {
+      "id": "iphone15pm",
+      "item": "iPhone 15 Pro Max \"Unlocked\"",
+      "ask": "$500",
+      "claude": "RISK",
+      "judgment": "partial",
+      "yish_verdict": "VERIFY",
+      "notes": "I would contact seller on this listing because a common theme on craigslist is that theres a high chance that this isnt even available anymore since it was listed 3 months ago and facebook marketplace are better at making sure listings are still live. "
+    },
+    {
+      "id": "teslap100",
+      "item": "NVIDIA Tesla P100 16GB",
+      "ask": "$80",
+      "claude": "RISK",
+      "judgment": "partial",
+      "yish_verdict": "PASS",
+      "notes": "I would say pass because of how weak and how there is practically no market for this gpu. it scores super low even lower than a 1660 on gaming. so even though its $80 it would be hard to resell but if your looking for this card specifically its prpobably a good price. "
+    },
+    {
+      "id": "imac5k",
+      "item": "2019 5K 27\" iMac A2115",
+      "ask": "$295",
+      "claude": "RISK",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": "I would stay away from this due to the crack on an imac those screens are expensive to replace and the unfinished installation is what people stay away from"
+    },
+    {
+      "id": "gamingpc650",
+      "item": "Gaming PC — i7-6700K / RTX 3050",
+      "ask": "$650",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": "I would also pass on this its a super old processor and the 3050 is most defenetly not a good gpu for gaming although 16gb of ram is good. A good deal on this would be like $250. "
+    },
+    {
+      "id": "iphone15cam",
+      "item": "iPhone 15 128GB",
+      "ask": "$250",
+      "claude": "VERIFY",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": "I would also verify becuase this is super low for a 15. he also mentions a lighting cable in the description which is weird because the phone is usb c. id want to ask him if the phone is unlocked to carrier and if it is locked to t mobile if he still needs to pay it off. "
+    },
+    {
+      "id": "xbox2tb",
+      "item": "Xbox Series X 2TB Galaxy Black \"sealed\"",
+      "ask": "$1,850",
+      "claude": "RISK",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": "if I had to guess I would say that this listing is no longer available, 6 months is alot and even though its a 2tb special edition no one would ever pay that amount for it. "
+    },
+    {
+      "id": "mbp2014",
+      "item": "MacBook Pro 15\" mid-2014",
+      "ask": "$80",
+      "claude": "FAIR",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": "I agree this is fair, i would never buy it even for $80 because its 2014 thats too old. nowadays the only apple laptops that are worth reselling are the m processor ones so oldest id go is like 2019. but for like an old women who wants an apple laptop for cheap it could be good. "
+    },
+    {
+      "id": "psvr2",
+      "item": "Sony PSVR2 \"barely used\"",
+      "ask": "$120",
+      "claude": "BUY",
+      "judgment": "disagree",
+      "yish_verdict": "RISK",
+      "notes": "I would stay away from VR and especially this one since theres no image in the listing. VR gets boring after 2 weeks and people know that, there also very hard to resell. also posted a long time ago so would need to reach out to seller. "
+    },
+    {
+      "id": "latitude7420",
+      "item": "Dell Latitude 7420 — i7-1185G7 / 32GB / 512GB",
+      "ask": "$295",
+      "claude": "BUY",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": "This is actually a good deal. this is a prime example of a trustworthy seller you can tell by the description. its also a good price for a i7 11th gen and 32gb ram. "
+    },
+    {
+      "id": "iphone16pm",
+      "item": "iPhone 16 Pro Max 1TB Black Titanium + AppleCare+",
+      "ask": "$800",
+      "claude": "VERIFY",
+      "judgment": "disagree",
+      "yish_verdict": "BUY",
+      "notes": "Very good condition and it has apple care + and also they agree to $750 cash which is a great deal. "
+    },
+    {
+      "id": "zflip6",
+      "item": "Samsung Galaxy Z Flip 6 512GB",
+      "ask": "$350",
+      "claude": "VERIFY",
+      "judgment": "partial",
+      "yish_verdict": "FAIR",
+      "notes": "I trust this description and its in good condition. he states or best offer which gives a bit of flexibility on the price. the phone usually sells for $350-450 so id pay like $280 would be a good deal. "
+    },
+    {
+      "id": "zfold5",
+      "item": "Samsung Galaxy Z Fold 5 512GB",
+      "ask": "$750",
+      "claude": "RISK",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": "this is a terrible deal no photos and a old phone for $750 awful z fold 5 is 3 generations old. "
+    },
+    {
+      "id": "ramscam",
+      "item": "Overpriced component cluster (RAM / SSD)",
+      "ask": "$200–800",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": "its top of the line ram but at $800 is crazy. its not 4x retail though there is a crazy ram shortage and you can expect to pay for ddr5 32 gb ram like $400+"
+    },
+    {
+      "id": "optiplex",
+      "item": "Dell Optiplex 7060 SFF",
+      "ask": "$60",
+      "claude": "BUY",
+      "judgment": "disagree",
+      "yish_verdict": "PASS",
+      "notes": ""
+    },
+    {
+      "id": "imac24",
+      "item": "2021 24\" iMac (M1)",
+      "ask": "$500",
+      "claude": "BUY",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "iphone12",
+      "item": "iPhone 12 64GB unlocked",
+      "ask": "$195",
+      "claude": "FAIR",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "e7470",
+      "item": "Dell Latitude E7470 i5",
+      "ask": "$95",
+      "claude": "FAIR",
+      "judgment": "disagree",
+      "yish_verdict": "PASS",
+      "notes": ""
+    },
+    {
+      "id": "x1carbon",
+      "item": "ThinkPad X1 11th-gen i7 + dock",
+      "ask": "$500",
+      "claude": "FAIR",
+      "judgment": "disagree",
+      "yish_verdict": "PASS",
+      "notes": ""
+    },
+    {
+      "id": "zflip4",
+      "item": "Galaxy Z Flip 4 256GB",
+      "ask": "$218",
+      "claude": "FAIR",
+      "judgment": "disagree",
+      "yish_verdict": "PASS",
+      "notes": ""
+    },
+    {
+      "id": "prec5540",
+      "item": "Dell Precision 5540 i9",
+      "ask": "$500",
+      "claude": "FAIR",
+      "judgment": "disagree",
+      "yish_verdict": "VERIFY",
+      "notes": ""
+    },
+    {
+      "id": "rogswift",
+      "item": "ASUS ROG Swift 27\" 1440p",
+      "ask": "$300",
+      "claude": "FAIR",
+      "judgment": "disagree",
+      "yish_verdict": "PASS",
+      "notes": ""
+    },
+    {
+      "id": "switcholed",
+      "item": "Nintendo Switch OLED lot",
+      "ask": "$300",
+      "claude": "FAIR",
+      "judgment": "disagree",
+      "yish_verdict": "PASS",
+      "notes": ""
+    },
+    {
+      "id": "cyborg14",
+      "item": "MSI Cyborg 14 A13VF (RTX 4060)",
+      "ask": "$700",
+      "claude": "FAIR",
+      "judgment": "disagree",
+      "yish_verdict": "BUY",
+      "notes": ""
+    },
+    {
+      "id": "strix3060",
+      "item": "ASUS ROG Strix RTX 3060 12GB",
+      "ask": "$250",
+      "claude": "PASS",
+      "judgment": "disagree",
+      "yish_verdict": "FAIR",
+      "notes": ""
+    },
+    {
+      "id": "tabs9",
+      "item": "Samsung Galaxy Tab S9 256GB",
+      "ask": "$550",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "prec7510",
+      "item": "Dell Precision 7510",
+      "ask": "$250",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "xboxonex",
+      "item": "Xbox One X 1TB",
+      "ask": "$180",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "gtx1080pc",
+      "item": "Gaming PC i7-7700K / GTX 1080",
+      "ask": "$560",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "xps15",
+      "item": "Dell XPS 15 9520",
+      "ask": "$1,000",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "ps5slim",
+      "item": "PlayStation 5 Slim disc",
+      "ask": "$450",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "xsxextras",
+      "item": "Xbox Series X + extras",
+      "ask": "$450",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "switch2",
+      "item": "Nintendo Switch 2",
+      "ask": "$450",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "rtx5080",
+      "item": "PNY RTX 5080 16GB",
+      "ask": "$1,150",
+      "claude": "PASS",
+      "judgment": "disagree",
+      "yish_verdict": "FAIR",
+      "notes": ""
+    },
+    {
+      "id": "g16chr",
+      "item": "ASUS G16CHR i7-14700K",
+      "ask": "$1,499",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "macpro2010",
+      "item": "2010 Mac Pro 12-core 32GB",
+      "ask": "$250",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "thinkstation",
+      "item": "Lenovo ThinkStation Xeon 16c 96GB",
+      "ask": "$700",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "quest3s",
+      "item": "Meta Quest 3S \"sealed\"",
+      "ask": "$300",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "allyx",
+      "item": "ASUS ROG Ally X",
+      "ask": "$790",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "evga3080",
+      "item": "EVGA RTX 3080 FTW3 Ultra",
+      "ask": "$450",
+      "claude": "PASS + mining risk",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "aspire",
+      "item": "Acer Aspire E15",
+      "ask": "$275",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "a1311",
+      "item": "Apple iMac A1311 \"needs OS\"",
+      "ask": "$165",
+      "claude": "RISK",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "tufa16",
+      "item": "Asus A16 TUF 16\"",
+      "ask": "$800",
+      "claude": "UNKNOWN",
+      "judgment": "disagree",
+      "yish_verdict": "PASS",
+      "notes": ""
+    },
+    {
+      "id": "mba13",
+      "item": "MacBook Air 13.3\" i7",
+      "ask": "$125",
+      "claude": "UNKNOWN",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "xps9300",
+      "item": "Dell XPS 9300 (10th gen)",
+      "ask": "$250",
+      "claude": "BUY",
+      "judgment": "disagree",
+      "yish_verdict": "PASS",
+      "notes": ""
+    },
+    {
+      "id": "x1carbmal",
+      "item": "ThinkPad X1 Carbon",
+      "ask": "$250",
+      "claude": "BUY",
+      "judgment": "disagree",
+      "yish_verdict": "PASS",
+      "notes": ""
+    },
+    {
+      "id": "dell32_4k",
+      "item": "Dell 32\" 4K IPS 144Hz",
+      "ask": "$300",
+      "claude": "BUY",
+      "judgment": "disagree",
+      "yish_verdict": "FAIR",
+      "notes": ""
+    },
+    {
+      "id": "ipadkb",
+      "item": "Apple iPad Pro 12.9\" Magic Keyboard",
+      "ask": "$100",
+      "claude": "BUY",
+      "judgment": "disagree",
+      "yish_verdict": "FAIR",
+      "notes": ""
+    },
+    {
+      "id": "tamron1530",
+      "item": "Tamron 15-30 f2.8 G2 Nikon F \"MINT\"",
+      "ask": "$400",
+      "claude": "BUY",
+      "judgment": "disagree",
+      "yish_verdict": "UNKNOWN",
+      "notes": ""
+    },
+    {
+      "id": "dell7786",
+      "item": "Dell 7786 Touchscreen i7 2-in-1",
+      "ask": "$400",
+      "claude": "FAIR",
+      "judgment": "disagree",
+      "yish_verdict": "PASS",
+      "notes": ""
+    },
+    {
+      "id": "ryzen7600x3d",
+      "item": "AMD Ryzen 7600X3D AM5",
+      "ask": "$220",
+      "claude": "FAIR",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "canon1635",
+      "item": "Canon EF 16-35mm f4 L IS \"mint-minus\"",
+      "ask": "$475",
+      "claude": "FAIR",
+      "judgment": "disagree",
+      "yish_verdict": "UNKNOWN",
+      "notes": ""
+    },
+    {
+      "id": "tamron70200",
+      "item": "Tamron 70-200 f2.8 Di VC Nikon F",
+      "ask": "$400",
+      "claude": "FAIR",
+      "judgment": "disagree",
+      "yish_verdict": "UNKNOWN",
+      "notes": ""
+    },
+    {
+      "id": "sigma16300",
+      "item": "Sigma 16-300mm DC OS Sony E",
+      "ask": "$495",
+      "claude": "FAIR",
+      "judgment": "disagree",
+      "yish_verdict": "UNKNOWN",
+      "notes": ""
+    },
+    {
+      "id": "oled39",
+      "item": "OLED 39\" Gaming Monitor",
+      "ask": "$750",
+      "claude": "VERIFY",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "sonya1",
+      "item": "Sony A1 \"pristine\"",
+      "ask": "$3,899",
+      "claude": "VERIFY",
+      "judgment": "disagree",
+      "yish_verdict": "UNKNOWN",
+      "notes": ""
+    },
+    {
+      "id": "zeiss15",
+      "item": "Zeiss ZE 15mm f2.8 Canon EF",
+      "ask": "$600",
+      "claude": "VERIFY",
+      "judgment": "disagree",
+      "yish_verdict": "UNKNOWN",
+      "notes": ""
+    },
+    {
+      "id": "mbp17",
+      "item": "MacBook Pro 17\"",
+      "ask": "$300",
+      "claude": "VERIFY",
+      "judgment": "disagree",
+      "yish_verdict": "PASS",
+      "notes": ""
+    },
+    {
+      "id": "gamingpc1000",
+      "item": "Gaming Computer (no specs)",
+      "ask": "$1,000",
+      "claude": "UNKNOWN",
+      "judgment": "disagree",
+      "yish_verdict": "FAIR",
+      "notes": ""
+    },
+    {
+      "id": "strixg18",
+      "item": "ASUS ROG Strix G18 240Hz",
+      "ask": "$2,400",
+      "claude": "UNKNOWN",
+      "judgment": "disagree",
+      "yish_verdict": "FAIR",
+      "notes": ""
+    },
+    {
+      "id": "iphone15pmw",
+      "item": "iPhone 15 Pro Max 256GB white",
+      "ask": "$460",
+      "claude": "VERIFY",
+      "judgment": "disagree",
+      "yish_verdict": "FAIR",
+      "notes": ""
+    },
+    {
+      "id": "lg34uc97",
+      "item": "LG 34UC97-S UltraWide (2014 era)",
+      "ask": "$599",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "appletb27",
+      "item": "Apple Thunderbolt 2 27\" Display",
+      "ask": "$249",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "evo870x3",
+      "item": "3× Samsung 870 EVO 500GB",
+      "ask": "$240",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "mavic2",
+      "item": "DJI Mavic 2 Pro + Smart Controller bundle",
+      "ask": "$1,200",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "note20u",
+      "item": "Galaxy Note20 Ultra 5G unlocked",
+      "ask": "$300",
+      "claude": "PASS",
+      "judgment": "agree",
+      "yish_verdict": "",
+      "notes": ""
+    },
+    {
+      "id": "nikond5000",
+      "item": "Nikon D5000 kit + lenses",
+      "ask": "$490",
+      "claude": "PASS",
+      "judgment": "disagree",
+      "yish_verdict": "UNKNOWN",
+      "notes": ""
+    },
+    {
+      "id": "epsonv700",
+      "item": "Epson Perfection V700 scanner",
+      "ask": "$550",
+      "claude": "PASS",
+      "judgment": "disagree",
+      "yish_verdict": "UNKNOWN",
+      "notes": ""
+    }
+  ]
+}

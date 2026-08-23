@@ -1,0 +1,166 @@
+# Calibration — Yish's Phase 0 Audit
+
+**Source:** `testset/audit-results-2026-08-23.json` — 69 listings, audited 2026-08-23.
+
+| | count |
+|---|---|
+| Agree | 35 |
+| Partial | 4 |
+| Disagree | 30 |
+| **Direction of corrections** | **16 harsher, 10 softer, 6 out-of-scope** |
+
+**51% agreement is the headline number and it is not the useful one.** The disagreements are *systematic*, which means they're rules I don't have yet rather than noise. Every pattern below is a change to the model.
+
+---
+
+## Finding 1 — The BUY threshold is fundamentally wrong ⚠️ **biggest one**
+
+**I have been valuing at market. Yish buys at flip margin.** Those are completely different thresholds and I built the whole verdict taxonomy on the wrong one.
+
+The clearest evidence, from his note on the $650 i7-6700K / RTX 3050 build:
+
+> *"A good deal on this would be like **$250**."*
+
+I priced fair whole-unit value at **$380–450** and called it PASS for being over that. He wants it at **$250** — roughly **55–65% of my "fair" number** — before it's worth his time.
+
+That single ratio explains most of the 16 harsher corrections:
+
+| Listing | Ask | Me | Yish |
+|---|---|---|---|
+| Dell Optiplex 7060 | $60 | BUY | **PASS** |
+| Dell XPS 9300 | $250 | BUY | **PASS** |
+| ThinkPad X1 Carbon | $250 | BUY | **PASS** |
+| Dell Latitude E7470 | $95 | FAIR | **PASS** |
+| ThinkPad X1 + dock | $500 | FAIR | **PASS** |
+| Galaxy Z Flip 4 | $218 | FAIR | **PASS** |
+| ROG Swift 27" | $300 | FAIR | **PASS** |
+| Switch OLED lot | $300 | FAIR | **PASS** |
+| Dell 7786 2-in-1 | $400 | FAIR | **PASS** |
+| Dell 32" 4K | $300 | BUY | **FAIR** |
+| iPad Magic Keyboard | $100 | BUY | **FAIR** |
+
+**The fix:** `FAIR` must mean "at market, no edge, don't drive for it." `BUY` must require a **margin band after fees, time and risk**, not merely a price below comps.
+
+❓ **Yish — this is the highest-value number you can give me:** what discount off real market makes something a BUY? Your 6700K note implies roughly **40–50% off**. Confirm or correct, and say whether it differs by category and by price tier.
+
+---
+
+## Finding 2 — My component market data is stale ⚠️
+
+On the overpriced-component cluster I called the Crucial 64GB DDR5 at $800 "~4× retail." Yish:
+
+> *"its not 4x retail though **there is a crazy ram shortage** and you can expect to pay for ddr5 32 gb ram like **$400+**"*
+
+If that holds, $800 for 64GB is roughly **market**, not 4×. He also raised both GPUs I'd called overpriced:
+
+- ASUS ROG Strix RTX 3060 12GB — PASS → **FAIR**
+- PNY RTX 5080 16GB — PASS → **FAIR**
+
+**This is the single strongest argument for the comps archive.** My component pricing is baked-in static knowledge and the market moved underneath it. Live sold comps would have caught all three. Until the archive exists, **every component valuation I produce should be treated as unreliable.**
+
+---
+
+## Finding 3 — Sell-through is a hard filter, not a soft one ✅
+
+Yish rejects entire categories on liquidity, independent of price:
+
+> **VR** — *"I would stay away from VR... VR gets boring after 2 weeks and people know that, there also very hard to resell."* (PSVR2 at $120: my BUY → his **RISK**)
+
+> **Pre-2019 Macs** — *"the only apple laptops that are worth reselling are the m processor ones so oldest id go is like 2019."*
+
+> **Datacenter GPUs** — *"practically no market for this gpu... it would be hard to resell."* (Tesla P100: my RISK → his **PASS** — same conclusion, different reason. I said "not a GPU," he said "no buyers.")
+
+**The rule: a good price on something that won't sell is not a deal.** The schema already has `sell_through_rate`; the engine wasn't weighting it. It needs a **category liquidity tier** that can veto a BUY regardless of margin.
+
+❓ **Yish:** full list of dead categories, please. VR, pre-2019 Macs and datacenter GPUs are three. What else do you refuse on principle?
+
+---
+
+## Finding 4 — Camera and photo gear is out of scope ✅
+
+Yish marked **all 8** camera listings UNKNOWN: Tamron 15-30, Tamron 70-200, Canon 16-35L, Sigma 16-300, Sony A1, Zeiss ZE 15mm, Nikon D5000, Epson V700.
+
+That's not disagreement, it's **declining to judge outside his expertise** — and it means camera gear cannot be validated by the person building this.
+
+**Decision needed: cut camera gear from scope, or accept an unvalidatable category.** Recommendation: **cut it.** Lens and body valuation depends on copy variation, mount ecosystems and cosmetic grading conventions that are their own discipline. Scope stays laptops, phones, GPUs, prebuilts, consoles, components.
+
+---
+
+## Finding 5 — `UNKNOWN` is overloaded and must split ✅
+
+The audit exposed that UNKNOWN currently means two unrelated things:
+
+1. **INSUFFICIENT_DATA** — the listing doesn't contain enough to value it *(schema meaning)*
+2. **OUT_OF_SCOPE** — the category isn't one we judge *(what Yish meant, 6–8 times)*
+
+These need different handling: #1 generates questions for the seller, #2 shouldn't be surfaced to the user at all. **Add `OUT_OF_SCOPE` to the verdict taxonomy.**
+
+---
+
+## Finding 6 — Listing liveness is its own signal 🆕
+
+> *"a common theme on craigslist is that theres a high chance that this isnt even available anymore since it was listed 3 months ago and **facebook marketplace are better at making sure listings are still live**."*
+
+And on the $1,850 Xbox: *"if I had to guess I would say that this listing is no longer available."*
+
+**New rule: time-on-market means different things per platform.** Craigslist does not aggressively prune, so an old listing is often simply dead. Facebook does, so an old Facebook listing is genuinely unsold — a much stronger signal.
+
+**Platform-specific decay must be a parameter, not a constant.** This also partially rehabilitates several of my RISK calls: some of those listings aren't scams, they're corpses.
+
+---
+
+## Finding 7 — I read descriptions; Yish reads images. His catches were better. ⚠️
+
+**Dell Latitude 5520** (my BUY → his FAIR):
+> *"looking into the images the **bottom is super messed up and the side ports look in pretty bad shape**. refurbished on amazon goes for $425"*
+
+The seller disclosed "heavy scratches on bottom cover." I logged that as **cosmetic**. Yish looked at the photos and saw **port damage**, which is *functional*. Different category of defect entirely, and it moves the verdict.
+
+**New rule: port, hinge and connector condition is functional, never cosmetic**, regardless of how the seller frames it. Inspect these specifically in photos.
+
+**iPhone 15 128GB** — a contradiction I completely missed:
+> *"he also mentions a **lighting cable** in the description which is weird because **the phone is usb c**"*
+
+**The iPhone 15 is USB-C.** A seller including a Lightning cable either doesn't have the phone, doesn't know what they have, or is describing a different device. That's a textbook section 3f impossible-spec contradiction and I walked straight past it.
+
+**Build the accessory-compatibility check into 3f**: Lightning vs USB-C by model year, PCIe generation by socket, DDR4 vs DDR5 by platform, charger wattage by model.
+
+---
+
+## Finding 8 — Negotiation is part of the verdict 🆕
+
+On the iPhone 16 Pro Max (my VERIFY → his **BUY**):
+
+> *"Very good condition and it has apple care + and also **they agree to $750 cash** which is a great deal."*
+
+**He contacted the seller and moved the price from $800 to $750.** My verdict treated the asking price as fixed. It isn't.
+
+This also resolves Finding 10c (false positives): I was worried I'd flagged a real deal as a scam. **I had.** He bought the reasoning, ignored the payment-rail worry by simply insisting on cash, and closed lower.
+
+**Implication:** the engine should output a **target offer price**, and `VERIFY` should mean "go ask," not "be afraid." Naming the question is the product; treating the question as a threat is not.
+
+---
+
+## What I got right
+
+35 clean agreements, and the high-signal ones held:
+
+- **NZXT RTX 5070 build, BUY** — *"honestly an amazing price one of the best ive seen in a while"*
+- **Dell Latitude 7420, BUY** — *"a prime example of a trustworthy seller you can tell by the description"* (confirms section 3.5 directly)
+- **Brockton iPhone 15 Pro Max** — fraud reasoning accepted, softened only to VERIFY on liveness grounds
+- **2019 iMac, Xbox 2TB, Z Fold 5, iMac A1311** — all confirmed
+- **Bedford 6700K build** — right call, wrong threshold
+
+---
+
+## Actions
+
+- [ ] **Redefine BUY around margin, not market.** Blocked on Yish's discount number.
+- [ ] Add `OUT_OF_SCOPE` to the verdict taxonomy
+- [ ] Add category liquidity tiers with veto power over BUY
+- [ ] Cut camera and photo gear from scope
+- [ ] Platform-specific time-on-market decay
+- [ ] Accessory/interface compatibility checks in 3f (Lightning vs USB-C, PCIe gen, DDR gen)
+- [ ] Ports, hinges and connectors classified as functional damage
+- [ ] Emit a target offer price on every verdict
+- [ ] **Treat all component pricing as unreliable until the comps archive is live**
