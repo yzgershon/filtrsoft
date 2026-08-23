@@ -134,6 +134,23 @@ It cannot rule out FRP lock, activation lock, carrier lock, reset lock, a failin
 
 ---
 
+## 3.4 Cross-platform duplicate detection 🔧 **(planned capability — Yish, 2026-08-23)**
+
+**Method: perceptual image hashing (pHash), not text matching.** Hash every photo of every ingested listing and index the hashes. Titles and descriptions get rewritten between platforms; photos almost never do.
+
+Near-identical photos across two listings means one of exactly two things, and both matter:
+
+- **Same seller, different platforms** → gives you the **true time on market**. A listing one day old on Craigslist may be three weeks stale on Facebook. This directly corrects the age signal in 3c, which otherwise reads a fresh cross-post as a fresh listing.
+- **Different sellers, same photos** → one of them stole the images. Straight fraud detection, same mechanism, no extra work.
+
+Third payoff, which nobody in this market does: **a price delta across platforms is negotiating leverage.** "You have it listed at $700 on OfferUp" is something a buyer can actually use at the door.
+
+**Why it must be pHash and not search:** Facebook Marketplace is login-walled and not indexed by any search engine, OfferUp barely indexes, and fresh listings aren't indexed anywhere regardless. **A web search returning nothing is not evidence of no cross-post.** Any duplicate detection built on search will produce confident false negatives, which is the failure mode this whole product exists to avoid.
+
+Cheap to run: hashing is local, no model call, and it scales linearly with photos ingested.
+
+---
+
 ## 3.5 Seller sophistication — the underpricing signal ✅ **(Yish, 2026-08-23)**
 
 **This is a value signal, not a risk signal, and it may be the most commercially important thing in this document.**
