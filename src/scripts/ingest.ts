@@ -6,6 +6,7 @@
 import { fetchListing } from "../sources/craigslist.ts";
 import { analyze } from "../signals/index.ts";
 import { db, now } from "../db/index.ts";
+import { downloadPhoto, dhash, distance } from "../photos/index.ts";
 
 const CL = "https://www.craigslist.org/view/d/";
 const TESTSET: Array<[string, string]> = [
@@ -40,9 +41,28 @@ const ins = d.query(
    RETURNING id`,
 );
 const insPhoto = d.query(
-  `INSERT INTO listing_photos (listing_id, url, position, captured_at)
-   VALUES ($lid,$url,$pos,$cap)`,
+  `INSERT INTO listing_photos (listing_id, url, local_path, phash, position, captured_at)
+   VALUES ($lid,$url,$path,$phash,$pos,$cap)`,
 );
+
+/**
+ * Cross-platform / cross-listing duplicate check (RISK-MODEL 3.4).
+ * Hamming distance <= 10 on a 64-bit dhash is a near-duplicate. Same seller
+ * cross-posting tells you the TRUE time on market; different seller means one
+ * of them stole the photos.
+ */
+function findDuplicates(phash: string, listingId: number) {
+  const rows = d
+    .query(
+      `SELECT p.phash, p.listing_id, l.url, l.source, l.posted_at, l.title
+       FROM listing_photos p JOIN listings l ON l.id = p.listing_id
+       WHERE p.phash IS NOT NULL AND p.listing_id != $id`,
+    )
+    .all({ $id: listingId }) as Array<{
+      phash: string; listing_id: number; url: string; source: string; posted_at: string; title: string;
+    }>;
+  return rows.filter((r) => distance(phash, r.phash) <= 10);
+}
 
 const SEV = { blocker: "!!", high: "!", medium: "~", low: ".", info: "+" } as const;
 
@@ -58,9 +78,23 @@ for (const { url, note } of targets) {
       $photos: l.photoUrls.length, $raw: JSON.stringify(l.raw),
     }) as { id: number };
 
+    // Download EVERY photo and hash it. Never sample — the Phase 0 miss was a
+    // skipped third photo that contained the entire spec sheet.
     d.query("DELETE FROM listing_photos WHERE listing_id=$id").run({ $id: row.id });
-    l.photoUrls.forEach((u, i) =>
-      insPhoto.run({ $lid: row.id, $url: u, $pos: i, $cap: now() }));
+    const dupes: string[] = [];
+    for (const [i, u] of l.photoUrls.entries()) {
+      let path: string | null = null, phash: string | null = null;
+      try {
+        const got = await downloadPhoto(u, row.id, i);
+        path = got.path;
+        phash = await dhash(got.buf);
+        for (const dup of findDuplicates(phash, row.id)) {
+          const msg = `photo ${i} matches ${dup.source} listing "${dup.title.slice(0, 40)}" (posted ${dup.posted_at?.slice(0, 10)})`;
+          if (!dupes.includes(msg)) dupes.push(msg);
+        }
+      } catch { /* a dead image URL must not kill the ingest */ }
+      insPhoto.run({ $lid: row.id, $url: u, $path: path, $phash: phash, $pos: i, $cap: now() });
+    }
 
     const price = l.askingPriceCents ? `$${(l.askingPriceCents / 100).toLocaleString()}` : "—";
     console.log(`\n\x1b[1m${l.title}\x1b[0m  ${price}  ${l.location ?? ""}`);
@@ -69,7 +103,10 @@ for (const { url, note } of targets) {
       ` · quality ${r.listingQuality} · sophistication ${r.sellerSophistication}`,
     );
     if (note) console.log(`  \x1b[2m${note}\x1b[0m`);
-    if (!r.signals.length) console.log("  (no signals)");
+    for (const dmsg of dupes) {
+      console.log(`  \x1b[35m! DUPLICATE_PHOTOS\x1b[0m — ${dmsg}. Same seller cross-posting means the real time-on-market is the OLDER date; a different seller means one of them took the other's photos.`);
+    }
+    if (!r.signals.length && !dupes.length) console.log("  (no signals)");
     for (const s of r.signals) {
       const color = s.polarity === "positive" ? "\x1b[32m" : s.polarity === "negative" ? "\x1b[33m" : "\x1b[36m";
       console.log(`  ${color}${SEV[s.severity]} ${s.code}\x1b[0m — ${s.evidence}`);
