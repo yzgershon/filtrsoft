@@ -23,7 +23,33 @@ export function db(): Database {
   }
   _db = new Database(DB_PATH, { create: true });
   _db.exec(readFileSync(join(here, "schema.sql"), "utf8"));
+  migrate(_db);
   return _db;
+}
+
+/**
+ * Columns added to `listings` after it already had rows.
+ *
+ * `schema.sql` is all CREATE TABLE IF NOT EXISTS, which is idempotent but does
+ * NOT add a column to a table that already exists — so a new field would be
+ * present on a fresh database and silently absent on the one holding all the
+ * real data. Check pragma, add what is missing. ALTER TABLE ADD COLUMN is cheap
+ * in SQLite and this runs on every open.
+ */
+const LISTING_COLUMNS: Array<[string, string]> = [
+  ["last_seen", "TEXT"],       // last sweep that found it still up
+  ["delisted_at", "TEXT"],     // when we first observed it gone
+  ["delist_reason", "TEXT"],   // deleted_by_author | expired | flagged | gone
+  ["last_price_cents", "INTEGER"], // asking price at the last observation
+];
+
+function migrate(d: Database) {
+  const have = new Set(
+    (d.query("PRAGMA table_info(listings)").all() as Array<{ name: string }>).map((c) => c.name),
+  );
+  for (const [name, type] of LISTING_COLUMNS) {
+    if (!have.has(name)) d.exec(`ALTER TABLE listings ADD COLUMN ${name} ${type}`);
+  }
 }
 
 export const now = () => new Date().toISOString();

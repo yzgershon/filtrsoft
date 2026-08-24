@@ -49,6 +49,7 @@ bun run check <url> [--vision]    one listing, staged timings
 bun run verdict                   re-score every stored listing
 bun run score                     engine vs Yish's 69-listing audit
 bun run stats                     archive health
+bun run sweep [--probe N] [--cat sya]  re-crawl, record delistings + price moves
 bun run backup                    verified snapshot -> backups/ + OneDrive
 bun run seed                      catalog + economics + judgments
 bun run comps:provisional         placeholder comps — DELETE when eBay lands
@@ -92,6 +93,42 @@ right and the pantry is empty. Everything unblocks when eBay comps land.
 238ms  vision      when cached
   ~5s   vision      cold, Haiku 4.5 @1024px, 3 photos, $0.0055 measured
 ```
+
+### Delisting tracker — BUILT 2026-08-24, running
+`src/tracker/`. The comps source that needs nobody's approval, built because the
+eBay developer application has already been rejected once and the archive is the
+one asset the engine cannot work without.
+
+**Craigslist states WHY a posting went, and that is the whole ballgame.** A dead
+posting returns **HTTP 410** with an explicit sentence — measured, not assumed:
+
+| body says | meaning |
+|---|---|
+| `deleted by its author` | the seller took it down. Sold, or gave up. |
+| `expired` | aged out on its own. Says NOTHING about a sale. |
+| `flagged` | removed by users. Says nothing about a sale. |
+
+Without that split a disappearance is ambiguous and clearing prices are mush.
+With it, author-deletions are a usable population. `inferOutcome()` grades on
+reason + days on market: <=14 days at full ask is `likely_sold` high confidence;
+near the 30-day expiry it drops to `possibly_sold` because that may be
+housekeeping ahead of an auto-expiry.
+
+**Price history is free.** The search page carries title + price + location for
+~330 listings in ONE fetch, so tracking every live listing costs a handful of
+requests instead of one per listing. Rows are written only on an actual change.
+
+**First sweep, 2026-08-24** — 341 live, 337 still up, 13 probed, **4 delisted:
+3 deleted-by-author, 1 expired**, 4 price moves. The NZXT gaming PC from Phase 0
+sold at **$750 in 2 days**. Second sweep found 0 new delistings and 0 phantom
+price moves, so it is idempotent.
+
+**The confound that would ruin it:** sellers delete and repost to get back to the
+top. That looks exactly like a sale and would bias every clearing price UPWARD —
+"great deal" on things that never sold. `looksLikeRepost()` overrides every other
+signal. It currently matches on title+price; **the right version keys on the
+photo dhash already in `listing_photos`**, since a seller who edits the title
+while reusing photos slips past the cheap check. That is the next upgrade.
 
 ### NOT built
 Accounts · payments · mobile app · listing auto-draft · outcome loop · alerts · real comps.
@@ -197,6 +234,13 @@ first; the API downscales anything larger before the model sees it, so sending a
 Claude 4.7 and later — Haiku 4.5 does not get it. Craigslist serves ~900px, well
 under both, so in practice nothing is ever touched.
 
+### ⚠ The Craigslist search endpoint IGNORES its offset parameter
+Measured 2026-08-24: `&s=120` returns the byte-identical 332 listings as `&s=0` —
+same first item, zero new ids. The static results page is the whole result set.
+**So `crawl --pages 3` has been doing 3x the requests for no extra coverage**,
+and `sweep` now defaults to 1 page. If real pagination is ever needed it has to
+come from the JS search UI, not this endpoint.
+
 ### ⚠ The catalog has no CPUs, and that is why prebuilt PCs cannot be valued
 62 SKUs: 28 phone, 12 laptop, 12 gpu, 10 console. **Zero CPUs, zero RAM, storage,
 PSU or motherboard, zero prebuilt-PC SKUs.** So on listing 6 vision correctly
@@ -244,6 +288,7 @@ his personal Claude accounts. Do not re-add CLI spawning without asking.
 | Bulk re-vision of the archive | 341 crawled listings have no vision. Re-running all of them is ~**$1.90**. Not done — Yish's spend, Yish's call. |
 | Section 11 of `RISK-MODEL.md` | **Yish to fill** — the stories only he has |
 | Facebook gross ratio (0.85) | A guess, and per-category is known to be more correct. Replaced by outcome data eventually. |
+| Comps from delisting | **Tracker shipped 2026-08-24.** Needs daily runs to accumulate. eBay comps remain valuable but are no longer a hard dependency. |
 | Archive backup | **Done 2026-08-24.** `bun run backup` -> `backups/` + `~/OneDrive/assyze-backups/`, 14 daily kept, verified on write. Run it manually; a scheduled task is offered but not installed. Railway volume snapshots still off, and irrelevant until ingestion runs server-side. |
 | Dead-category list | 3 known: VR, pre-2019 Intel Macs, datacenter GPUs |
 
@@ -251,8 +296,13 @@ his personal Claude accounts. Do not re-add CLI spawning without asking.
 
 ## 6. Immediate next actions
 
-1. **Add `ANTHROPIC_API_KEY` to Railway** — vision is off in production until then.
-2. **The delisting tracker** — the comps source that does not need eBay's approval.
+1. **Add `ANTHROPIC_API_KEY` to Railway** — vision is off in production until
+   then, and `/v1/health` will keep reporting `vision.configured: false`.
+2. **Run `bun run sweep` daily.** Every day it does not run is clearing-price
+   history nobody can refetch. Not yet scheduled.
+3. **Repost detection by photo dhash**, replacing the title+price check.
+4. **Derive the catalog from observed listings** (engine gap #1) — the 62 hand-
+   seeded SKUs have zero CPUs, which is why prebuilt PCs cannot be priced.
 3. **eBay Production keys → `.env`** when the account clears review. **Run
    `bun run backup` the day comps first land** — that is the day the archive
    stops being reproducible.

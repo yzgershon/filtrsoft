@@ -192,3 +192,32 @@ CREATE TABLE IF NOT EXISTS crawls (
   failed      INTEGER,
   created_at  TEXT NOT NULL
 );
+
+-- ------------------------------------------------------- delisting tracker
+-- The comps source that needs nobody's API approval.
+--
+-- eBay tells you what things sell for NATIONALLY, after shipping and 13% fees.
+-- This tells you what they clear for in Boston, on the channel Yish actually
+-- buys and sells on. Both matter; only one of them can be taken away.
+--
+-- A listing that disappears is not proof of a sale — but Craigslist says WHY it
+-- went, and "deleted by its author" is a different population from "expired".
+CREATE TABLE IF NOT EXISTS listing_prices (
+  id          INTEGER PRIMARY KEY,
+  listing_id  INTEGER NOT NULL REFERENCES listings(id),
+  price_cents INTEGER NOT NULL,
+  observed_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_prices_listing ON listing_prices(listing_id, observed_at);
+
+-- Every sweep, so coverage gaps are visible rather than silently assumed away.
+CREATE TABLE IF NOT EXISTS sweeps (
+  id          INTEGER PRIMARY KEY,
+  started_at  TEXT NOT NULL,
+  live_before INTEGER,
+  seen        INTEGER,
+  probed      INTEGER,
+  delisted    INTEGER,
+  price_moves INTEGER,
+  created_at  TEXT NOT NULL
+);
