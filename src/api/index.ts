@@ -17,6 +17,7 @@ import { existsSync } from "node:fs";
 import { checkListing, ENGINE_VERSION, type Stage } from "../engine/index.ts";
 import { getEconomics } from "../valuation/index.ts";
 import { db } from "../db/index.ts";
+import { accountStatus } from "../vision/accounts.ts";
 
 const app = new Hono();
 app.use("/*", cors());
@@ -40,6 +41,8 @@ app.get("/v1/health", (c) =>
     engine: ENGINE_VERSION,
     comps: (db().query("SELECT COUNT(*) n FROM comps").get() as { n: number }).n,
     skus: (db().query("SELECT COUNT(*) n FROM skus").get() as { n: number }).n,
+    // Vision runs on subscriptions, so account health IS service health.
+    visionAccounts: accountStatus(),
   }),
 );
 

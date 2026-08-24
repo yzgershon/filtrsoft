@@ -15,6 +15,7 @@
 import { readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { PHOTO_DIR } from "../photos/index.ts";
+import { availableAccounts, markExhausted, markWorking, isUsageLimit } from "./accounts.ts";
 
 export interface VisionFact {
   fact: string;
@@ -35,6 +36,8 @@ export interface VisionResult {
   physicalDamage: string[];
   unreadable: string[];
   raw?: string;
+  /** Which Claude account produced this. */
+  account?: string;
 }
 
 const PROMPT = (files: string[]) => `You are inspecting a used-tech marketplace listing. Read ALL ${files.length} images:
@@ -79,20 +82,61 @@ export async function analyzePhotos(listingId: number, opts?: { timeoutMs?: numb
   );
   if (!files.length) return null;
 
-  const proc = Bun.spawn(
-    ["claude", "-p", PROMPT(files.map((f) => join(dir, f))), "--allowedTools", "Read", "--output-format", "text"],
-    { stdout: "pipe", stderr: "pipe", cwd: join(import.meta.dir, "../..") },
-  );
-  const timer = setTimeout(() => proc.kill(), opts?.timeoutMs ?? 300_000);
-  const out = await new Response(proc.stdout).text();
-  clearTimeout(timer);
-
-  const json = out.match(/\{[\s\S]*\}/)?.[0];
-  if (!json) return null;
-  try {
-    const parsed = JSON.parse(json) as VisionResult;
-    return { ...parsed, raw: out };
-  } catch {
+  const prompt = PROMPT(files.map((f) => join(dir, f)));
+  const accounts = availableAccounts();
+  if (!accounts.length) {
+    console.error("vision: no Claude accounts with credentials found");
     return null;
   }
+
+  for (const acct of accounts) {
+    const proc = Bun.spawn(
+      ["claude", "-p", prompt, "--allowedTools", "Read", "--output-format", "text"],
+      {
+        stdout: "pipe",
+        stderr: "pipe",
+        cwd: join(import.meta.dir, "../.."),
+        // The whole failover mechanism is this one env var.
+        env: { ...process.env, CLAUDE_CONFIG_DIR: acct.configDir },
+      },
+    );
+    const timer = setTimeout(() => proc.kill(), opts?.timeoutMs ?? 300_000);
+    const [out, err] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+    ]);
+    const code = await proc.exited;
+    clearTimeout(timer);
+
+    const combined = `${out}
+${err}`;
+
+    if (isUsageLimit(combined)) {
+      console.warn(`vision: ${acct.name} is out of usage, trying next account`);
+      markExhausted(acct.name);
+      continue;
+    }
+
+    const json = out.match(/\{[\s\S]*\}/)?.[0];
+    if (!json) {
+      // No JSON and no usage-limit message. Could be a transient failure on this
+      // account, so try the next one rather than giving up on the listing.
+      console.warn(`vision: ${acct.name} returned no JSON (exit ${code}), trying next account`);
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(json) as VisionResult;
+      markWorking(acct.name);
+      return { ...parsed, raw: out, account: acct.name };
+    } catch {
+      // Malformed JSON is a MODEL problem, not an account problem. Another
+      // account would fail the same way, so stop here.
+      console.warn(`vision: ${acct.name} returned malformed JSON — not retrying`);
+      return null;
+    }
+  }
+
+  console.error("vision: every account failed or is out of usage");
+  return null;
 }
