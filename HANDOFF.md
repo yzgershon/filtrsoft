@@ -241,6 +241,32 @@ same first item, zero new ids. The static results page is the whole result set.
 and `sweep` now defaults to 1 page. If real pagination is ever needed it has to
 come from the JS search UI, not this endpoint.
 
+### ⚠⚠ A 2019 Intel MacBook matched to "MacBook Pro M3" — wrong-generation matching
+Found 2026-08-24 on listing 338. Vision read the spec screens correctly:
+`model: "MacBook Pro 16-inch 2019"`, `cpu: "Intel Core i7 2.6 GHz 6-Core"`.
+The matcher resolved it to **skuId 33, "MacBook Pro M3"** via `method: "token"`,
+`confidence: "low"` — an Intel machine matched to Apple Silicon, roughly a 2-3x
+price difference. It did NOT produce a bad number only because that SKU has no
+comps. **The moment comps land, this prices a 2019 Intel MacBook as an M3.**
+
+Two things to fix, and the first is the safety one:
+1. A `confidence: "low"` token match should not be usable for valuation at all.
+2. Matching must respect the year/generation attributes vision already extracts
+   (`year: 2019` was parsed and then ignored).
+
+### ⚠ The verdict layer does not read vision's components
+Same listing: vision returned a CPU, and the verdict still said
+`decidingUnknown: "cpu"` / "Can't be valued — cpu not stated." So on laptops and
+phones — 40 of the 62 SKUs — the expensive vision pass is being paid for and
+then not consulted by the thing that decides. Check `visionSignals`/`merge.ts`
+against what `verdict/` actually reads.
+
+### ⚠ Full-resolution photos cost more on photo-heavy listings, as intended
+Listing 338 has **17 photos**: 17,193 tokens, **$0.02**, 8.4s. A 3-photo listing
+is $0.0066. This is the cost of the never-downscale rule and it is the right
+trade — but per-check cost scales with photo count, so the MASTER-PLAN 3.4 figure
+of ~$0.011 should be read as an average, not a ceiling.
+
 ### ⚠ The catalog has no CPUs, and that is why prebuilt PCs cannot be valued
 62 SKUs: 28 phone, 12 laptop, 12 gpu, 10 console. **Zero CPUs, zero RAM, storage,
 PSU or motherboard, zero prebuilt-PC SKUs.** So on listing 6 vision correctly
