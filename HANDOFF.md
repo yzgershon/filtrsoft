@@ -57,6 +57,22 @@ GET  /v1/health
 ```
 Photo download is backgrounded — blocking on it cost 1.1s for no user benefit.
 
+### The web app — `web/`
+React + Vite, dev on **:5177**, proxies `/v1` to the API so EventSource is same-origin.
+`bun run dev` in `web/`. Routes: `/` (the tool) and `/c/:id` (shareable verdict permalink).
+Streams via SSE and renders progressively — header, then flags, then the verdict.
+
+**Run both:**
+```
+bun run api            # :3177   (use `bun run api` not `bun run src/api/index.ts` — it has --hot)
+cd web && bun run dev  # :5177
+```
+
+**Trap:** the API does NOT hot-reload if started without `--hot`. A stale process silently
+served verdicts missing the `questions` field for two test rounds before it was caught, and
+`pkill -f` does not kill it on Windows — use
+`Get-NetTCPConnection -LocalPort 3177 | Stop-Process -Id $_.OwningProcess -Force`.
+
 ### In the database
 | | |
 |---|---|

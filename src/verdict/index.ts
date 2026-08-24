@@ -12,6 +12,7 @@
  */
 import type { SignalReport, Verdict, Confidence } from "../types.ts";
 import type { Match } from "../catalog/match.ts";
+import { buildQuestions } from "./questions.ts";
 import { valueSku, valueByParts, netByChannel, requiredProfitCents, getEconomics, type UserEconomics, type ChannelResult } from "../valuation/index.ts";
 
 const OUT_OF_SCOPE = /\b(lens|dslr|mirrorless|camera body|tripod|nikon|canon ef|sigma \d|tamron|zeiss|leica|scanner|camcorder)\b/i;
@@ -28,6 +29,8 @@ export interface VerdictResult {
   netProfitCents?: number;
   requiredProfitCents?: number;
   blockers: string[];
+  /** Copy-pasteable, ordered so the first "no" that matters comes first. */
+  questions: string[];
 }
 
 export function buildVerdict(input: {
@@ -49,7 +52,8 @@ export function buildVerdict(input: {
   const skuVal = valueSku(match.skuId);
   const valuation = partsVal && (skuVal.status === "no_comps" || partsVal.compCount > skuVal.compCount)
     ? partsVal : skuVal;
-  const base = { valuation, blockers };
+  const questions = buildQuestions(signals, match);
+  const base = { valuation, blockers, questions };
 
   // --- 1. Out of scope -------------------------------------------------
   if (OUT_OF_SCOPE.test(`${input.title} ${input.description}`)) {
