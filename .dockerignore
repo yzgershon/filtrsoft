@@ -1,12 +1,23 @@
-node_modules
-web/node_modules
-web/dist
-.git
-photos
-*.db
-*.db-wal
-*.db-shm
-.env
-# Test-set PHOTOS are large and unneeded in production. The audit JSON is small
-# and IS needed — it seeds the eval set. Excluding the whole folder broke seeding.
-docs/testset/cl-*
+# LEADING SLASHES ARE LOAD-BEARING.
+#
+# A bare `photos` pattern took down the Railway deploy: Docker's builder treats
+# it as root-only, but Railway's matched it against `src/photos` as well, so
+# src/photos/index.ts was silently absent from the image and the container died
+# with "Cannot find module '../photos/index.ts'". Anchor everything.
+
+/node_modules
+/web/node_modules
+/web/dist
+/.git
+
+# Downloaded listing images (runtime output) — NOT src/photos, which is code.
+/photos
+
+/assyze.db
+/assyze.db-wal
+/assyze.db-shm
+/.env
+
+# Test-set photos are large and unneeded in production. The audit JSON beside
+# them is small and IS needed — it seeds the eval set.
+/docs/testset/cl-*
