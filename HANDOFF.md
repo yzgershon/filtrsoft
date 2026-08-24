@@ -49,6 +49,7 @@ bun run check <url> [--vision]    one listing, staged timings
 bun run verdict                   re-score every stored listing
 bun run score                     engine vs Yish's 69-listing audit
 bun run stats                     archive health
+bun run backup                    verified snapshot -> backups/ + OneDrive
 bun run seed                      catalog + economics + judgments
 bun run comps:provisional         placeholder comps — DELETE when eBay lands
 ```
@@ -108,6 +109,12 @@ ASSYZE_DB      = /data/assyze.db
 ASSYZE_PHOTOS  = /data/photos
 ```
 
+**⚠ The Railway volume is NOT the archive.** It holds a fresh seed — 62 SKUs,
+**zero comps**. Every comp, listing, verdict and judgment lives in
+`C:\Devssyzessyze.db` on his PC, because the crawler and the comps pullers
+run locally. Backing up the volume today backs up an empty database. Revisit
+this only if ingestion ever moves into the container.
+
 **⚠ Vision does NOT run in production.** The container has no Claude CLI and no
 credentials, so `visionAccounts` is empty and the deployed app is **text-layer only**.
 Do not fix this by shipping credentials into an image. Fix it with an Anthropic API
@@ -159,6 +166,15 @@ the name looked right and the account was wrong. Repo config is correct; a
 - **The API does not hot-reload** unless started with `--hot`. A stale process served
   verdicts missing a whole field for two test rounds.
 
+### ⚠ Never back up SQLite by copying the .db file
+WAL mode keeps recent writes in a separate `-wal` file until a checkpoint. On
+2026-08-24 the database was **1.3 MB and the WAL was 4.1 MB** — copying only the
+`.db` would have silently dropped most of the archive, and the copy would have
+opened fine and looked healthy. `bun run backup` uses `VACUUM INTO`, which folds
+the WAL in, is safe while the API is serving, and then **reopens the snapshot and
+compares row counts** before reporting success. A backup nobody has read is a
+guess about a file.
+
 ### Engine traps
 - **Never sample photos.** The funnel may drop *listings*; once a listing reaches
   vision it must never drop *photos*. Phase 0's miss was a skipped third image
@@ -182,7 +198,7 @@ the name looked right and the account was wrong. Repo config is correct; a
 | Anthropic API key | **The single highest-leverage unblock.** Vision 60s→4s, works in production, ends subscription-quota dependence. ~$20. |
 | Section 11 of `RISK-MODEL.md` | **Yish to fill** — the stories only he has |
 | Facebook gross ratio (0.85) | A guess, and per-category is known to be more correct. Replaced by outcome data eventually. |
-| Archive backup | The volume holds the only copy. Not yet configured. |
+| Archive backup | **Done 2026-08-24.** `bun run backup` -> `backups/` + `~/OneDrive/assyze-backups/`, 14 daily kept, verified on write. Run it manually; a scheduled task is offered but not installed. Railway volume snapshots still off, and irrelevant until ingestion runs server-side. |
 | Dead-category list | 3 known: VR, pre-2019 Intel Macs, datacenter GPUs |
 
 ---
@@ -191,7 +207,9 @@ the name looked right and the account was wrong. Repo config is correct; a
 
 1. **Redeploy on Railway** — `src/photos/index.ts` is finally in the repo.
 2. **Add the Namecheap DNS records** (ALIAS not CNAME at apex — see DEPLOY.md).
-3. **eBay Production keys → `.env`** when the account clears review.
+3. **eBay Production keys → `.env`** when the account clears review. **Run
+   `bun run backup` the day comps first land** — that is the day the archive
+   stops being reproducible.
 4. Then: real comps → delete provisional → re-run `score`.
 
 ---

@@ -15,7 +15,8 @@
     "api": "bun run --hot src/api/index.ts",
     "build": "cd web && bun install && bun run build",
     "start": "bun run src/api/index.ts",
-    "crawl": "bun run src/scripts/crawl.ts"
+    "crawl": "bun run src/scripts/crawl.ts",
+    "backup": "bun run src/scripts/backup.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

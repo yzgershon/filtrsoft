@@ -24,3 +24,6 @@ node_modules/
 # Build output — root only
 /dist/
 /web/dist/
+
+# Archive snapshots — root only, never committed (they hold the comps archive)
+/backups/
