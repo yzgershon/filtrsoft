@@ -175,9 +175,16 @@ The retail ceiling alone catches 4 audit traps with zero comps: Xbox 2TB at 2.5�
 
 ## 6. Immediate next actions
 
-1. **Yish:** eBay Production keys → `.env` when the account clears review.
-2. **Then:** eBay comps ingestion → `DELETE FROM comps WHERE source='manual-provisional'` → re-run `score`.
-3. **Unblocked now:** build the web app (Phase 2). Nothing about it waits on eBay.
+**See `docs/MASTER-PLAN.md` for the full plan. Headlines from it:**
+
+1. **NEW Phase 1.5 — ship the risk layer alone, free, no signup.** It works today with zero comps and is fully unblocked. This reverses the earlier "wait for valuation" position and accelerates everything.
+2. **Yish:** eBay Production keys → `.env` when the account clears review.
+3. **Vision must move off headless Claude Code to the Anthropic SDK** — one multi-image request at 768px instead of sequential CLI reads. 30s → 3-6s, the highest-leverage single change available.
+4. **Five decisions are waiting on Yish** — `MASTER-PLAN.md` §7. Biggest: is this for other people or mainly for him?
+
+**Gates were revised.** Two of the three original ones were not usable as written (unmeasurable, or blocked on a two-month calendar). See MASTER-PLAN §1.1.
+
+**The Facebook 0.85 ratio is confirmed wrong** as a flat number — it should be per-category, and for bulky items it may exceed 1.0. MASTER-PLAN §1.2.
 
 ---
 
@@ -185,6 +192,7 @@ The retail ceiling alone catches 4 audit traps with zero comps: Xbox 2TB at 2.5�
 
 | File | What it is |
 |---|---|
+| `docs/MASTER-PLAN.md` | **The plan.** Product design, architecture, GTM, pricing, sequencing, engine gaps. Read alongside this file. |
 | `docs/RISK-MODEL.md` | **The moat.** Hard blockers vs flags, listing signals, per-category rules. |
 | `docs/CALIBRATION-2026-08-23.md` | What Yish's audit corrected. 9 findings, incl. the BUY-threshold reframe. |
 | `docs/VERDICT-SCHEMA.md` | Output contract. |
