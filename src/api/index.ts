@@ -17,7 +17,7 @@ import { existsSync } from "node:fs";
 import { checkListing, ENGINE_VERSION, type Stage } from "../engine/index.ts";
 import { getEconomics } from "../valuation/index.ts";
 import { db, DB_PATH } from "../db/index.ts";
-import { accountStatus } from "../vision/accounts.ts";
+import { VISION_MODEL, visionConfigured } from "../vision/index.ts";
 
 const app = new Hono();
 app.use("/*", cors());
@@ -58,7 +58,7 @@ app.get("/v1/health", (c) => {
     ok: true,
     engine: ENGINE_VERSION,
     ...stats,
-    visionAccounts: accountStatus(),
+    vision: { configured: visionConfigured(), model: VISION_MODEL },
   });
 });
 

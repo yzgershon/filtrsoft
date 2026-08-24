@@ -16,7 +16,7 @@ import { analyze } from "../signals/index.ts";
 import { matchSku, type Match } from "../catalog/match.ts";
 import { buildVerdict, type VerdictResult } from "../verdict/index.ts";
 import { loadVision, visionToText, visionSignals } from "../vision/merge.ts";
-import { analyzePhotos, type VisionResult } from "../vision/index.ts";
+import { analyzePhotos, VISION_MODEL, type VisionResult } from "../vision/index.ts";
 import { downloadPhoto, dhash } from "../photos/index.ts";
 import { getEconomics, type UserEconomics } from "../valuation/index.ts";
 import { db, now } from "../db/index.ts";
@@ -204,8 +204,8 @@ export async function checkListing(url: string, opts: CheckOptions = {}): Promis
     if (vision) {
       db().query(
         `INSERT INTO vision_results (listing_id, model, payload, duration_ms, created_at)
-         VALUES ($lid,'claude-code-headless',$p,$ms,$now)`,
-      ).run({ $lid: listingId, $p: JSON.stringify(vision), $ms: since(), $now: now() });
+         VALUES ($lid,$model,$p,$ms,$now)`,
+      ).run({ $lid: listingId, $model: vision.model ?? VISION_MODEL, $p: JSON.stringify(vision), $ms: since(), $now: now() });
       out = runPipeline(listing, vision, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster });
       emit("vision", { vision, verdict: out.verdict, cached: false });
     }

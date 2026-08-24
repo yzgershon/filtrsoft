@@ -7,7 +7,7 @@ import { fetchListing } from "../sources/craigslist.ts";
 import { analyze } from "../signals/index.ts";
 import { db, now } from "../db/index.ts";
 import { downloadPhoto, dhash, distance } from "../photos/index.ts";
-import { analyzePhotos } from "../vision/index.ts";
+import { analyzePhotos, VISION_MODEL } from "../vision/index.ts";
 
 const CL = "https://www.craigslist.org/view/d/";
 const TESTSET: Array<[string, string]> = [
@@ -122,8 +122,8 @@ for (const { url, note } of targets) {
       if (v) {
         d.query(
           `INSERT INTO vision_results (listing_id, model, payload, duration_ms, created_at)
-           VALUES ($lid,'claude-code-headless',$p,$ms,$now)`,
-        ).run({ $lid: row.id, $p: JSON.stringify(v), $ms: ms, $now: now() });
+           VALUES ($lid,$model,$p,$ms,$now)`,
+        ).run({ $lid: row.id, $model: v.model ?? VISION_MODEL, $p: JSON.stringify(v), $ms: ms, $now: now() });
 
         const found = Object.entries(v.components).filter(([, x]) => x);
         console.log(`  \x1b[36m→ vision (${(ms / 1000).toFixed(0)}s)\x1b[0m ${found.map(([k, x]) => `${k}=${x}`).join(" · ") || "nothing legible"}`);

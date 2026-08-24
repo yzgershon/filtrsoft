@@ -76,8 +76,10 @@ right and the pantry is empty. Everything unblocks when eBay comps land.
   `GET /v1/checks/:id`, `GET /v1/feed`, `GET /v1/health`. Serves `web/dist` in prod.
 - **Web app** — `web/`. React + Vite, mobile-first, renders inside a phone frame on
   desktop. Bottom nav: Deals / Check / You. WCAG-verified contrast on all 13 pairs.
-- **Vision** — `src/vision/`. Headless Claude Code with **3-account failover**
-  (yish → robbie → amitai), usage-limit detection, 30-min cooldowns. Cache-first.
+- **Vision** — `src/vision/`. **Anthropic API** (`@anthropic-ai/sdk`), ONE request
+  with ALL photos, structured output enforced by a zod schema. Default model
+  **claude-haiku-4-5** at **1024px**. Cache-first by listing id.
+  The 3-account subscription failover was DELETED on 2026-08-24 — see traps.
 - **Signals, catalog, valuation, verdict** — unchanged from 2026-08-23, see that
   session log.
 
@@ -87,7 +89,7 @@ right and the pantry is empty. Everything unblocks when eBay comps land.
  43ms  signals     red flags — pure compute
  44ms  valued      match + comps + verdict
 238ms  vision      when cached
-~60s   vision      cold (CLI). API+Haiku would be ~4s.
+  ~5s   vision      cold, Haiku 4.5 @1024px, 3 photos, $0.0055 measured
 ```
 
 ### NOT built
@@ -105,8 +107,9 @@ Bun runs the server. One service serves API + frontend on one origin.
 
 Env vars:
 ```
-ASSYZE_DB      = /data/assyze.db
-ASSYZE_PHOTOS  = /data/photos
+ASSYZE_DB          = /data/assyze.db
+ASSYZE_PHOTOS      = /data/photos
+ANTHROPIC_API_KEY  = <needed for vision — NOT set yet>
 ```
 
 **⚠ The Railway volume is NOT the archive.** It holds a fresh seed — 62 SKUs,
@@ -115,10 +118,10 @@ ASSYZE_PHOTOS  = /data/photos
 run locally. Backing up the volume today backs up an empty database. Revisit
 this only if ingestion ever moves into the container.
 
-**⚠ Vision does NOT run in production.** The container has no Claude CLI and no
-credentials, so `visionAccounts` is empty and the deployed app is **text-layer only**.
-Do not fix this by shipping credentials into an image. Fix it with an Anthropic API
-key, which is the same change that takes vision from 60s to 4s.
+**Vision now runs anywhere `ANTHROPIC_API_KEY` is set.** Local `.env` has it.
+**Railway does NOT yet — add it as a service variable and vision stays off in
+production until you do.** `/v1/health` reports `vision.configured`, so the
+deployed app tells you which state it is in rather than silently degrading.
 
 See `DEPLOY.md` for full steps.
 
@@ -175,6 +178,28 @@ the WAL in, is safe while the API is serving, and then **reopens the snapshot an
 compares row counts** before reporting success. A backup nobody has read is a
 guess about a file.
 
+### ⚠ Image resolution is a correctness setting, not a cost setting
+MASTER-PLAN 3.1 specified 768px. Measured on listing 6 — the exact spec screen
+Phase 0 skipped — 768px made Haiku read **"Ryzen 5 5600X" off a screen that says
+"Ryzen 5 9600X"**: a Zen 5 chip read as a 4-year-old Zen 3, ~$110 of error on one
+component, flowing straight into sum-of-parts. Craigslist serves these ~900px
+tall, so the cap was downscaling the highest-value image in the set. At 1024px
+the same model reads it correctly. **The saving was a third of a cent.**
+
+### ⚠ Bigger models are NOT automatically better here
+Same listing, same resolution: Haiku 4.5, Sonnet 5 and Opus 5 all read the CPU
+correctly. Opus cost **10x** and took **4x** as long. Worse, the larger models
+wrote hedging prose *into the component fields* ("RTX 5070 (12 GB) — Gigabyte
+GeForce-branded card, exact SKU not legible"), which the catalog matcher cannot
+match on. The system prompt now demands bare model strings. **Measure before
+upgrading a model; on this task the cheap one wins.**
+
+### ⚠ Subscriptions are no longer a fallback
+`src/vision/accounts.ts` and the yish→robbie→amitai failover were deleted
+2026-08-24 at Yish's instruction. If the API key runs dry, vision returns null
+and the engine degrades to the text layer — it does not silently start billing
+his personal Claude accounts. Do not re-add CLI spawning without asking.
+
 ### Engine traps
 - **Never sample photos.** The funnel may drop *listings*; once a listing reaches
   vision it must never drop *photos*. Phase 0's miss was a skipped third image
@@ -195,7 +220,8 @@ guess about a file.
 
 | Question | Status |
 |---|---|
-| Anthropic API key | **The single highest-leverage unblock.** Vision 60s→4s, works in production, ends subscription-quota dependence. ~$20. |
+| Anthropic API key | **DONE 2026-08-24.** Wired, subscriptions removed. Measured $0.0055/listing at ~5s. Still needs adding to Railway. |
+| Bulk re-vision of the archive | 341 crawled listings have no vision. Re-running all of them is ~**$1.90**. Not done — Yish's spend, Yish's call. |
 | Section 11 of `RISK-MODEL.md` | **Yish to fill** — the stories only he has |
 | Facebook gross ratio (0.85) | A guess, and per-category is known to be more correct. Replaced by outcome data eventually. |
 | Archive backup | **Done 2026-08-24.** `bun run backup` -> `backups/` + `~/OneDrive/assyze-backups/`, 14 daily kept, verified on write. Run it manually; a scheduled task is offered but not installed. Railway volume snapshots still off, and irrelevant until ingestion runs server-side. |
@@ -205,8 +231,8 @@ guess about a file.
 
 ## 6. Immediate next actions
 
-1. **Redeploy on Railway** — `src/photos/index.ts` is finally in the repo.
-2. **Add the Namecheap DNS records** (ALIAS not CNAME at apex — see DEPLOY.md).
+1. **Add `ANTHROPIC_API_KEY` to Railway** — vision is off in production until then.
+2. **The delisting tracker** — the comps source that does not need eBay's approval.
 3. **eBay Production keys → `.env`** when the account clears review. **Run
    `bun run backup` the day comps first land** — that is the day the archive
    stops being reproducible.
