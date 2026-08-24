@@ -10,6 +10,7 @@ import { CATALOG } from "../reference/catalog.ts";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+export function seed() {
 const d = db();
 
 // --- 0. Catalog ---------------------------------------------------------
@@ -103,3 +104,7 @@ const agreement = d
 console.log(`seeded user_economics: yish`);
 console.log(`seeded judgments: ${n.n}`);
 for (const a of agreement) console.log(`  ${a.agreement}: ${a.n}`);
+}
+
+// Run when invoked directly: `bun run seed`
+if (import.meta.main) seed();

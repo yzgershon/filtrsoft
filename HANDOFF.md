@@ -232,6 +232,7 @@ The retail ceiling alone catches 4 audit traps with zero comps: Xbox 2TB at 2.5Ã
 
 | File | What it is |
 |---|---|
+| `DEPLOY.md` | **Railway deploy.** One service serves API + frontend. Volume at `/data` â€” set it BEFORE first deploy or every push wipes the comps archive. |
 | `docs/MASTER-PLAN.md` | **The plan.** Product design, architecture, GTM, pricing, sequencing, engine gaps. Read alongside this file. |
 | `docs/RISK-MODEL.md` | **The moat.** Hard blockers vs flags, listing signals, per-category rules. |
 | `docs/CALIBRATION-2026-08-23.md` | What Yish's audit corrected. 9 findings, incl. the BUY-threshold reframe. |

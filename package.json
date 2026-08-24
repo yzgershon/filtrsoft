@@ -12,7 +12,9 @@
     "score": "bun run src/scripts/score.ts",
     "comps:provisional": "bun run src/scripts/seed-provisional-comps.ts",
     "check": "bun run src/scripts/check.ts",
-    "api": "bun run --hot src/api/index.ts"
+    "api": "bun run --hot src/api/index.ts",
+    "build": "cd web && bun install && bun run build",
+    "start": "bun run src/api/index.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

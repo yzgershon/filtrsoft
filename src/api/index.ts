@@ -12,6 +12,8 @@
  */
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { serveStatic } from "hono/bun";
+import { existsSync } from "node:fs";
 import { checkListing, ENGINE_VERSION, type Stage } from "../engine/index.ts";
 import { getEconomics } from "../valuation/index.ts";
 import { db } from "../db/index.ts";
@@ -146,6 +148,34 @@ app.get("/v1/checks/:id", (c) => {
   });
 });
 
+// ------------------------------------------------------------------ static
+// In production one service serves both the API and the built frontend. One
+// deploy, one origin, no CORS. In dev Vite serves the frontend and proxies /v1
+// here, so this block is inert.
+const DIST = "./web/dist";
+const hasBuild = existsSync(`${DIST}/index.html`);
+
+if (hasBuild) {
+  app.use("/assets/*", serveStatic({ root: DIST }));
+  app.use("/favicon.ico", serveStatic({ root: DIST }));
+  // SPA fallback — /c/:id must survive a hard refresh and a shared link.
+  app.get("*", serveStatic({ path: `${DIST}/index.html` }));
+}
+
+// -------------------------------------------------------------- boot seed
+// A fresh Railway volume is an empty database. Seed the catalog and economics
+// on first boot rather than requiring a manual step nobody remembers.
+{
+  const n = (db().query("SELECT COUNT(*) n FROM skus").get() as { n: number }).n;
+  if (n === 0) {
+    console.log("empty database — seeding catalog + economics…");
+    const { seed } = await import("../scripts/seed.ts");
+    try { seed(); } catch (e) { console.error("seed failed:", (e as Error).message); }
+  }
+}
+
 const port = Number(process.env.PORT) || 3177;
-console.log(`assyze api  http://localhost:${port}  (engine ${ENGINE_VERSION})`);
+console.log(
+  `assyze  :${port}  engine ${ENGINE_VERSION}  ${hasBuild ? "serving web/dist" : "api only (dev)"}`,
+);
 export default { port, fetch: app.fetch, idleTimeout: 120 };
