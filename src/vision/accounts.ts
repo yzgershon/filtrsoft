@@ -23,8 +23,8 @@ const HOME = homedir();
 /** Order matters — first is preferred. Only accounts with credentials count. */
 export const ACCOUNTS: Account[] = [
   { name: "yish", configDir: join(HOME, ".claude") },
-  { name: "amitai", configDir: join(HOME, ".claude-amitai") },
   { name: "robbie", configDir: join(HOME, ".claude-robbie") },
+  { name: "amitai", configDir: join(HOME, ".claude-amitai") },
 ].filter((a) => existsSync(join(a.configDir, ".credentials.json")));
 
 /** name -> epoch ms when it's worth trying again. */

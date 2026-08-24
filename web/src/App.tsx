@@ -12,6 +12,11 @@ interface Verdict {
   valuation: { medianCents: number | null; lowCents: number | null; highCents: number | null; compCount: number; confidence: string };
 }
 interface Signal { code: string; severity: string; polarity: string; evidence: string }
+interface FeedItem {
+  id: number; title: string; url: string; source: string;
+  askingPriceCents: number | null; location: string | null; postedAt: string | null;
+  thumb: string | null; call: Call; headline: string | null; netProfitCents: number | null;
+}
 interface Listing {
   title: string; url: string; askingPriceCents: number | null;
   location: string | null; postedAt: string | null; source: string; photoUrls: string[];
@@ -49,6 +54,67 @@ function useRoute() {
     path,
     go: useCallback((p: string) => { history.pushState({}, "", p); setPath(p); }, []),
   };
+}
+
+function Feed({ onOpen }: { onOpen: (id: number) => void }) {
+  const [items, setItems] = useState<FeedItem[] | null>(null);
+  const [filter, setFilter] = useState<Call | "ALL">("ALL");
+  const [counts, setCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    fetch("/v1/feed?limit=60").then((r) => r.json()).then((d) => {
+      setItems(d.items ?? []); setCounts(d.counts ?? {});
+    }).catch(() => setItems([]));
+  }, []);
+
+  if (!items) return (
+    <div className="sec">
+      {[0,1,2,3].map((i) => <div className="skel" key={i} style={{ height: 84, marginBottom: 10 }} />)}
+    </div>
+  );
+
+  const shown = filter === "ALL" ? items : items.filter((i) => i.call === filter);
+  const chips: Array<Call | "ALL"> = ["ALL", "BUY", "VERIFY", "FAIR"];
+
+  return (
+    <>
+      <div className="chips">
+        {chips.map((c) => (
+          <button key={c} className={`chip ${filter === c ? "on" : ""}`} onClick={() => setFilter(c)}>
+            {c === "ALL" ? "Everything" : LABEL[c]}
+            {c !== "ALL" && counts[c] ? <em>{counts[c]}</em> : null}
+          </button>
+        ))}
+      </div>
+
+      {shown.length === 0 ? (
+        <div className="empty">
+          <Ghost />
+          <b>Nothing here yet</b>
+          <span>Deals show up once the engine has priced enough listings.</span>
+        </div>
+      ) : (
+        <div className="feed">
+          {shown.map((i) => (
+            <button className="deal" key={i.id} onClick={() => onOpen(i.id)}>
+              {i.thumb
+                ? <img src={i.thumb} alt="" loading="lazy" width={78} height={78} />
+                : <span className="noimg"><Ghost size={20} /></span>}
+              <span className="dbody">
+                <span className={`dcall b-${i.call}`}>{LABEL[i.call]}</span>
+                <b>{i.title}</b>
+                <span className="dmeta">
+                  <span className="num dprice">{money(i.askingPriceCents)}</span>
+                  {i.netProfitCents ? <span className="num dnet">+{money(i.netProfitCents)} net</span> : null}
+                  <span className="dloc">{[i.location, ago(i.postedAt)].filter(Boolean).join(" · ")}</span>
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
 }
 
 // ----------------------------------------------------------- components
@@ -211,7 +277,7 @@ function Report({ listing, verdict, signals, stage, reading }: {
 // ------------------------------------------------------------------ app
 export default function App() {
   const { path, go } = useRoute();
-  const [tab, setTab] = useState<"check" | "history" | "you">("check");
+  const [tab, setTab] = useState<"deals" | "check" | "you">("deals");
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -311,7 +377,17 @@ export default function App() {
           </header>
 
           <main className="scroll">
-            {tab === "check" && (
+            {tab === "deals" && !listing && (
+              <>
+                <div className="feedhead">
+                  <h1>Worth driving for</h1>
+                  <p>Only listings the engine actually verified. Newest and best first.</p>
+                </div>
+                <Feed onOpen={(id) => { setTab("check"); go(`/c/${id}`); }} />
+              </>
+            )}
+
+            {(tab === "check" || (tab === "deals" && listing)) && (
               <>
                 {fresh && !error && (
                   <div className="hero">
@@ -369,32 +445,6 @@ export default function App() {
               </>
             )}
 
-            {tab === "history" && (
-              hist.length ? (
-                <section className="sec">
-                  <h4>Recent checks</h4>
-                  <div className="panel">
-                    {hist.map((h) => (
-                      <button className="hcard" key={h.id}
-                        onClick={() => { setTab("check"); go(`/c/${h.id}`); }}>
-                        <span className={`hv v-${h.call}`} style={{ background: "var(--surface-2)" }}>{LABEL[h.call]}</span>
-                        <span className="ht">
-                          <b>{h.title}</b>
-                          <span>{new Date(h.at).toLocaleDateString()}</span>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              ) : (
-                <div className="empty">
-                  <Ghost />
-                  <b>No checks yet</b>
-                  <span>Listings you check will show up here.</span>
-                </div>
-              )
-            )}
-
             {tab === "you" && (
               <section className="sec">
                 <h4>Your numbers</h4>
@@ -413,11 +463,12 @@ export default function App() {
           </main>
 
           <nav className="tabs">
+            <button className="tab" aria-current={tab === "deals" ? "page" : undefined}
+              onClick={() => { setTab("deals"); reset(); go("/"); }}>
+              <Tag size={21} /> Deals
+            </button>
             <button className="tab" aria-current={tab === "check" ? "page" : undefined} onClick={() => setTab("check")}>
               <Scan size={21} /> Check
-            </button>
-            <button className="tab" aria-current={tab === "history" ? "page" : undefined} onClick={() => setTab("history")}>
-              <Clock size={21} /> History
             </button>
             <button className="tab" aria-current={tab === "you" ? "page" : undefined} onClick={() => setTab("you")}>
               <User size={21} /> You

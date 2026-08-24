@@ -180,3 +180,15 @@ CREATE TABLE IF NOT EXISTS vision_results (
   created_at  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_vision_listing ON vision_results(listing_id);
+
+-- ---------------------------------------------------------------- crawls
+-- Crawl history, so feed freshness is observable rather than guessed at.
+CREATE TABLE IF NOT EXISTS crawls (
+  id          INTEGER PRIMARY KEY,
+  started_at  TEXT NOT NULL,
+  discovered  INTEGER,
+  analysed    INTEGER,
+  vision_run  INTEGER,
+  failed      INTEGER,
+  created_at  TEXT NOT NULL
+);

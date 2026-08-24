@@ -123,6 +123,69 @@ app.get("/v1/checks/stream", (c) => {
   });
 });
 
+
+/**
+ * The feed — the actual product.
+ *
+ * Reads STORED verdicts, so it serves instantly no matter how slow analysis was.
+ * Ranking is the thing no competitor can do: they filter by keyword and price
+ * because they have no verdict to sort by.
+ */
+app.get("/v1/feed", (c) => {
+  const call = c.req.query("call");           // optional filter
+  const cat = c.req.query("category");
+  const limit = Math.min(Number(c.req.query("limit")) || 40, 100);
+
+  const rows = db().query(`
+    SELECT l.id, l.title, l.url, l.asking_price_cents, l.location, l.posted_at, l.source,
+           v.call, v.confidence, v.payload,
+           (SELECT url FROM listing_photos p WHERE p.listing_id = l.id ORDER BY position LIMIT 1) thumb
+    FROM listings l
+    JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
+    WHERE v.call NOT IN ('OUT_OF_SCOPE')
+    ORDER BY l.posted_at DESC
+    LIMIT 400
+  `).all() as any[];
+
+  // Rank in JS — the score needs fields that live inside the verdict JSON.
+  const RANK: Record<string, number> = { BUY: 0, VERIFY: 1, FAIR: 2, INSUFFICIENT_DATA: 3, RISK: 4, PASS: 5 };
+  const items = rows.map((r) => {
+    const v = r.payload ? JSON.parse(r.payload) : null;
+    const net = v?.netProfitCents ?? 0;
+    const ageDays = r.posted_at ? (Date.now() - Date.parse(r.posted_at)) / 86_400_000 : 99;
+    // Deals decay: a great listing from 3 weeks ago is usually already gone.
+    const freshness = Math.max(0, 1 - ageDays / 21);
+    const score = (10 - (RANK[r.call] ?? 9)) * 1000 + Math.min(net / 100, 500) + freshness * 200;
+    return {
+      id: r.id, title: r.title, url: r.url, source: r.source,
+      askingPriceCents: r.asking_price_cents, location: r.location, postedAt: r.posted_at,
+      thumb: r.thumb, call: r.call, confidence: r.confidence,
+      headline: v?.headline ?? null,
+      netProfitCents: v?.netProfitCents ?? null,
+      flagCount: (v?.blockers?.length ?? 0),
+      score,
+    };
+  })
+    .filter((i) => (call ? i.call === call : true))
+    .filter((i) => (cat ? true : true))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+
+  const counts = db().query(`
+    SELECT v.call, COUNT(*) n FROM verdicts v
+    WHERE v.id IN (SELECT MAX(id) FROM verdicts GROUP BY listing_id)
+    GROUP BY v.call`).all() as Array<{ call: string; n: number }>;
+
+  const lastCrawl = db().query("SELECT started_at, analysed FROM crawls ORDER BY id DESC LIMIT 1").get() as any;
+
+  return c.json({
+    items,
+    counts: Object.fromEntries(counts.map((x) => [x.call, x.n])),
+    lastCrawl: lastCrawl ?? null,
+    void: cat,
+  });
+});
+
 /** A previously-run check, by listing id. Shareable permalink target. */
 app.get("/v1/checks/:id", (c) => {
   const id = Number(c.req.param("id"));
