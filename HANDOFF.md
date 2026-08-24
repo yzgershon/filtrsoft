@@ -78,7 +78,8 @@ right and the pantry is empty. Everything unblocks when eBay comps land.
   desktop. Bottom nav: Deals / Check / You. WCAG-verified contrast on all 13 pairs.
 - **Vision** — `src/vision/`. **Anthropic API** (`@anthropic-ai/sdk`), ONE request
   with ALL photos, structured output enforced by a zod schema. Default model
-  **claude-haiku-4-5** at **1024px**. Cache-first by listing id.
+  **claude-haiku-4-5**, PINNED as a constant (not an env var). Photos are sent as
+  ORIGINAL BYTES — no resize, no re-encode. Cache-first by listing id.
   The 3-account subscription failover was DELETED on 2026-08-24 — see traps.
 - **Signals, catalog, valuation, verdict** — unchanged from 2026-08-23, see that
   session log.
@@ -178,13 +179,32 @@ the WAL in, is safe while the API is serving, and then **reopens the snapshot an
 compares row counts** before reporting success. A backup nobody has read is a
 guess about a file.
 
-### ⚠ Image resolution is a correctness setting, not a cost setting
+### ⚠ NEVER downscale or re-encode a source photo
 MASTER-PLAN 3.1 specified 768px. Measured on listing 6 — the exact spec screen
 Phase 0 skipped — 768px made Haiku read **"Ryzen 5 5600X" off a screen that says
 "Ryzen 5 9600X"**: a Zen 5 chip read as a 4-year-old Zen 3, ~$110 of error on one
-component, flowing straight into sum-of-parts. Craigslist serves these ~900px
-tall, so the cap was downscaling the highest-value image in the set. At 1024px
-the same model reads it correctly. **The saving was a third of a cent.**
+component, flowing straight into sum-of-parts. **The saving was a third of a cent.**
+
+Yish's rule as of 2026-08-24: highest resolution possible, always. Originals now
+go to the API byte-for-byte. The old code also re-encoded every JPEG at quality
+82 — a SECOND lossy pass on an already-lossy source, which Anthropic's own
+guidance warns makes small text unreadable. That is gone too.
+
+**The ceiling is not ours to pick.** Haiku 4.5 is STANDARD-tier vision: long edge
+**1568px** and **1568 visual tokens** (`ceil(w/28)*ceil(h/28)`), whichever binds
+first; the API downscales anything larger before the model sees it, so sending a
+4032px phone photo buys nothing. The high-res tier (2576px / 4784 tokens) is
+Claude 4.7 and later — Haiku 4.5 does not get it. Craigslist serves ~900px, well
+under both, so in practice nothing is ever touched.
+
+### ⚠ The catalog has no CPUs, and that is why prebuilt PCs cannot be valued
+62 SKUs: 28 phone, 12 laptop, 12 gpu, 10 console. **Zero CPUs, zero RAM, storage,
+PSU or motherboard, zero prebuilt-PC SKUs.** So on listing 6 vision correctly
+reads "Ryzen 5 9600X" and the matcher has nothing to match it against — only the
+GPU resolves, the coverage guard refuses to price a whole PC off one part, and
+the verdict is INSUFFICIENT_DATA. That is the guard working, not failing.
+This is MASTER-PLAN engine gap #1, and its fix is to derive the catalog FROM
+observed comps rather than hand-seeding a list and hoping comps match it.
 
 ### ⚠ Bigger models are NOT automatically better here
 Same listing, same resolution: Haiku 4.5, Sonnet 5 and Opus 5 all read the CPU
@@ -220,7 +240,7 @@ his personal Claude accounts. Do not re-add CLI spawning without asking.
 
 | Question | Status |
 |---|---|
-| Anthropic API key | **DONE 2026-08-24.** Wired, subscriptions removed. Measured $0.0055/listing at ~5s. Still needs adding to Railway. |
+| Anthropic API key | **DONE 2026-08-24.** Wired, subscriptions removed, Haiku pinned. Measured $0.0066/listing at ~7s on 3 full-resolution photos. Still needs adding to Railway. |
 | Bulk re-vision of the archive | 341 crawled listings have no vision. Re-running all of them is ~**$1.90**. Not done — Yish's spend, Yish's call. |
 | Section 11 of `RISK-MODEL.md` | **Yish to fill** — the stories only he has |
 | Facebook gross ratio (0.85) | A guess, and per-category is known to be more correct. Replaced by outcome data eventually. |

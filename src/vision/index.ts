@@ -27,39 +27,50 @@ import { join } from "node:path";
 import { PHOTO_DIR } from "../photos/index.ts";
 
 /**
- * Haiku 4.5 by default, because MASTER-PLAN 3.4 budgets ~$0.011/check and the
- * Phase 3 gate is an absolute cost/check <= $0.03. Opus 5 on the same request
- * shape is roughly 5x that and blows the gate on its own.
+ * PINNED to Haiku 4.5. Not an env var, not a default that something else can
+ * override — a constant, so no stray Railway variable can silently move this
+ * onto a model that costs ten times as much per listing.
  *
- * Override per run to compare:
- *   ASSYZE_VISION_MODEL=claude-opus-5 bun run check <url>
+ * Measured 2026-08-24 on listing 6: Haiku, Sonnet 5 and Opus 5 all read the CPU,
+ * GPU, RAM and storage correctly off the same spec screen. Opus cost 10x and
+ * took 4x as long. Changing this is a deliberate one-line edit, and anyone
+ * making it should re-run the comparison first.
  */
-export const VISION_MODEL = process.env.ASSYZE_VISION_MODEL ?? "claude-haiku-4-5";
+export const VISION_MODEL = "claude-haiku-4-5";
 
-/** $ per million tokens. Used to report REAL cost instead of the 3.4 estimate. */
-const PRICING: Record<string, { in: number; out: number }> = {
-  "claude-haiku-4-5": { in: 1, out: 5 },
-  "claude-sonnet-5": { in: 3, out: 15 },
-  "claude-opus-5": { in: 5, out: 25 },
-  "claude-opus-4-8": { in: 5, out: 25 },
-  "claude-fable-5": { in: 10, out: 50 },
-};
+/** $ per million tokens, for reporting REAL cost instead of the 3.4 estimate. */
+const PRICING = { in: 1, out: 5 };
 
 /**
- * 1024px longest edge, NOT the 768 that MASTER-PLAN 3.1 assumed.
+ * NEVER DOWNSCALE A SOURCE PHOTO. Yish's rule, 2026-08-24, and he is right:
+ * the 768px cap this file shipped with made Haiku read "Ryzen 5 5600X" off a
+ * screen that says "Ryzen 5 9600X" — a Zen 5 chip read as a 4-year-old Zen 3,
+ * roughly $110 of error on one component, flowing straight into sum-of-parts.
+ * The saving was a third of a cent.
  *
- * Measured 2026-08-24 on listing 6, whose spec screen is the exact photo Phase 0
- * skipped. Craigslist serves these at ~900px tall, so a 768 cap was DOWNSCALING
- * the highest-value image in the set. At 768 the model read "Ryzen 5 5600X" off
- * a screen that says "Ryzen 5 9600X" — a Zen 5 chip read as a 4-year-old Zen 3,
- * about a $110 error on one component, flowing straight into sum-of-parts.
+ * So the pipeline now sends ORIGINAL BYTES, untouched, whenever they fit. No
+ * resize and — just as important — NO RE-ENCODE. The old code re-encoded every
+ * JPEG at quality 82, which is a SECOND lossy compression pass on an already
+ * lossy source. Anthropic's own guidance calls that out: heavy or repeated JPEG
+ * compression makes text hard to read, and small text on a spec screen is the
+ * single most valuable thing in these listings.
  *
- * Anthropic bills roughly (w*h)/750 tokens per image. 414x900 is ~497 tokens
- * against ~361 at 768: the entire saving was a third of a cent per listing, paid
- * for with the digits. Cap above the source size so nothing is thrown away, and
- * keep a cap at all so a 4000px phone photo does not cost 20k tokens.
+ * The ceiling is not ours to choose. Haiku 4.5 is a STANDARD-tier vision model:
+ * long edge 1568px and 1568 visual tokens, whichever binds first. Anything
+ * bigger the API downscales itself before the model ever sees it, so sending a
+ * 4000px photo buys literally nothing. The high-resolution tier (2576px / 4784
+ * tokens) is Claude 4.7 and later only — Haiku 4.5 does not get it.
+ *
+ * Practically: Craigslist serves ~900px, which is far under both limits, so in
+ * normal operation nothing is touched at all. The resize path below exists for
+ * the phone-camera 4032px case, where the choice is between our resampler and
+ * theirs — not between full resolution and reduced.
  */
-const MAX_EDGE = Number(process.env.ASSYZE_VISION_MAX_EDGE) || 1024;
+const MAX_LONG_EDGE = 1568;
+const MAX_VISUAL_TOKENS = 1568;
+/** Claude bills ceil(w/28) * ceil(h/28) visual tokens — 28px patches, not pixels. */
+const PATCH = 28;
+const visualTokens = (w: number, h: number) => Math.ceil(w / PATCH) * Math.ceil(h / PATCH);
 
 export interface VisionFact {
   fact: string;
@@ -143,14 +154,63 @@ export function visionConfigured(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
-/** Downscale to MAX_EDGE and re-encode. withoutEnlargement so small photos are left alone. */
-async function prepare(path: string): Promise<string> {
-  const buf = await sharp(readFileSync(path))
+/** Per-image base64 ceiling on the Claude API is 10 MB; base64 inflates by ~4/3. */
+const MAX_RAW_BYTES = Math.floor((10 * 1024 * 1024 * 3) / 4);
+
+const MEDIA: Record<string, "image/jpeg" | "image/png" | "image/gif" | "image/webp"> = {
+  jpeg: "image/jpeg", jpg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp",
+};
+
+/**
+ * Original bytes if they fit, a single careful resize if they do not.
+ *
+ * The pass-through branch is the point of this function. It does not decode,
+ * re-encode, or touch the file at all — the exact bytes on disk go to the API.
+ */
+async function prepare(path: string): Promise<{ data: string; media: string; note: string } | null> {
+  const raw = readFileSync(path);
+  const meta = await sharp(raw).metadata();
+  const w = meta.width ?? 0;
+  const h = meta.height ?? 0;
+  const media = MEDIA[meta.format ?? ""] ?? null;
+
+  if (!w || !h) {
+    console.warn(`vision: could not read dimensions of ${path} — skipping`);
+    return null;
+  }
+
+  const fits =
+    Math.max(w, h) <= MAX_LONG_EDGE &&
+    visualTokens(w, h) <= MAX_VISUAL_TOKENS &&
+    raw.byteLength <= MAX_RAW_BYTES &&
+    media !== null;
+
+  if (fits) {
+    return { data: raw.toString("base64"), media: media!, note: `${w}x${h} original` };
+  }
+
+  /**
+   * Oversized. The API would downscale this itself, so the only decision left is
+   * WHO resamples and how well. Lanczos3 and quality 95 beat an unknown default,
+   * and 95 keeps the second compression pass close to lossless where it matters.
+   *
+   * Solve both limits at once: scale factor s such that the long edge fits AND
+   * the patch grid fits. The token limit is the one that usually binds, and
+   * doing this in one step avoids resizing twice.
+   */
+  const byEdge = MAX_LONG_EDGE / Math.max(w, h);
+  const byTokens = Math.sqrt((MAX_VISUAL_TOKENS * PATCH * PATCH) / (w * h));
+  const s = Math.min(byEdge, byTokens, 1);
+  const tw = Math.max(1, Math.floor(w * s));
+  const th = Math.max(1, Math.floor(h * s));
+
+  const buf = await sharp(raw)
     .rotate() // honour EXIF; a sideways spec screen is much harder to read
-    .resize(MAX_EDGE, MAX_EDGE, { fit: "inside", withoutEnlargement: true })
-    .jpeg({ quality: 82 })
+    .resize(tw, th, { kernel: "lanczos3", fit: "fill" })
+    .jpeg({ quality: 95 })
     .toBuffer();
-  return buf.toString("base64");
+
+  return { data: buf.toString("base64"), media: "image/jpeg", note: `${w}x${h} -> ${tw}x${th}` };
 }
 
 export async function analyzePhotos(listingId: number): Promise<VisionResult | null> {
@@ -175,16 +235,48 @@ export async function analyzePhotos(listingId: number): Promise<VisionResult | n
    * guess — which matters because the evidence line in the verdict cites it.
    */
   const content: Anthropic.ContentBlockParam[] = [];
+  const notes: string[] = [];
+  let bytes = 0;
+
   for (let i = 0; i < files.length; i++) {
+    const img = await prepare(join(dir, files[i]));
+    // A photo we cannot decode is a photo we cannot inspect. Say so out loud —
+    // silently dropping one is exactly the Phase 0 failure.
+    if (!img) continue;
+    bytes += img.data.length;
+    notes.push(`${i}:${img.note}`);
     content.push({ type: "text", text: `Image ${i}:` });
     content.push({
       type: "image",
-      source: { type: "base64", media_type: "image/jpeg", data: await prepare(join(dir, files[i])) },
+      source: { type: "base64", media_type: img.media as "image/jpeg", data: img.data },
     });
   }
+
+  const sent = content.filter((b) => b.type === "image").length;
+  if (!sent) return null;
+  if (sent !== files.length) {
+    console.warn(`vision: listing ${listingId} — ${files.length - sent} of ${files.length} photos unusable`);
+  }
+
+  /**
+   * Request-level ceilings, both of which fail as opaque 400s if hit. Haiku 4.5
+   * has a 200k context, which caps the API at 100 images per request; the whole
+   * request body caps at 32 MB. A marketplace listing has under 30 photos, so
+   * this is a guard rail, not a code path — but an opaque 400 at 2am is worth
+   * one comparison.
+   */
+  if (sent > 100) {
+    console.error(`vision: listing ${listingId} has ${sent} photos, over the 100-image request limit`);
+    return null;
+  }
+  if (bytes > 30 * 1024 * 1024) {
+    console.error(`vision: listing ${listingId} payload is ${(bytes / 1e6).toFixed(1)} MB, over the request limit`);
+    return null;
+  }
+
   content.push({
     type: "text",
-    text: `That is all ${files.length} images from this listing. Inspect every one and extract the fields.`,
+    text: `That is all ${sent} images from this listing. Inspect every one and extract the fields.`,
   });
 
   try {
@@ -210,7 +302,7 @@ export async function analyzePhotos(listingId: number): Promise<VisionResult | n
       return null;
     }
 
-    const price = PRICING[VISION_MODEL] ?? { in: 0, out: 0 };
+    const price = PRICING;
     const usage = {
       inputTokens: res.usage.input_tokens,
       outputTokens: res.usage.output_tokens,
@@ -218,6 +310,7 @@ export async function analyzePhotos(listingId: number): Promise<VisionResult | n
       ms: Date.now() - t0,
     };
 
+    console.log(`vision: listing ${listingId} — ${sent} photos [${notes.join(" ")}] ${usage.inputTokens} tok $${usage.costUsd.toFixed(4)} ${(usage.ms / 1000).toFixed(1)}s`);
     return { ...parsed, model: VISION_MODEL, usage, raw: JSON.stringify(parsed) };
   } catch (e) {
     // Most specific first — a 429 is worth retrying later, a 400 is a bug in
