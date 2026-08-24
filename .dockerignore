@@ -1,0 +1,12 @@
+node_modules
+web/node_modules
+web/dist
+.git
+photos
+*.db
+*.db-wal
+*.db-shm
+.env
+# Test-set PHOTOS are large and unneeded in production. The audit JSON is small
+# and IS needed — it seeds the eval set. Excluding the whole folder broke seeding.
+docs/testset/cl-*

@@ -22,6 +22,41 @@ Anthropic SDK. Both are on the roadmap; neither is worth doing just to change ho
 
 ---
 
+## ⚠ Vision does NOT run in production
+
+The container has no Claude CLI and no credentials, so `visionAccounts` is empty
+and **the deployed app is text-layer only.** Photos are downloaded and hashed;
+they are not read.
+
+That is not a bug to fix by shipping credentials — subscription auth does not
+belong in a server image, and it would be a security problem regardless.
+
+Two honest options:
+1. **Deploy text-only for now.** Every risk signal still works: contradictions,
+   impossible specs, payment rails, listing age, seller sophistication,
+   geographic contradictions, zero photos. That's Phase 1.5 and it is the
+   differentiator.
+2. **Get an Anthropic API key** and swap vision off the CLI. This is the same
+   change that takes vision from ~60s to ~4s, so it pays twice.
+
+Meanwhile vision runs locally, where the CLI and the three accounts live.
+
+---
+
+## Build: Dockerfile, not Nixpacks
+
+**The first deploy failed because of the lockfile.** Nixpacks detects Bun by
+looking for `bun.lockb`; this repo has the newer text `bun.lock`, so Nixpacks
+fell back to Node and the build died on `bun: not found`.
+
+`Dockerfile` pins `oven/bun:1` and removes the guessing. It is Debian-based on
+purpose — sharp needs glibc, and alpine would need native build deps.
+
+Verified locally with a real `docker build` + `docker run` against a fresh
+volume: seeds on boot, serves `/`, `/c/:id` and `/v1/health`. Image is ~545 MB.
+
+---
+
 ## First deploy
 
 **1. Create the service**
