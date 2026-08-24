@@ -1,13 +1,26 @@
+# LEADING SLASHES ARE LOAD-BEARING.
+#
+# A bare `photos/` matches a directory of that name at ANY depth. It silently
+# excluded src/photos/ — actual source code — from every commit, so Railway
+# crashed on "Cannot find module '../photos/index.ts'" while local builds worked
+# fine because the file was only ever on disk. Anchor anything meant to be
+# root-only.
+
 node_modules/
+.DS_Store
+
+# Secrets
 .env
 .env.*
-*.db
-*.sqlite
-*.sqlite3
-dist/
-.DS_Store
-photos/
-web/dist/
-web/node_modules/
-*.db-shm
-*.db-wal
+
+# Runtime data — root only, never src/
+/photos/
+/*.db
+/*.db-shm
+/*.db-wal
+/*.sqlite
+/*.sqlite3
+
+# Build output — root only
+/dist/
+/web/dist/
