@@ -31,7 +31,31 @@ bun run score                     compare engine verdicts against Yish's audit
 bun run stats                     archive health
 bun run seed                      catalog + economics + judgments
 bun run comps:provisional         hand-entered placeholder comps (DELETE when eBay lands)
+bun run check <url> [--vision]    check ONE live url through the engine, staged timings
+bun run api                       HTTP API on :3177
 ```
+
+### The engine is now a callable service
+`src/engine/index.ts` — `checkListing(url, {onStage})` and `checkStored(id)`. Everything
+above this layer (API, mobile, batch) calls it and knows nothing about SQL or photo paths.
+The extraction was verified **byte-identical** against the previous script output.
+
+### The API — `src/api/index.ts`
+```
+POST /v1/checks              one-shot JSON      ~140ms text-only
+GET  /v1/checks/stream       SSE, one event per stage
+GET  /v1/checks/:id          permalink target (shareable verdict)
+GET  /v1/health
+```
+
+**Measured stage latency (text-only):**
+```
+ 38ms  fetched    listing parsed, photos, price
+ 43ms  signals    red flags — pure compute, no I/O
+ 44ms  valued     match + comps + verdict
+ 46ms  done
+```
+Photo download is backgrounded — blocking on it cost 1.1s for no user benefit.
 
 ### In the database
 | | |

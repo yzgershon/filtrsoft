@@ -10,13 +10,16 @@
     "ingest": "bun run src/scripts/ingest.ts",
     "verdict": "bun run src/scripts/verdict.ts",
     "score": "bun run src/scripts/score.ts",
-    "comps:provisional": "bun run src/scripts/seed-provisional-comps.ts"
+    "comps:provisional": "bun run src/scripts/seed-provisional-comps.ts",
+    "check": "bun run src/scripts/check.ts",
+    "api": "bun run --hot src/api/index.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "typescript": "^5"
   },
   "dependencies": {
+    "hono": "^4.13.3",
     "sharp": "^0.35.3"
   }
 }
