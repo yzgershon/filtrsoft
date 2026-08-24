@@ -111,7 +111,7 @@ ASSYZE_PHOTOS  = /data/photos
 
 **⚠ The Railway volume is NOT the archive.** It holds a fresh seed — 62 SKUs,
 **zero comps**. Every comp, listing, verdict and judgment lives in
-`C:\Devssyzessyze.db` on his PC, because the crawler and the comps pullers
+`C:\Dev\assyze\assyze.db` on his PC, because the crawler and the comps pullers
 run locally. Backing up the volume today backs up an empty database. Revisit
 this only if ingestion ever moves into the container.
 
