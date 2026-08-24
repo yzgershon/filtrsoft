@@ -140,8 +140,8 @@ function Questions({ qs }: { qs: string[] }) {
   );
 }
 
-function Report({ listing, verdict, signals, stage }: {
-  listing: Listing | null; verdict: Verdict | null; signals: Signal[]; stage: number;
+function Report({ listing, verdict, signals, stage, reading }: {
+  listing: Listing | null; verdict: Verdict | null; signals: Signal[]; stage: number; reading: number;
 }) {
   if (!listing) return null;
   return (
@@ -188,6 +188,13 @@ function Report({ listing, verdict, signals, stage }: {
         </div>
       )}
 
+      {reading > 0 && (
+        <div className="reading" role="status" aria-live="polite">
+          <span className="spin" aria-hidden="true" />
+          Reading {reading} photo{reading === 1 ? "" : "s"} — sellers often put the specs in an image
+        </div>
+      )}
+
       {stage < 3 && (
         <div className="prog" aria-hidden="true">
           {[0, 1, 2].map((i) => <span className={`step ${stage > i ? "on" : ""}`} key={i}><i /></span>)}
@@ -213,6 +220,7 @@ export default function App() {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [stage, setStage] = useState(0);
   const [ms, setMs] = useState<number | null>(null);
+  const [reading, setReading] = useState(0);   // photos being read, 0 = not reading
   const [checkId, setCheckId] = useState<number | null>(null);
   const [hist, setHist] = useState<Hist[]>(readHist);
   const es = useRef<EventSource | null>(null);
@@ -230,7 +238,7 @@ export default function App() {
   const reset = () => {
     es.current?.close();
     setError(null); setListing(null); setVerdict(null);
-    setSignals([]); setStage(0); setMs(null); setCheckId(null);
+    setSignals([]); setStage(0); setMs(null); setCheckId(null); setReading(0);
   };
 
   function run(e?: React.FormEvent) {
@@ -253,6 +261,13 @@ export default function App() {
       const d = JSON.parse((ev as MessageEvent).data);
       setVerdict(d.verdict); setStage(3); setMs(d.elapsedMs);
     });
+    src.addEventListener("vision_start", (ev) => {
+      setReading(JSON.parse((ev as MessageEvent).data).photoCount ?? 0);
+    });
+    src.addEventListener("vision", (ev) => {
+      const d = JSON.parse((ev as MessageEvent).data);
+      setVerdict(d.verdict); setReading(0); setStage(4); setMs(d.elapsedMs);
+    });
     src.addEventListener("done", (ev) => {
       const d = JSON.parse((ev as MessageEvent).data);
       if (d.listingId) {
@@ -263,12 +278,12 @@ export default function App() {
           setHist(readHist());
         }
       }
-      setBusy(false); src.close();
+      setBusy(false); setReading(0); src.close();
     });
     src.addEventListener("error", (ev) => {
       const raw = (ev as MessageEvent).data;
       setError(raw ? JSON.parse(raw).error ?? "Something went wrong." : "Couldn't reach the server.");
-      setBusy(false); setStage(0); src.close();
+      setBusy(false); setStage(0); setReading(0); src.close();
     });
   }
 
@@ -337,7 +352,7 @@ export default function App() {
                   </div>
                 )}
 
-                <Report listing={listing} verdict={verdict} signals={signals} stage={stage} />
+                <Report listing={listing} verdict={verdict} signals={signals} stage={stage} reading={reading} />
 
                 {ms != null && <div className="timing num">verdict in {ms}ms</div>}
 

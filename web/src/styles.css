@@ -345,3 +345,20 @@ a { color: inherit; }
 .hcard .ht { flex: 1; min-width: 0; }
 .hcard .ht b { display: block; font-size: 14px; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hcard .ht span { font-size: 12px; color: var(--ink-3); }
+
+/* photos being read — vision is the slow, valuable stage */
+.reading {
+  display: flex; align-items: center; gap: var(--s3);
+  margin: var(--s4) 0 0; padding: 12px var(--s4);
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-md); font-size: 13px; color: var(--ink-2); line-height: 1.45;
+}
+.reading .spin {
+  flex: none; width: 15px; height: 15px; border-radius: 50%;
+  border: 2px solid var(--surface-3); border-top-color: var(--brand);
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg) } }
+@media (prefers-reduced-motion: reduce) {
+  .reading .spin { animation: none; border-top-color: var(--brand); }
+}

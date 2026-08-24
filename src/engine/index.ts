@@ -22,7 +22,7 @@ import { getEconomics, type UserEconomics } from "../valuation/index.ts";
 import { db, now } from "../db/index.ts";
 import type { RawListing, Signal, SignalReport } from "../types.ts";
 
-export type StageName = "fetched" | "signals" | "valued" | "vision" | "done";
+export type StageName = "fetched" | "signals" | "valued" | "vision_start" | "vision" | "done";
 
 export interface Stage {
   stage: StageName;
@@ -43,7 +43,14 @@ export interface CheckResult {
 export interface CheckOptions {
   econ?: UserEconomics;
   driveMinutes?: number;
-  /** Run the vision pass. Slow (seconds). Off by default so callers opt in. */
+  /**
+   * Read the photos. ON by default — reading the photos IS the product. Sellers
+   * routinely put the entire spec sheet in an image and never type it, which is
+   * exactly the case that separates this from a price lookup.
+   *
+   * It's slow on a cold listing, which is why the pipeline streams: the text
+   * verdict lands in ~200ms and vision refines it when it arrives.
+   */
   vision?: boolean;
   /** Write the listing and photos to the database. */
   persist?: boolean;
@@ -174,9 +181,24 @@ export async function checkListing(url: string, opts: CheckOptions = {}): Promis
     listingQuality: out.signals.listingQuality, sellerSophistication: out.signals.sellerSophistication });
   emit("valued", { match: out.match, verdict: out.verdict });
 
-  // --- vision: seconds, optional, refines the verdict -------------------
+  // --- vision: refines the verdict -------------------------------------
+  // Cache first. A listing analysed before is instant, and popular listings get
+  // checked repeatedly by different people. Without this, every check re-pays
+  // the full cost and the full wait for photos that haven't changed.
+  const wantVision = opts.vision !== false;
   let vision: VisionResult | null = null;
-  if (opts.vision && listingId) {
+
+  if (wantVision && listingId) {
+    const cached = loadVision(listingId);
+    if (cached) {
+      vision = cached;
+      out = runPipeline(listing, vision, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster });
+      emit("vision", { vision, verdict: out.verdict, cached: true });
+    }
+  }
+
+  if (wantVision && listingId && !vision) {
+    emit("vision_start", { photoCount: listing.photoUrls.length });
     await persistPhotos(listingId, listing.photoUrls);
     vision = await analyzePhotos(listingId);
     if (vision) {
@@ -185,9 +207,9 @@ export async function checkListing(url: string, opts: CheckOptions = {}): Promis
          VALUES ($lid,'claude-code-headless',$p,$ms,$now)`,
       ).run({ $lid: listingId, $p: JSON.stringify(vision), $ms: since(), $now: now() });
       out = runPipeline(listing, vision, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster });
-      emit("vision", { vision, verdict: out.verdict });
+      emit("vision", { vision, verdict: out.verdict, cached: false });
     }
-  } else if (opts.persist && listingId) {
+  } else if (opts.persist && listingId && !wantVision) {
     // Photos are wanted for the phash index and any later vision run, but they
     // are NOT on the critical path when vision is off. Blocking on them added
     // ~1.1s to a response that was otherwise complete at 163ms.

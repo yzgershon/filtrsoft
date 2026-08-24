@@ -83,7 +83,8 @@ app.post("/v1/checks", async (c) => {
 app.get("/v1/checks/stream", (c) => {
   const url = c.req.query("url");
   const err = badUrl(url);
-  const vision = c.req.query("vision") === "1";
+  // Vision is the product. Opt OUT with ?vision=0, do not opt in.
+  const vision = c.req.query("vision") !== "0";
   const drive = Number(c.req.query("drive")) || undefined;
 
   const stream = new ReadableStream({
