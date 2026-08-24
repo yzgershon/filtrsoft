@@ -15,8 +15,8 @@ import { fetchListing } from "../sources/craigslist.ts";
 import { analyze } from "../signals/index.ts";
 import { matchSku, type Match } from "../catalog/match.ts";
 import { buildVerdict, type VerdictResult } from "../verdict/index.ts";
-import { loadVision, visionToText, visionSignals } from "../vision/merge.ts";
-import { analyzePhotos, VISION_MODEL, type VisionResult } from "../vision/index.ts";
+import { loadVision, loadVisionByFingerprint, photoFingerprint, photosUnchanged, visionToText, visionSignals } from "../vision/merge.ts";
+import { analyzePhotos, VISION_MODEL, PROMPT_VERSION, type VisionResult } from "../vision/index.ts";
 import { downloadPhoto, dhash } from "../photos/index.ts";
 import { getEconomics, type UserEconomics } from "../valuation/index.ts";
 import { db, now } from "../db/index.ts";
@@ -188,26 +188,69 @@ export async function checkListing(url: string, opts: CheckOptions = {}): Promis
   const wantVision = opts.vision !== false;
   let vision: VisionResult | null = null;
 
+  /**
+   * TIER 1 — same listing, same photos, no download.
+   *
+   * The listing-id cache alone was WRONG: a seller who swaps the photos keeps
+   * being described by the analysis of pictures that are no longer there. The
+   * URL set is a free staleness check, because Craigslist image ids change when
+   * a photo changes.
+   */
   if (wantVision && listingId) {
-    const cached = loadVision(listingId);
+    const cached = photosUnchanged(listingId, listing.photoUrls)
+      ? loadVision(listingId, VISION_MODEL, PROMPT_VERSION)
+      : null;
     if (cached) {
       vision = cached;
       out = runPipeline(listing, vision, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster });
-      emit("vision", { vision, verdict: out.verdict, cached: true });
+      emit("vision", { vision, verdict: out.verdict, cached: "listing" });
     }
   }
 
   if (wantVision && listingId && !vision) {
     emit("vision_start", { photoCount: listing.photoUrls.length });
     await persistPhotos(listingId, listing.photoUrls);
-    vision = await analyzePhotos(listingId);
-    if (vision) {
-      db().query(
-        `INSERT INTO vision_results (listing_id, model, payload, duration_ms, created_at)
-         VALUES ($lid,$model,$p,$ms,$now)`,
-      ).run({ $lid: listingId, $model: vision.model ?? VISION_MODEL, $p: JSON.stringify(vision), $ms: since(), $now: now() });
-      out = runPipeline(listing, vision, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster });
-      emit("vision", { vision, verdict: out.verdict, cached: false });
+
+    /**
+     * TIER 2 — these exact PHOTOS have been analysed before, on any listing.
+     *
+     * Catches the two cases the listing-id key cannot: a seller reposting the
+     * same item next week, and two different sellers using the same stock or
+     * stolen photos. Both pay full price under the old key.
+     */
+    const fp = photoFingerprint(listingId);
+    if (fp) {
+      const hit = loadVisionByFingerprint(fp, VISION_MODEL, PROMPT_VERSION);
+      if (hit) {
+        vision = hit;
+        // Record the reuse against THIS listing at zero cost, so the cache hit
+        // is visible in the archive rather than looking like it never ran.
+        db().query(
+          `INSERT INTO vision_results (listing_id, model, payload, duration_ms, created_at, cost_micros, photo_fingerprint, prompt_version)
+           VALUES ($lid,$model,$p,0,$now,0,$fp,$pv)`,
+        ).run({ $lid: listingId, $model: VISION_MODEL, $p: JSON.stringify(hit), $now: now(), $fp: fp, $pv: PROMPT_VERSION });
+        out = runPipeline(listing, vision, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster });
+        emit("vision", { vision, verdict: out.verdict, cached: "photos" });
+      }
+    }
+
+    if (!vision) {
+      vision = await analyzePhotos(listingId);
+      if (vision) {
+        db().query(
+          `INSERT INTO vision_results (listing_id, model, payload, duration_ms, created_at, cost_micros, photo_fingerprint, prompt_version)
+           VALUES ($lid,$model,$p,$ms,$now,$cost,$fp,$pv)`,
+        ).run({
+          $lid: listingId, $model: vision.model ?? VISION_MODEL, $p: JSON.stringify(vision),
+          $ms: vision.usage?.ms ?? since(), $now: now(),
+          // Micros, integer. The daily spend guard sums these and float drift in
+          // a money guard is how a cap stops matching reality.
+          $cost: Math.round((vision.usage?.costUsd ?? 0) * 1e6),
+          $fp: fp, $pv: PROMPT_VERSION,
+        });
+        out = runPipeline(listing, vision, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster });
+        emit("vision", { vision, verdict: out.verdict, cached: false });
+      }
     }
   } else if (opts.persist && listingId && !wantVision) {
     // Photos are wanted for the phash index and any later vision run, but they

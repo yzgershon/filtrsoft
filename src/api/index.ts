@@ -18,9 +18,59 @@ import { checkListing, ENGINE_VERSION, type Stage } from "../engine/index.ts";
 import { getEconomics } from "../valuation/index.ts";
 import { db, DB_PATH } from "../db/index.ts";
 import { VISION_MODEL, visionConfigured } from "../vision/index.ts";
+import {
+  rateLimit, clientKey, visionAllowed, visionKilled, budgetAvailable,
+  singleFlight, guardStatus,
+} from "./guard.ts";
 
 const app = new Hono();
-app.use("/*", cors());
+
+/**
+ * CORS was `cors()` with no options — wildcard, any origin.
+ *
+ * The frontend is served from THIS origin in production, so it never needed
+ * CORS at all; the wildcard only ever helped somebody else's page call this API
+ * from their users' browsers. Dev origins are listed explicitly.
+ */
+const ALLOWED_ORIGINS = [
+  "https://assyze.com", "https://www.assyze.com",
+  "http://localhost:5177", "http://127.0.0.1:5177",
+];
+app.use("/*", cors({ origin: (o) => (ALLOWED_ORIGINS.includes(o) ? o : null) }));
+
+/**
+ * Rate limit every check endpoint, not just the paid ones.
+ *
+ * Free checks are not free to everyone: each one fetches a Craigslist page, and
+ * hammering them from one host gets that host blocked — which would take out the
+ * crawler and the delisting tracker as collateral damage.
+ */
+app.use("/v1/checks/*", async (c, next) => {
+  const { ok, retryAfter } = rateLimit(clientKey(c.req.raw.headers));
+  if (!ok) return c.json({ error: "too many requests" }, 429, { "Retry-After": String(retryAfter) });
+  await next();
+});
+app.use("/v1/checks", async (c, next) => {
+  const { ok, retryAfter } = rateLimit(clientKey(c.req.raw.headers));
+  if (!ok) return c.json({ error: "too many requests" }, 429, { "Retry-After": String(retryAfter) });
+  await next();
+});
+
+/**
+ * May THIS request spend money?
+ *
+ * Three independent gates, and the caller is told which one refused so a real
+ * user is not left staring at a silently text-only result wondering why the
+ * photos were ignored.
+ */
+function visionDecision(c: { req: { header: (k: string) => string | undefined } }, asked: boolean) {
+  if (!asked) return { allowed: false, reason: "not requested" };
+  if (!visionConfigured()) return { allowed: false, reason: "no API key configured" };
+  if (visionKilled()) return { allowed: false, reason: "vision is switched off" };
+  if (!visionAllowed(c.req.header("authorization"))) return { allowed: false, reason: "vision requires a token" };
+  if (!budgetAvailable()) return { allowed: false, reason: "daily vision budget reached" };
+  return { allowed: true, reason: "ok" };
+}
 
 const SUPPORTED = /^https?:\/\/(www\.)?(craigslist\.org|[a-z]+\.craigslist\.org)\//i;
 
@@ -58,7 +108,7 @@ app.get("/v1/health", (c) => {
     ok: true,
     engine: ENGINE_VERSION,
     ...stats,
-    vision: { configured: visionConfigured(), model: VISION_MODEL },
+    vision: { configured: visionConfigured(), model: VISION_MODEL, ...guardStatus() },
   });
 });
 
@@ -68,13 +118,17 @@ app.post("/v1/checks", async (c) => {
   const err = badUrl(body.url);
   if (err) return c.json({ error: err }, 400);
 
+  const vd = visionDecision(c, Boolean(body.vision));
+
   try {
-    const r = await checkListing(body.url, {
-      vision: Boolean(body.vision),
+    // Coalesce concurrent identical work. Twenty people opening the same shared
+    // link at once become ONE source fetch and ONE vision call.
+    const r = await singleFlight(`${body.url}|${vd.allowed}`, () => checkListing(body.url, {
+      vision: vd.allowed,
       persist: true,
       driveMinutes: body.driveMinutes,
       econ: body.economics ?? getEconomics(),
-    });
+    }));
     return c.json({
       checkId: r.listingId,
       elapsedMs: r.elapsedMs,
@@ -94,6 +148,7 @@ app.post("/v1/checks", async (c) => {
         match: r.match,
       },
       vision: r.vision,
+      visionStatus: vd.reason,
     });
   } catch (e) {
     return c.json({ error: (e as Error).message }, 502);
@@ -104,8 +159,14 @@ app.post("/v1/checks", async (c) => {
 app.get("/v1/checks/stream", (c) => {
   const url = c.req.query("url");
   const err = badUrl(url);
-  // Vision is the product. Opt OUT with ?vision=0, do not opt in.
-  const vision = c.req.query("vision") !== "0";
+  /**
+   * Vision is the product, but it is also the only thing here that spends money,
+   * and this endpoint is a public GET. It stays default-on for AUTHORISED
+   * callers and is refused for everyone else — an anonymous visitor still gets a
+   * real text-layer verdict, they just cannot bill Yish for it.
+   */
+  const vd = visionDecision(c, c.req.query("vision") !== "0");
+  const vision = vd.allowed;
   const drive = Number(c.req.query("drive")) || undefined;
 
   const stream = new ReadableStream({
@@ -115,6 +176,7 @@ app.get("/v1/checks/stream", (c) => {
         ctrl.enqueue(enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
 
       if (err) { send("error", { error: err }); ctrl.close(); return; }
+      send("meta", { vision: vd.allowed, visionStatus: vd.reason });
 
       try {
         await checkListing(url!, {

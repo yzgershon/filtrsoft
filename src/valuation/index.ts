@@ -10,6 +10,7 @@
  *    and risk." That floor is a per-user setting. See CALIBRATION finding 1.
  */
 import { db } from "../db/index.ts";
+import { adjustPrice, normalizeCondition, type Condition } from "./condition.ts";
 
 export type Channel = "ebay" | "facebook";
 
@@ -49,17 +50,35 @@ export interface Valuation {
   confidence: "high" | "medium" | "low";
 }
 
-export function valueSku(skuId: number | null, opts?: { windowDays?: number }): Valuation {
+export function valueSku(
+  skuId: number | null,
+  opts?: { windowDays?: number; condition?: Condition | null; category?: string | null },
+): Valuation {
   if (!skuId) return { status: "no_comps", lowCents: null, highCents: null, medianCents: null, compCount: 0, confidence: "low" };
 
-  const rows = db()
+  const raw = db()
     .query(
-      `SELECT sold_price_cents + COALESCE(shipping_cents,0) AS total
+      `SELECT sold_price_cents + COALESCE(shipping_cents,0) AS total, condition_norm
        FROM comps WHERE sku_id = $sku
-         AND (sold_at IS NULL OR sold_at >= date('now', $win))
-       ORDER BY total`,
+         AND (sold_at IS NULL OR sold_at >= date('now', $win))`,
     )
-    .all({ $sku: skuId, $win: `-${opts?.windowDays ?? 90} days` }) as Array<{ total: number }>;
+    .all({ $sku: skuId, $win: `-${opts?.windowDays ?? 90} days` }) as Array<{ total: number; condition_norm: string | null }>;
+
+  /**
+   * Restate every comp in the LISTING's condition before taking a median.
+   *
+   * Before this, a for-parts comp and a sealed comp went into the same pile and
+   * the median came out somewhere meaningless in between. Sorting has to happen
+   * AFTER adjustment — sorting first and adjusting second would return
+   * percentiles of the wrong ordering, which is the kind of bug that produces a
+   * plausible number and no error.
+   */
+  const target = opts?.condition ?? null;
+  const rows = raw
+    .map((r) => ({
+      total: adjustPrice(r.total, normalizeCondition(r.condition_norm), target, opts?.category ?? null),
+    }))
+    .sort((a, b) => a.total - b.total);
 
   const n = rows.length;
   if (n === 0) return { status: "no_comps", lowCents: null, highCents: null, medianCents: null, compCount: 0, confidence: "low" };

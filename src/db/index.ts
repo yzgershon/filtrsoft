@@ -43,13 +43,33 @@ const LISTING_COLUMNS: Array<[string, string]> = [
   ["last_price_cents", "INTEGER"], // asking price at the last observation
 ];
 
-function migrate(d: Database) {
+/**
+ * Vision cost, in MICRO-dollars.
+ *
+ * Integer micros rather than a REAL number of cents: the daily spend ceiling
+ * sums thousands of these, and accumulating float error into a money guard is
+ * how a cap silently stops matching reality. One call is ~5,500 micros.
+ */
+const VISION_COLUMNS: Array<[string, string]> = [
+  ["cost_micros", "INTEGER NOT NULL DEFAULT 0"],
+  ["photo_fingerprint", "TEXT"],  // cache key: content, not listing id
+  ["prompt_version", "TEXT"],
+];
+
+function addColumns(d: Database, table: string, cols: Array<[string, string]>) {
   const have = new Set(
-    (d.query("PRAGMA table_info(listings)").all() as Array<{ name: string }>).map((c) => c.name),
+    (d.query(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map((c) => c.name),
   );
-  for (const [name, type] of LISTING_COLUMNS) {
-    if (!have.has(name)) d.exec(`ALTER TABLE listings ADD COLUMN ${name} ${type}`);
+  for (const [name, type] of cols) {
+    if (!have.has(name)) d.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
   }
+}
+
+function migrate(d: Database) {
+  addColumns(d, "listings", LISTING_COLUMNS);
+  addColumns(d, "vision_results", VISION_COLUMNS);
+  d.exec("CREATE INDEX IF NOT EXISTS idx_vision_fingerprint ON vision_results(photo_fingerprint)");
+  d.exec("CREATE INDEX IF NOT EXISTS idx_vision_created ON vision_results(created_at)");
 }
 
 export const now = () => new Date().toISOString();
