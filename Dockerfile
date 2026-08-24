@@ -1,27 +1,29 @@
-# Explicit Bun image instead of letting Nixpacks guess.
-#
-# Nixpacks detects Bun by looking for `bun.lockb`. This repo has the newer text
-# `bun.lock`, so Nixpacks fell back to Node and the build died on `bun: not found`.
-# A Dockerfile removes the guessing entirely.
-#
-# Debian-based (not alpine) on purpose: sharp needs glibc, and the alpine variant
-# needs extra native deps to build it from source.
-FROM oven/bun:1
+# ── stage 1: frontend ────────────────────────────────────────────────────────
+# Vite is built for Node, and Bun's runtime OOMs running it on amd64 (exit 134,
+# "MemoryExhaustion"). It passed locally on arm64 and failed every time on
+# Railway, which is a miserable way to discover an architecture difference.
+# Node builds it without drama; Bun still runs the server in stage 2.
+FROM node:22-slim AS web
+WORKDIR /web
+COPY web/package.json ./
+RUN npm install --no-audit --no-fund
+COPY web/ ./
+RUN npm run build
 
+# ── stage 2: server ──────────────────────────────────────────────────────────
+# Debian-based, not alpine: sharp needs glibc.
+FROM oven/bun:1
 WORKDIR /app
 
 # Dependencies first so a source-only change doesn't reinstall everything.
 COPY package.json bun.lock ./
-COPY web/package.json ./web/
 RUN bun install --frozen-lockfile || bun install
 
-# Source
 COPY . .
+# Built frontend from stage 1. The server serves it from the same origin.
+COPY --from=web /web/dist ./web/dist
 
-# Build the frontend. The server serves web/dist from the same origin.
-RUN cd web && bun install && bun run build
-
-# Railway injects PORT; the server reads it. This is documentation, not a bind.
+# Railway injects PORT; the server reads it. This line is documentation.
 EXPOSE 3177
 
 # Volume-backed paths. Railway overrides these with the real mount.

@@ -9,3 +9,5 @@ dist/
 photos/
 web/dist/
 web/node_modules/
+*.db-shm
+*.db-wal
