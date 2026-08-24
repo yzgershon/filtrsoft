@@ -35,16 +35,32 @@ function badUrl(url: string | undefined): string | null {
   return null;
 }
 
-app.get("/v1/health", (c) =>
-  c.json({
+/**
+ * Health. Deliberately does NOT require the database.
+ *
+ * This endpoint's only job is to tell the platform the process is alive and
+ * listening. Making it query SQLite meant a database problem presented as a
+ * silent 91-second healthcheck timeout instead of an error anyone could read.
+ * Database trouble is reported IN the payload, never by failing the check.
+ */
+app.get("/v1/health", (c) => {
+  let stats: Record<string, unknown> = { db: "unavailable" };
+  try {
+    stats = {
+      db: "ok",
+      comps: (db().query("SELECT COUNT(*) n FROM comps").get() as { n: number }).n,
+      skus: (db().query("SELECT COUNT(*) n FROM skus").get() as { n: number }).n,
+    };
+  } catch (e) {
+    stats = { db: "error", dbPath: DB_PATH, error: (e as Error).message };
+  }
+  return c.json({
     ok: true,
     engine: ENGINE_VERSION,
-    comps: (db().query("SELECT COUNT(*) n FROM comps").get() as { n: number }).n,
-    skus: (db().query("SELECT COUNT(*) n FROM skus").get() as { n: number }).n,
-    // Vision runs on subscriptions, so account health IS service health.
+    ...stats,
     visionAccounts: accountStatus(),
-  }),
-);
+  });
+});
 
 /** One-shot check. Text-only by default, which is the fast path. */
 app.post("/v1/checks", async (c) => {
@@ -229,16 +245,26 @@ if (hasBuild) {
 }
 
 // -------------------------------------------------------------- boot seed
-// A fresh Railway volume is an empty database. Seed the catalog and economics
-// on first boot rather than requiring a manual step nobody remembers.
-{
-  const n = (db().query("SELECT COUNT(*) n FROM skus").get() as { n: number }).n;
-  if (n === 0) {
-    console.log("empty database — seeding catalog + economics…");
-    const { seed } = await import("../scripts/seed.ts");
-    try { seed(); } catch (e) { console.error("seed failed:", (e as Error).message); }
+// Deferred and fully guarded. Previously this ran at module load and any failure
+// (a missing volume, a read-only mount) meant the module never finished
+// evaluating, so the server never listened at all and the platform saw nothing
+// but a timeout. Start first, seed second, survive either way.
+setTimeout(() => {
+  try {
+    const n = (db().query("SELECT COUNT(*) n FROM skus").get() as { n: number }).n;
+    if (n === 0) {
+      console.log("empty database — seeding catalog + economics…");
+      import("../scripts/seed.ts")
+        .then((m) => m.seed())
+        .catch((e) => console.error("seed failed:", (e as Error).message));
+    } else {
+      console.log(`database ready — ${n} skus`);
+    }
+  } catch (e) {
+    console.error(`DATABASE UNAVAILABLE at ${DB_PATH}: ${(e as Error).message}`);
+    console.error("  The server is still serving. Fix the volume mount or ASSYZE_DB.");
   }
-}
+}, 0);
 
 const port = Number(process.env.PORT) || 3177;
 // Bind all interfaces. Binding loopback inside a container makes the app
