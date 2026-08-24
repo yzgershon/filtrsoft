@@ -241,25 +241,35 @@ same first item, zero new ids. The static results page is the whole result set.
 and `sweep` now defaults to 1 page. If real pagination is ever needed it has to
 come from the JS search UI, not this endpoint.
 
-### ⚠⚠ A 2019 Intel MacBook matched to "MacBook Pro M3" — wrong-generation matching
-Found 2026-08-24 on listing 338. Vision read the spec screens correctly:
+### ⚠ Wrong-generation matching — FIXED 2026-08-24, keep the rule
+Found on listing 338. Vision read the spec screens correctly:
 `model: "MacBook Pro 16-inch 2019"`, `cpu: "Intel Core i7 2.6 GHz 6-Core"`.
 The matcher resolved it to **skuId 33, "MacBook Pro M3"** via `method: "token"`,
 `confidence: "low"` — an Intel machine matched to Apple Silicon, roughly a 2-3x
 price difference. It did NOT produce a bad number only because that SKU has no
 comps. **The moment comps land, this prices a 2019 Intel MacBook as an M3.**
 
-Two things to fix, and the first is the safety one:
-1. A `confidence: "low"` token match should not be usable for valuation at all.
-2. Matching must respect the year/generation attributes vision already extracts
-   (`year: 2019` was parsed and then ignored).
+**The rule that fixes it, in `matchSku`: a SKU token containing a DIGIT is a
+discriminator** (m3, 15, 5070, 6700k) and every one of them must appear in the
+listing or the match is refused. Plain token overlap treated "macbook" and "m3"
+as equally important when the generation IS the entire question. Ties now break
+toward the MORE specific SKU so "iPhone 15 Pro Max" still beats "iPhone 15".
 
-### ⚠ The verdict layer does not read vision's components
-Same listing: vision returned a CPU, and the verdict still said
-`decidingUnknown: "cpu"` / "Can't be valued — cpu not stated." So on laptops and
-phones — 40 of the 62 SKUs — the expensive vision pass is being paid for and
-then not consulted by the thing that decides. Check `visionSignals`/`merge.ts`
-against what `verdict/` actually reads.
+Defence in depth in `buildVerdict`: `valueSku` is passed null for any
+`confidence: "low"` match, so if a fuzzy match ever slips through again the worst
+case is INSUFFICIENT_DATA, never a confident number off another product's comps.
+
+Verified: the 2019 Intel listing now resolves to no match, while M3 MacBook,
+iPhone 15, iPhone 15 Pro Max and RTX 5070 all still hit their aliases. Eval set
+unchanged at 3/10 exact with no directional bias.
+
+### ⚠ The CPU regex demanded a part number — FIXED 2026-08-24
+Vision returned `cpu: "Intel Core i7 2.6 GHz 6-Core"` and the verdict still said
+"cpu not stated", because `VALUE_FIELDS.laptop` required a full part number
+(`i7-9750H`). A Mac spec screen never shows one. So vision was being paid for and
+then ignored on the single most common category. Both the laptop and prebuilt
+patterns now also accept a bare `core i7`. `6-Core Processor` alone still does
+NOT match — the family letter has to be there.
 
 ### ⚠ Full-resolution photos cost more on photo-heavy listings, as intended
 Listing 338 has **17 photos**: 17,193 tokens, **$0.02**, 8.4s. A 3-photo listing

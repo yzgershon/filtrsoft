@@ -49,7 +49,15 @@ export function buildVerdict(input: {
   // A custom build has no SKU — decompose and price the parts instead.
   const isBundle = (match.category ?? signals.category) === "prebuilt";
   const partsVal = isBundle ? valueByParts(match.attributes) : null;
-  const skuVal = valueSku(match.skuId);
+  /**
+   * A low-confidence match must never price anything. Defence in depth behind
+   * the discriminating-token rule in `matchSku`: if a fuzzy match ever does slip
+   * through to the wrong generation again, the worst outcome is
+   * INSUFFICIENT_DATA rather than a confident number computed from another
+   * product's comps. "Reliability over coverage" — missing a deal costs nothing,
+   * quoting a 2019 Intel MacBook at M3 prices ends the brand.
+   */
+  const skuVal = valueSku(match.confidence === "low" ? null : match.skuId);
   const valuation = partsVal && (skuVal.status === "no_comps" || partsVal.compCount > skuVal.compCount)
     ? partsVal : skuVal;
   const questions = buildQuestions(signals, match);

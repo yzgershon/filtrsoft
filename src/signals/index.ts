@@ -43,11 +43,16 @@ const VALUE_FIELDS: Partial<Record<Category, Array<[string, RegExp]>>> = {
   phone:    [["storage", /\b(\d{1,4})\s?(gb|tb)\b/i]],
   // No trailing \b — real CPU model numbers carry letter suffixes ("i7-1185G7",
   // "i7-6700K") and a closing boundary can never match after them.
-  laptop:   [["cpu", /\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d|m[1234]\b|celeron|core ultra|snapdragon)/i],
+  // "core i7" with NO part number is the common form on a Mac spec screen
+  // ("Intel Core i7 2.6 GHz 6-Core") and in many listings. Requiring a full
+  // part number meant vision could read the CPU straight off a photo and the
+  // verdict would still say "cpu not stated" — paying for vision, then
+  // ignoring it. Found 2026-08-24 on listing 338.
+  laptop:   [["cpu", /\b(?:intel\s+)?core\s+i[3579]\b|\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d|m[1234]\b|celeron|core ultra|snapdragon)/i],
              ["ram", /\b\d{1,3}\s?gb\b/i]],
   gpu:      [["model", /\b(rtx|gtx|rx|tesla|quadro)\s?[a-z]?\d{3,4}/i]],
   prebuilt: [["gpu", /\b(rtx|gtx|rx)\s?\d{3,4}|\b(integrated|igpu|iris|radeon graphics)\b/i],
-             ["cpu", /\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d|m[1234]\b|core ultra|xeon)/i]],
+             ["cpu", /\b(?:intel\s+)?core\s+i[3579]\b|\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d|m[1234]\b|core ultra|xeon)/i]],
   console:  [["storage", /\b(\d{3,4}\s?gb|\d{1,2}\s?tb)\b/i]],
   tablet:   [["storage", /\b(\d{1,4})\s?(gb|tb)\b/i]],
 };

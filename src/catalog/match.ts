@@ -143,18 +143,46 @@ export function matchSku(title: string, description = "", categoryHint?: string)
   }
 
   // --- 2. Token overlap against model names.
+  //
+  // THE GENERATION TRAP, found 2026-08-24 and it was one dataset away from
+  // quoting a real price. A listing reading "Macbook Pro *32GB RAM* 16" I7"
+  // matched the SKU "MacBook Pro M3" on {macbook, pro} = 2/3 = 0.67 overlap. An
+  // Intel machine matched to Apple Silicon, a 2-3x price difference, and the
+  // ONLY token that carried that difference — "m3" — was the one that did not
+  // match. Plain overlap treats the family name and the generation as equally
+  // important, when the generation is the entire question.
+  //
+  // So: a SKU token containing a DIGIT is a discriminator (m3, 15, 5070, 6700k).
+  // If the listing does not contain every one of them, this is a family
+  // resemblance, not a match, and it is refused outright.
   const tokens = new Set(n.split(" ").filter((w) => w.length > 1));
-  let best: { r: (typeof aliasRows)[number]; score: number } | null = null;
+  const hasDigit = (w: string) => /\d/.test(w);
+
+  let best: { r: (typeof aliasRows)[number]; score: number; matched: number } | null = null;
   for (const r of aliasRows) {
     const mt = norm(r.model).split(" ").filter((w) => w.length > 1);
     if (!mt.length) continue;
-    const overlap = mt.filter((w) => tokens.has(w)).length / mt.length;
-    if (overlap >= 0.6 && (!best || overlap > best.score)) best = { r, score: overlap };
+
+    const discriminators = mt.filter(hasDigit);
+    if (discriminators.some((w) => !tokens.has(w))) continue;
+
+    const matched = mt.filter((w) => tokens.has(w)).length;
+    const overlap = matched / mt.length;
+    // Tie-break toward the MORE SPECIFIC sku: "iPhone 15 Pro Max" and
+    // "iPhone 15" both score 1.0 against a Pro Max listing, and the specific
+    // one is the right answer.
+    if (overlap >= 0.6 && (!best || overlap > best.score ||
+        (overlap === best.score && matched > best.matched))) {
+      best = { r, score: overlap, matched };
+    }
   }
   if (best) {
     return {
       ...base, skuId: best.r.id, brand: best.r.brand, model: best.r.model,
       category: best.r.category, liquidity: best.r.liquidity,
+      // Never "high" — that is reserved for an exact alias hit. Every surviving
+      // token match now has all its discriminators present, so the floor is
+      // medium; below 0.85 overlap it stays low and valuation refuses it.
       confidence: best.score >= 0.85 ? "medium" : "low", method: "token",
     };
   }
