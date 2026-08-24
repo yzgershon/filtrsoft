@@ -24,6 +24,7 @@
  */
 import { fetchSearchResults, probeListing, type DelistReason } from "../sources/craigslist.ts";
 import { CATEGORIES } from "../crawler/index.ts";
+import { distance } from "../photos/index.ts";
 import { db, now } from "../db/index.ts";
 
 export interface SweepStats {
@@ -272,15 +273,51 @@ export function inferOutcome(row: {
 /**
  * A near-identical listing posted within a week AFTER this one disappeared.
  *
- * Title-and-price matching is the cheap version and it is what runs today. The
- * right version keys on the photo dhash already stored in `listing_photos` —
- * identical photos are conclusive where a title match is only suggestive, and a
- * seller who edits the title while reusing the photos slips past this. Noted as
- * the next upgrade, not silently left as if title matching were sufficient.
+ * TWO TESTS, photos first. A seller who edits the title while reusing the
+ * photos slips straight past title matching, and that is the common case —
+ * people repost with "PRICE DROP" or "STILL AVAILABLE" bolted on. Perceptual
+ * hashes do not care about the title, the price, or a recompression pass.
+ *
+ * Hamming distance <= 10 on a 64-bit dhash is the same near-duplicate threshold
+ * `distance()` documents for cross-platform photo theft. The mechanism catches
+ * both: a seller reposting their own item, and someone stealing the pictures.
  */
 function looksLikeRepost(id: number, title: string, priceCents: number | null, delistedAt: string): boolean {
-  if (!title) return false;
   const window = new Date(Date.parse(delistedAt) + 7 * 86_400_000).toISOString();
+
+  const mine = (db()
+    .query(`SELECT phash FROM listing_photos WHERE listing_id=$id AND phash IS NOT NULL`)
+    .all({ $id: id }) as Array<{ phash: string }>).map((r) => r.phash);
+
+  if (mine.length) {
+    const others = db()
+      .query(
+        `SELECT p.phash, p.listing_id FROM listing_photos p
+         JOIN listings l ON l.id = p.listing_id
+         WHERE p.listing_id != $id AND p.phash IS NOT NULL
+           AND l.captured_at >= $from AND l.captured_at <= $to`,
+      )
+      .all({ $id: id, $from: delistedAt, $to: window }) as Array<{ phash: string; listing_id: number }>;
+
+    // Count how many of MY photos reappear, not how many pairs are close. One
+    // stock photo of a retail box matching is coincidence; several matching is
+    // the same listing.
+    const matchedByListing = new Map<number, Set<string>>();
+    for (const o of others) {
+      for (const m of mine) {
+        if (distance(m, o.phash) <= 10) {
+          if (!matchedByListing.has(o.listing_id)) matchedByListing.set(o.listing_id, new Set());
+          matchedByListing.get(o.listing_id)!.add(m);
+        }
+      }
+    }
+    for (const [, matched] of matchedByListing) {
+      if (matched.size >= Math.min(2, mine.length)) return true;
+    }
+  }
+
+  // Fallback for listings whose photos were never downloaded.
+  if (!title) return false;
   const r = db()
     .query(
       `SELECT COUNT(*) n FROM listings

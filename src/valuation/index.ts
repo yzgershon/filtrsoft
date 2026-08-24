@@ -167,8 +167,53 @@ export interface PartsValuation extends Valuation {
   wholeUnitCents: number | null;
 }
 
-const WHOLE_UNIT_RATIO = 0.6;   // midpoint of the 50-70% whole-unit band
-const EXPECTED_ROLES = ["gpu", "cpu", "ram", "storage", "motherboard", "psu", "case"];
+/**
+ * THIS FUNCTION WAS DEAD CODE AND NOTHING SAID SO. Found by audit 2026-08-24,
+ * confirmed by arithmetic:
+ *
+ *   EXPECTED_ROLES had 7 entries; only gpu and cpu were ever priced.
+ *   Maximum achievable coverage = 2/7 = 0.286.
+ *   The verdict gate required coverage >= 0.30.
+ *
+ * So EVERY prebuilt PC returned INSUFFICIENT_DATA permanently, no matter how
+ * many comps existed. Two more thresholds (0.40 for `ok`, 0.50 for medium
+ * confidence) were unreachable by even more. And `partsSum / RATIO * RATIO`
+ * is the identity function, so the whole-unit ratio never applied — while the
+ * value actually RETURNED ignored that computed variable entirely and used the
+ * raw parts sum.
+ *
+ * THE REAL FIX IS TO DEFINE WHAT THE NUMBER MEANS. Two different numbers were
+ * being conflated:
+ *
+ *   part-out value   sell the components separately. Higher gross, much more
+ *                    work, and it is what the sum of component comps literally
+ *                    measures.
+ *   whole-unit value what the assembled machine sells for. LOWER than the sum
+ *                    of parts, because a buyer pays for convenience, not for
+ *                    your afternoon on eBay.
+ *
+ * `medianCents` is the WHOLE-UNIT value, because that is what the verdict
+ * compares against an asking price for an assembled machine. Part-out is
+ * reported alongside so the spread is visible — that spread IS the flip.
+ *
+ * Coverage is now weighted by what each role is actually worth. Pricing the GPU
+ * and CPU of a gaming PC is most of the machine's value; pricing the case and
+ * PSU is not. Counting roles equally treated "I know the GPU and CPU" as 2/7 of
+ * the answer when it is closer to two thirds of the money.
+ */
+const WHOLE_UNIT_RATIO = 0.6;   // midpoint of the researched 50-70% band
+
+/**
+ * Share of a typical gaming build's resale value by component. Priors, and
+ * labelled as such — but far closer to reality than treating a case as equal to
+ * a graphics card. Sums to 1.0.
+ */
+const ROLE_VALUE_WEIGHT: Record<string, number> = {
+  gpu: 0.42, cpu: 0.22, ram: 0.09, storage: 0.09, motherboard: 0.1, psu: 0.05, case: 0.03,
+};
+const EXPECTED_ROLES = Object.keys(ROLE_VALUE_WEIGHT);
+/** Roles the catalog can currently price at all. See engine gap #1. */
+const PRICEABLE_ROLES = ["gpu", "cpu", "ram", "storage"] as const;
 
 export function valueByParts(attributes: Record<string, string | number>): PartsValuation {
   const lookup = (q: string) => {
@@ -186,25 +231,44 @@ export function valueByParts(attributes: Record<string, string | number>): Parts
   };
 
   const parts: PartsValuation["parts"] = [];
-  for (const role of ["gpu", "cpu"] as const) {
-    const q = attributes[role];
+  for (const role of PRICEABLE_ROLES) {
+    // RAM and storage arrive as numbers ("32", "512") from attribute
+    // extraction; the catalog stores them as models. Skip rather than look up
+    // a bare number and match something absurd.
+    const q = attributes[role] ?? attributes[`${role}_gb`];
     if (!q) continue;
-    parts.push({ role, query: String(q), ...lookup(String(q)) });
+    const query = String(q);
+    if (/^\d+$/.test(query)) continue;
+    parts.push({ role, query, ...lookup(query) });
   }
 
   const priced = parts.filter((p) => p.medianCents != null);
   const partsSumCents = priced.reduce((s, p) => s + (p.medianCents ?? 0), 0);
-  const coverage = priced.length / EXPECTED_ROLES.length;
-  const wholeUnitCents = priced.length ? Math.round(partsSumCents / WHOLE_UNIT_RATIO * WHOLE_UNIT_RATIO) : null;
+
+  /**
+   * Coverage weighted by VALUE, not by role count. Knowing the GPU and CPU of a
+   * gaming build is ~64% of the money; the old count-based version called it
+   * 2/7 = 29% and refused to price anything, forever.
+   */
+  const coverage = priced.reduce((s, p) => s + (ROLE_VALUE_WEIGHT[p.role] ?? 0), 0);
+
+  /**
+   * Sum of component comps IS the part-out gross. The assembled machine sells
+   * for less, so the ratio is applied ONCE, downward. The old code multiplied
+   * and divided by the same constant and then discarded the result.
+   */
+  const wholeUnitCents = priced.length ? Math.round(partsSumCents * WHOLE_UNIT_RATIO) : null;
 
   return {
-    parts, coverage: +coverage.toFixed(2), partsSumCents,
-    wholeUnitCents: priced.length ? Math.round(partsSumCents) : null,
-    status: coverage >= 0.4 ? "ok" : priced.length ? "sparse" : "no_comps",
-    lowCents: priced.length ? Math.round(partsSumCents * 0.85) : null,
-    highCents: priced.length ? Math.round(partsSumCents * 1.15) : null,
-    medianCents: priced.length ? Math.round(partsSumCents) : null,
+    parts, coverage: +coverage.toFixed(2), partsSumCents, wholeUnitCents,
+    status: coverage >= 0.6 ? "ok" : priced.length ? "sparse" : "no_comps",
+    // The band widens as coverage falls: pricing 64% of a machine is a rougher
+    // estimate than pricing 90% of it, and the range should say so rather than
+    // presenting both with the same false precision.
+    lowCents: wholeUnitCents ? Math.round(wholeUnitCents * (1 - 0.3 * (1 - coverage))) : null,
+    highCents: wholeUnitCents ? Math.round(wholeUnitCents * (1 + 0.3 * (1 - coverage))) : null,
+    medianCents: wholeUnitCents,
     compCount: priced.reduce((s, p) => s + p.compCount, 0),
-    confidence: coverage >= 0.5 ? "medium" : "low",
+    confidence: coverage >= 0.75 ? "medium" : "low",
   };
 }

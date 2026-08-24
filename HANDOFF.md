@@ -165,6 +165,39 @@ See `DEPLOY.md` for full steps.
 
 ---
 
+## 3b. Codex audit, 2026-08-24 — what I verified myself
+
+Full report: `docs/AUDIT-FINDINGS-2026-08-24.md`. Product ideas deliberately
+separated into `docs/ECOSYSTEM-EXPANSION-2026-08-24.md`.
+
+**CONFIRMED and FIXED the same day:**
+- **P0-1 anyone could spend Yish's Anthropic money.** Public GET, vision default
+  on, no auth/limit/quota/ceiling. I had proved it myself hours earlier by
+  running a paid vision check against production from an unauthenticated
+  machine. Closed — see `src/api/guard.ts`.
+- **P1-6 sum-of-parts was DEAD CODE.** Max coverage 2/7 = 0.286 against a 0.30
+  gate, so every prebuilt returned INSUFFICIENT_DATA forever. `sum / R * R` was
+  the identity function and the computed value was discarded anyway.
+- **P1-5 missing asking price became ZERO**, making an unpriced listing look
+  like free money. Masked by other checks firing first, which is luck.
+- **P1-1 vision cache keyed on listing id** — stale after a photo swap, and
+  re-paid for identical photos on a repost.
+
+**CONFIRMED and NOT yet fixed — read these before planning:**
+- **P0-5 eBay keys will NOT unlock sold comps.** Verified against eBay's own
+  docs: Marketplace Insights is Limited Release, "restricted and not open to new
+  users", needs business approval plus eBay Partner Network. Browse API is ACTIVE
+  listings only. **Every earlier plan in this repo that says "waiting on eBay
+  keys" is wrong.** The delisting tracker is now the PRIMARY comps path, not a
+  hedge.
+- **P0-4 Craigslist crawling conflicts with their Terms of Use.** A deliberate
+  decision Yish has to make; not something to solve with better scraping.
+- **P0-2 the risk model is documented but not enforced.** A device can reach BUY
+  without activation-lock / IMEI / MDM / ban evidence. This is the biggest
+  remaining correctness gap and it contradicts the product's core promise.
+- **P0-6/P0-7** production DB is separate from the local archive, has no volume
+  backup, and the local backup excludes ~117 MB of photos.
+
 ## 4. Live traps
 
 ### ⚠ Anchor every gitignore and dockerignore pattern
@@ -299,6 +332,24 @@ upgrading a model; on this task the cheap one wins.**
 2026-08-24 at Yish's instruction. If the API key runs dry, vision returns null
 and the engine degrades to the text layer — it does not silently start billing
 his personal Claude accounts. Do not re-add CLI spawning without asking.
+
+### ⚠ Never let an endpoint spend money without a gate
+`src/api/guard.ts`. Four independent layers: kill switch
+(`ASSYZE_VISION_ENABLED=0`, no redeploy), bearer token, daily USD ceiling,
+per-IP rate limit + single-flight coalescing. **It FAILS CLOSED** — if
+`ASSYZE_VISION_TOKEN` is unset, paid vision is refused for everyone, including
+in production. An unset secret must never mean "no security".
+
+An unauthorised caller still gets a real text-layer verdict rather than an
+error, so the safe default does not feel like a regression and nobody is
+tempted to switch it off.
+
+### ⚠ A SKU with no digit in its model is a FAMILY, not a product
+`matchSku` requires every digit-bearing SKU token to appear in the listing. A
+SKU like bare "MacBook Pro" therefore has nothing to discriminate on and matches
+a 2012 and a 2024 equally — the same bug that matched a 2019 Intel machine to an
+M3, reintroduced through the catalog where the matcher's guard cannot see it.
+`deriveCandidates` refuses to create them.
 
 ### Engine traps
 - **Never sample photos.** The funnel may drop *listings*; once a listing reaches

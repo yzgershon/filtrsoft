@@ -14,6 +14,7 @@ import type { SignalReport, Verdict, Confidence } from "../types.ts";
 import type { Match } from "../catalog/match.ts";
 import { buildQuestions } from "./questions.ts";
 import { valueSku, valueByParts, netByChannel, requiredProfitCents, getEconomics, type UserEconomics, type ChannelResult } from "../valuation/index.ts";
+import { normalizeCondition, type Condition } from "../valuation/condition.ts";
 
 const OUT_OF_SCOPE = /\b(lens|dslr|mirrorless|camera body|tripod|nikon|canon ef|sigma \d|tamron|zeiss|leica|scanner|camcorder)\b/i;
 
@@ -57,7 +58,24 @@ export function buildVerdict(input: {
    * product's comps. "Reliability over coverage" — missing a deal costs nothing,
    * quoting a 2019 Intel MacBook at M3 prices ends the brand.
    */
-  const skuVal = valueSku(match.confidence === "low" ? null : match.skuId);
+  /**
+   * The listing's own condition decides what the comps are restated INTO.
+   *
+   * Vision's `physicalDamage` outranks the seller's adjective: a listing that
+   * says "mint" while the photos show a cracked screen is a for-parts item that
+   * has been described optimistically, and pricing it as `used` is exactly the
+   * fake-BUY this engine exists to avoid.
+   */
+  const claimed = normalizeCondition(String(match.attributes.condition ?? "")) ?? "used";
+  const damaged = signals.signals.some(
+    (s) => s.code === "PHYSICAL_DAMAGE" || s.code === "PORT_DAMAGE",
+  );
+  const condition: Condition = damaged && claimed !== "for_parts" ? "used" : claimed;
+
+  const skuVal = valueSku(match.confidence === "low" ? null : match.skuId, {
+    condition,
+    category: match.category ?? signals.category,
+  });
   const valuation = partsVal && (skuVal.status === "no_comps" || partsVal.compCount > skuVal.compCount)
     ? partsVal : skuVal;
   const questions = buildQuestions(signals, match);
@@ -110,7 +128,7 @@ export function buildVerdict(input: {
   // --- 4b. A bundle priced off too few of its parts is not priced ------
   // Valuing a whole build from just its GPU and calling the result "overpriced"
   // is a confident wrong answer, which is worse than no answer.
-  if (partsVal && valuation === partsVal && partsVal.coverage < 0.3) {
+  if (partsVal && valuation === partsVal && partsVal.coverage < 0.55) {
     const known = partsVal.parts.filter((p) => p.medianCents != null).map((p) => p.query);
     const unknown = partsVal.parts.filter((p) => p.medianCents == null).map((p) => p.query);
     return {
@@ -121,11 +139,27 @@ export function buildVerdict(input: {
     };
   }
 
+  /**
+   * No asking price means no arithmetic. It used to fall back to ZERO, which
+   * makes every unpriced listing look like free money — profit = full resale
+   * value — and would have produced a maximally confident BUY on exactly the
+   * listings that say "message me for price". It was masked by other
+   * insufficiency checks firing first, which is luck, not a design.
+   */
+  if (input.askingPriceCents == null) {
+    return {
+      ...base, call: "INSUFFICIENT_DATA", confidence: "high",
+      headline: "No asking price.",
+      reasoning: "The listing has no price, so there is nothing to compare against market value. Ask the seller for a number before anything else.",
+      decidingUnknown: "asking price",
+    };
+  }
+
   // --- 5. Money, relative to the user ----------------------------------
   const channels = netByChannel(valuation.medianCents, match.category ?? signals.category);
   const usable = channels.filter((c) => c.available);
   const best = usable.reduce((a, b) => (b.netCents > a.netCents ? b : a));
-  const ask = input.askingPriceCents ?? 0;
+  const ask = input.askingPriceCents;
   const net = best.netCents - ask;
   const required = requiredProfitCents(econ, drive);
   const $ = (c: number) => `$${Math.round(c / 100).toLocaleString()}`;

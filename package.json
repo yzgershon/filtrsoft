@@ -17,7 +17,8 @@
     "start": "bun run src/api/index.ts",
     "crawl": "bun run src/scripts/crawl.ts",
     "backup": "bun run src/scripts/backup.ts",
-    "sweep": "bun run src/scripts/sweep.ts"
+    "sweep": "bun run src/scripts/sweep.ts",
+    "catalog:derive": "bun run src/scripts/derive-catalog.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
