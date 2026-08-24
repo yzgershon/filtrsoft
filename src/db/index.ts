@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,6 +10,17 @@ let _db: Database | null = null;
 
 export function db(): Database {
   if (_db) return _db;
+  // SQLite creates the FILE but never the DIRECTORY. On a fresh container with
+  // ASSYZE_DB=/data/assyze.db this threw at import time, the process died before
+  // it ever listened, and the platform healthcheck just timed out with no clue.
+  try {
+    mkdirSync(dirname(DB_PATH), { recursive: true });
+  } catch (e) {
+    console.error(`FATAL: cannot create database directory ${dirname(DB_PATH)}`);
+    console.error(`  ${(e as Error).message}`);
+    console.error(`  Is the volume mounted there? ASSYZE_DB=${DB_PATH}`);
+    throw e;
+  }
   _db = new Database(DB_PATH, { create: true });
   _db.exec(readFileSync(join(here, "schema.sql"), "utf8"));
   return _db;

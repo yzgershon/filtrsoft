@@ -16,7 +16,7 @@ import { serveStatic } from "hono/bun";
 import { existsSync } from "node:fs";
 import { checkListing, ENGINE_VERSION, type Stage } from "../engine/index.ts";
 import { getEconomics } from "../valuation/index.ts";
-import { db } from "../db/index.ts";
+import { db, DB_PATH } from "../db/index.ts";
 import { accountStatus } from "../vision/accounts.ts";
 
 const app = new Hono();
@@ -241,7 +241,11 @@ if (hasBuild) {
 }
 
 const port = Number(process.env.PORT) || 3177;
+// Bind all interfaces. Binding loopback inside a container makes the app
+// invisible to the platform's healthcheck even though it "started fine".
+const hostname = "0.0.0.0";
 console.log(
-  `assyze  :${port}  engine ${ENGINE_VERSION}  ${hasBuild ? "serving web/dist" : "api only (dev)"}`,
+  `assyze  ${hostname}:${port}  engine ${ENGINE_VERSION}  ` +
+  `${hasBuild ? "serving web/dist" : "api only (dev)"}  db=${DB_PATH}`,
 );
-export default { port, fetch: app.fetch, idleTimeout: 120 };
+export default { port, hostname, fetch: app.fetch, idleTimeout: 120 };
