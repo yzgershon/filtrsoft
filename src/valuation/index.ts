@@ -50,19 +50,63 @@ export interface Valuation {
   confidence: "high" | "medium" | "low";
 }
 
+/**
+ * Storage capacity in GB from a title. "1TB" -> 1024, "256GB" -> 256.
+ *
+ * Deliberately ignores small figures: RAM is written the same way ("16GB") and
+ * reading it as storage would put a 16GB-RAM laptop in the 16GB-phone bucket.
+ */
+export function storageOf(title: string): number | null {
+  const t = title.toLowerCase();
+  const tb = t.match(/\b(\d(?:\.\d)?)\s?tb\b/);
+  if (tb) return Math.round(Number(tb[1]) * 1024);
+  const gb = [...t.matchAll(/\b(\d{2,4})\s?gb\b/g)]
+    .map((m) => Number(m[1]))
+    .filter((n) => n >= 64);
+  return gb.length ? Math.max(...gb) : null;
+}
+
 export function valueSku(
   skuId: number | null,
-  opts?: { windowDays?: number; condition?: Condition | null; category?: string | null },
+  opts?: {
+    windowDays?: number;
+    condition?: Condition | null;
+    category?: string | null;
+    /** Listing attributes. Storage is the one that reprices a SKU on its own. */
+    attributes?: Record<string, string | number>;
+  },
 ): Valuation {
   if (!skuId) return { status: "no_comps", lowCents: null, highCents: null, medianCents: null, compCount: 0, confidence: "low" };
 
-  const raw = db()
+  let raw = db()
     .query(
-      `SELECT sold_price_cents + COALESCE(shipping_cents,0) AS total, condition_norm
+      `SELECT sold_price_cents + COALESCE(shipping_cents,0) AS total, condition_norm, raw_title
        FROM comps WHERE sku_id = $sku
          AND (sold_at IS NULL OR sold_at >= date('now', $win))`,
     )
-    .all({ $sku: skuId, $win: `-${opts?.windowDays ?? 90} days` }) as Array<{ total: number; condition_norm: string | null }>;
+    .all({ $sku: skuId, $win: `-${opts?.windowDays ?? 90} days` }) as Array<{ total: number; condition_norm: string | null; raw_title: string }>;
+
+  /**
+   * A SKU IS NOT A PRICE POINT. Storage tiers inside one model differ by
+   * hundreds of dollars, and pooling them values every unit as the average one.
+   *
+   * Measured: an "iPhone 16 Pro Max 1TB" was valued against a median that
+   * included 256GB sales, came out looking overpriced, and the engine said PASS
+   * where Yish said BUY. The comps were correct; the bucket was too coarse.
+   *
+   * Comps whose title states a DIFFERENT capacity are dropped. Comps that state
+   * none are kept — silence is not disagreement, and dropping them would gut
+   * the sample. If too few survive, the filter is abandoned rather than
+   * returning a confident number from four rows.
+   */
+  const want = opts?.attributes?.storage_gb ?? opts?.attributes?.storage_tier;
+  if (typeof want === "number" && want >= 64) {
+    const matched = raw.filter((r) => {
+      const got = storageOf(r.raw_title);
+      return got === null || Math.abs(got - want) / want < 0.2;
+    });
+    if (matched.length >= 5) raw = matched;
+  }
 
   /**
    * Restate every comp in the LISTING's condition before taking a median.

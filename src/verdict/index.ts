@@ -100,6 +100,8 @@ export function buildVerdict(input: {
   const skuVal = valueSku(match.confidence === "low" ? null : match.skuId, {
     condition,
     category: match.category ?? signals.category,
+    // Storage tier reprices a SKU on its own — a 1TB phone is not a 256GB one.
+    attributes: match.attributes,
   });
   const valuation = partsVal && (skuVal.status === "no_comps" || partsVal.compCount > skuVal.compCount)
     ? partsVal : skuVal;

@@ -359,7 +359,75 @@ crawlers and comp pullers run locally with his browser sessions.
 
 ---
 
+## 11b. Risk enforcement — SHIPPED 2026-08-25 (audit P0-2)
+
+`src/verdict/risk-gates.ts`. Per-category required checks with three states, and
+**the default is `unresolved`** — silence is not safety. Most listings never
+mention activation lock, and reading that absence as "probably fine" is exactly
+what turns a $400 phone into a $40 paperweight.
+
+**REMOTE vs IN-PERSON is what keeps the gate from killing the feed.** Requiring
+every check resolved before BUY sounds safe and is useless: sellers never write
+"clean IMEI, paid off, signed out of iCloud", so no phone would ever be BUY.
+
+| | |
+|---|---|
+| **remote** unresolved | caps at VERIFY. Asking costs one message. |
+| **in-person** unresolved | does NOT block BUY; becomes a MANDATORY condition on it. |
+| **failed** | RISK, always. |
+
+BUY means "worth leaving the house for" — Yish's floor is $100 profit to make a
+trip, not a promise the money is safe to hand over. Activation lock genuinely
+cannot be settled remotely; the rule is you never hand over cash without seeing
+the home screen, not that you never go look.
+
+**Vision overrides text.** `bootScreenOnly` forces ACTIVATION_LOCK back to
+unresolved even when the description claims otherwise — sellers of locked phones
+photograph exactly that.
+
+**Negation matters.** "no MDM, no firmware password" is a seller CLEARING the
+check; a bare `mdm` read it as a disclosure and turned the cleanest possible
+MacBook listing into a RISK.
+
+## 11c. Outcome loop — SHIPPED 2026-08-25
+
+`src/tracker/outcomes.ts`, `bun run outcomes`. Two kinds, kept distinguishable:
+
+- **OBSERVED** — the delisting tracker saw it vanish. Free, automatic, says the
+  market cleared at a price. Only `likely_sold` is recorded; reposts and expiries
+  are noise that would drag every measured clearing price around.
+- **REPORTED** — Yish bought or passed. Rare, and the only source of true
+  realised margin. Mixing the two would turn "what the market paid" into "what
+  Yish earned", which are different numbers.
+
+Headline metric is **valuation error**: predicted median vs actual clearing
+price. Consistently positive means pricing HIGH and every BUY is overstated —
+the failure that loses money quietly, because each verdict still looks fine.
+
 ## 12. Live traps
+
+### ⚠⚠ NEVER pool a category to measure a ratio — Simpson's paradox
+`measuredMultiplier` pooled all component comps and computed new/used = **6.07x**.
+That is not a condition premium; 59 of the "new" rows were an expensive current-gen
+i7-14700KF while "used" was dominated by cheap 6700K/6700/8500 sales. **It measured
+the SKU MIX.** Within the 14700KF alone the ratio is 1.12x.
+
+The pooled figure then "adjusted" a $425 new chip down to ~$53 and pushed that
+SKU's used median to **$62 for a CPU that plainly sells for ~$250** — a
+confidently-derived four-fold error with real data on both sides and nothing
+anywhere reporting a problem.
+
+Fix: compute the ratio **within each SKU**, then take the median across SKUs.
+Requires 3+ comps on each side per SKU and 3+ SKUs, else fall back to the prior.
+
+### ⚠ A SKU is not a price point — storage tiers differ by hundreds
+An "iPhone 16 Pro Max 1TB" was valued against a median that included 256GB
+sales. `valueSku` now drops comps whose title states a DIFFERENT capacity, keeps
+ones that state none (silence is not disagreement), and abandons the filter
+below 5 survivors rather than returning a confident number from four rows.
+
+**Still open: RAM and CPU tier do the same thing on laptops.** A "Latitude 7420
+i7 32GB" is priced against i5/8GB units in the same SKU.
 
 ### ⚠ Anchor every gitignore and dockerignore pattern
 A bare `photos/` matched `src/photos/` at any depth and silently excluded source
