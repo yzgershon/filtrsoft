@@ -15,6 +15,7 @@ import type { Match } from "../catalog/match.ts";
 import { buildQuestions } from "./questions.ts";
 import { valueSku, valueByParts, netByChannel, requiredProfitCents, getEconomics, type UserEconomics, type ChannelResult } from "../valuation/index.ts";
 import { normalizeCondition, type Condition } from "../valuation/condition.ts";
+import { resolveProductType } from "../signals/product-type.ts";
 
 const OUT_OF_SCOPE = /\b(lens|dslr|mirrorless|camera body|tripod|nikon|canon ef|sigma \d|tamron|zeiss|leica|scanner|camcorder)\b/i;
 
@@ -87,6 +88,25 @@ export function buildVerdict(input: {
       ...base, call: "OUT_OF_SCOPE", confidence: "high",
       headline: "Not a category Assyze judges.",
       reasoning: "Camera and photo gear is deliberately out of scope — valuation is fine there, but the risk layer (fungus, element separation, focus motor wear, mount play) needs domain knowledge we don't have, and a category we can't audit is one we could be wrong about indefinitely.",
+    };
+  }
+
+  /**
+   * Is the thing being sold even a piece of tech?
+   *
+   * A "gaming pc" search returns computer desks, computer chairs and laptop
+   * carrying cases, because those listings genuinely contain the word computer.
+   * `resolveProductType` decides by grammar — the head noun of the title — so
+   * "computer desk" is a desk no matter how much tech vocabulary precedes it.
+   */
+  const product = resolveProductType(input.title, input.description);
+  if (product.kind === "furniture" || product.kind === "accessory") {
+    return {
+      ...base, call: "OUT_OF_SCOPE", confidence: "high",
+      headline: product.kind === "furniture"
+        ? `That's furniture, not tech.`
+        : `That's an accessory, not the device.`,
+      reasoning: `Assyze only judges tech. ${product.reason}.`,
     };
   }
 

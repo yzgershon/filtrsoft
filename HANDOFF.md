@@ -396,6 +396,42 @@ regex worked when typed inline, and `cat -A` was what finally showed
 `/^listed^H.*?^Hin/`. **Use the editor tool for anything containing backslashes.**
 Audit with: `grep -c $'' src/**/*.ts`
 
+### Product type is decided by GRAMMAR, not keywords
+`src/signals/product-type.ts`. A `--query "gaming pc"` crawl returned computer
+desks, computer chairs, a glass computer table and a laptop carrying case, and
+paid for VISION on three of them (~3.4 cents) before anyone noticed. Yish:
+"make it so it doesnt mindlessly scan for the keyword computer".
+
+**The rule is that an English product title's HEAD NOUN comes last.**
+"computer desk" is a desk; "desk computer" is a computer. That generalises to
+nouns nobody enumerated — "computer hutch", "monitor riser", "PC trolley" all
+resolve without being listed. Four refinements, each from a real miss:
+
+- **Lists.** "Acer XB271HU Monitor, Black Desk, and Chair" is not a compound
+  noun. A separator BETWEEN two nouns means bundle -> first tech noun wins. The
+  separator must sit between nouns: "Glass and Metal Computer Table" joins
+  adjectives, "PC gaming chair with RGB" introduces a feature.
+- **"for X" means compatibility, never the product.** "Headset & Mic for
+  PlayStation" is a headset. Without it the most impressive noun always won,
+  which is backwards — the pricier the named device, the more confidently a
+  cheap accessory would be misclassified. `for sale|parts|repair|free` excluded.
+- **Negation.** "Monitor - NO Power Adapter" is a monitor.
+- **Product LINES are tech nouns** (precision, latitude, xps, ideapad...). Without
+  them "Dell Precision 5760 + Charger" had one recognisable noun — "charger" —
+  and five real laptops were being thrown out.
+
+**Two indexing bugs are worth remembering.** `findNouns` searched a NORMALISED
+copy (punctuation stripped, whitespace collapsed) and returned indices into it,
+which were then compared against separators found in the RAW title — the offsets
+never lined up, and stripping punctuation deleted the very commas the list rule
+needs. And `laptop` does not match "laptops", so a laptop listing resolved
+to "keyboard". Positions must share one coordinate space; terms must allow `s?`.
+
+**Crawl triage requires `tech`; the VERDICT only rejects furniture/accessory.**
+Deliberate asymmetry: a crawl is speculative spending, so an unrecognisable
+title is not worth a page fetch, while a pasted link is a direct request and
+still gets answered.
+
 ### Engine traps
 - **Never sample photos.** The funnel may drop *listings*; once a listing reaches
   vision it must never drop *photos*. Phase 0's miss was a skipped third image

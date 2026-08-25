@@ -10,6 +10,7 @@
  * one that takes ten seconds and does not.
  */
 import { runWorker, searchUrl, parseCard, detailToListing, type FbCard } from "../sources/facebook.ts";
+import { resolveProductType } from "../signals/product-type.ts";
 import { checkFetched } from "../engine/index.ts";
 import { db, now } from "../db/index.ts";
 
@@ -47,8 +48,46 @@ const known = new Set(
   (db().query("SELECT source_id FROM listings WHERE source='facebook'").all() as Array<{ source_id: string }>)
     .map((r) => r.source_id),
 );
-const fresh = cards.filter((c) => !known.has(c.sourceId)).slice(0, limit);
-console.log(`\n${cards.length} cards · ${cards.length - fresh.length} known or over limit · \x1b[1m${fresh.length} to open\x1b[0m\n`);
+/**
+ * TRIAGE BEFORE OPENING ANYTHING.
+ *
+ * A "gaming pc" search returns computer desks, computer chairs and laptop bags,
+ * and the previous run paid for VISION on a desk, a table and a chair (~3.4
+ * cents) because vision was handed to the first N listings whatever they were.
+ * Scope is now decided from the card title, before a single detail page is
+ * fetched — so a desk costs nothing at all, not even a page load.
+ */
+const unseen = cards.filter((c) => !known.has(c.sourceId));
+const rejected: Array<{ title: string; reason: string }> = [];
+/**
+ * The crawl requires `tech` — "unknown" is skipped too, which the VERDICT does
+ * not do.
+ *
+ * The asymmetry is deliberate. A crawl is speculative spending on listings
+ * nobody asked about, so an unrecognisable title is not worth a page fetch. A
+ * pasted link is a direct request, so there the engine still answers. Real tech
+ * with an odd title is rescued either way by the model-number rule
+ * ("RTX 3080 FE" has no product noun and still resolves to tech).
+ */
+const inScope = unseen.filter((c) => {
+  const p = resolveProductType(c.title);
+  if (p.kind !== "tech") {
+    rejected.push({ title: c.title, reason: p.reason });
+    return false;
+  }
+  return true;
+});
+const fresh = inScope.slice(0, limit);
+
+console.log(`\n${cards.length} cards · ${cards.length - unseen.length} already known`);
+if (rejected.length) {
+  console.log(`\x1b[90m${rejected.length} skipped as not-tech — no page fetched, no vision spend:\x1b[0m`);
+  for (const r of rejected.slice(0, 10)) {
+    console.log(`  \x1b[90m- ${r.title.slice(0, 42).padEnd(44)} ${r.reason.slice(0, 48)}\x1b[0m`);
+  }
+  if (rejected.length > 10) console.log(`  \x1b[90m  ...and ${rejected.length - 10} more\x1b[0m`);
+}
+console.log(`\x1b[1m${fresh.length} to open\x1b[0m\n`);
 
 if (!fresh.length) process.exit(0);
 

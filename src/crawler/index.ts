@@ -15,6 +15,7 @@
  */
 import { fetchSearchUrls } from "../sources/craigslist.ts";
 import { checkListing } from "../engine/index.ts";
+import { resolveProductType } from "../signals/product-type.ts";
 import { db, now } from "../db/index.ts";
 
 /** Craigslist categories inside our scope. Cameras are deliberately absent. */
@@ -46,7 +47,12 @@ export interface CrawlStats {
  * Everything comfortably priced and fully specified is already answered.
  */
 function deservesVision(v: { call: string; valuation: { medianCents: number | null } },
-                        askingCents: number | null): boolean {
+                        askingCents: number | null, title = ""): boolean {
+  // Never read photos of furniture. A "computers" category crawl surfaces desks
+  // and chairs, and INSUFFICIENT_DATA below would otherwise send every one of
+  // them to a paid vision call — which is exactly what happened on Facebook.
+  if (title && resolveProductType(title).kind !== "tech") return false;
+  if (v.call === "OUT_OF_SCOPE") return false;
   if (v.call === "INSUFFICIENT_DATA") return true;   // specs might be in an image
   if (v.call === "OUT_OF_SCOPE") return false;
   if (v.call === "BUY" || v.call === "VERIFY") return true;
@@ -112,7 +118,7 @@ export async function crawl(opts: {
       try {
         const r = await checkListing(url, { persist: true, vision: false });
         st.analysed++;
-        if (r.listingId && deservesVision(r.verdict as any, r.listing.askingPriceCents)) {
+        if (r.listingId && deservesVision(r.verdict as any, r.listing.askingPriceCents, r.listing.title)) {
           candidates.push({ url, id: r.listingId, call: r.verdict.call });
         }
       } catch {

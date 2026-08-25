@@ -43,28 +43,76 @@ try {
   if (command === "login") {
     const page = ctx.pages()[0] ?? (await ctx.newPage());
     await warm(page);
-    await page.goto(
-      "https://www.ebay.com/sch/i.html?_nkw=rtx+3080&LH_Sold=1&LH_Complete=1",
-      { waitUntil: "domcontentloaded", timeout: 60_000 },
-    );
-    await pause(2000, 3500);
 
-    const title = await page.title();
-    if (!SIGNED_OUT.test(title)) {
-      log("already signed in — sold listings are visible");
+    // Cheap signed-in probe that does NOT touch the sold-search URL. Checking
+    // by navigating is what created the problem this branch now avoids.
+    await page.goto("https://www.ebay.com/", { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await pause(1500, 2500);
+    const greeted = await page
+      .locator('a[href*="/mys/"], #gh-ug, [data-testid="greeting"]')
+      .count()
+      .catch(() => 0);
+
+    if (greeted > 0) {
+      log("already signed in");
       emit({ type: "done", stats: { loggedIn: true } });
     } else {
-      log("NOT signed in. Sign in to eBay in the Chrome window, then press Enter here.");
+      /**
+       * LAND ON THE PLAIN SIGN-IN PAGE AND THEN DO NOT TOUCH THE BROWSER.
+       *
+       * The previous version navigated straight to the sold-search URL, which
+       * redirects through eBay's bot challenge — and Yish reported it "keeps
+       * refreshing every 3 seconds so it doesn't give me time to complete the
+       * captcha". Two causes, both fixed here:
+       *
+       *   1. it navigated a SECOND time right after the first, ~3s later
+       *   2. if stdin never reached this process the Enter-wait fell straight
+       *      through, so that second navigation happened immediately and the
+       *      browser then CLOSED mid-captcha
+       *
+       * So: no challenge-triggering URL, and the wait can no longer fall
+       * through. Enter finishes early; otherwise it simply waits, and the
+       * window stays open the whole time.
+       */
+      await page.goto("https://www.ebay.com/signin/", { waitUntil: "domcontentloaded", timeout: 60_000 });
+      log("NOT signed in. Sign in in the Chrome window — take as long as you need,");
+      log("including any 'I am not a robot' check. The window will stay open.");
+      log("Press Enter here when you are done (or just wait; it checks on its own).");
+
       const readline = await import("node:readline");
       const rl = readline.createInterface({ input: process.stdin });
-      for await (const _ of rl) break;
+      const enter = (async () => { for await (const _ of rl) break; })();
+
+      /**
+       * Poll passively for the signed-in state. NO NAVIGATION — it reads the
+       * page Yish is already on, so a captcha in progress is never interrupted.
+       */
+      const detected = (async () => {
+        for (let i = 0; i < 180; i++) {           // 180 x 5s = 15 minutes
+          await new Promise((r) => setTimeout(r, 5000));
+          const n = await page
+            .locator('a[href*="/mys/"], #gh-ug, [data-testid="greeting"]')
+            .count()
+            .catch(() => 0);
+          if (n > 0) return true;
+        }
+        return false;
+      })();
+
+      await Promise.race([enter, detected]);
       rl.close();
+
+      // Only NOW touch the sold URL — the real test of whether it worked.
       await page.goto(
         "https://www.ebay.com/sch/i.html?_nkw=rtx+3080&LH_Sold=1&LH_Complete=1",
         { waitUntil: "domcontentloaded", timeout: 60_000 },
       );
       await pause(2000, 3500);
-      emit({ type: "done", stats: { loggedIn: !SIGNED_OUT.test(await page.title()) } });
+      const title = await page.title();
+      emit({
+        type: "done",
+        stats: { loggedIn: !SIGNED_OUT.test(title) && !/security measure/i.test(title), title },
+      });
     }
   } else if (command === "sold") {
     const page = await ctx.newPage();
