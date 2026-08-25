@@ -16,6 +16,8 @@ import { buildQuestions } from "./questions.ts";
 import { valueSku, valueByParts, netByChannel, requiredProfitCents, getEconomics, type UserEconomics, type ChannelResult } from "../valuation/index.ts";
 import { normalizeCondition, type Condition } from "../valuation/condition.ts";
 import { resolveProductType } from "../signals/product-type.ts";
+import { evaluateRisk, riskGate, inPersonConditions, type RiskCheck, type RiskGate } from "./risk-gates.ts";
+import type { VisionResult } from "../vision/index.ts";
 
 const OUT_OF_SCOPE = /\b(lens|dslr|mirrorless|camera body|tripod|nikon|canon ef|sigma \d|tamron|zeiss|leica|scanner|camcorder)\b/i;
 
@@ -33,6 +35,25 @@ export interface VerdictResult {
   blockers: string[];
   /** Copy-pasteable, ordered so the first "no" that matters comes first. */
   questions: string[];
+  /**
+   * Per-category hard-blocker state. Persisted and shown, so a VERIFY can say
+   * WHICH check is open rather than being an unexplained refusal.
+   */
+  riskChecks: RiskCheck[];
+}
+
+/** Unresolved checks become the FIRST questions — they are what blocks a BUY. */
+function gateQuestions(gate: RiskGate, existing: string[]): string[] {
+  const first = [...gate.failed, ...gate.unresolved].map((c) => c.question);
+  return [...new Set([...first, ...existing])];
+}
+
+/** Named on a BUY, so a clean verdict shows its work rather than staying silent. */
+function riskCleared(gate: RiskGate): string {
+  if (gate.inPerson.length) {
+    return ` Everything answerable in advance checks out. ${gate.inPerson.length === 1 ? "One thing" : `${gate.inPerson.length} things`} can only be settled in person and ${gate.inPerson.length === 1 ? "it is" : "they are"} non-negotiable: ${gate.inPerson.map((c) => c.label.toLowerCase()).join(", ")}. Do not hand over money until you have seen ${gate.inPerson.length === 1 ? "it" : "them"}.`;
+  }
+  return " Every hard blocker for this category is resolved in the listing.";
 }
 
 export function buildVerdict(input: {
@@ -43,6 +64,9 @@ export function buildVerdict(input: {
   match: Match;
   driveMinutes?: number;
   econ?: UserEconomics;
+  /** Flattened vision text, so photo-read specs feed the risk checks too. */
+  visionText?: string;
+  vision?: VisionResult | null;
 }): VerdictResult {
   const { signals, match } = input;
   const econ = input.econ ?? getEconomics();
@@ -80,7 +104,21 @@ export function buildVerdict(input: {
   const valuation = partsVal && (skuVal.status === "no_comps" || partsVal.compCount > skuVal.compCount)
     ? partsVal : skuVal;
   const questions = buildQuestions(signals, match);
-  const base = { valuation, blockers, questions };
+
+  /**
+   * Category risk state, computed from the listing text AND the photos.
+   *
+   * Vision matters here more than anywhere else: a device photographed only on
+   * a boot screen proves power and rules out nothing, which is exactly what a
+   * seller of a locked phone photographs.
+   */
+  const riskChecks = evaluateRisk(
+    match.category ?? signals.category,
+    `${input.title}\n${input.description}\n${input.visionText ?? ""}`,
+    input.vision ?? null,
+  );
+  const gate = riskGate(riskChecks);
+  const base = { valuation, blockers, questions, riskChecks };
 
   // --- 1. Out of scope -------------------------------------------------
   if (OUT_OF_SCOPE.test(`${input.title} ${input.description}`)) {
@@ -214,10 +252,38 @@ export function buildVerdict(input: {
   }
 
   if (net >= required) {
+    /**
+     * THE RULE THE PRODUCT RESTS ON. `RISK-MODEL.md`:
+     *
+     *   > An unresolved hard blocker overrides any price gap. A phone at 40% of
+     *   > market with unknown lock status is never a BUY.
+     *
+     * The money says BUY. That is not sufficient. A discount cannot compensate
+     * for a total loss, and an iCloud-locked phone is worth parts value at any
+     * price. So BUY is only reachable when every required check for the
+     * category is actually resolved.
+     */
+    if (gate.ceiling !== "BUY") {
+      return {
+        ...money,
+        call: gate.ceiling,
+        confidence: "high",
+        headline: gate.ceiling === "RISK"
+          ? `${$(net)} of margin, but a hard blocker is disclosed.`
+          : `${$(net)} of margin — but ${gate.unresolved.length === 1 ? "one thing is" : `${gate.unresolved.length} things are`} unverified.`,
+        reasoning: `${gate.reason} Net would be ${$(net)} on ${best.channel} against a ${$(required)} floor, and that is exactly why this needs settling first — the discount is what makes it tempting.`,
+        decidingUnknown: (gate.failed[0] ?? gate.unresolved[0])?.label,
+        questions: gateQuestions(gate, questions),
+      };
+    }
+
     return {
       ...money, call: "BUY",
       headline: `${$(net)} net on ${best.channel} — clears your ${$(required)} floor.`,
-      reasoning: `Median ${$(valuation.medianCents)} across ${valuation.compCount} comps. ${best.channel === "ebay" ? `After ${$(best.feesCents)} fees and ${$(best.shippingCents)} shipping` : "No fees, no shipping, local sale"}, net is ${$(net)} against ${$(required)} required for a ${drive}-minute drive.`,
+      reasoning: `Median ${$(valuation.medianCents)} across ${valuation.compCount} comps. ${best.channel === "ebay" ? `After ${$(best.feesCents)} fees and ${$(best.shippingCents)} shipping` : "No fees, no shipping, local sale"}, net is ${$(net)} against ${$(required)} required for a ${drive}-minute drive.${riskCleared(gate)}`,
+      // In-person checks lead the question list even on a BUY — they are the
+      // conditions of the purchase, not optional extras.
+      questions: [...new Set([...inPersonConditions(gate), ...questions])],
     };
   }
 

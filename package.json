@@ -18,6 +18,7 @@
     "crawl": "bun run src/scripts/crawl.ts",
     "backup": "bun run src/scripts/backup.ts",
     "sweep": "bun run src/scripts/sweep.ts",
+    "outcomes": "bun run src/scripts/outcomes.ts",
     "catalog:derive": "bun run src/scripts/derive-catalog.ts",
     "fb:login": "bun run src/scripts/fb-login.ts",
     "fb:crawl": "bun run src/scripts/fb-crawl.ts",

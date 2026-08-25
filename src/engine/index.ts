@@ -92,6 +92,10 @@ export function runPipeline(
     askingPriceCents: listing.askingPriceCents,
     signals,
     match,
+    // Photos are evidence for the risk gate, not just for specs — a device shown
+    // only on a boot screen proves power and rules out nothing.
+    visionText: vText,
+    vision,
     driveMinutes: opts.driveMinutes,
     econ: opts.econ,
   });
