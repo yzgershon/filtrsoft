@@ -312,6 +312,26 @@ export function compMatchesQuery(
   }
 
   /**
+   * PART-OUTS. "Apple iPhone 16 Pro Max 1TB Spectrum Main Board Only" sold for
+   * $300 and passed every gate above — right model, right capacity, single
+   * unit, and the head noun is a board, which is legitimate tech. It is a
+   * COMPONENT of the phone, not the phone, and it dragged the 1TB median down.
+   */
+  if (/\b(main\s?board|logic\s?board|motherboard|screen|lcd|display assembly|digitizer|back\s?glass|housing|frame|battery|camera|charging port|speaker)\b[^.]{0,14}\bonly\b/i.test(title)
+      || /\bonly\b[^.]{0,14}\b(board|screen|lcd|housing|frame)\b/i.test(title)
+      || /\b(for parts|parts only)\b.*\b(board|screen|lcd)\b/i.test(title)) {
+    return { ok: false, why: "part-out (a component of the device, not the device)" };
+  }
+
+  /**
+   * Leading quantity. "(2) IPhones Pro Max 15 1TB & 16 256 GB" is two phones at
+   * $1,300 and never says "lot" — `isMultiUnit` did not see it.
+   */
+  if (/^\s*[\(\[]\s*\d+\s*[\)\]]/.test(title) || /^\s*\d+\s*x\s+\w/i.test(title)) {
+    return { ok: false, why: "leading quantity — more than one unit" };
+  }
+
+  /**
    * Multi-unit listings are a quantity lie, not a price. "LOT OF 10 HP ZBook"
    * at $1,300 became the most expensive CPU in the archive.
    */
