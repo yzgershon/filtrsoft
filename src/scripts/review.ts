@@ -292,7 +292,9 @@ function render(){
         asking &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="n">\${money(r.askingCents)}</span><br>
         \${r.bestChannel ? "best channel &nbsp;&nbsp;<span class=\\"n\\">"+r.bestChannel.channel+"</span> → net "+money(r.bestChannel.netCents)+" after "+money(r.bestChannel.feesCents)+" fees + "+money(r.bestChannel.shippingCents)+" shipping<br>" : ""}
         profit &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="\${net>=0?'pos':'neg'} n">\${money(net)}</span> vs <span class="n">\${money(req)}</span> needed for the trip
-        \${r.retail ? '<br>new at Best Buy <span class="n">'+money(r.retail.priceCents)+'</span> <span style="color:#6b625e">('+r.retail.title.slice(0,54)+', '+r.retail.ageDays+'d old)</span>' : ''}
+        \${r.retail ? '<br>new retail &nbsp;&nbsp;<span class="n">'+money(r.retail.priceCents)+'</span> '
+          + (r.retail.corroborated ? '' : '<span style="color:#c9a227">(one source only)</span> ')
+          + '<span style="color:#6b625e">'+r.retail.quotes.map(q=>q.source+' '+money(q.priceCents)).join(' · ')+'</span>' : ''}
       </div>\` : '<div class="empty">No comps — engine could not price it.</div>';
 
     const risks = (r.riskChecks||[]).length ? '<div class="box"><h3>Hard-blocker checks</h3><div class="risks">' +

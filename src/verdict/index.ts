@@ -22,6 +22,13 @@ import type { VisionResult } from "../vision/index.ts";
 
 const OUT_OF_SCOPE = /\b(lens|dslr|mirrorless|camera body|tripod|nikon|canon ef|sigma \d|tamron|zeiss|leica|scanner|camcorder)\b/i;
 
+/** Reader-facing retailer names. "microcenter" is not how anyone says it. */
+const RETAILER_NAME: Record<string, string> = {
+  bestbuy: "Best Buy",
+  newegg: "Newegg",
+  microcenter: "Micro Center (Cambridge)",
+};
+
 export interface VerdictResult {
   call: Verdict;
   confidence: Confidence;
@@ -264,12 +271,30 @@ export function buildVerdict(input: {
    * not evidence about the comps, and `retailMeaning` classifies it so that a
    * scraper bug can never masquerade as a data-quality finding.
    */
-  if (retail && retailMeaning(retail.priceCents, valuation.medianCents) === "comps_wrong") {
+  /**
+   * CORROBORATION IS REQUIRED HERE, and only here.
+   *
+   * Refusing to price a SKU at all is the biggest hammer in this function, so
+   * it should not swing on one retailer's page. If Newegg and Micro Center both
+   * say a card is $500 while our median says $700, that is a finding. If one
+   * source says it alone, the likelier explanation is that the one source was
+   * mis-parsed — and `retailMeaning` cannot tell those apart, because it only
+   * sees a number.
+   *
+   * The asking-above-new branch below deliberately does NOT require this: it
+   * quotes a specific real offer the reader can go and check, and being wrong
+   * there costs one PASS rather than a whole SKU's worth of verdicts.
+   */
+  if (
+    retail && retail.corroborated &&
+    retailMeaning(retail.priceCents, valuation.medianCents) === "comps_wrong"
+  ) {
     const $r = (c: number) => `$${Math.round(c / 100).toLocaleString()}`;
+    const others = retail.quotes.map((q) => `${q.source} ${$r(q.priceCents)}`).join(", ");
     return {
       ...base, call: "INSUFFICIENT_DATA", confidence: "high",
       headline: "Our comps disagree with new retail — not pricing this.",
-      reasoning: `The sold comps put this at ${$r(valuation.medianCents)} used, but Best Buy sells it new for ${$r(retail.priceCents)} ("${retail.title}", seen ${retail.observedAt.slice(0, 10)}). Used cannot be worth more than new, so the ${valuation.compCount} comps behind that median are matching something else — a different capacity, a different variant, or a bundle. Retail is the only number here not derived from our own archive, which is why it can catch this and nothing else can.`,
+      reasoning: `The sold comps put this at ${$r(valuation.medianCents)} used, but it sells NEW for ${$r(retail.priceCents)} (${others}). Used cannot be worth more than new, so the ${valuation.compCount} comps behind that median are matching something else — a different capacity, a different variant, or a bundle. Retail is the only number here not derived from our own archive, which is why it can catch this and nothing else can, and more than one retailer agrees on it.`,
       decidingUnknown: "whether the sold comps are actually this exact model",
     };
   }
@@ -338,10 +363,12 @@ export function buildVerdict(input: {
    * the better tool, so this stays a narrow, unambiguous rule.
    */
   if (retail && ask >= retail.priceCents * 0.95) {
+    const where = RETAILER_NAME[retail.source] ?? retail.source;
     return {
-      ...money, call: "PASS", confidence: "high",
-      headline: `Buy it new instead — ${$(retail.priceCents)} at Best Buy.`,
-      reasoning: `Asking ${$(ask)} used, against ${$(retail.priceCents)} for a new one ("${retail.title}", seen ${retail.observedAt.slice(0, 10)}). Add sales tax to the new price and it is still the better deal, with a warranty and a return window this has neither of. Nothing about the used market matters here — the seller is competing with a shelf.`,
+      ...money, call: "PASS",
+      confidence: retail.corroborated ? "high" : "medium",
+      headline: `Buy it new instead — ${$(retail.priceCents)} at ${where}.`,
+      reasoning: `Asking ${$(ask)} used, against ${$(retail.priceCents)} for a new one at ${where} ("${retail.title}", seen ${retail.observedAt.slice(0, 10)}). Add sales tax to the new price and it is still the better deal, with a warranty and a return window this has neither of. Nothing about the used market matters here — the seller is competing with a shelf.${retail.corroborated ? ` ${retail.quotes.length} retailers agree on the new price.` : " Only one retailer was checked, so verify the new price before walking away."}`,
     };
   }
 

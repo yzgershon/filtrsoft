@@ -29,16 +29,30 @@ const WORKER = join(import.meta.dir, "../browser/retail-worker.mjs");
 export const CHROME_PATH =
   process.env.ASSYZE_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
 
+/**
+ * The three retailers, BEST FIRST for the categories Yish trades.
+ *
+ * Order is a finding, not a preference. Best Buy quoted $795.59 for an RTX
+ * 5070 against a ~$549 MSRP — a ceiling that high never binds on anything.
+ * Newegg is where PC parts are actually priced, and Micro Center Cambridge is
+ * a twenty-minute drive from Newton, which makes it the only source here that
+ * a local buyer could literally walk into today.
+ */
+export const RETAIL_SOURCES = ["newegg", "microcenter", "bestbuy"] as const;
+export type RetailSource = (typeof RETAIL_SOURCES)[number];
+
 export interface RetailOffer {
   source: string;
   title: string;
   priceCents: number;
-  /** false for anything Best Buy is selling second-hand. */
+  /** false for anything the retailer is selling second-hand. */
   isNew: boolean;
-  /** false when the card says Sold Out. A price you cannot pay caps nothing. */
+  /** false when out of stock. A price you cannot pay caps nothing. */
   available: boolean;
   /** Set when the ONLY price on the card was a financing instalment. */
   financedOnly?: boolean;
+  /** Micro Center only: units on the shelf at the pinned store. */
+  stockCount?: number;
 }
 
 /** Best Buy's own words for "this is not new". */
@@ -141,6 +155,205 @@ export function parseBestBuy(lines: string[]): RetailOffer[] {
   // No trailing flush: the tail after the last `Compare` is page footer, not a
   // card, and treating it as one invents an offer out of navigation links.
   return out;
+}
+
+/* ------------------------------------------------------------------ newegg */
+
+/**
+ * Newegg. **The price reference for PC parts, and the reason Best Buy alone
+ * was not good enough.**
+ *
+ * Best Buy quoted $795.59 for an RTX 5070 against a ~$549 MSRP. A ceiling 45%
+ * too high never binds on anything — it is not wrong so much as useless, which
+ * is harder to notice. Newegg is where these parts are actually priced, and it
+ * covers the `gpu` and `component` SKUs that also feed `valueByParts`.
+ *
+ * Cards run `QUICK VIEW` ... `Compare`. Segmenting that way also drops the
+ * SPONSORED block at the top of every page for free — those cards carry no
+ * `QUICK VIEW`, and on a GPU search they are prebuilt PCs, which would
+ * otherwise price a $1,099 tower as the ceiling for a graphics card.
+ */
+const NEWEGG_MODEL = /^model\s*#\s*:/i;
+const NEWEGG_BADGE =
+  /^(newegg select|newegg refreshed|sponsored|quick view|add to cart|compare|free shipping|from united states|best seller|save:|more options from|release date:|\(\d)/i;
+
+/**
+ * Promo lines sit BETWEEN the title and `Model #:`, so a backward scan from
+ * the model number lands on them first. They are long, capitalised and
+ * word-like, so no generic "looks like a title" test rejects them — every one
+ * of these was read as a product name in the first live capture, which paired
+ * a $1,200 price with *"Get CONTROL Resonant with selected purchase, limited
+ * offer"* and called it an RTX 5070.
+ */
+const NEWEGG_PROMO =
+  /(limited offer|w\/ ?purchase|with selected purch|promotional gift|free (gift|game|bundle)|save an extra|price after)/i;
+
+export function parseNewegg(lines: string[]): RetailOffer[] {
+  const out: RetailOffer[] = [];
+  const seen = new Set<string>();
+  let card: string[] | null = null;
+
+  const flush = () => {
+    const c = card;
+    card = null;
+    if (!c?.length) return;
+
+    /**
+     * The name is the line immediately BEFORE `Model #:`.
+     *
+     * Every real catalog card carries that line and nothing else does, which
+     * makes it a far better anchor than counting lines — the gap between the
+     * title and the price varies with promo banners ("Get CONTROL Resonant
+     * with selected purchase") that appear on some cards and not others.
+     */
+    const mi = c.findIndex((l) => NEWEGG_MODEL.test(l));
+    let title: string | undefined;
+    if (mi > 0) {
+      for (let i = mi - 1; i >= 0; i--) {
+        const l = c[i];
+        if (l.length > 18 && !NEWEGG_BADGE.test(l) && !NEWEGG_PROMO.test(l) && !PRICE_LINE.test(l)) { title = l; break; }
+      }
+    }
+    if (!title) {
+      const pi = c.findIndex((l) => PRICE_LINE.test(l));
+      const before = pi >= 0 ? c.slice(0, pi) : c;
+      for (let i = before.length - 1; i >= 0; i--) {
+        const l = before[i];
+        if (l.length > 18 && !NEWEGG_BADGE.test(l) && !NEWEGG_PROMO.test(l)) { title = l; break; }
+      }
+    }
+    if (!title || seen.has(title)) return;
+
+    /**
+     * The LAST bare price in the card, not the first.
+     *
+     * Newegg prints the struck-through list price first and the price you
+     * actually pay second: `$1,299.99` / `$1,149.99` / `Save: $150.00 (11%)`.
+     * Taking the first would inflate every discounted card, and discounts are
+     * most of them. A `Save:` line is NOT a reliable marker of the pattern —
+     * the Newegg Refreshed cards show two prices with no Save line at all.
+     */
+    const prices = c.filter((l) => PRICE_LINE.test(l));
+    if (!prices.length) return;
+    const priceCents = Math.round(
+      Number(prices[prices.length - 1].match(PRICE_LINE)![1].replace(/,/g, "")) * 100,
+    );
+    if (!priceCents) return;
+    seen.add(title);
+
+    const text = c.join(" ");
+    out.push({
+      source: "newegg", title, priceCents,
+      // "Newegg Refreshed" is Newegg's refurbished programme — the same
+      // used-priced-as-new trap Best Buy's "Pre-Owned" was.
+      isNew: !/\b(refurbished|newegg refreshed|open box|pre-?owned|used)\b/i.test(text),
+      available: !/\b(out of stock|sold out|coming soon)\b/i.test(text),
+    });
+  };
+
+  for (const line of lines) {
+    if (/^quick view$/i.test(line)) { flush(); card = []; continue; }
+    if (/^compare$/i.test(line)) { flush(); continue; }
+    card?.push(line);
+  }
+  flush();
+  return out;
+}
+
+/* ------------------------------------------------------------- microcenter */
+
+/**
+ * Micro Center — the only source here that is a PLACE.
+ *
+ * Yish's call, and it is a local one: the Cambridge MA store is ~20 minutes
+ * from Newton, so for a Boston-area buyer it is a genuine alternative rather
+ * than a theoretical one, which is exactly what a ceiling is supposed to
+ * measure. Their GPU pricing is usually the lowest anywhere.
+ *
+ * It is also the richest page of the three, because it states LOCAL STOCK:
+ * `14 IN STOCK` means you can drive over and have one today at that price.
+ * That is a stronger ceiling than an online listing that might ship next week.
+ *
+ * Prices are PER STORE, which is why the worker pins `storeid=121` and sets
+ * the store cookie — without it the site answers for whichever store it infers
+ * from the IP, and a Texas price is not a ceiling Yish's buyer can act on.
+ *
+ * Card shape, from a live capture:
+ *   Add SKU:044594 to wishlist   <- start
+ *   SKU: 044594
+ *   Compare Item <short title>>
+ *   Compare
+ *   <FULL TITLE with specs>      <- the name
+ *   14 IN STOCK
+ *   Original price / $15,999.99
+ *   Our price     / $14,399.99   <- the price
+ */
+const MC_START = /^add sku:\s*\d+\s+to wishlist$/i;
+const MC_STOCK = /^(\d+)\s+in stock$/i;
+
+export function parseMicroCenter(lines: string[]): RetailOffer[] {
+  const out: RetailOffer[] = [];
+  const seen = new Set<string>();
+  let card: string[] | null = null;
+
+  const flush = () => {
+    const c = card;
+    card = null;
+    if (!c?.length) return;
+
+    /**
+     * The name is the first long line AFTER the card's `Compare`.
+     *
+     * `Compare Item <title>>` sits just above it and is a truncated duplicate
+     * with a stray `>` on the end; the line below `Compare` is the full one
+     * with the specs, which is what the comp gates need to discriminate a
+     * 12GB card from a 16GB one.
+     */
+    const ci = c.findIndex((l) => /^compare$/i.test(l));
+    const after = ci >= 0 ? c.slice(ci + 1) : c;
+    const title = after.find(
+      (l) => l.length > 18 && !MC_STOCK.test(l) && !PRICE_LINE.test(l) &&
+             !/^(our price|original price|quick view|add to cart|in store only|- item:)/i.test(l),
+    );
+    if (!title || seen.has(title)) return;
+
+    /**
+     * `Our price` wins over `Original price`. Micro Center prints both, in
+     * that order, so a positional rule would take the pre-discount number on
+     * every discounted item.
+     */
+    const oi = c.findIndex((l) => /^our price$/i.test(l));
+    const priceLine = (oi >= 0 ? c.slice(oi + 1) : c).find((l) => PRICE_LINE.test(l));
+    if (!priceLine) return;
+    const priceCents = Math.round(Number(priceLine.match(PRICE_LINE)![1].replace(/,/g, "")) * 100);
+    if (!priceCents) return;
+    seen.add(title);
+
+    const text = c.join(" ");
+    const stock = c.map((l) => l.match(MC_STOCK)).find(Boolean);
+    out.push({
+      source: "microcenter", title, priceCents,
+      isNew: !/\b(refurbished|open box|pre-?owned|used|clearance unit)\b/i.test(text),
+      // Stock is stated per store. No count and no "in stock" means you cannot
+      // walk in and buy it, so it caps nothing.
+      available: stock ? Number(stock[1]) > 0 : /\bin stock\b/i.test(text),
+      stockCount: stock ? Number(stock[1]) : undefined,
+    });
+  };
+
+  for (const line of lines) {
+    if (MC_START.test(line)) { flush(); card = []; continue; }
+    card?.push(line);
+  }
+  flush();
+  return out;
+}
+
+/** Parse whichever source produced the page. */
+export function parseRetail(source: RetailSource, lines: string[]): RetailOffer[] {
+  if (source === "newegg") return parseNewegg(lines);
+  if (source === "microcenter") return parseMicroCenter(lines);
+  return parseBestBuy(lines);
 }
 
 /**
@@ -368,13 +581,43 @@ export function capacityOf(title: string): number | null {
  * can never mistake it for a $0 ceiling. It is a dated record of an absence,
  * which is also the honest thing to show in the UI.
  */
-export function saveNoRetail(skuId: number | null, query: string, why: string): void {
+export function saveNoRetail(
+  skuId: number | null, query: string, why: string, source: RetailSource = "bestbuy",
+): void {
   db()
     .query(
       `INSERT INTO retail_prices (sku_id, source, title, price_cents, is_new, storage_gb, query, observed_at)
-       VALUES ($sku,'bestbuy',$title,0,0,NULL,$q,$now)`,
+       VALUES ($sku,$src,$title,0,0,NULL,$q,$now)`,
     )
-    .run({ $sku: skuId, $title: `(no new offer) ${why}`.slice(0, 200), $q: query, $now: now() });
+    .run({
+      $sku: skuId, $src: source, $title: `(no new offer) ${why}`.slice(0, 200),
+      $q: query, $now: now(),
+    });
+}
+
+/**
+ * **A PREBUILT HAS NO RETAIL TWIN, and storing one is actively harmful.**
+ *
+ * Caught live. The `Gaming PC RTX 5070` SKU pulled three "matching" new
+ * machines: a Yeyian with a Core Ultra 7 270K, a PowerSpec with a Ryzen 5
+ * 7500X3D, and a ViprTech with a Ryzen 7 8700F — $1,400 to $1,950. They share
+ * one component. The CPU, RAM, storage, PSU and case are most of the price and
+ * all of them vary, so "a new gaming PC with an RTX 5070" is a category, not a
+ * product, and its cheapest member is not a ceiling on anything.
+ *
+ * It was about to do real damage rather than just be useless: at a $1,400
+ * "ceiling" against a $1,599 used median, the comps-disagree branch would have
+ * returned INSUFFICIENT_DATA for every RTX 5070 build in the feed — and it
+ * would have looked like a data-quality finding, which is the trap
+ * `retailMeaning` exists to avoid.
+ *
+ * `RETAIL_CATEGORIES` already excludes prebuilts; this is the write-boundary
+ * guard, because `--sku` reaches `saveRetail` without passing that filter.
+ */
+export const NO_RETAIL_TWIN = ["prebuilt"];
+
+export function retailApplies(category: string | null | undefined): boolean {
+  return !!category && !NO_RETAIL_TWIN.includes(category);
 }
 
 export function saveRetail(skuId: number | null, offer: RetailOffer, query: string): void {
@@ -393,13 +636,38 @@ export function saveRetail(skuId: number | null, offer: RetailOffer, query: stri
 /** How old a retail observation may be before it stops meaning anything. */
 export const RETAIL_STALE_DAYS = 45;
 
-export interface RetailPrice {
+export interface RetailQuote {
+  source: string;
   priceCents: number;
   title: string;
   observedAt: string;
   ageDays: number;
-  stale: boolean;
 }
+
+export interface RetailPrice {
+  priceCents: number;
+  title: string;
+  source: string;
+  observedAt: string;
+  ageDays: number;
+  stale: boolean;
+  /** Another retailer independently priced it within range of this one. */
+  corroborated: boolean;
+  /** Every fresh quote we hold, cheapest first. Shown, not just used. */
+  quotes: RetailQuote[];
+  /** Set when a suspiciously cheap quote was thrown out. */
+  discarded?: RetailQuote;
+}
+
+/**
+ * A quote this far below the next-cheapest is treated as a mis-parse.
+ *
+ * Real spread between retailers is meaningful but bounded — the RTX 5070 came
+ * back at $795.59 from Best Buy and $799.99 from Newegg, half a percent apart.
+ * A gap of 40%+ is not competition, it is one of the two parsers having picked
+ * up an accessory, a bundle component or a promo line.
+ */
+const CORROBORATION_FLOOR = 0.6;
 
 /**
  * Latest NEW-retail price for a SKU, if one was ever captured.
@@ -412,27 +680,67 @@ export interface RetailPrice {
 export function latestRetail(skuId: number | null, storageGb?: number | null): RetailPrice | null {
   if (!skuId) return null;
   /**
+   * The latest NEW quote FROM EACH RETAILER, then one ceiling chosen from them.
+   *
    * Capacity must AGREE when both sides state one. A stored row with no
    * capacity still applies — that is a product where capacity is not a price
-   * driver — but a 128GB shelf price must never cap a 512GB device.
+   * driver, like a GPU — but a 128GB shelf price must never cap a 512GB device.
    */
-  const r = db()
+  const rows = db()
     .query(
-      `SELECT price_cents, title, observed_at FROM retail_prices
+      `SELECT source, price_cents, title, observed_at FROM retail_prices r
         WHERE sku_id=$id AND is_new=1
           AND (storage_gb IS NULL OR $gb IS NULL OR storage_gb = $gb)
-        ORDER BY observed_at DESC LIMIT 1`,
+          AND observed_at = (
+            SELECT MAX(observed_at) FROM retail_prices r2
+             WHERE r2.sku_id = r.sku_id AND r2.source = r.source AND r2.is_new = 1
+               AND (r2.storage_gb IS NULL OR $gb IS NULL OR r2.storage_gb = $gb))
+        ORDER BY price_cents ASC`,
     )
-    .get({ $id: skuId, $gb: storageGb ?? null }) as
-      { price_cents: number; title: string; observed_at: string } | null;
-  if (!r) return null;
-  const ageDays = Math.max(0, (Date.now() - Date.parse(r.observed_at)) / 86_400_000);
+    .all({ $id: skuId, $gb: storageGb ?? null }) as Array<
+      { source: string; price_cents: number; title: string; observed_at: string }
+    >;
+  if (!rows.length) return null;
+
+  const age = (iso: string) => Math.max(0, (Date.now() - Date.parse(iso)) / 86_400_000);
+  const quotes: RetailQuote[] = rows.map((r) => ({
+    source: r.source, priceCents: r.price_cents, title: r.title,
+    observedAt: r.observed_at, ageDays: Math.round(age(r.observed_at)),
+  }));
+
+  /**
+   * THE CEILING IS THE CHEAPEST QUOTE ANOTHER RETAILER CORROBORATES.
+   *
+   * Cheapest-wins is the right definition — a ceiling is "what could I pay
+   * instead" — but with three sources it means three chances for a bad parse
+   * to become the answer, and the cheapest bad parse always wins. Nine Best
+   * Buy ceilings could be hand-checked; thirty across three retailers cannot.
+   *
+   * So: if the cheapest is far below the next one, the retailers disagree by
+   * more than retailers actually disagree, and the outlier is discarded rather
+   * than trusted. A single-source quote is still used — it is real, it passed
+   * every gate — but it is marked uncorroborated so the caller can weigh it.
+   */
+  let chosen = quotes[0];
+  let discarded: RetailQuote | undefined;
+  if (quotes.length > 1 && quotes[0].priceCents < quotes[1].priceCents * CORROBORATION_FLOOR) {
+    discarded = quotes[0];
+    chosen = quotes[1];
+  }
+  const corroborated = quotes.some(
+    (q) => q !== chosen && q !== discarded && q.priceCents <= chosen.priceCents / CORROBORATION_FLOOR,
+  );
+
   return {
-    priceCents: r.price_cents,
-    title: r.title,
-    observedAt: r.observed_at,
-    ageDays: Math.round(ageDays),
-    stale: ageDays > RETAIL_STALE_DAYS,
+    priceCents: chosen.priceCents,
+    title: chosen.title,
+    source: chosen.source,
+    observedAt: chosen.observedAt,
+    ageDays: chosen.ageDays,
+    stale: chosen.ageDays > RETAIL_STALE_DAYS,
+    corroborated,
+    quotes,
+    discarded,
   };
 }
 
@@ -477,8 +785,20 @@ export function retailQueryForSku(sku: {
  */
 export const RETAIL_CATEGORIES = ["console", "gpu", "laptop", "tablet", "phone"];
 
+/**
+ * Ordered by HOW MANY RETAILERS WE HAVE ASKED, fewest first — not by whether
+ * we have any price at all.
+ *
+ * That ordering is what makes corroboration accumulate. The same SKU list goes
+ * to all three retailers on every run, so a SKU nobody has priced gets three
+ * quotes at once, and one that only Best Buy answered comes back around before
+ * a SKU that already has three. Ordering by "has any price" instead would mark
+ * a SKU done the moment ONE retailer answered — which is exactly the
+ * single-source case `latestRetail` cannot corroborate.
+ */
 export function skusNeedingRetail(limit = 10): Array<{
-  id: number; brand: string; model: string; category: string; attributes: string; observed: string | null;
+  id: number; brand: string; model: string; category: string; attributes: string;
+  observed: string | null; sources: number;
 }> {
   const marks = RETAIL_CATEGORIES.map((_, i) => `$c${i}`).join(",");
   const order = RETAIL_CATEGORIES.map((c, i) => `WHEN $c${i} THEN ${i}`).join(" ");
@@ -487,10 +807,11 @@ export function skusNeedingRetail(limit = 10): Array<{
   return db()
     .query(
       `SELECT s.id, s.brand, s.model, s.category, s.attributes,
-              (SELECT MAX(observed_at) FROM retail_prices r WHERE r.sku_id = s.id) observed
+              (SELECT MAX(observed_at) FROM retail_prices r WHERE r.sku_id = s.id) observed,
+              (SELECT COUNT(DISTINCT source) FROM retail_prices r WHERE r.sku_id = s.id) sources
          FROM skus s
         WHERE s.category IN (${marks})
-        ORDER BY observed IS NOT NULL, CASE s.category ${order} ELSE 99 END,
+        ORDER BY sources ASC, CASE s.category ${order} ELSE 99 END,
                  observed ASC, s.id
         LIMIT $lim`,
     )
@@ -504,7 +825,7 @@ export type RetailEvent =
   | { type: "done"; stats: Record<string, unknown> };
 
 export async function* runRetailWorker(
-  command: "bestbuy",
+  command: RetailSource,
   opts: Record<string, unknown>,
 ): AsyncGenerator<RetailEvent> {
   const proc = Bun.spawn(

@@ -40,8 +40,9 @@ verdicts   255 INSUFFICIENT_DATA · 54 OUT_OF_SCOPE · 43 PASS · 7 VERIFY
            6 FAIR · 1 RISK
 judgments   79  (69 original + 10 re-reviewed WITH the comps visible)
 outcomes     3  (observed, from delistings)
-retail      20  9 NEW ceilings from Best Buy + 11 dated "we looked, nothing"
-                All 9 agree with the archive: used median at 53-93% of new.
+retail          9 SKUs with a corroborated ceiling, across 3 retailers
+                (newegg · microcenter · bestbuy). Every one agrees with the
+                archive: used median at 53-93% of new.
 vision spend to date: $0.055
 ```
 
@@ -77,8 +78,8 @@ bun run fb:login                  sign in to Facebook by hand (once)
 bun run fb:crawl [--query ...] [--limit N] [--vision N] [--headless]
 bun run ebay:login                sign in to eBay by hand (once)
 bun run ebay:comps [--query ...] [--skus N]
-bun run retail [--skus N] [--query ...] [--replay] [--dry]
-                                  NEW retail prices from Best Buy (the ceiling)
+bun run retail [--skus N] [--sku "RTX 5070"] [--source newegg] [--replay]
+                                  NEW retail from Newegg / Micro Center / Best Buy
 bun run catalog:derive [--min N] [--apply]    dry run by default
 
 bun run check <url>               one listing, staged timings
@@ -426,7 +427,112 @@ Headline metric is **valuation error**: predicted median vs actual clearing
 price. Consistently positive means pricing HIGH and every BUY is overstated —
 the failure that loses money quietly, because each verdict still looks fine.
 
-## 11d. Retail ceiling — SHIPPED 2026-08-25
+## 11d. Retail ceiling — SHIPPED 2026-08-25, THREE SOURCES
+
+### The three retailers, and why one was not enough
+
+`RETAIL_SOURCES = ["newegg", "microcenter", "bestbuy"]`, best first for the
+categories Yish trades. Yish's call, and the live numbers back it:
+
+| SKU | Micro Center | Newegg | Best Buy | spread |
+|---|---|---|---|---|
+| RTX 5090 | **$4,339.99** | $4,900 | $4,830 | $560 |
+| RTX 5080 | **$1,499.99** | $1,550 | $1,600 | $100 |
+| RTX 5070 | $800 | $800 | **$795.59** | $4 |
+| RTX 3060 | $480 | **$459.99** | $466 | $20 |
+
+**Micro Center is the only source here that is a PLACE.** The Cambridge MA
+store (`storeid=121`, pinned in the worker) is ~20 minutes from Newton, so for
+a local buyer it is a genuine alternative rather than a theoretical one — which
+is exactly what a ceiling is supposed to measure. It is also the only page that
+states LOCAL STOCK (`14 IN STOCK`), so a ceiling from it means "you can drive
+over and have one today at this price". Prices are per-store, which is why the
+store id AND the store cookie are both set: without them the site answers for
+whichever store it infers from the IP, and a Texas price is not a ceiling.
+
+**A Best Buy markup was assumed and was wrong.** The first read of $795.59 for
+an RTX 5070 looked like a 45% markup over a ~$549 MSRP. Newegg then said
+$799.99 and Micro Center $799.99. The card's street price simply IS ~$800.
+That correction is the cross-check paying for itself on its first run.
+
+### The ceiling is the cheapest quote another retailer corroborates
+
+Not `MIN(sources)`. Cheapest-wins is the right definition of a ceiling, but
+with three sources it is three chances for a bad parse to win, and the cheapest
+bad parse always does. Nine Best Buy ceilings could be hand-verified; thirty
+across three retailers cannot.
+
+`latestRetail` takes the latest NEW quote per source, then: if the cheapest is
+below `CORROBORATION_FLOOR` (0.6) of the next, the retailers disagree by more
+than retailers actually disagree, so the outlier is DISCARDED and reported. A
+single-source quote is still used — it is real and it passed every gate — but
+`corroborated: false` travels with it.
+
+**Only the comps-disagree branch requires corroboration.** Refusing to price a
+SKU is the biggest hammer in `buildVerdict` and should not swing on one page.
+The asking-above-new branch does not require it: it quotes a specific real
+offer the reader can go check, and being wrong there costs one PASS instead of
+every verdict for that SKU.
+
+`skusNeedingRetail` orders by **how many retailers we have asked, fewest
+first** — not by whether we have any price. The same SKU list goes to all three
+on every run, so corroboration accumulates. Ordering by "has any price" would
+mark a SKU done the moment ONE retailer answered, which is the single-source
+case the whole design exists to avoid.
+
+### A PREBUILT HAS NO RETAIL TWIN — `NO_RETAIL_TWIN`
+
+Caught live and it was about to do real damage. `--sku "RTX 5070"` also matched
+the `Gaming PC RTX 5070` SKU, which pulled three "matching" new machines: a
+Yeyian with a Core Ultra 7 270K, a PowerSpec with a Ryzen 5 7500X3D, and a
+ViprTech with a Ryzen 7 8700F. **$1,400 to $1,950, sharing one component.** The
+CPU, RAM, storage, PSU and case are most of the price and all of them vary, so
+"a new gaming PC with an RTX 5070" is a CATEGORY, not a product.
+
+At a $1,400 "ceiling" against a $1,599 used median, the comps-disagree branch
+would have returned INSUFFICIENT_DATA for every RTX 5070 build in the feed —
+and it would have read as a data-quality finding, which is precisely the trap
+`retailMeaning` exists to avoid. `RETAIL_CATEGORIES` already excluded
+prebuilts; `--sku` bypassed it. There is now a guard at the write boundary AND
+a filter on `--sku`.
+
+### Parser notes per source
+
+- **Newegg** — cards run `QUICK VIEW` ... `Compare`, which also drops the
+  SPONSORED block free (those carry no `QUICK VIEW`, and on a GPU search they
+  are prebuilt PCs). The name is the line before `Model #:`. **Take the LAST
+  bare price in a card, not the first** — Newegg prints the struck-through list
+  price first. A `Save:` line is NOT a reliable marker of that pattern; the
+  Newegg Refreshed cards show two prices with no Save line. `NEWEGG_PROMO`
+  exists because promo text sits BETWEEN the title and `Model #:` and is long
+  and word-like: *"Get CONTROL Resonant with selected purchase, limited offer"*
+  was read as a $1,200 RTX 5070.
+  **Known gap:** `Sold by Newegg` on the page is a FILTER toggle, not a
+  per-card marker, so marketplace sellers cannot currently be excluded there.
+- **Micro Center** — cards start at `Add SKU:NNNNN to wishlist`. The name is
+  the first long line AFTER the card's `Compare` (`Compare Item <title>>` above
+  it is a truncated duplicate with a stray `>`). **`Our price` beats `Original
+  price`** — both are printed, in that order, so a positional rule takes the
+  pre-discount number every time. Their search does loose matching and returns
+  unrelated stock when a card is discontinued, which the comp gates handle.
+- **Best Buy** — see the card-boundary notes below. Weak on phones.
+
+### `main` can exist and still be EMPTY — a silent-zero trap
+
+Micro Center returned zero lines for the RTX 5070 and 5090 while working for
+the 4060, 5080 and 3060. `document.querySelector("main") || document.body`
+found the `main` element and read an empty string out of it, because results
+render into a sibling on some layouts. **An `||` fallback cannot help — the
+element was found, it just had nothing in it.** The worker now checks LENGTH
+(>200 chars) before preferring `main`, and retries once.
+
+A silent zero was the worst possible shape: it reported as *"nothing parsed —
+the page layout may have changed"*, which would send the next person to rewrite
+a parser that was never wrong.
+
+---
+
+## 11e. Retail ceiling — the original Best Buy build
 
 **The feature no comp set can provide.** Every competitor compares used to
 used, so a seller who anchors on what they paid just looks expensive next to
@@ -802,8 +908,16 @@ P1-5 (asking price -> 0), P1-1 (stale vision cache).
 ## 15. Next actions
 
 1. **OfferUp / Mercari sources.** The last two channels Yish asked for. The
-   two-runtime Playwright pattern from Facebook and Best Buy carries over, and
-   both are local-price sources like the delisting tracker, not eBay-basis.
+   two-runtime Playwright pattern from Facebook and Best Buy carries over.
+
+   **These are USED markets, closer to eBay than to the delisting tracker** —
+   Yish's correction, 2026-08-25, and an earlier draft of this line had it
+   wrong. Mercari is national, shipped and takes ~10%, so its prices are
+   eBay-basis and must NOT be discounted again by `netByChannel`. OfferUp is
+   mixed: mostly local pickup, but it has shipped listings too, so `PriceBasis`
+   has to be decided per LISTING there, not per source. Getting that wrong is
+   the double-discount bug that made the NZXT build read $890 instead of
+   $1,375.
 2. **Phone comps are the open valuation dispute.** iPhone 15 128GB and iPhone
    16 Pro Max are the two remaining eval disagreements and Yish reads the
    medians as low. **Best Buy cannot referee this one** — it stopped selling
@@ -815,9 +929,11 @@ P1-5 (asking price -> 0), P1-1 (stale vision cache).
    this is done. Yish's action, not mine — never paste a key into a web form.
 5. **Run `bun run sweep` daily.** Every day it does not run is clearing-price
    history nobody can refetch.
-6. **Extend the retail ceiling past Best Buy.** Walmart and Amazon were on
-   Yish's original list and would cover the categories Best Buy is weak in —
-   above all unlocked phones, where Best Buy returns almost nothing.
+6. **Retail coverage is GPU-heavy.** Newegg and Micro Center are shipped and
+   cover gpu/component well. The phone and laptop SKUs still have no usable
+   ceiling — Best Buy sells carrier phones on financing only, and neither of
+   the new two sells phones at all. Walmart is the obvious next source for
+   unlocked phones; Yish ruled out Apple deliberately on 2026-08-25.
 7. **Surface `retail` and `riskChecks` in the web API.** Both are carried on
    the verdict and rendered by `bun run review`, but neither reaches the site.
 
