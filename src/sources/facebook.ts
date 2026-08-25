@@ -111,13 +111,22 @@ export function parseCard(raw: { href: string; text: string; img: string | null 
  * meaning anything.
  */
 export function detailToListing(
-  d: { url: string; title: string; bodyLines: string[]; photos: string[] },
+  d: { url: string; title: string; bodyLines: string[]; photos: string[]; condition?: string | null },
   card?: FbCard,
 ): RawListing {
   const priceLine = d.bodyLines.find((l) => /^\$[\d,]/.test(l) || /^free$/i.test(l));
-  const locLine = d.bodyLines.find((l) => /,\s?[A-Z]{2}$/.test(l));
   const listedLine = d.bodyLines.find((l) => /listed\s/i.test(l));
   const ageDays = parseListedAgeDays(listedLine);
+
+  /**
+   * The location line reads "Listed a day ago in Roxbury Crossing, MA" — the
+   * whole sentence was being stored as the location. Strip the prefix, and
+   * prefer a bare "City, ST" line if the page has one.
+   */
+  const cityLine = (l: string) => /^[A-Z][\w .'-]+,\s?[A-Z]{2}$/.test(l) && !/^listed\b/i.test(l);
+  const locLine =
+    d.bodyLines.find(cityLine)
+    ?? stripListedPrefix(d.bodyLines.find((l) => /,\s?[A-Z]{2}$/.test(l)));
 
   return {
     source: "facebook",
@@ -136,9 +145,29 @@ export function detailToListing(
     postedAt: ageDays == null ? null : new Date(Date.now() - ageDays * 86_400_000).toISOString(),
     updatedAt: null,
     photoUrls: d.photos,
-    attributes: {},
-    raw: { listedLine: listedLine ?? null, ageDays },
+    /**
+     * Facebook's own Condition dropdown is a value the seller PICKED, not prose
+     * we guessed at, so it feeds condition normalisation directly and beats any
+     * regex over the description.
+     */
+    attributes: d.condition ? { condition: d.condition } : {},
+    raw: { listedLine: listedLine ?? null, ageDays, condition: d.condition ?? null },
   };
+}
+
+/**
+ * "Listed a day ago in Medford, MA" -> "Medford, MA".
+ *
+ * Facebook prefixes the location line several different ways depending on the
+ * listing's delivery options — "Listed 3 days ago in", "Pick up in", "Located
+ * in". All of them were being stored verbatim as the location, which makes a
+ * city unusable for the drive-time calculation that decides BUY vs PASS.
+ */
+export function stripListedPrefix(line: string | null | undefined): string | null {
+  if (!line) return null;
+  return line
+    .replace(/^(?:listed\b.*?|pick\s?up|pickup|located|ships?\s+from|available)\s+in\s+/i, "")
+    .trim() || null;
 }
 
 export interface FbSearchOptions {

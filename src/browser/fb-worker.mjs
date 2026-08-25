@@ -172,20 +172,91 @@ try {
           await pause(400, 900);
         }
 
+        /**
+         * Collect the listing's OWN photos, not the page's images.
+         *
+         * Measured on a real listing: 26 Facebook-CDN images on the page, of
+         * which **20 were "More like this" thumbnails** and 4 were 36px icons.
+         * Scraping all of them would have sent 20 other people's items to a paid
+         * vision call and polluted the extracted specs with them.
+         *
+         * Two filters, both needed. `Seller information` is where the listing's
+         * own content ends and the related-listing rail begins, so anything
+         * positioned after that node is somebody else's item. Width >= 200 drops
+         * avatars and UI icons that sit before it.
+         */
+        const collect = () =>
+          page.evaluate(() => {
+            const main = document.querySelector('[role="main"]') || document.body;
+            const boundary = Array.from(main.querySelectorAll("h2,h3,span,div"))
+              .find((e) => /^seller information/i.test((e.textContent || "").trim()));
+            const out = [];
+            for (const img of main.querySelectorAll("img")) {
+              if (!/scontent|fbcdn/.test(img.src)) continue;
+              if (boundary && boundary.compareDocumentPosition(img) & Node.DOCUMENT_POSITION_FOLLOWING) continue;
+              if (img.getBoundingClientRect().width < 200) continue;
+              out.push(img.src);
+            }
+            return out;
+          });
+
+        /**
+         * Marketplace renders ONE carousel photo at a time, so a single pass
+         * captures one image out of however many exist. The `View photo N`
+         * labels state the real count, which is what makes "have we got them
+         * all" answerable instead of a guess.
+         *
+         * THE RULE IS EVERY PHOTO, NEVER A SAMPLE — the Phase 0 miss was a
+         * skipped third image holding the whole spec sheet.
+         */
+        const expected = await page.locator('[aria-label^="View photo "]').count();
+        const photos = new Set(await collect());
+        const next = page
+          .locator('[aria-label="View next image"], [aria-label="See next photo"], [aria-label="Next photo"]')
+          .first();
+
+        if (await next.count()) {
+          for (let k = 0; k < Math.max(expected, 1) + 2; k++) {
+            if (expected && photos.size >= expected) break;
+            await next.click({ timeout: 3000 }).catch(() => {});
+            await pause(600, 1200);
+            const before = photos.size;
+            for (const s of await collect()) photos.add(s);
+            if (photos.size === before) break;   // carousel wrapped or ended
+          }
+        }
+        if (expected && photos.size < expected) {
+          emit({ type: "log", msg: `${url}: got ${photos.size} of ${expected} photos` });
+        }
+
         const detail = await page.evaluate(() => {
-          const imgs = Array.from(document.querySelectorAll("img"))
-            .map((i) => i.src)
-            .filter((s) => s && /scontent|fbcdn/.test(s) && !/emoji|static|\/p\d\dx\d\d\//.test(s));
-          const body = (document.body.innerText || "")
-            .split("\n").map((l) => l.trim()).filter(Boolean);
+          /**
+           * Text scoped to `[role="main"]` and sliced from the title.
+           *
+           * `document.body.innerText` dragged in ~34 lines of Facebook chrome —
+           * "Notifications", "Create new listing", the whole category sidebar —
+           * as the listing DESCRIPTION. The signal layer is regex over free
+           * text, so that nav copy was being scanned for red flags and fed to
+           * the catalog matcher.
+           */
+          const main = document.querySelector('[role="main"]') || document.body;
+          const lines = (main.innerText || "").split("\n").map((l) => l.trim()).filter(Boolean);
           const h1 = document.querySelector("h1");
-          return {
-            title: (h1 && h1.innerText.trim()) || body[0] || "",
-            bodyLines: body.slice(0, 200),
-            photos: Array.from(new Set(imgs)).slice(0, 30),
-          };
+          const title = (h1 && h1.innerText.trim()) || "";
+
+          const start = title ? lines.findIndex((l) => l === title) : 0;
+          const end = lines.findIndex((l) => /^seller information$/i.test(l));
+          const content = lines.slice(start >= 0 ? start : 0, end > 0 ? end : undefined);
+
+          // Facebook's own "Condition" field — a structured value the seller
+          // picked from a list, which beats guessing from prose.
+          const ci = content.findIndex((l) => /^condition$/i.test(l));
+          const condition = ci >= 0 ? content[ci + 1] ?? null : null;
+
+          return { title: title || content[0] || "", bodyLines: content.slice(0, 120), condition };
         });
-        emit({ type: "detail", url, ...detail });
+
+        emit({ type: "detail", url, ...detail, photos: [...photos] });
       } catch (e) {
         emit({ type: "error", msg: `${url}: ${String(e.message).slice(0, 120)}` });
       }

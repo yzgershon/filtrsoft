@@ -388,6 +388,14 @@ a 2012 and a 2024 equally — the same bug that matched a 2019 Intel machine to 
 M3, reintroduced through the catalog where the matcher's guard cannot see it.
 `deriveCandidates` refuses to create them.
 
+### WORKING TRAP: python -c/heredoc patching mangles regexes in JS
+Patching a .ts file through a Python string turns  into an actual BACKSPACE
+(0x08) and silently corrupts the regex. It happened twice on 2026-08-24; the
+second time `stripListedPrefix` returned its input unchanged while the identical
+regex worked when typed inline, and `cat -A` was what finally showed
+`/^listed^H.*?^Hin/`. **Use the editor tool for anything containing backslashes.**
+Audit with: `grep -c $'' src/**/*.ts`
+
 ### Engine traps
 - **Never sample photos.** The funnel may drop *listings*; once a listing reaches
   vision it must never drop *photos*. Phase 0's miss was a skipped third image
