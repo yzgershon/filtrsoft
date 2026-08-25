@@ -34,17 +34,36 @@ components. **Out:** furniture, accessories, cameras.
 ```
 listings   366    (341 craigslist · 25 facebook)
 skus        89    (30 laptop · 28 phone · 14 gpu · 10 console · 7 component)
-comps      270    (190 REAL from eBay · 80 legacy provisional — delete these)
-           12 of 89 SKUs have comps
-verdicts   305 INSUFFICIENT_DATA · 54 OUT_OF_SCOPE · 2 VERIFY · 2 FAIR
-           1 RISK · 1 PASS · 1 BUY
-judgments   69 (Yish's audit)  ·  outcomes 0
+comps     5958    ALL REAL, from eBay sold listings. 87 of 89 SKUs covered.
+                  The 80 hand-typed provisional rows are DELETED.
+verdicts   258 INSUFFICIENT_DATA · 54 OUT_OF_SCOPE · 44 PASS · 6 VERIFY
+           3 FAIR · 1 RISK
+judgments   69 (Yish's audit)  ·  outcomes 3 (observed, from delistings)
 vision spend to date: $0.055
 ```
 
-**Engine vs Yish's audit: 3/10 exact, 3 harsher, 3 softer.** No directional
-bias. Still measured against mostly-provisional comps — re-run `bun run score`
-once real comps cover the eval SKUs.
+### ⚠ THE EVAL SET IS NOW THE LESS RELIABLE SIDE — read before "fixing" the score
+
+`bun run score` reads **1/10 exact, 5 harsher, 3 softer**, and that is NOT a
+regression to tune away. It got worse *because* real comps replaced flattering
+ones, and the disagreements are now VALUATION disputes rather than logic errors.
+
+Worked example, traced end to end:
+```
+iPhone 16 Pro Max 1TB, asking $750    Yish graded BUY
+market median (1TB-filtered, n=10)    $799
+eBay net after 13.25% + shipping      $683
+                                      -> -$67. PASS.
+```
+The engine is arithmetically right. Either the $799 median is low, or the grade
+was optimistic — and **nothing in the repo can currently tell you which.** The
+69 judgments were made from Yish's mental model of market value, before any real
+comp existed.
+
+**Do not tune the engine toward the eval set.** The correct next move is for Yish
+to re-audit a sample WITH the comp data visible, and to let `bun run outcomes`
+accumulate — observed clearing prices are the only referee that is not one of the
+two disagreeing parties.
 
 ### Commands
 ```

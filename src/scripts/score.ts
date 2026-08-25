@@ -64,4 +64,5 @@ console.log(
       ? "\nEngine still leans MORE GENEROUS than Yish — the original calibration bias."
       : "\nNo systematic directional bias.",
 );
-console.log(`\nNote: verdicts computed against PROVISIONAL comps. Re-run after real eBay data.`);
+console.log(`\nDisagreements are now VALUATION disputes, not logic errors — the eval set was
+graded before any real comp existed. See HANDOFF section 2 before tuning.`);
