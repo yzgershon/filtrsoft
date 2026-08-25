@@ -33,37 +33,36 @@ components. **Out:** furniture, accessories, cameras.
 
 ```
 listings   366    (341 craigslist · 25 facebook)
-skus        89    (30 laptop · 28 phone · 14 gpu · 10 console · 7 component)
-comps     5958    ALL REAL, from eBay sold listings. 87 of 89 SKUs covered.
+skus       220    (120 laptop · 45 phone · 21 gpu · 14 component · 12 console · 8 prebuilt)
+comps     6169    ALL REAL, from eBay sold listings. 89 SKUs covered.
                   The 80 hand-typed provisional rows are DELETED.
-verdicts   258 INSUFFICIENT_DATA · 54 OUT_OF_SCOPE · 44 PASS · 6 VERIFY
-           3 FAIR · 1 RISK
-judgments   69 (Yish's audit)  ·  outcomes 3 (observed, from delistings)
+verdicts   255 INSUFFICIENT_DATA · 54 OUT_OF_SCOPE · 43 PASS · 7 VERIFY
+           6 FAIR · 1 RISK
+judgments   79  (69 original + 10 re-reviewed WITH the comps visible)
+outcomes     3  (observed, from delistings)
 vision spend to date: $0.055
 ```
 
-### ⚠ THE EVAL SET IS NOW THE LESS RELIABLE SIDE — read before "fixing" the score
+### The eval set has two generations — `score` uses the newer one
 
-`bun run score` reads **1/10 exact, 5 harsher, 3 softer**, and that is NOT a
-regression to tune away. It got worse *because* real comps replaced flattering
-ones, and the disagreements are now VALUATION disputes rather than logic errors.
+**5/10 exact, 3 harsher, 1 softer.** Up from 1/10, and the improvement came from
+BOTH sides moving:
 
-Worked example, traced end to end:
-```
-iPhone 16 Pro Max 1TB, asking $750    Yish graded BUY
-market median (1TB-filtered, n=10)    $799
-eBay net after 13.25% + shipping      $683
-                                      -> -$67. PASS.
-```
-The engine is arithmetically right. Either the $799 median is low, or the grade
-was optimistic — and **nothing in the repo can currently tell you which.** The
-69 judgments were made from Yish's mental model of market value, before any real
-comp existed.
+The original 69 judgments were made from Yish's mental model of market value,
+before a single real comp existed. `bun run review` puts the listing, the
+engine's arithmetic and the actual sold comps on one page; re-grading with that
+visible moved **6 of 10 grades, 5 of them TOWARD the engine** — including the
+Tesla P100 (*"i didnt realize there was no video output"*) and the Latitude 7420
+(*"good call"*). `score` prefers `judged_by='yish-rereview'` where it exists.
 
-**Do not tune the engine toward the eval set.** The correct next move is for Yish
-to re-audit a sample WITH the comp data visible, and to let `bun run outcomes`
-accumulate — observed clearing prices are the only referee that is not one of the
-two disagreeing parties.
+His notes on the other side found four real engine bugs, all now fixed and each
+documented in Live traps: salvage comps in working medians, "NEW LISTING" read as
+a condition, a partial parts sum discounted twice, and Apple machines sent down
+the parts path.
+
+**Do not tune the engine toward the eval set.** Ten cases cannot settle a
+valuation dispute. `bun run outcomes` is the referee that is neither party —
+observed clearing prices accumulate every time the sweep runs.
 
 ### Commands
 ```
