@@ -45,7 +45,7 @@ vision spend to date: $0.055
 
 ### The eval set has two generations — `score` uses the newer one
 
-**5/10 exact, 3 harsher, 1 softer.** Up from 1/10, and the improvement came from
+**6/10 exact, 2 harsher, 1 softer.** Up from 1/10, and the improvement came from
 BOTH sides moving:
 
 The original 69 judgments were made from Yish's mental model of market value,
@@ -487,6 +487,51 @@ Divide by coverage first, then discount once.
 `med`), bypassing condition adjustment, salvage exclusion and the 90-day window —
 an RTX 5070 read $674 inside a build and $615 standalone. It now calls
 `valueSku` per part. **A component's price cannot depend on which path asked.**
+
+### ⚠⚠ COMP THE WHOLE MACHINE. A parts sum is the FALLBACK, not the method.
+Yish, twice, before the data agreed with him: *"its an entire pc not just the
+gpu"* and then *"there shouldnt be any % of ebay at all because im not buying it
+from ebay."* He was right about the number and about the method.
+
+```
+NZXT build (RTX 5070 + Ryzen 5 9600X), asking $750
+  parts sum, scaled and discounted        $890
+  USED whole PCs with an RTX 5070         $1,375 median, n=25
+  nearest comps   $1,140 (RTX 5070 + 9700X + NZXT case)
+                  $1,200 (RTX 5070 + 7600X)
+```
+
+**The assumption underneath the parts path was backwards.** It discounted an
+assembled machine below its components. For current-gen gaming PCs the market
+pays a PREMIUM for built-and-working — iBUYPOWER and Skytech towers clear ABOVE
+component cost. `valueWholeBuild` looks up a `Gaming PC <GPU>` SKU and uses real
+tower sales; the GPU is the anchor because it sets the tier and every listing
+names it. Parts remain the fallback, and the parts-vs-whole spread is still what
+tells you whether parting OUT beats selling whole.
+
+Verdict went $890/PASS -> $1,416 market, $454 profit, **BUY** — matching Yish.
+
+### ⚠ `??` DESTROYS A DELIBERATE null
+`SHIP_CENTS.prebuilt` is `null` meaning "a tower cannot be shipped, so eBay is
+not a channel". `SHIP_CENTS[category] ?? 1500` evaluates that to **1500** —
+nullish coalescing cannot distinguish an intentional null from a missing key — so
+the local-sale-only branch was UNREACHABLE and every gaming PC was priced as if
+you could post it for $15. Use `category in SHIP_CENTS`.
+
+### ⚠ Compare the asking price to the RIGHT market
+The below-60%-of-market escalation compared a LOCAL asking price against an eBay
+median. Local prices are systematically under eBay — that gap IS the flip — so
+every Craigslist listing looked suspiciously cheap. The NZXT build read "53% of
+market" and was escalated purely for being local. Now compares against
+`best.grossCents`, the price in the channel actually available.
+
+### ⚠ A check that fires on everything carries no information
+The BIOS/supervisor-password check ran on every prebuilt and held a custom NZXT
+gaming build at VERIFY with $454 of margin, waiting on a question about a
+password no enthusiast builder sets. `RISK-MODEL.md` lists it under BUSINESS
+off-lease units, where corporate IT sets them. Now gated on `BUSINESS_OEM`
+(OptiPlex, EliteDesk, ThinkCentre, off-lease, asset tag). This is the
+over-flagging CALIBRATION 10c warns about.
 
 ### ⚠ Know what market a price is denominated in
 Yish: *"why did you * 0.6 and then *0.85 the build? theres no fees if i resell

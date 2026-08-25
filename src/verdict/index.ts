@@ -13,7 +13,7 @@
 import type { SignalReport, Verdict, Confidence } from "../types.ts";
 import type { Match } from "../catalog/match.ts";
 import { buildQuestions } from "./questions.ts";
-import { valueSku, valueByParts, netByChannel, requiredProfitCents, getEconomics, type UserEconomics, type ChannelResult, type PriceBasis } from "../valuation/index.ts";
+import { valueSku, valueByParts, valueWholeBuild, netByChannel, requiredProfitCents, getEconomics, type UserEconomics, type ChannelResult, type PriceBasis } from "../valuation/index.ts";
 import { normalizeCondition, type Condition } from "../valuation/condition.ts";
 import { resolveProductType, isAppleWholeUnit } from "../signals/product-type.ts";
 import { evaluateRisk, riskGate, inPersonConditions, type RiskCheck, type RiskGate } from "./risk-gates.ts";
@@ -82,6 +82,18 @@ export function buildVerdict(input: {
    */
   const isApple = isAppleWholeUnit(`${input.title} ${input.description}`);
   const isBundle = (match.category ?? signals.category) === "prebuilt" && !isApple;
+  /**
+   * WHOLE-MACHINE COMPS BEAT A PARTS SUM, ALWAYS, WHEN THEY EXIST.
+   *
+   * Summing parts requires two guesses — what fraction of the value we managed
+   * to price, and what an assembled machine fetches relative to its components.
+   * A comp for an actual RTX 5070 tower requires neither. On the NZXT build the
+   * parts path said $890 and real whole-machine sales say $1,375.
+   *
+   * Parts remain the fallback for builds with no whole-machine comps, and for
+   * deciding whether parting OUT beats selling whole — which is the actual flip.
+   */
+  const wholeVal = isBundle ? valueWholeBuild(match.attributes, "used") : null;
   const partsVal = isBundle ? valueByParts(match.attributes) : null;
   /**
    * A low-confidence match must never price anything. Defence in depth behind
@@ -111,8 +123,11 @@ export function buildVerdict(input: {
     // Storage tier reprices a SKU on its own — a 1TB phone is not a 256GB one.
     attributes: match.attributes,
   });
-  const valuation = partsVal && (skuVal.status === "no_comps" || partsVal.compCount > skuVal.compCount)
-    ? partsVal : skuVal;
+  const valuation =
+    wholeVal ??
+    (partsVal && (skuVal.status === "no_comps" || partsVal.compCount > skuVal.compCount)
+      ? partsVal
+      : skuVal);
   const questions = buildQuestions(signals, match);
 
   /**
@@ -256,13 +271,25 @@ export function buildVerdict(input: {
     };
   }
 
-  // A very large gap escalates scrutiny rather than excitement.
-  const ratio = ask && valuation.medianCents ? ask / valuation.medianCents : 1;
+  /**
+   * A very large gap escalates scrutiny rather than excitement — but the gap has
+   * to be measured against the RIGHT market.
+   *
+   * Comparing a local asking price to an eBay median makes every local listing
+   * look suspiciously cheap, because local prices ARE systematically below eBay.
+   * That is the whole reason the flip exists. The NZXT build read "53% of
+   * market" and got escalated to VERIFY purely for being on Craigslist.
+   *
+   * `best.grossCents` is what the item fetches in the channel actually
+   * available, so this compares like with like.
+   */
+  const localMarket = best.grossCents;
+  const ratio = ask && localMarket ? ask / localMarket : 1;
   if (ratio > 0 && ratio < 0.6) {
     return {
       ...money, call: "VERIFY", confidence: valuation.confidence,
       headline: `Priced at ${Math.round(ratio * 100)}% of market — verify before driving.`,
-      reasoning: `Asking ${$(ask)} against a ${$(valuation.medianCents)} median across ${valuation.compCount} comps. That gap is the strongest deal signal AND the strongest scam signal; they're the same observation. Resolve why it's cheap first.`,
+      reasoning: `Asking ${$(ask)} against ${$(localMarket)} on ${best.channel}, from a ${$(valuation.medianCents)} median across ${valuation.compCount} comps. That gap is the strongest deal signal AND the strongest scam signal; they're the same observation. Resolve why it's cheap first.`,
       decidingUnknown: "why it is priced this far below market",
     };
   }

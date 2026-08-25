@@ -175,8 +175,23 @@ const BY_CATEGORY: Record<string, Rule[]> = {
   laptop: LAPTOP_WINDOWS, // refined below when the listing is an Apple machine
   gpu: GPU,
   console: CONSOLE,
-  prebuilt: LAPTOP_WINDOWS.filter((r) => r.code === "BIOS_PASSWORD"),
+  // Prebuilts are handled below — the BIOS risk depends on WHOSE machine it was.
+  prebuilt: [],
 };
+
+/**
+ * A firmware password is a CORPORATE artefact, not a property of desktops.
+ *
+ * `RISK-MODEL.md` lists BIOS/supervisor passwords under business off-lease
+ * units — Dell OptiPlex, HP EliteDesk, Lenovo ThinkCentre — because corporate
+ * IT sets them. Applying the check to every prebuilt held a custom NZXT gaming
+ * build at VERIFY with $454 of margin, waiting on a question about a password
+ * an enthusiast builder would never have set. That is precisely the
+ * over-flagging CALIBRATION 10c warns about: a check that fires on everything
+ * carries no information and only costs deals.
+ */
+const BUSINESS_OEM =
+  /\b(optiplex|elitedesk|prodesk|thinkcentre|thinkstation|precision tower|proliant|poweredge|off[- ]?lease|corporate|refurb(ished)? (dell|hp|lenovo)|asset tag)\b/i;
 
 const APPLE = /\b(macbook|imac|mac ?mini|mac ?studio|apple)\b/i;
 
@@ -196,6 +211,10 @@ export function evaluateRisk(
 
   let rules = BY_CATEGORY[category] ?? [];
   if (category === "laptop" && APPLE.test(text)) rules = LAPTOP_APPLE;
+  // A desktop only carries the firmware-password risk if it came from a company.
+  if (category === "prebuilt" && BUSINESS_OEM.test(text)) {
+    rules = LAPTOP_WINDOWS.filter((r) => r.code === "BIOS_PASSWORD");
+  }
 
   const checks: RiskCheck[] = rules.map((r) => {
     // Disclosure beats reassurance: a listing saying "iCloud locked, for parts"

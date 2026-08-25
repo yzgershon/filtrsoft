@@ -191,7 +191,18 @@ export type PriceBasis = "ebay" | "local";
 export function netByChannel(
   grossEbayCents: number, category: string, basis: PriceBasis = "ebay",
 ): ChannelResult[] {
-  const ship = SHIP_CENTS[category] ?? 1500;
+  /**
+   * `??` WOULD DESTROY THE MEANING OF THE null HERE.
+   *
+   * `SHIP_CENTS.prebuilt` is `null` on purpose: a tower cannot be shipped
+   * economically, so eBay is not an available channel at all. But `null ?? 1500`
+   * evaluates to 1500 — nullish coalescing cannot tell a deliberate null from a
+   * missing key — so the "local sale only" branch below was UNREACHABLE and
+   * every gaming PC was quietly priced as if you could post it for $15.
+   *
+   * `in` distinguishes "we set this to null on purpose" from "no entry".
+   */
+  const ship = category in SHIP_CENTS ? SHIP_CENTS[category] : 1500;
   const out: ChannelResult[] = [];
 
   if (ship !== null) {
@@ -332,6 +343,50 @@ const ROLE_VALUE_WEIGHT: Record<string, number> = {
 const EXPECTED_ROLES = Object.keys(ROLE_VALUE_WEIGHT);
 /** Roles the catalog can currently price at all. See engine gap #1. */
 const PRICEABLE_ROLES = ["gpu", "cpu", "ram", "storage"] as const;
+
+/**
+ * Price a prebuilt against WHOLE-MACHINE sales, not a sum of its parts.
+ *
+ * **This exists because the parts-sum method was badly wrong, and Yish said so
+ * before the data did.** On the NZXT build:
+ *
+ *   parts sum, scaled and discounted     $890
+ *   USED whole PCs with an RTX 5070      $1,375 median (n=25)
+ *   nearest comps                        $1,140 (RTX 5070 + 9700X + NZXT case)
+ *                                        $1,200 (RTX 5070 + 7600X)
+ *
+ * The assumption underneath the old path was that an assembled machine sells
+ * for LESS than its parts. For current-gen gaming PCs that is backwards —
+ * buyers pay a premium for built, tested and ready to game, which is why
+ * iBUYPOWER and Skytech towers clear above the cost of their components.
+ *
+ * The GPU is the anchor: it dominates the price of a gaming build and it is the
+ * one part every listing names. CPU and RAM move the number within a tier; the
+ * tier itself is set by the card.
+ */
+export function valueWholeBuild(
+  attributes: Record<string, string | number>,
+  condition: Condition | null,
+): (Valuation & { basis: PriceBasis; sku: string | null }) | null {
+  const gpu = attributes.gpu;
+  if (!gpu) return null;
+
+  const row = db()
+    .query(
+      `SELECT id, model FROM skus
+       WHERE category = 'prebuilt' AND LOWER(model) = LOWER($m) LIMIT 1`,
+    )
+    .get({ $m: `Gaming PC ${String(gpu).toUpperCase()}` }) as { id: number; model: string } | null;
+  if (!row) return null;
+
+  const v = valueSku(row.id, { condition, category: "prebuilt" });
+  if (v.status === "no_comps") return null;
+  /**
+   * These comps are eBay sold prices for whole towers — an eBay-denominated
+   * number, so the local discount DOES apply here, unlike the parts path.
+   */
+  return { ...v, basis: "ebay", sku: row.model };
+}
 
 export function valueByParts(attributes: Record<string, string | number>): PartsValuation {
   /**
