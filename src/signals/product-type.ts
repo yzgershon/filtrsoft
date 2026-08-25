@@ -55,6 +55,15 @@ const TECH = [
   "ssd", "hdd", "nvme", "ram", "memory", "psu",
   "phone", "iphone", "ipad", "tablet", "galaxy", "pixel",
   "console", "playstation", "ps4", "ps5", "xbox", "nintendo switch",
+  /**
+   * VR headsets are DEVICES, and the bare noun says the opposite. "headset"
+   * sits in ACCESSORY because a gaming headset is a $40 peripheral, so a real
+   * $600 "Meta - Quest 3 512GB | Virtual Reality Headset" was thrown out as an
+   * accessory. The qualifier is what distinguishes them, and it is always
+   * present on the device — nobody sells a bare "headset" meaning a Quest.
+   */
+  "vr headset", "virtual reality headset", "mixed reality headset",
+  "vr", "quest", "psvr", "psvr2", "playstation vr", "playstation vr2", "index",
   "steam deck", "thinkpad", "thinkcentre", "optiplex", "latitude", "elitedesk",
   /**
    * Product-LINE names. Without these, "Dell Precision 5760 + Charger" has
@@ -311,7 +320,8 @@ const DEVICE_CATEGORY: Array<[string, string[]]> = [
                 "mac mini", "mac studio", "alienware", "server"]],
   ["phone", ["iphone", "phone", "galaxy", "pixel"]],
   ["tablet", ["ipad", "tablet"]],
-  ["console", ["console", "playstation", "ps4", "ps5", "xbox", "nintendo switch", "steam deck"]],
+  ["console", ["console", "playstation", "ps4", "ps5", "xbox", "nintendo switch", "steam deck",
+               "vr headset", "virtual reality headset", "mixed reality headset", "quest", "psvr", "psvr2", "playstation vr", "playstation vr2"]],
   ["monitor", ["monitor", "display"]],
   ["gpu", ["graphics card", "video card", "gpu"]],
   ["component", ["cpu", "processor", "desktop processor", "mobile processor",

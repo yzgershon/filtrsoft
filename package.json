@@ -24,7 +24,8 @@
     "fb:login": "bun run src/scripts/fb-login.ts",
     "fb:crawl": "bun run src/scripts/fb-crawl.ts",
     "ebay:login": "bun run src/scripts/ebay-login.ts",
-    "ebay:comps": "bun run src/scripts/ebay-comps.ts"
+    "ebay:comps": "bun run src/scripts/ebay-comps.ts",
+    "retail": "bun run src/scripts/retail.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

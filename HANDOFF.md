@@ -40,6 +40,8 @@ verdicts   255 INSUFFICIENT_DATA · 54 OUT_OF_SCOPE · 43 PASS · 7 VERIFY
            6 FAIR · 1 RISK
 judgments   79  (69 original + 10 re-reviewed WITH the comps visible)
 outcomes     3  (observed, from delistings)
+retail      20  9 NEW ceilings from Best Buy + 11 dated "we looked, nothing"
+                All 9 agree with the archive: used median at 53-93% of new.
 vision spend to date: $0.055
 ```
 
@@ -75,6 +77,8 @@ bun run fb:login                  sign in to Facebook by hand (once)
 bun run fb:crawl [--query ...] [--limit N] [--vision N] [--headless]
 bun run ebay:login                sign in to eBay by hand (once)
 bun run ebay:comps [--query ...] [--skus N]
+bun run retail [--skus N] [--query ...] [--replay] [--dry]
+                                  NEW retail prices from Best Buy (the ceiling)
 bun run catalog:derive [--min N] [--apply]    dry run by default
 
 bun run check <url>               one listing, staged timings
@@ -404,7 +408,7 @@ unresolved even when the description claims otherwise — sellers of locked phon
 photograph exactly that.
 
 **Negation matters.** "no MDM, no firmware password" is a seller CLEARING the
-check; a bare `mdm` read it as a disclosure and turned the cleanest possible
+check; a bare `\bmdm\b` read it as a disclosure and turned the cleanest possible
 MacBook listing into a RISK.
 
 ## 11c. Outcome loop — SHIPPED 2026-08-25
@@ -421,6 +425,124 @@ MacBook listing into a RISK.
 Headline metric is **valuation error**: predicted median vs actual clearing
 price. Consistently positive means pricing HIGH and every BUY is overstated —
 the failure that loses money quietly, because each verdict still looks fine.
+
+## 11d. Retail ceiling — SHIPPED 2026-08-25
+
+**The feature no comp set can provide.** Every competitor compares used to
+used, so a seller who anchors on what they paid just looks expensive next to
+other used listings and the comps drift up with them. A buyer can always walk
+into Best Buy and pay for a NEW one, which caps what any used unit can fetch.
+
+Two uses, and the second was not the plan:
+
+1. **Asking at or above new.** `buildVerdict` returns PASS with
+   *"Buy it new instead — $800 at Best Buy"* once the ask reaches 95% of the
+   shelf price. 95% not 100% because retail excludes tax: at 95% pre-tax the
+   used unit is already ~89% of what a new one costs out the door, with no
+   warranty and no return window.
+2. **An independent check on OUR OWN comps.** A used median ABOVE new retail
+   cannot be true, so the comps are matching something else. Every other
+   confidence signal (comp count, spread, recency) is computed FROM the comps
+   and therefore cannot catch a systematically mis-matched set. This can, and
+   it refuses to price rather than pricing badly.
+
+`retailMeaning()` splits three ways: `ceiling`, `comps_wrong`, and
+`implausible` (retail under 35% of the used median) — the last is a parse
+escape, NOT evidence about the comps, so a scraper bug can never masquerade as
+a data-quality finding.
+
+**Nine ceilings pulled so far and all nine agree with the archive** — the used
+median lands at 53-93% of new on every one. That is nine independent
+confirmations that the comps are matching the right products.
+
+### Best Buy is strong for consoles and GPUs, weak for phones
+
+Found live, and it drives the `RETAIL_CATEGORIES` order (`console, gpu, laptop,
+tablet, phone`). **Best Buy no longer sells carrier iPhones outright** — only on
+a 36-month instalment, and every one of those cards is Sold Out for outright
+purchase. The single new outright price on the whole iPhone 16 page was the
+16e. The first queue was fourteen phones and would have returned nothing.
+
+`saveNoRetail()` records the absence so the queue stops re-asking dead
+questions. The Xbox One X is discontinued and Best Buy has never carried the
+Valve Index; without a dated "we looked, there was nothing" row those two head
+the never-observed list on every run forever.
+
+### `--replay` re-scores archived pages instead of scraping
+
+Every run writes the raw page lines to `docs/testset/retail-lines.json`. Every
+parser fix so far came from staring at lines already captured, so re-running a
+browser to re-test a pure function is slow, is another session Best Buy sees,
+and re-introduces the one variable you were trying to hold still.
+`bun run retail --replay` costs seconds.
+
+### The gates are shaped differently from the comp gates, on purpose
+
+**Cheapest-wins inverts the burden of proof.** A bad comp is one vote among
+many; the ceiling takes the single cheapest offer, so anything that slips
+through IS the answer. The comp gates say "reject if clearly wrong" — correct
+there, insufficient here. `titleCoversQuery` says "require it to be clearly
+right": every meaningful query word must appear, with the FIRST word optional
+because it is the brand and Best Buy drops the manufacturer on first-party
+hardware ("XBOX Series X", never "Microsoft Xbox Series X").
+
+Caught in one live run. Every one of these was stored as a real ceiling before
+the fix:
+
+| Stored as a ceiling | Actually | Gate that now stops it |
+|---|---|---|
+| $12.99 KontrolFreek Thumbgrips | not a Valve Index | `titleCoversQuery` — "Valve Index" has no digits, so the digit gate had nothing to check |
+| $39.99 Quest 3S Facial Interface | an accessory | named accessory + the 40%-of-page-median floor |
+| $449.99 "Explore Nintendo Switch 2" | a navigation tile | `NAV_TILE` |
+| $539.99 iPhone 16**e** | a cheaper sibling | `compMatchesQuery` digit boundary — the hand-rolled `includes` had to go |
+| $599.99 PS5 Slim **Digital** | no disc drive | new `console` variant pattern |
+| $0.00 sold-out iPhone 15 | financing-only | `available` / `financedOnly` |
+
+**The page-median floor is the one that generalises.** The named-accessory list
+only catches words I thought of, and Best Buy's accessory catalog is unbounded.
+Results for a device query are mostly that device, so anything under 40% of the
+page median is a different kind of object. It only ever removes CHEAP outliers
+— an expensive one cannot win a cheapest-wins pick anyway.
+
+**`parseBestBuy` segments on card boundaries, not price proximity.** The first
+version walked backward from each price to the nearest plausible title; the live
+capture killed it. The title-to-price gap is 3 lines on one card and 9 on
+another, and the filler is review text long enough to look like a product name
+(*"(1 review from bestbuy-ca)"* was parsed as a $449 phone). Every card ends
+with the literal word `Compare`. Inside a card the name is the LAST plausible
+line BEFORE the first price — not the first line of the segment, because the
+first segment on any page is the whole filter sidebar plus the first product,
+and reading forward picked up *"Brand new in the original packaging."* (the
+Condition filter's help text) and priced it as a phone.
+
+### Two catalog fixes fell out of this
+
+- **VR headsets are devices.** `headset` sits in ACCESSORY because a gaming
+  headset is a $40 peripheral, so a real $600 *"Meta - Quest 3 512GB | Virtual
+  Reality Headset"* was thrown out as an accessory. The qualifier is what
+  distinguishes them and it is always present on the device.
+- **"Digital" is a variant only where a DISC sibling exists.** The Xbox Series
+  S and every Switch are digital-only by design, so the retailer writes
+  "All-Digital Console" as a description of the only model there is. Treating
+  it as a variant rejected the sole new Series S on the shelf.
+  `DIGITAL_ONLY_LINE` in `ebay.ts`. On a PS5 or a Series X the distinction is
+  real and worth $80-100, so it stays enforced there.
+
+**Retail is keyed on (sku, storage_gb).** SKUs are capacity-agnostic on purpose
+— the LISTING's storage picks the comp tier at valuation time — so a ceiling
+stored against the SKU alone would cap a 512GB phone with the 128GB shelf price
+and look authoritative doing it.
+
+**Stale ceilings are dropped, not used** (`RETAIL_STALE_DAYS = 45`). Retail
+moves; last year's launch price would cap nothing and flag nothing.
+
+**Still open: PSVR2 titles mistype as accessories.** *"Sony PlayStation VR2
+Headset"* still resolves to `accessory` even with the lexicon terms added. It
+costs nothing today — Best Buy's PSVR2 page is games and refurbs, so "no
+ceiling" was already the right answer — but the term is not matching and the
+reason has not been chased down.
+
+---
 
 ## 12. Live traps
 
@@ -679,18 +801,25 @@ P1-5 (asking price -> 0), P1-1 (stale vision cache).
 
 ## 15. Next actions
 
-1. **Enforce the risk model (P0-2).** Category-specific mandatory blockers;
-   nothing reaches BUY without named evidence. Biggest correctness gap.
-2. **Pull comps for the 30 laptop SKUs.** The search and the market now agree,
-   so this is what turns 305 INSUFFICIENT_DATA into real verdicts.
-3. **Delete the 80 provisional comps** once real ones cover those SKUs, then
-   re-run `bun run score`.
-4. **Handle variant suffixes** (Ti/Super/XT) before comps drive BUY calls.
-5. **Set `ASSYZE_VISION_TOKEN` in Railway** to enable production vision.
-6. **Run `bun run sweep` daily.** Every day it does not run is clearing-price
+1. **OfferUp / Mercari sources.** The last two channels Yish asked for. The
+   two-runtime Playwright pattern from Facebook and Best Buy carries over, and
+   both are local-price sources like the delisting tracker, not eBay-basis.
+2. **Phone comps are the open valuation dispute.** iPhone 15 128GB and iPhone
+   16 Pro Max are the two remaining eval disagreements and Yish reads the
+   medians as low. **Best Buy cannot referee this one** — it stopped selling
+   carrier iPhones outright — so it needs better comps or `bun run outcomes`.
+3. **Write tests.** Still none. Start with `product-type`, `condition`, the
+   eBay parsers and `parseBestBuy` — all pure, all currently verified only by
+   hand, and `docs/testset/retail-lines.json` is already a ready-made fixture.
+4. **Set `ASSYZE_VISION_TOKEN` in Railway.** Production vision is off until
+   this is done. Yish's action, not mine — never paste a key into a web form.
+5. **Run `bun run sweep` daily.** Every day it does not run is clearing-price
    history nobody can refetch.
-7. **Write tests.** Start with `product-type`, `condition`, and the eBay
-   parsers — all pure, all currently verified only by hand.
+6. **Extend the retail ceiling past Best Buy.** Walmart and Amazon were on
+   Yish's original list and would cover the categories Best Buy is weak in —
+   above all unlocked phones, where Best Buy returns almost nothing.
+7. **Surface `retail` and `riskChecks` in the web API.** Both are carried on
+   the verdict and rendered by `bun run review`, but neither reaches the site.
 
 ---
 

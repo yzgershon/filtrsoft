@@ -270,10 +270,23 @@ function variantPattern(category?: string | null): RegExp {
       return /\b(pro|max|plus|mini|ultra|se|fe)\b/gi;
     case "laptop":
       return /\b(pro|air)\b/gi;
+    /**
+     * Consoles. "Digital Edition" has no disc drive and sells for meaningfully
+     * less; "Slim" and "Pro" are different hardware again. Found while building
+     * the retail ceiling: a $599.99 PS5 Slim **Digital** came back as the new
+     * price of a disc PS5, and since the ceiling takes the CHEAPEST offer, the
+     * cheaper sibling wins every time unless it is named as a variant.
+     */
+    case "console":
+      return /\b(digital|slim|pro|oled|lite)\b/gi;
     default:
       return /\b(ti|super|xt|xtx)\b/gi;
   }
 }
+
+/** Console lines sold ONLY without a disc drive, so "digital" describes them
+ * rather than distinguishing them. See the variant check below. */
+const DIGITAL_ONLY_LINE = /\b(series s|switch|steam deck|quest)\b/i;
 
 export function compMatchesQuery(
   title: string, query: string, skuCategory?: string | null,
@@ -331,6 +344,17 @@ export function compMatchesQuery(
     new Set((s.toLowerCase().match(VARIANT) ?? []).map((v) => v.toLowerCase()));
   const qv = setOf(query);
   const tv = setOf(title);
+
+  /**
+   * "Digital" is a variant only where a DISC sibling exists to confuse it with.
+   *
+   * The Xbox Series S and every Switch are digital-only by design, so the
+   * retailer writes "All-Digital Console" as a description of the only model
+   * there is. Treating it as a variant rejected the sole new Series S on Best
+   * Buy's shelf. On a PS5 or a Series X the distinction is real and worth
+   * $80-100, so it stays enforced there.
+   */
+  if (DIGITAL_ONLY_LINE.test(query)) { qv.delete("digital"); tv.delete("digital"); }
 
   for (const v of tv) {
     if (!qv.has(v)) return { ok: false, why: `title is the "${v}" variant, which the query did not ask for` };

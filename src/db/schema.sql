@@ -221,3 +221,38 @@ CREATE TABLE IF NOT EXISTS sweeps (
   price_moves INTEGER,
   created_at  TEXT NOT NULL
 );
+
+-- ------------------------------------------------------------ retail prices
+-- The CEILING. Every competitor compares used to used; a buyer can always walk
+-- into Best Buy and pay for a NEW one today, which caps what any used unit can
+-- fetch. Two uses, and the second is the one that was not obvious:
+--
+--   1. Catches "used priced at or above new" — a failure mode no comp set can
+--      see, because the comps are all used too.
+--   2. An independent check on OUR OWN comps. A used median above new retail
+--      means the comps are wrong. Every other signal is derived from the same
+--      comps, so nothing else in the system could have said so.
+--
+-- ONLY GENUINELY-NEW OFFERS BELONG HERE. Best Buy sells Pre-Owned and Geek
+-- Squad Certified units; storing one would cap a used price with a used price,
+-- which is circular AND looks authoritative. `is_new` is stored anyway so a
+-- rejected row is auditable rather than silently absent.
+--
+-- Unlike comps, the LATEST row wins rather than the whole history: retail moves,
+-- and last year's launch price would cap nothing and flag nothing.
+CREATE TABLE IF NOT EXISTS retail_prices (
+  id          INTEGER PRIMARY KEY,
+  sku_id      INTEGER REFERENCES skus(id),
+  source      TEXT NOT NULL,          -- bestbuy
+  title       TEXT NOT NULL,
+  price_cents INTEGER NOT NULL,
+  is_new      INTEGER NOT NULL DEFAULT 1,
+  -- Capacity the price is FOR. SKUs are capacity-agnostic (a listing's storage
+  -- picks the comp tier at valuation time), so a ceiling without this would cap
+  -- a 512GB phone with the 128GB shelf price. NULL = capacity is not a price
+  -- driver for this product, e.g. a GPU.
+  storage_gb  INTEGER,
+  query       TEXT NOT NULL,
+  observed_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_retail_sku ON retail_prices(sku_id, observed_at);

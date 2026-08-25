@@ -65,9 +65,20 @@ function addColumns(d: Database, table: string, cols: Array<[string, string]>) {
   }
 }
 
+/**
+ * Retail rows created before capacity mattered. `retail_prices` was added and
+ * then USED in the same session, so `CREATE TABLE IF NOT EXISTS` silently
+ * skipped the new column on a table that already existed — the first live pull
+ * died on `no column named storage_gb`.
+ */
+const RETAIL_COLUMNS: Array<[string, string]> = [
+  ["storage_gb", "INTEGER"],
+];
+
 function migrate(d: Database) {
   addColumns(d, "listings", LISTING_COLUMNS);
   addColumns(d, "vision_results", VISION_COLUMNS);
+  addColumns(d, "retail_prices", RETAIL_COLUMNS);
   d.exec("CREATE INDEX IF NOT EXISTS idx_vision_fingerprint ON vision_results(photo_fingerprint)");
   d.exec("CREATE INDEX IF NOT EXISTS idx_vision_created ON vision_results(created_at)");
 }

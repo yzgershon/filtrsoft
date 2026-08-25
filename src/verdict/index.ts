@@ -17,6 +17,7 @@ import { valueSku, valueByParts, valueWholeBuild, netByChannel, requiredProfitCe
 import { normalizeCondition, type Condition } from "../valuation/condition.ts";
 import { resolveProductType, isAppleWholeUnit } from "../signals/product-type.ts";
 import { evaluateRisk, riskGate, inPersonConditions, type RiskCheck, type RiskGate } from "./risk-gates.ts";
+import { latestRetail, retailMeaning, type RetailPrice } from "../sources/retail.ts";
 import type { VisionResult } from "../vision/index.ts";
 
 const OUT_OF_SCOPE = /\b(lens|dslr|mirrorless|camera body|tripod|nikon|canon ef|sigma \d|tamron|zeiss|leica|scanner|camcorder)\b/i;
@@ -40,6 +41,12 @@ export interface VerdictResult {
    * WHICH check is open rather than being an unexplained refusal.
    */
   riskChecks: RiskCheck[];
+  /**
+   * What Best Buy charges for the same thing NEW, when we know. Carried on the
+   * result even when it changes nothing, because "used at 88% of new" is the
+   * kind of context a buyer wants to see stated rather than inferred.
+   */
+  retail?: RetailPrice | null;
 }
 
 /** Unresolved checks become the FIRST questions — they are what blocks a BUY. */
@@ -143,7 +150,24 @@ export function buildVerdict(input: {
     input.vision ?? null,
   );
   const gate = riskGate(riskChecks);
-  const base = { valuation, blockers, questions, riskChecks };
+
+  /**
+   * New retail for the same SKU — the only number in this function that is not
+   * derived from our own comps, which is exactly what makes it worth carrying.
+   *
+   * Stale prices are dropped rather than used. Retail moves; last year's launch
+   * price would cap nothing and flag nothing, and a wrong ceiling is worse than
+   * an absent one because it looks authoritative.
+   */
+  const retailRow = latestRetail(
+    match.skuId ?? null,
+    // The LISTING's capacity, the same field `valueSku` uses to pick a comp
+    // tier. Without it a 128GB shelf price would cap a 512GB device.
+    Number(match.attributes.storage_gb ?? match.attributes.storage_tier) || null,
+  );
+  const retail = retailRow && !retailRow.stale ? retailRow : null;
+
+  const base = { valuation, blockers, questions, riskChecks, retail };
 
   // --- 1. Out of scope -------------------------------------------------
   if (OUT_OF_SCOPE.test(`${input.title} ${input.description}`)) {
@@ -223,6 +247,34 @@ export function buildVerdict(input: {
   }
 
   /**
+   * --- 4c. Retail says our own comps are wrong -------------------------
+   *
+   * A used median ABOVE the new price cannot be true of the same product in a
+   * real market, so one of the two numbers is wrong — and retail is the one
+   * that did not come from our archive. Every other confidence signal we have
+   * (comp count, spread, recency) is computed FROM the comps, so none of them
+   * can catch a systematically mis-matched comp set. This can.
+   *
+   * It refuses to price rather than pricing badly. That is the same call §4b
+   * makes for thin part coverage, and for the same reason: a confident wrong
+   * number is worse than no number.
+   *
+   * `implausible` is deliberately NOT handled here. A retail price at a third
+   * of the used median is a parse escape (an accessory, a trade-in credit),
+   * not evidence about the comps, and `retailMeaning` classifies it so that a
+   * scraper bug can never masquerade as a data-quality finding.
+   */
+  if (retail && retailMeaning(retail.priceCents, valuation.medianCents) === "comps_wrong") {
+    const $r = (c: number) => `$${Math.round(c / 100).toLocaleString()}`;
+    return {
+      ...base, call: "INSUFFICIENT_DATA", confidence: "high",
+      headline: "Our comps disagree with new retail — not pricing this.",
+      reasoning: `The sold comps put this at ${$r(valuation.medianCents)} used, but Best Buy sells it new for ${$r(retail.priceCents)} ("${retail.title}", seen ${retail.observedAt.slice(0, 10)}). Used cannot be worth more than new, so the ${valuation.compCount} comps behind that median are matching something else — a different capacity, a different variant, or a bundle. Retail is the only number here not derived from our own archive, which is why it can catch this and nothing else can.`,
+      decidingUnknown: "whether the sold comps are actually this exact model",
+    };
+  }
+
+  /**
    * No asking price means no arithmetic. It used to fall back to ZERO, which
    * makes every unpriced listing look like free money — profit = full resale
    * value — and would have produced a maximally confident BUY on exactly the
@@ -268,6 +320,28 @@ export function buildVerdict(input: {
       ...money, call: "PASS", confidence: "high",
       headline: "Won't resell — skip regardless of price.",
       reasoning: `${match.deadReason ?? "This category is a dead market."} Net would be ${$(net)} on ${best.channel}, but a good price on something that sits is not a deal.`,
+    };
+  }
+
+  /**
+   * Asking at or above the price of a NEW one.
+   *
+   * THE FEATURE NO COMP SET CAN PROVIDE. Every competitor compares used to
+   * used, so a seller who anchors on what they paid looks merely expensive
+   * next to other used listings — the comps drift up with them. Retail is
+   * outside that loop.
+   *
+   * The threshold is 95% of the shelf price rather than 100% because retail
+   * excludes tax: at 95% pre-tax the used unit is already about 89% of what a
+   * new one actually costs out the door, with no warranty and no return
+   * window. Below that it is a judgement call and the normal margin math is
+   * the better tool, so this stays a narrow, unambiguous rule.
+   */
+  if (retail && ask >= retail.priceCents * 0.95) {
+    return {
+      ...money, call: "PASS", confidence: "high",
+      headline: `Buy it new instead — ${$(retail.priceCents)} at Best Buy.`,
+      reasoning: `Asking ${$(ask)} used, against ${$(retail.priceCents)} for a new one ("${retail.title}", seen ${retail.observedAt.slice(0, 10)}). Add sales tax to the new price and it is still the better deal, with a warranty and a return window this has neither of. Nothing about the used market matters here — the seller is competing with a shelf.`,
     };
   }
 
