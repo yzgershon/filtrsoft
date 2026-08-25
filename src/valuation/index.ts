@@ -10,7 +10,7 @@
  *    and risk." That floor is a per-user setting. See CALIBRATION finding 1.
  */
 import { db } from "../db/index.ts";
-import { adjustPrice, normalizeCondition, type Condition } from "./condition.ts";
+import { adjustPrice, normalizeCondition, comparable, type Condition } from "./condition.ts";
 
 export type Channel = "ebay" | "facebook";
 
@@ -118,10 +118,30 @@ export function valueSku(
    * plausible number and no error.
    */
   const target = opts?.condition ?? null;
+
+  /**
+   * Some listings are salvage even though eBay's condition field says
+   * otherwise — the seller writes it in the title instead. "No Boot", "Turns on
+   * - Lights only", "cracked", "water damaged". Trust either signal.
+   */
+  const BROKEN_TITLE =
+    /\b(for parts|parts\/repair|parts only|not working|no boot|won'?t (boot|turn on|power)|does ?n'?t (boot|work|turn on)|dead|cracked|shattered|water damage|salvage|as[- ]is|broken|damaged|repair)\b/i;
+
   const rows = raw
-    .map((r) => ({
-      total: adjustPrice(r.total, normalizeCondition(r.condition_norm), target, opts?.category ?? null),
-    }))
+    .map((r) => {
+      const stated = normalizeCondition(r.condition_norm);
+      // Title evidence downgrades, never upgrades. A seller calling a cracked
+      // phone "used" does not make it working.
+      const cond = stated !== "for_parts" && BROKEN_TITLE.test(r.raw_title) ? "for_parts" : stated;
+      return { cond, total: r.total };
+    })
+    /**
+     * SALVAGE IS A DIFFERENT MARKET. Excluded, not adjusted — see `comparable`.
+     * Before this, broken units sat in working medians at face value and pulled
+     * every price down; an iPhone 15 median carried $75 and $91 no-boot sales.
+     */
+    .filter((r) => comparable(r.cond, target))
+    .map((r) => ({ total: adjustPrice(r.total, r.cond, target, opts?.category ?? null) }))
     .sort((a, b) => a.total - b.total);
 
   const n = rows.length;
@@ -208,6 +228,8 @@ export interface PartsValuation extends Valuation {
   parts: Array<{ role: string; query: string; skuId: number | null; medianCents: number | null; compCount: number }>;
   coverage: number;          // 0-1, share of expected components actually priced
   partsSumCents: number;
+  /** partsSum scaled up for the roles we could NOT price. */
+  impliedPartsCents: number;
   wholeUnitCents: number | null;
 }
 
@@ -260,18 +282,24 @@ const EXPECTED_ROLES = Object.keys(ROLE_VALUE_WEIGHT);
 const PRICEABLE_ROLES = ["gpu", "cpu", "ram", "storage"] as const;
 
 export function valueByParts(attributes: Record<string, string | number>): PartsValuation {
-  const lookup = (q: string) => {
+  /**
+   * Price each component THROUGH `valueSku`, not with a raw SQL average.
+   *
+   * The old lookup did `AVG(sold_price_cents)` — a mean, in a column named
+   * `med` — and bypassed every protection the rest of the file has: no
+   * condition adjustment, no salvage exclusion, no 90-day window, no shipping.
+   * So an RTX 5070 read **$674 inside a build and $615 on its own**, with the
+   * difference being broken cards and stale sales that `valueSku` excludes.
+   *
+   * A component's price cannot depend on which code path asked for it.
+   */
+  const lookup = (q: string, category: string) => {
     const row = db()
-      .query(
-        `SELECT s.id, COUNT(c.id) n,
-                CAST(AVG(c.sold_price_cents) AS INTEGER) med
-         FROM skus s LEFT JOIN comps c ON c.sku_id = s.id
-         WHERE LOWER(s.model) = LOWER($q) GROUP BY s.id`,
-      )
-      .get({ $q: q }) as { id: number; n: number; med: number } | null;
-    return row && row.n > 0
-      ? { skuId: row.id, medianCents: row.med, compCount: row.n }
-      : { skuId: row?.id ?? null, medianCents: null, compCount: 0 };
+      .query(`SELECT id FROM skus WHERE LOWER(model) = LOWER($q) LIMIT 1`)
+      .get({ $q: q }) as { id: number } | null;
+    if (!row) return { skuId: null, medianCents: null, compCount: 0 };
+    const v = valueSku(row.id, { condition: "used", category });
+    return { skuId: row.id, medianCents: v.medianCents, compCount: v.compCount };
   };
 
   const parts: PartsValuation["parts"] = [];
@@ -283,7 +311,7 @@ export function valueByParts(attributes: Record<string, string | number>): Parts
     if (!q) continue;
     const query = String(q);
     if (/^\d+$/.test(query)) continue;
-    parts.push({ role, query, ...lookup(query) });
+    parts.push({ role, query, ...lookup(query, role === "gpu" ? "gpu" : "component") });
   }
 
   const priced = parts.filter((p) => p.medianCents != null);
@@ -297,14 +325,28 @@ export function valueByParts(attributes: Record<string, string | number>): Parts
   const coverage = priced.reduce((s, p) => s + (ROLE_VALUE_WEIGHT[p.role] ?? 0), 0);
 
   /**
-   * Sum of component comps IS the part-out gross. The assembled machine sells
-   * for less, so the ratio is applied ONCE, downward. The old code multiplied
-   * and divided by the same constant and then discarded the result.
+   * SCALE THE PARTIAL SUM UP TO A WHOLE MACHINE BEFORE DISCOUNTING IT.
+   *
+   * Yish, on a $650 i7-6700K + RTX 3050 build the engine valued at $130:
+   * "its an entire pc not just the gpu I think you didnt add all of the parts
+   * together before giving the median." Exactly right, and the error compounded:
+   *
+   *   gpu $174.52 + cpu $41.50           = $216.02   (64% of the value)
+   *   x 0.6 whole-unit ratio             = $129.61   <- reported as the market
+   *
+   * The 0.6 ratio assumes a COMPLETE parts list. Applying it to 64% coverage
+   * charges the discount twice: 0.64 x 0.6 = 38% of what the machine is worth.
+   * RAM, storage, motherboard, PSU and case were simply missing from the sum.
+   *
+   * So divide by coverage first — if the priced roles account for 64% of a
+   * typical build's value, the implied full parts total is sum / 0.64 — and
+   * only then apply the whole-unit ratio, once.
    */
-  const wholeUnitCents = priced.length ? Math.round(partsSumCents * WHOLE_UNIT_RATIO) : null;
+  const impliedPartsCents = coverage > 0 ? Math.round(partsSumCents / coverage) : 0;
+  const wholeUnitCents = priced.length ? Math.round(impliedPartsCents * WHOLE_UNIT_RATIO) : null;
 
   return {
-    parts, coverage: +coverage.toFixed(2), partsSumCents, wholeUnitCents,
+    parts, coverage: +coverage.toFixed(2), partsSumCents, impliedPartsCents, wholeUnitCents,
     status: coverage >= 0.6 ? "ok" : priced.length ? "sparse" : "no_comps",
     // The band widens as coverage falls: pricing 64% of a machine is a rougher
     // estimate than pricing 90% of it, and the range should say so rather than

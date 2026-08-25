@@ -172,6 +172,29 @@ const EXTRACTORS: Array<{
     re: /\bmacbook\s?(pro|air)\s?(m[1-4](?:\s?(?:pro|max|ultra))?)?\b/gi,
     model: (m) => `MacBook ${title(m[1])}${m[2] ? " " + m[2].toUpperCase().replace(/\s+/g, " ") : ""}`,
   },
+  /**
+   * Apple DESKTOPS, keyed on screen size and year — the way they are actually
+   * bought and sold. Yish: "its an apple imac... you just have to compare it
+   * with the same model imac comps." A 2019 27-inch 5K iMac is ONE product, not
+   * a GPU plus a CPU, and the listing will never name either.
+   */
+  {
+    category: "prebuilt", brand: () => "Apple",
+    re: /\b(imac|mac\s?mini|mac\s?studio|mac\s?pro)\b/gi,
+    model: (m) => {
+      const line = m[1].replace(/\s+/g, " ").toLowerCase();
+      const name = line === "imac"
+        ? "iMac"
+        : line.replace(/mac\s?/, "Mac ").replace(/\b\w/g, (c) => c.toUpperCase());
+      const whole = m.input ?? "";
+      const size = whole.match(/\b(21\.5|24|27|20)\s?(?:inch|in\b|")/i)?.[1];
+      const year = whole.match(/\b(20[0-2]\d)\b/)?.[1];
+      // Must carry a digit, or it is a product LINE and matchSku's
+      // discriminating-token rule would match every iMac ever made.
+      if (!size && !year) return "";
+      return [name, size, year].filter(Boolean).join(" ");
+    },
+  },
   {
     category: "console", brand: () => "Sony",
     re: /\b(playstation\s?5|ps5|playstation\s?4|ps4)\s?(pro|slim|digital)?\b/gi,

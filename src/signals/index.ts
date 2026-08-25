@@ -8,6 +8,7 @@
  *
  * See RISK-MODEL.md section 3.
  */
+import { isAppleWholeUnit } from "./product-type.ts";
 import type { RawListing, Signal, SignalReport, Category } from "../types.ts";
 import { findContradictions } from "../reference/compatibility.ts";
 
@@ -137,8 +138,15 @@ export function analyze(l: RawListing, opts?: { clusterSize?: number; visionText
 
   // --------------------------------------------- missing value fields (3d)
   const missingValueFields: string[] = [];
+  /**
+   * An Apple machine's value-determining fields are its MODEL and YEAR, not a
+   * GPU and CPU it will never name. Demanding those returned INSUFFICIENT_DATA
+   * on every iMac and Mac mini ever crawled.
+   */
+  const appleWhole = isAppleWholeUnit(text);
   const recoveredFromPhotos: string[] = [];
   for (const [field, re] of VALUE_FIELDS[category] ?? []) {
+    if (appleWhole && (field === "gpu" || field === "cpu")) continue;
     if (re.test(text)) continue;
     if (opts?.visionText && re.test(opts.visionText)) { recoveredFromPhotos.push(field); continue; }
     missingValueFields.push(field);

@@ -110,6 +110,32 @@ const CONDITION_LINE =
 /** Seller-reputation lines, which are NOT the product title. */
 const SELLER_LINE = /%\s*positive|\(\d[\d,]*\)\s*$|\bfeedback\b|\bseller\b/i;
 
+/**
+ * eBay's condition line, which needs two things handled at once.
+ *
+ * 1. **"NEW LISTING" is a badge, not a condition**, and it is glued to the
+ *    title with no separator: `NEW LISTINGApple iPhone 15 Unlocked`. A bare
+ *    `^new` matched it, so recently-listed USED phones were stored as `new`.
+ *    That dragged them through the new->used multiplier and corrupted the
+ *    measured multiplier itself — phone new/used came out at 1.03 because half
+ *    the "new" bucket was used phones.
+ *
+ * 2. **The condition is the FIRST of several `·`-separated fields**:
+ *    `Open Box · Nintendo Switch · Nintendo Switch (OLED Model)`. A first
+ *    attempt at fixing (1) rejected any line over 40 characters and threw away
+ *    2,141 perfectly good rows. Split first, then test.
+ */
+export function findCondition(lines: string[]): string | null {
+  for (const line of lines) {
+    if (/^new\s*listing/i.test(line)) continue;
+    const head = line.split("·")[0].trim();
+    // A real condition is a few words. Anything longer is a title that happens
+    // to start with a condition word.
+    if (head.length <= 34 && CONDITION_LINE.test(head)) return head;
+  }
+  return null;
+}
+
 export function parseSoldRow(
   row: { href: string; title?: string; text: string[]; img: string | null },
   nowMs = Date.now(),
@@ -124,7 +150,19 @@ export function parseSoldRow(
   const price = parseMoney(priceLine);
   if (!price) return null;
 
-  const conditionRaw = row.text.find((l) => CONDITION_LINE.test(l)) ?? null;
+  /**
+   * eBay's **"NEW LISTING"** badge is not a condition, and it is glued to the
+   * front of the title with no separator: `NEW LISTINGApple iPhone 15 Unlocked`.
+   * `^new` matched it, so recently-listed USED phones were stored as condition
+   * `new` — which then dragged them through the new->used multiplier AND
+   * corrupted the measured multiplier itself (phone new/used came out at 1.03,
+   * because half the "new" bucket was used phones).
+   *
+   * A real eBay condition is its own short line — "Pre-Owned", "Open Box",
+   * "For parts or not working". Requiring brevity rejects any title that merely
+   * starts with a condition word.
+   */
+  const conditionRaw = findCondition(row.text);
 
   /**
    * Prefer the anchor's own title. The fallback — longest non-price line —

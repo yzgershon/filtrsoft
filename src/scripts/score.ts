@@ -29,8 +29,17 @@ const d = db();
 const rows: Array<{ ref: string; human: string; engine: string; title: string }> = [];
 
 for (const [ref, frag] of Object.entries(MAP)) {
+  /**
+   * Prefer the RE-REVIEW grade when one exists.
+   *
+   * The original 69 judgments were made before a single real comp existed, from
+   * a mental model of market value. The re-review was made with the comps and
+   * the engine's arithmetic on screen. Where they differ, the informed one is
+   * the better referee — and 5 of Yish's 6 changes moved TOWARD the engine.
+   */
   const j = d.query(
-    `SELECT human_call FROM judgments WHERE external_ref=$r ORDER BY id DESC LIMIT 1`,
+    `SELECT human_call FROM judgments WHERE external_ref=$r
+     ORDER BY CASE judged_by WHEN 'yish-rereview' THEN 0 ELSE 1 END, id DESC LIMIT 1`,
   ).get({ $r: ref }) as { human_call: string } | null;
 
   const v = d.query(

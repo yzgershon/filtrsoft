@@ -21,7 +21,7 @@ import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { checkStored } from "../engine/index.ts";
 import { storageOf } from "../valuation/index.ts";
-import { adjustPrice, normalizeCondition } from "../valuation/condition.ts";
+import { adjustPrice, normalizeCondition, comparable } from "../valuation/condition.ts";
 import { db, now } from "../db/index.ts";
 
 const OUT = join(import.meta.dir, "../../docs/testset/review.html");
@@ -78,7 +78,7 @@ interface Row {
   valuation: any; netProfitCents: number | null; requiredProfitCents: number | null;
   bestChannel: any; riskChecks: any[]; questions: string[];
   sku: string | null; storageGb: number | null; usedCount: number; targetCond: string;
-  comps: Array<{ p: number; c: string; t: string; sold: string | null; used: boolean; adj: number }>;
+  comps: Array<{ p: number; c: string; t: string; sold: string | null; used: boolean; adj: number; salvage: boolean }>;
 }
 
 const rows: Row[] = [];
@@ -146,11 +146,12 @@ for (const [ref, frag] of Object.entries(MAP)) {
   const comps = rawComps.map((c) => ({
     ...c,
     adj: adjustPrice(c.p, normalizeCondition(c.c), targetCond, cat),
+    salvage: !comparable(normalizeCondition(c.c), targetCond),
     used: typeof wantGb === "number" && wantGb >= 64
       ? (() => { const g = storageOf(c.t); return g === null || Math.abs(g - wantGb) / wantGb < 0.2; })()
       : true,
   }));
-  const usedCount = comps.filter((c) => c.used).length;
+  const usedCount = comps.filter((c) => c.used && !c.salvage).length;
 
   rows.push({
     ref, title: l.title, url: l.url, askingCents: l.asking_price_cents,
@@ -269,10 +270,11 @@ function render(){
     const shown = r.comps.length > 9 ? [...cheap, null, ...dear] : r.comps;
     const compRows = shown.map(c => c === null
       ? '<tr><td colspan="4" style="color:#6b625e;padding:6px 0">… ' + (r.comps.length-9) + ' more …</td></tr>'
-      : '<tr style="opacity:'+(c.used?1:.32)+'"><td class="p">'+money(c.p)+'</td>'+
+      : '<tr style="opacity:'+((c.used && !c.salvage)?1:.32)+'"><td class="p">'+money(c.p)+'</td>'+
         '<td class="p" style="color:'+(c.adj!==c.p?'#8ab4f8':'#6b625e')+'">'+(c.adj!==c.p?money(c.adj):'·')+'</td>'+
         '<td class="c">'+(c.c||"—")+'</td><td>'+
         (c.used?'':'<span style="color:#6b625e">[other capacity] </span>')+
+        (c.salvage?'<span style="color:#ff6b5e">[salvage — excluded] </span>':'')+
         (c.t||"").slice(0,62).replace(/</g,"&lt;")+'</td></tr>').join("");
 
     const v = r.valuation || {};
@@ -315,7 +317,7 @@ function render(){
       \${risks}
 
       <div class="box"><h3>Sold comps for \${r.sku||"this SKU"} — \${r.usedCount} of \${r.comps.length} used\${r.storageGb? " (filtered to "+(r.storageGb>=1024? (r.storageGb/1024)+"TB":r.storageGb+"GB")+")":""}</h3>
-        \${r.comps.length? '<table><tr><td class="p" style="color:#6b625e;font-size:10.5px">SOLD</td><td class="p" style="color:#6b625e;font-size:10.5px">AS \${r.targetCond.toUpperCase()}</td><td class="c"></td><td></td></tr>'+compRows+'</table><div style="color:#6b625e;font-size:11.5px;margin-top:8px">Second column restates each sale as <b>\${r.targetCond}</b> condition — that adjusted set is what the median comes from.</div>' : '<div class="empty">none</div>'}
+        \${r.comps.length? '<table><tr><td class="p" style="color:#6b625e;font-size:10.5px">SOLD</td><td class="p" style="color:#6b625e;font-size:10.5px">AS '+r.targetCond.toUpperCase()+'</td><td class="c"></td><td></td></tr>'+compRows+'</table><div style="color:#6b625e;font-size:11.5px;margin-top:8px">Second column restates each sale as <b>'+r.targetCond+'</b> condition. Salvage sales are EXCLUDED, not adjusted.</div>' : '<div class="empty">none</div>'}
       </div>
 
       <div class="grade">

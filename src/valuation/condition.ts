@@ -32,6 +32,20 @@ export function normalizeCondition(raw: string | null | undefined): Condition | 
   const t = String(raw).toLowerCase().trim();
   if (!t) return null;
 
+  /**
+   * ROUND-TRIP ITS OWN OUTPUT FIRST. This function normalises human text, and
+   * for months it could not parse the values it had itself written: the stored
+   * enum is `for_parts` with an UNDERSCORE, while the pattern below looks for
+   * `for parts` with a space, so `\bfor parts\b` never matched.
+   *
+   * The damage was silent and total. `adjustPrice` returns its input unchanged
+   * when `from` is null, so **every for_parts and open_box comp went into every
+   * median at face value** — a $75 broken iPhone priced alongside working ones.
+   * Yish caught it by reading the comps table: "you cant calculate that into
+   * the median when the listing doesnt say it has any problems".
+   */
+  if ((CONDITIONS as string[]).includes(t)) return t as Condition;
+
   // eBay numeric condition IDs, which arrive as bare numbers.
   const byId: Record<string, Condition> = {
     "1000": "new", "1500": "open_box", "1750": "open_box",
@@ -172,6 +186,30 @@ export function adjustPrice(
   const t = conditionMultiplier(category, to);
   if (!f) return cents;
   return Math.round((cents / f) * t);
+}
+
+/** A device that works, as opposed to one sold for salvage. */
+export const isWorking = (c: Condition | null): boolean =>
+  c !== null && c !== "for_parts";
+
+/**
+ * Can a comp in condition `from` legitimately inform a price for `to`?
+ *
+ * **`for_parts` is a DIFFERENT MARKET, not a point on a condition scale**, and
+ * this is the rule Yish articulated: you cannot put a "No Boot / For Parts"
+ * sale into the median for a listing that describes no faults at all.
+ *
+ * Adjusting across the boundary is worse than useless. The phone multiplier is
+ * 0.18, so restating a $75 salvage sale as "used" means DIVIDING by 0.18 —
+ * multiplying it, and every bit of error in that prior, by 5.6x. It invents a
+ * $417 data point out of a broken phone. Excluding is the honest operation.
+ *
+ * The reverse holds too: pricing a genuinely broken device off working comps
+ * would be wildly optimistic, so a `for_parts` target only accepts `for_parts`.
+ */
+export function comparable(from: Condition | null, to: Condition | null): boolean {
+  if (!from || !to) return true;          // unknown: keep, and do not adjust
+  return isWorking(from) === isWorking(to);
 }
 
 /** Prior vs measured, per category, so the priors cannot hide. */

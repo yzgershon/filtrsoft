@@ -15,7 +15,7 @@ import type { Match } from "../catalog/match.ts";
 import { buildQuestions } from "./questions.ts";
 import { valueSku, valueByParts, netByChannel, requiredProfitCents, getEconomics, type UserEconomics, type ChannelResult } from "../valuation/index.ts";
 import { normalizeCondition, type Condition } from "../valuation/condition.ts";
-import { resolveProductType } from "../signals/product-type.ts";
+import { resolveProductType, isAppleWholeUnit } from "../signals/product-type.ts";
 import { evaluateRisk, riskGate, inPersonConditions, type RiskCheck, type RiskGate } from "./risk-gates.ts";
 import type { VisionResult } from "../vision/index.ts";
 
@@ -72,8 +72,16 @@ export function buildVerdict(input: {
   const econ = input.econ ?? getEconomics();
   const drive = input.driveMinutes ?? 15;
   const blockers = signals.signals.filter((s) => s.severity === "blocker").map((s) => s.evidence);
-  // A custom build has no SKU — decompose and price the parts instead.
-  const isBundle = (match.category ?? signals.category) === "prebuilt";
+  /**
+   * A custom build has no SKU — decompose and price the parts instead.
+   *
+   * APPLE IS THE EXCEPTION and it is not a special case so much as a different
+   * market: an iMac is bought and sold as "2019 27-inch 5K", its GPU is
+   * soldered, and nobody parts one out. Sending it down the bundle path made
+   * the engine demand a GPU and CPU the listing will never state.
+   */
+  const isApple = isAppleWholeUnit(`${input.title} ${input.description}`);
+  const isBundle = (match.category ?? signals.category) === "prebuilt" && !isApple;
   const partsVal = isBundle ? valueByParts(match.attributes) : null;
   /**
    * A low-confidence match must never price anything. Defence in depth behind

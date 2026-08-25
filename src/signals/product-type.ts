@@ -350,6 +350,23 @@ export function resolveCategory(title: string): string | null {
 }
 
 /**
+ * Apple machines are sold as MODELS, never as a sum of parts.
+ *
+ * Yish, on a 2019 iMac the engine refused to value: *"its an apple imac, your
+ * not supposed to grade it off of just gpu and cpu because most of the time its
+ * not gonna give that info, its apple so you just have to compare it with the
+ * same model imac comps."*
+ *
+ * He is describing how the market actually works. Nobody parts out an iMac, the
+ * GPU is soldered, and the listing will say "2019 27-inch 5K" rather than naming
+ * a graphics chip. Treating one as a prebuilt PC made the engine demand two
+ * fields that do not exist and return INSUFFICIENT_DATA forever.
+ */
+export function isAppleWholeUnit(text: string): boolean {
+  return /\b(imac|mac\s?mini|mac\s?studio|mac\s?pro|macbook|apple\s+(desktop|all[- ]in[- ]one))\b/i.test(text);
+}
+
+/**
  * Multi-unit listings. "LOT OF 10 HP ZBook Firefly" sold for $1,300 and was
  * stored as one comp — a 10x overstatement of a single unit, and it landed in
  * the archive as the most expensive "CPU" on record. Quantity is not something

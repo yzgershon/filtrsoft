@@ -15,8 +15,24 @@ const arg = (k: string) => {
 };
 const has = (k: string) => process.argv.includes(`--${k}`);
 
+/**
+ * `--sku "RTX 5070"` targets a NAMED sku and links the comps to it.
+ *
+ * `--query` alone stores comps with `sku_id = NULL`, so they never reach a
+ * valuation — fine for spot-checking a search, useless for filling a gap.
+ */
+const skuName = arg("sku");
+const named = skuName
+  ? db().query(
+      `SELECT id, brand, model, category FROM skus WHERE LOWER(brand || ' ' || model) LIKE $q OR LOWER(model) LIKE $q LIMIT 1`,
+    ).get({ $q: `%${skuName.toLowerCase()}%` }) as any
+  : null;
+if (skuName && !named) { console.error(`no SKU matching "${skuName}"`); process.exit(1); }
+
 const single = arg("query");
-const targets = single
+const targets = named
+  ? [{ id: named.id, label: `${named.brand} ${named.model}`, query: queryForSku(named), category: named.category }]
+  : single
   ? [{ id: null as number | null, label: single, query: single }]
   : skusNeedingComps(Number(arg("skus")) || 8).map((s) => ({
       id: s.id, label: `${s.brand} ${s.model} (${s.comps} comps)`,
