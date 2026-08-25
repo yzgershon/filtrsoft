@@ -6,7 +6,7 @@
  *
  * Requires `bun run ebay:login` once.
  */
-import { runEbayWorker, parseSoldRow, saveComps, skusNeedingComps } from "../sources/ebay.ts";
+import { runEbayWorker, parseSoldRow, saveComps, skusNeedingComps, compMatchesQuery } from "../sources/ebay.ts";
 import { db } from "../db/index.ts";
 
 const arg = (k: string) => {
@@ -35,8 +35,22 @@ for await (const ev of runEbayWorker("sold", {
   if (ev.type === "log") console.log(`  ${ev.msg}`);
   else if (ev.type === "error") console.error(`\x1b[31m  ${ev.msg}\x1b[0m`);
   else if (ev.type === "sold") {
-    const comps = ev.rows.map((r) => parseSoldRow(r)).filter((c): c is NonNullable<typeof c> => c !== null);
+    const parsed = ev.rows.map((r) => parseSoldRow(r)).filter((c): c is NonNullable<typeof c> => c !== null);
+
+    // Reject before storing. Comps are kept FOREVER, so a wrong-product row
+    // poisons every future valuation of this SKU rather than one run.
+    const dropped: string[] = [];
+    const comps = parsed.filter((c) => {
+      const m = compMatchesQuery(c.title, ev.query);
+      if (!m.ok) dropped.push(`$${(c.soldPriceCents / 100).toFixed(0)} ${c.title.slice(0, 46)} — ${m.why}`);
+      return m.ok;
+    });
     const saved = saveComps(comps, ev.query, bySku.get(ev.query) ?? null);
+    if (dropped.length) {
+      console.log(`  [90m${dropped.length} rejected as not this product:[0m`);
+      for (const d of dropped.slice(0, 6)) console.log(`    [90m${d}[0m`);
+      if (dropped.length > 6) console.log(`    [90m...and ${dropped.length - 6} more[0m`);
+    }
     totalRows += ev.rows.length;
     totalSaved += saved;
     const withDate = comps.filter((c) => c.soldAt).length;

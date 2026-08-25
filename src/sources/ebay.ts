@@ -18,6 +18,7 @@
 import { join } from "node:path";
 import { insertComp, db, now } from "../db/index.ts";
 import { normalizeCondition, type Condition } from "../valuation/condition.ts";
+import { resolveProductType } from "../signals/product-type.ts";
 
 const WORKER = join(import.meta.dir, "../browser/ebay-worker.mjs");
 
@@ -106,8 +107,11 @@ const CONDITION_LINE =
  * a weak comp, it is not a comp — and per the archive rule these rows are kept
  * forever, so letting junk in poisons every future valuation of that SKU.
  */
+/** Seller-reputation lines, which are NOT the product title. */
+const SELLER_LINE = /%\s*positive|\(\d[\d,]*\)\s*$|\bfeedback\b|\bseller\b/i;
+
 export function parseSoldRow(
-  row: { href: string; text: string[]; img: string | null },
+  row: { href: string; title?: string; text: string[]; img: string | null },
   nowMs = Date.now(),
 ): SoldComp | null {
   const id = row.href.match(/\/itm\/(\d+)/)?.[1];
@@ -121,12 +125,19 @@ export function parseSoldRow(
   if (!price) return null;
 
   const conditionRaw = row.text.find((l) => CONDITION_LINE.test(l)) ?? null;
-  // The title is the longest line that is not price, condition or metadata.
-  const title = row.text
-    .filter((l) =>
-      l !== priceLine && l !== conditionRaw &&
-      !/^sold\b|shipping|delivery|watchers?|bids?|best offer|sponsored|^\$/i.test(l))
-    .sort((a, b) => b.length - a.length)[0] ?? "";
+
+  /**
+   * Prefer the anchor's own title. The fallback — longest non-price line —
+   * picked "tspence007 100% positive (41)" as a product name on a real row,
+   * which would then be stored forever as the comp's title.
+   */
+  const title =
+    (row.title && !SELLER_LINE.test(row.title) ? row.title : "") ||
+    row.text
+      .filter((l) =>
+        l !== priceLine && l !== conditionRaw && !SELLER_LINE.test(l) &&
+        !/^sold\b|shipping|delivery|watchers?|bids?|best offer|sponsored|^\$/i.test(l))
+      .sort((a, b) => b.length - a.length)[0] || "";
 
   return {
     sourceItemId: id,
@@ -184,6 +195,36 @@ export async function* runEbayWorker(
  * listing is gone for good, so a field we did not think to parse today is only
  * recoverable if the raw text was kept.
  */
+/**
+ * Does this result actually match what we searched for?
+ *
+ * **eBay returns "related" items, and they wreck an archive silently.** A query
+ * for `rtx 3080` came back with RTX 5090s at $4,876 and a $8 mounting bracket.
+ * Stored as 3080 comps, those set the median for a card worth around $400, and
+ * nothing downstream could tell — the numbers look like prices because they are
+ * prices, just for a different product.
+ *
+ * The test is the same discriminating-token rule the SKU matcher uses: a token
+ * carrying a DIGIT is the identity of the product. "rtx 3080" -> the title must
+ * contain 3080. That single check removes every 5090 at once.
+ *
+ * Also rejects anything whose head noun is an accessory — a bracket, a fan or a
+ * waterblock "for RTX 3080" is not an RTX 3080, and the `for X` rule in
+ * `resolveProductType` already understands that.
+ */
+export function compMatchesQuery(title: string, query: string): { ok: boolean; why: string } {
+  const t = title.toLowerCase();
+  const wanted = query.toLowerCase().split(/\s+/).filter((w) => /\d/.test(w));
+  for (const w of wanted) {
+    if (!t.includes(w)) return { ok: false, why: `title does not contain "${w}"` };
+  }
+  const kind = resolveProductType(title).kind;
+  if (kind === "accessory" || kind === "furniture") {
+    return { ok: false, why: `${kind}, not the device itself` };
+  }
+  return { ok: true, why: "" };
+}
+
 export function saveComps(comps: SoldComp[], query: string, skuId: number | null = null): number {
   let n = 0;
   for (const c of comps) {

@@ -159,8 +159,16 @@ try {
           const a = li.querySelector('a[href*="/itm/"]');
           if (!a) continue;
           const img = li.querySelector("img");
+          /**
+           * Take the title from the ANCHOR, not by guessing at the row's lines.
+           * Picking "the longest line that is not a price" chose
+           * "tspence007 100% positive (41)" — the SELLER — as the product name
+           * on a real row. The link text is the title by construction.
+           */
+          const heading = li.querySelector('[role="heading"], .s-item__title, .s-card__title');
           out.push({
             href: a.href.split("?")[0],
+            title: ((heading && heading.innerText) || a.innerText || "").trim(),
             text: (li.innerText || "").split("\n").map((s) => s.trim()).filter(Boolean),
             img: img ? img.src : null,
           });

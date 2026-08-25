@@ -432,6 +432,28 @@ Deliberate asymmetry: a crawl is speculative spending, so an unrecognisable
 title is not worth a page fetch, while a pasted link is a direct request and
 still gets answered.
 
+### eBay sold comps: filter BEFORE storing, never after
+First real pull, `rtx 3080`, 122 rows: it returned **RTX 5090s at $4,876**, a
+**$8 mounting bracket**, and one row whose "title" was the SELLER
+(`tspence007 100% positive (41)`). eBay pads results with "related" items and
+they are indistinguishable downstream — the numbers look like prices because
+they ARE prices, just for another product. Stored as 3080 comps they set the
+median for a $400 card.
+
+`compMatchesQuery` gates every row: the query's DIGIT-bearing tokens must appear
+in the title (kills every 5090 at once — same discriminating-token rule the SKU
+matcher uses), and `resolveProductType` must not call it an accessory (kills
+waterblocks, backplates, brackets). 24 of 122 rejected; range went from
+**$8-$4,876 to $108-$699**.
+
+Comps are kept FOREVER, so a bad row poisons every future valuation of that SKU
+rather than one run. Filter at the door.
+
+**KNOWN LIMITATION: "RTX 3080 Ti" passes a `rtx 3080` query** — "3080" is a
+substring of "3080 Ti" and the Ti is a materially more valuable card. Variant
+suffixes (Ti/Super/XT/Pro/Max) need their own handling before comps drive real
+BUY calls.
+
 ### Engine traps
 - **Never sample photos.** The funnel may drop *listings*; once a listing reaches
   vision it must never drop *photos*. Phase 0's miss was a skipped third image

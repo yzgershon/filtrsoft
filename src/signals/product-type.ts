@@ -86,6 +86,16 @@ const ACCESSORY = [
   "mousepad", "mouse pad", "cooling pad", "pad", "mat", "screen protector", "bracket", "mount",
   "keyboard", "mouse", "headset", "headphones", "earbuds", "microphone", "mic",
   "webcam", "speaker", "remote", "controller", "carrying case",
+  /**
+   * PC-part accessories. A search for a graphics card returns waterblocks,
+   * backplates and mounting brackets FOR that card, and each one stored as a
+   * comp drags the median toward $10. Bare "fan" is deliberately absent — real
+   * GPU titles say "Quad Fan" mid-title and end with "Graphics Card", so the
+   * head-noun rule already resolves those correctly.
+   */
+  "waterblock", "water block", "backplate", "back plate", "heatsink",
+  "heat sink", "shroud", "thermal paste", "riser cable", "extender",
+  "cooling fan", "case fan", "cooler", "mounting kit", "support bracket",
 ];
 
 const CLASSES: Array<[ProductKind, string[]]> = [
