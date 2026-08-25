@@ -20,7 +20,9 @@
     "sweep": "bun run src/scripts/sweep.ts",
     "catalog:derive": "bun run src/scripts/derive-catalog.ts",
     "fb:login": "bun run src/scripts/fb-login.ts",
-    "fb:crawl": "bun run src/scripts/fb-crawl.ts"
+    "fb:crawl": "bun run src/scripts/fb-crawl.ts",
+    "ebay:login": "bun run src/scripts/ebay-login.ts",
+    "ebay:comps": "bun run src/scripts/ebay-comps.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
