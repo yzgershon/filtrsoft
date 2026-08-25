@@ -212,6 +212,31 @@ export async function* runEbayWorker(
  * waterblock "for RTX 3080" is not an RTX 3080, and the `for X` rule in
  * `resolveProductType` already understands that.
  */
+/**
+ * Which words are real product VARIANTS, per category.
+ *
+ * This cannot be one list. On a GPU, "Ti" and "Super" are different silicon
+ * with different prices — but "Ultra" is EVGA's cooler name ("RTX 3080 XC3
+ * Ultra") and "Pro"/"Max" are board-partner marketing. On a PHONE the opposite
+ * holds: "Pro Max" is the product and there is no such thing as a Ti.
+ *
+ * A single combined list rejected a perfectly good RTX 3080 for saying "Ultra".
+ */
+function variantPattern(category?: string | null): RegExp {
+  switch (category) {
+    case "gpu":
+    case "component":
+      return /\b(ti|super|xt|xtx)\b/gi;
+    case "phone":
+    case "tablet":
+      return /\b(pro|max|plus|mini|ultra|se|fe)\b/gi;
+    case "laptop":
+      return /\b(pro|air)\b/gi;
+    default:
+      return /\b(ti|super|xt|xtx)\b/gi;
+  }
+}
+
 export function compMatchesQuery(
   title: string, query: string, skuCategory?: string | null,
 ): { ok: boolean; why: string } {
@@ -220,10 +245,70 @@ export function compMatchesQuery(
    * "i5 10310U" and "i5_10310U", and a literal `includes` rejected real matches
    * for punctuation alone — six genuine Latitude comps were dropped that way.
    */
-  const flat = (s: string) => s.toLowerCase().replace(/[\s\-_.]/g, "");
-  const t = flat(title);
+  /**
+   * Match each model token against the ORIGINAL title, tolerating separators
+   * inside the token but requiring a real boundary after it.
+   *
+   * Comparing flattened strings was wrong in both directions: it let `i5-8500`
+   * match `i5-8500T` (a different, lower-power chip), and once a boundary check
+   * was added on the flattened text it rejected `i7-6700K 4.0GHz`, because
+   * flattening had glued the "4" of "4.0GHz" onto the model number. The
+   * separator tolerance has to be INSIDE the pattern, not applied to both sides.
+   */
   for (const w of query.toLowerCase().split(/\s+/).filter((w) => /\d/.test(w))) {
-    if (!t.includes(flat(w))) return { ok: false, why: `title does not contain "${w}"` };
+    const pattern = w
+      .split(/[\s\-_.]+/)
+      .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("[\\s\\-_.]*");
+    // A model number is a PREFIX of its own variants, so a bare substring test
+    // silently merges products that do not share a price.
+    if (!new RegExp(`${pattern}(?![a-z0-9])`, "i").test(title)) {
+      const loose = new RegExp(pattern, "i").test(title);
+      return {
+        ok: false,
+        why: loose
+          ? `"${w}" appears only as a prefix of a different variant`
+          : `title does not contain "${w}"`,
+      };
+    }
+  }
+
+  /**
+   * Variant suffixes the QUERY did not ask for.
+   *
+   * "RTX 3080 Ti" contains "3080" with a space after it, so the check above
+   * passes it — and a Ti is materially more valuable. If the title carries a
+   * variant word and the query does not, they are different products.
+   */
+  /**
+   * The variant sets must MATCH, in both directions.
+   *
+   * Checking only "does the title have a variant the query lacks" caught
+   * `RTX 3080 Ti` for an `RTX 3080` query but happily accepted a base
+   * `iPhone 15` as a comp for `iPhone 15 Pro Max` — a several-hundred-dollar
+   * difference, in the direction that inflates a valuation.
+   */
+  const VARIANT = variantPattern(skuCategory);
+  const setOf = (s: string) =>
+    new Set((s.toLowerCase().match(VARIANT) ?? []).map((v) => v.toLowerCase()));
+  const qv = setOf(query);
+  const tv = setOf(title);
+
+  for (const v of tv) {
+    if (!qv.has(v)) return { ok: false, why: `title is the "${v}" variant, which the query did not ask for` };
+  }
+  for (const v of qv) {
+    if (!tv.has(v)) return { ok: false, why: `query asked for the "${v}" variant and the title is not it` };
+  }
+
+  /**
+   * Combo listings. "Intel Core i5-8500 16GB DDR4 Gaming Motherboard CPU RAM"
+   * sold for $210 against a $32 median for the bare chip — it is three products
+   * in one box, and stored as a CPU comp it triples the apparent price.
+   */
+  if (/\b(combo|bundle|motherboard\s*\+|\+\s*motherboard|cpu\s*\+|mobo\s*combo|with (motherboard|mobo|ram)\b)/i.test(title)
+      || (/\bmotherboard\b/i.test(title) && /\bram\b/i.test(title))) {
+    return { ok: false, why: "combo listing (more than one product)" };
   }
 
   /**

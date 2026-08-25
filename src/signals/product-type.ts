@@ -356,6 +356,9 @@ export function resolveCategory(title: string): string | null {
  * to average away; these have to be excluded.
  */
 export function isMultiUnit(title: string): boolean {
-  return /\b(lot of|lot\s*\d|bundle of|set of|\d+\s*[-\s]?pack|qty\s*[:.]?\s*\d|x\s?\d{2,}\s*units?|wholesale|pallet)\b/i.test(title)
+  // "i7-6700t cpu Amount: 3  i7-7700 Amount: 2" — a mixed multi-unit lot that
+  // never says the word "lot". It sold for $199 against a $40 median.
+  if (/\bamount\s*[:.]?\s*\d/i.test(title)) return true;
+  return /\b(lot of|lot\s*\d|bundle of|set of|\d+\s*[-\s]?pack|qty\s*[:.]?\s*\d|x\s?\d{2,}\s*(units?|pcs?|pieces?)|wholesale|pallet)\b/i.test(title)
     || /^\s*lot\b/i.test(title);
 }

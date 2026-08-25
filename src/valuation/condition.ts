@@ -97,30 +97,57 @@ export function priorMultiplier(category: string | null, c: Condition): number {
  */
 export function measuredMultiplier(category: string | null, c: Condition): number | null {
   if (c === "used") return 1;
-  const q = (cond: string) =>
-    db()
-      .query(
-        `SELECT c.sold_price_cents + COALESCE(c.shipping_cents,0) AS total, c.sku_id
-         FROM comps c JOIN skus s ON s.id = c.sku_id
-         WHERE c.condition_norm = $c AND ($cat IS NULL OR s.category = $cat)
-           AND c.sold_price_cents > 0
-         ORDER BY total`,
-      )
-      .all({ $c: cond, $cat: category }) as Array<{ total: number; sku_id: number }>;
 
-  const target = q(c);
-  const base = q("used");
-  if (target.length < 5 || base.length < 5) return null;
-  if (new Set(target.map((r) => r.sku_id)).size < 3) return null;
-  if (new Set(base.map((r) => r.sku_id)).size < 3) return null;
+  /**
+   * MEASURE WITHIN EACH SKU, THEN AGGREGATE. Never pool a category and divide.
+   *
+   * Pooling produced **6.07x** for component `new`, which is not a condition
+   * premium at all — it is Simpson's paradox. 59 of the "new" comps were an
+   * expensive current-gen i7-14700KF while "used" was dominated by cheap
+   * 6700K/6700/8500 sales. The ratio measured the SKU MIX.
+   *
+   * Within the 14700KF alone, new/used is **1.12x**. The pooled figure then
+   * "adjusted" a $425 new chip down to about $53, which pushed the whole SKU's
+   * used median to $62 for a CPU that plainly sells for ~$250 — a
+   * confidently-derived, four-fold error, with real data on both sides.
+   *
+   * Per-SKU ratios cancel the mix. The median across SKUs then resists the one
+   * model with a weird spread setting the multiplier for a whole category.
+   */
+  const rows = db()
+    .query(
+      `SELECT c.sku_id, c.condition_norm cond,
+              c.sold_price_cents + COALESCE(c.shipping_cents,0) AS total
+       FROM comps c JOIN skus s ON s.id = c.sku_id
+       WHERE ($cat IS NULL OR s.category = $cat)
+         AND c.sold_price_cents > 0
+         AND c.condition_norm IN ($c, 'used')`,
+    )
+    .all({ $cat: category, $c: c }) as Array<{ sku_id: number; cond: string; total: number }>;
 
-  const med = (rows: Array<{ total: number }>) => {
-    const n = rows.length;
-    return n % 2 ? rows[(n - 1) / 2].total : (rows[n / 2 - 1].total + rows[n / 2].total) / 2;
+  const bySku = new Map<number, { target: number[]; base: number[] }>();
+  for (const r of rows) {
+    const b = bySku.get(r.sku_id) ?? { target: [], base: [] };
+    (r.cond === "used" ? b.base : b.target).push(r.total);
+    bySku.set(r.sku_id, b);
+  }
+
+  const med = (xs: number[]) => {
+    const s = [...xs].sort((a, b) => a - b);
+    return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
   };
-  const b = med(base);
-  if (!b) return null;
-  return med(target) / b;
+
+  const ratios: number[] = [];
+  for (const { target, base } of bySku.values()) {
+    // Both sides need enough rows for a median to mean anything.
+    if (target.length < 3 || base.length < 3) continue;
+    const b = med(base);
+    if (b > 0) ratios.push(med(target) / b);
+  }
+
+  // Three SKUs minimum, so one model's odd spread cannot set a category's rate.
+  if (ratios.length < 3) return null;
+  return med(ratios);
 }
 
 /** Measured if the archive can support it, prior otherwise. */
