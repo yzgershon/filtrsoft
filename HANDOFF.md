@@ -454,6 +454,36 @@ substring of "3080 Ti" and the Ti is a materially more valuable card. Variant
 suffixes (Ti/Super/XT/Pro/Max) need their own handling before comps drive real
 BUY calls.
 
+### A comp must be the SAME CATEGORY as the SKU
+The first bulk pull stored **898 laptop prices as CPU comps**. Searching eBay for
+`Intel i5-1135G7` returns the LAPTOPS containing that chip, because that is what
+people actually sell — mobile U-series CPUs are soldered and barely trade alone.
+Result: an implied i5-1335U price of **$321**, and a `LOT OF 10 HP ZBook` at
+$1,300 filed as the single most expensive CPU on record.
+
+Three gates now, all in `compMatchesQuery`:
+1. **Category agreement.** `resolveCategory(title)` must match the SKU's
+   category. A laptop can never be a CPU comp.
+2. **Multi-unit rejection.** "LOT OF 10", "bundle of", "5-pack". Quantity is a
+   lie about price, not noise to average away.
+3. **Separator-insensitive token match.** eBay writes `i5-10310U`, `i5 10310U`
+   and `i5_10310U` for one part; a literal `includes` dropped six genuine comps
+   on punctuation alone.
+
+**`resolveCategory` does NOT use the head-last rule, and that is deliberate.**
+Marketplace titles put specs at the END — "HP EliteBook 840 Laptop i5 8GB RAM
+256GB SSD" is a LAPTOP, and head-last calls it an SSD. For category, a
+WHOLE-DEVICE noun outranks a component noun wherever it appears. Furniture and
+accessory detection still uses head-last, because "computer desk" really is a
+desk.
+
+**`queryForSku` names the part type** — `"Intel i5-8365U CPU processor"` rather
+than the bare model — which is what surfaces boxed chips instead of laptops.
+
+**STILL OPEN: mobile CPU SKUs probably should not exist.** `deriveCandidates`
+created them from laptop titles, but a soldered U-series chip is not a tradeable
+item. The right derivation from "Dell Latitude 5530 i5-1235U" is a LAPTOP sku.
+
 ### Engine traps
 - **Never sample photos.** The funnel may drop *listings*; once a listing reaches
   vision it must never drop *photos*. Phase 0's miss was a skipped third image

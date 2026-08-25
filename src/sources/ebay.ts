@@ -18,7 +18,7 @@
 import { join } from "node:path";
 import { insertComp, db, now } from "../db/index.ts";
 import { normalizeCondition, type Condition } from "../valuation/condition.ts";
-import { resolveProductType } from "../signals/product-type.ts";
+import { resolveProductType, resolveCategory, isMultiUnit } from "../signals/product-type.ts";
 
 const WORKER = join(import.meta.dir, "../browser/ebay-worker.mjs");
 
@@ -212,15 +212,42 @@ export async function* runEbayWorker(
  * waterblock "for RTX 3080" is not an RTX 3080, and the `for X` rule in
  * `resolveProductType` already understands that.
  */
-export function compMatchesQuery(title: string, query: string): { ok: boolean; why: string } {
-  const t = title.toLowerCase();
-  const wanted = query.toLowerCase().split(/\s+/).filter((w) => /\d/.test(w));
-  for (const w of wanted) {
-    if (!t.includes(w)) return { ok: false, why: `title does not contain "${w}"` };
+export function compMatchesQuery(
+  title: string, query: string, skuCategory?: string | null,
+): { ok: boolean; why: string } {
+  /**
+   * Compare with separators removed. eBay writes the same part as "i5-10310U",
+   * "i5 10310U" and "i5_10310U", and a literal `includes` rejected real matches
+   * for punctuation alone — six genuine Latitude comps were dropped that way.
+   */
+  const flat = (s: string) => s.toLowerCase().replace(/[\s\-_.]/g, "");
+  const t = flat(title);
+  for (const w of query.toLowerCase().split(/\s+/).filter((w) => /\d/.test(w))) {
+    if (!t.includes(flat(w))) return { ok: false, why: `title does not contain "${w}"` };
   }
+
+  /**
+   * Multi-unit listings are a quantity lie, not a price. "LOT OF 10 HP ZBook"
+   * at $1,300 became the most expensive CPU in the archive.
+   */
+  if (isMultiUnit(title)) return { ok: false, why: "multi-unit lot, not a single item" };
+
   const kind = resolveProductType(title).kind;
   if (kind === "accessory" || kind === "furniture") {
     return { ok: false, why: `${kind}, not the device itself` };
+  }
+
+  /**
+   * THE BIG ONE. Searching eBay for a CPU model returns LAPTOPS containing it,
+   * and 898 laptop prices were stored against CPU SKUs — implying an i5-1335U
+   * is worth $321. The comp's own category has to agree with the SKU's, or a
+   * whole machine gets filed as the price of one part inside it.
+   */
+  if (skuCategory) {
+    const got = resolveCategory(title);
+    if (got && got !== skuCategory) {
+      return { ok: false, why: `looks like a ${got}, but the SKU is a ${skuCategory}` };
+    }
   }
   return { ok: true, why: "" };
 }
@@ -263,6 +290,20 @@ export function skusNeedingComps(limit = 20): Array<{ id: number; brand: string;
        LIMIT $lim`,
     )
     .all({ $lim: limit }) as Array<{ id: number; brand: string; model: string; category: string; comps: number }>;
+}
+
+/**
+ * The eBay search text for a SKU.
+ *
+ * A bare part number is ambiguous — "Intel i5-1135G7" returns the LAPTOPS that
+ * contain it, because that is what people actually sell. Naming the part type
+ * is what surfaces the boxed chip.
+ */
+export function queryForSku(sku: { brand: string; model: string; category: string }): string {
+  const base = `${sku.brand} ${sku.model}`;
+  if (sku.category === "component") return `${base} CPU processor`;
+  if (sku.category === "gpu") return `${base} graphics card`;
+  return base;
 }
 
 export const nowIso = now;

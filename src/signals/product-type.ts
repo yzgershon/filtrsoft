@@ -46,6 +46,9 @@ export interface ProductType {
 const TECH = [
   "gaming pc", "desktop computer", "all-in-one", "all in one", "gaming desktop",
   "graphics card", "video card", "hard drive", "solid state drive", "power supply",
+  // "Desktop Processor" is a CPU, not a desktop. Longest-match ordering makes
+  // this beat the bare "desktop" that would otherwise classify it as a machine.
+  "desktop processor", "mobile processor", "mini pc", "nuc",
   "pc", "computer", "desktop", "tower", "laptop", "notebook", "chromebook",
   "macbook", "imac", "mac mini", "mac studio", "workstation", "server",
   "monitor", "display", "gpu", "cpu", "processor", "motherboard", "mobo",
@@ -283,4 +286,76 @@ export function resolveProductType(title: string, description = ""): ProductType
 /** Is this worth spending money analysing? */
 export function inScope(title: string, description = ""): boolean {
   return resolveProductType(title, description).kind === "tech";
+}
+
+/**
+ * WHOLE devices outrank COMPONENTS, wherever they appear in the title.
+ *
+ * The head-last rule is right for furniture ("computer desk") and wrong for
+ * spec-laden marketplace titles, where the specs come last:
+ *
+ *   "HP EliteBook 840 G6 Laptop Intel i5-8365U 8GB RAM 256GB SSD"
+ *
+ * Head-last calls that an SSD. It is a LAPTOP whose specs are listed after it.
+ * So for deciding WHAT CATEGORY a listing belongs to, a whole-device noun beats
+ * a component noun regardless of position — you cannot sell a laptop and its
+ * CPU as the same object, and whichever is named, the laptop is the product.
+ */
+const DEVICE_CATEGORY: Array<[string, string[]]> = [
+  ["laptop", ["laptop", "notebook", "macbook", "chromebook", "thinkpad", "elitebook",
+              "probook", "ideapad", "latitude", "precision", "inspiron", "xps",
+              "pavilion", "envy", "zenbook", "vivobook", "aspire", "yoga", "surface"]],
+  ["prebuilt", ["gaming pc", "desktop computer", "gaming desktop", "pc", "desktop",
+                "tower", "workstation", "all-in-one", "all in one", "imac",
+                "thinkcentre", "optiplex", "elitedesk", "prodesk", "nuc", "mini pc",
+                "mac mini", "mac studio", "alienware", "server"]],
+  ["phone", ["iphone", "phone", "galaxy", "pixel"]],
+  ["tablet", ["ipad", "tablet"]],
+  ["console", ["console", "playstation", "ps4", "ps5", "xbox", "nintendo switch", "steam deck"]],
+  ["monitor", ["monitor", "display"]],
+  ["gpu", ["graphics card", "video card", "gpu"]],
+  ["component", ["cpu", "processor", "desktop processor", "mobile processor",
+                 "motherboard", "mobo", "ssd", "hdd", "nvme",
+                 "ram", "memory", "psu", "power supply", "hard drive", "solid state drive"]],
+];
+
+/**
+ * "Desktop Processor" must beat "desktop". Both are present in the title, and
+ * the ranked list above would otherwise return `prebuilt` for a boxed CPU.
+ */
+const COMPONENT_OVERRIDE = /\b(desktop|mobile)\s+processor\b|\bboxed\s+(cpu|processor)\b/i;
+
+/**
+ * Best-guess category for a listing title. Whole devices first, in the order
+ * above, so a laptop containing a CPU is a laptop.
+ */
+export function resolveCategory(title: string): string | null {
+  if (COMPONENT_OVERRIDE.test(title)) return "component";
+
+  const nouns = findNouns(title);
+  const present = new Set(nouns.filter((n) => n.kind === "tech").map((n) => n.term));
+  for (const [category, terms] of DEVICE_CATEGORY) {
+    if (terms.some((t) => present.has(t))) return category;
+  }
+
+  /**
+   * A bare card name — "EVGA GeForce RTX 3080 10GB XC3 Ultra" — contains no
+   * product noun at all. The model number IS the identification, and without
+   * this fallback every graphics-card comp comes back uncategorised and cannot
+   * be checked against its SKU.
+   */
+  if (/\b(rtx|gtx|radeon\s*rx|\brx)\s?\d{3,4}/i.test(title)) return "gpu";
+  if (/\b(i[3579][- ]\d{4,5}|ryzen\s?[3579]\s?\d{4})/i.test(title) && !present.size) return "component";
+  return null;
+}
+
+/**
+ * Multi-unit listings. "LOT OF 10 HP ZBook Firefly" sold for $1,300 and was
+ * stored as one comp — a 10x overstatement of a single unit, and it landed in
+ * the archive as the most expensive "CPU" on record. Quantity is not something
+ * to average away; these have to be excluded.
+ */
+export function isMultiUnit(title: string): boolean {
+  return /\b(lot of|lot\s*\d|bundle of|set of|\d+\s*[-\s]?pack|qty\s*[:.]?\s*\d|x\s?\d{2,}\s*units?|wholesale|pallet)\b/i.test(title)
+    || /^\s*lot\b/i.test(title);
 }
