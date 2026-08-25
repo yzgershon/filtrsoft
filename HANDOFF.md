@@ -650,6 +650,59 @@ reason has not been chased down.
 
 ---
 
+## 11f. assyze.com is NOT serving — diagnosed 2026-08-25, needs a dashboard click
+
+**The live app is `https://assyze-production.up.railway.app`** (health 200,
+engine 0.3.0, serves the frontend). **DNS points somewhere else.**
+
+| Check | Result |
+|---|---|
+| `assyze.com` A record | `69.46.46.22` — Railway's edge |
+| `www.assyze.com` CNAME | `n3reqlxc.up.railway.app` |
+| `https://n3reqlxc.up.railway.app` | **404 `Application not found`** from `railway-hikari` |
+| `http://assyze.com` (port 80) | 301 to https — the edge DOES answer |
+| `https://assyze.com` | TLS fails, `SEC_E_WRONG_PRINCIPAL` |
+| cert served for `assyze.com` | `CN=*.up.railway.app` |
+
+**Root cause: `assyze.com` is not registered as a custom domain on the Railway
+service.** Pointing DNS at Railway is not enough and this is the part that
+looks like it should work — the edge answers on port 80 and redirects, which
+reads like the site is nearly up. On 443 Railway has no certificate for that
+hostname, because it only requests a Let's Encrypt cert for a domain you have
+ADDED in Settings -> Networking. The wildcard it falls back to covers
+`*.up.railway.app` and nothing else, which is the wrong-principal error.
+
+`n3reqlxc.up.railway.app` returning "Application not found" says that target is
+stale — it belongs to a service or domain that no longer exists, so the DNS is
+aimed at a dead address as well.
+
+**The fix, in order:**
+1. Railway -> the assyze service -> **Settings -> Networking -> Custom Domain**
+   -> add `assyze.com`, then add `www.assyze.com`. Copy the CNAME target
+   Railway shows for each; it will NOT be `n3reqlxc`.
+2. Namecheap -> Advanced DNS: point `www` at that target with a CNAME, and the
+   apex with an **ALIAS record** (a CNAME at the apex is invalid DNS; Namecheap
+   BasicDNS supports ALIAS). Remove the stale `n3reqlxc` record.
+3. Wait for Railway to show the domain as verified — the certificate is issued
+   only after it validates, and until then 443 keeps failing.
+
+### Production is running on an EMPTY archive
+
+Found while checking the health endpoint, and it is worse than the domain:
+
+    {"ok":true,"engine":"0.3.0","db":"ok","comps":0,"skus":62, ...}
+
+**Zero comps and 62 SKUs**, against 6,169 comps and 221 SKUs locally. Every
+verdict in production is INSUFFICIENT_DATA by construction. The volume has
+never received the archive. Fixing the domain would publish an engine that
+cannot price anything, so this is the more urgent of the two.
+
+**Vision IS configured in production** — `visionEnabled: true`,
+`tokenRequired: false`, `$2/day` budget, `claude-haiku-4-5`. The Anthropic key
+reached Railway, so the old "set `ASSYZE_VISION_TOKEN`" item is DONE.
+
+---
+
 ## 12. Live traps
 
 ### ⚠⚠ NEVER pool a category to measure a ratio — Simpson's paradox
@@ -925,8 +978,9 @@ P1-5 (asking price -> 0), P1-1 (stale vision cache).
 3. **Write tests.** Still none. Start with `product-type`, `condition`, the
    eBay parsers and `parseBestBuy` — all pure, all currently verified only by
    hand, and `docs/testset/retail-lines.json` is already a ready-made fixture.
-4. **Set `ASSYZE_VISION_TOKEN` in Railway.** Production vision is off until
-   this is done. Yish's action, not mine — never paste a key into a web form.
+4. **Ship the comps archive to the production volume.** Production reports
+   `comps: 0, skus: 62` against 6,169 and 221 locally, so every deployed
+   verdict is INSUFFICIENT_DATA. More urgent than the domain — see 11f.
 5. **Run `bun run sweep` daily.** Every day it does not run is clearing-price
    history nobody can refetch.
 6. **Retail coverage is GPU-heavy.** Newegg and Micro Center are shipped and
