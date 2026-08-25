@@ -448,6 +448,55 @@ below 5 survivors rather than returning a confident number from four rows.
 **Still open: RAM and CPU tier do the same thing on laptops.** A "Latitude 7420
 i7 32GB" is priced against i5/8GB units in the same SKU.
 
+### ⚠⚠ SALVAGE IS A DIFFERENT MARKET — exclude it, never adjust it
+Yish, reading the comps table: *"you cant calculate that into the median when
+the listing doesnt say it has any problems."* He is right, and the bug beneath
+it was worse than a modelling choice.
+
+**`normalizeCondition` could not parse its own output.** The stored enum is
+`for_parts` with an UNDERSCORE; the pattern looked for `for parts` with a space.
+So it returned null, `adjustPrice` returns its input unchanged when `from` is
+null, and **every for_parts and open_box comp went into every median at face
+value** — $75 and $91 no-boot iPhones sitting in a working phone's median.
+
+Even fixed, adjusting is wrong. The phone multiplier is 0.18, so restating a $75
+salvage sale as "used" DIVIDES by 0.18 — inventing a $417 data point and
+multiplying the prior's error by 5.6x. `comparable()` now refuses to mix working
+and salvage in either direction, and `BROKEN_TITLE` catches sellers who write
+"No Boot" in the title while eBay's condition field says used.
+
+### ⚠ eBay's "NEW LISTING" badge is not a condition
+It is glued to the title with no separator — `NEW LISTINGApple iPhone 15
+Unlocked` — and `^new` matched it. Recently-listed USED phones were stored as
+`new`, dragged through the new->used multiplier, AND corrupted the measured
+multiplier itself: phone new/used read **1.03** because half the "new" bucket was
+used phones. After repair it reads 1.24.
+
+**The `raw_json` rule saved this one.** A first fix rejected any condition line
+over 40 characters and destroyed 2,141 good rows — eBay writes
+`Open Box · Nintendo Switch · ...`, condition first, specifics after. All 5,940
+were restored from the archived payload. Split on `·` and test the FIRST field.
+
+### ⚠ A partial parts sum must be scaled UP before the whole-unit discount
+Yish on a $650 build valued at $130: *"its an entire pc not just the gpu I think
+you didnt add all of the parts together."* The error compounded — gpu $175 + cpu
+$42 = $216 at 64% coverage, then x0.6 whole-unit = $130. **The 0.6 assumes a
+COMPLETE parts list**, so applying it to 64% coverage charged the discount twice.
+Divide by coverage first, then discount once.
+
+`valueByParts` also priced components with a raw SQL `AVG` (in a column named
+`med`), bypassing condition adjustment, salvage exclusion and the 90-day window —
+an RTX 5070 read $674 inside a build and $615 standalone. It now calls
+`valueSku` per part. **A component's price cannot depend on which path asked.**
+
+### ⚠ Apple machines are whole units, never part sums
+Yish: *"its an apple imac, your not supposed to grade it off of just gpu and cpu
+because most of the time its not gonna give that info."* The GPU is soldered,
+nobody parts one out, and the listing says "2019 27-inch 5K". Routing it down the
+prebuilt path made the engine demand two fields that do not exist and return
+INSUFFICIENT_DATA on every Mac desktop ever crawled. `isAppleWholeUnit()` gates
+both the bundle path and the missing-value-field check.
+
 ### ⚠ Anchor every gitignore and dockerignore pattern
 A bare `photos/` matched `src/photos/` at any depth and silently excluded source
 code from every commit. Railway crashed on `Cannot find module` forever while

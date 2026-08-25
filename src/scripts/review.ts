@@ -85,7 +85,11 @@ const rows: Row[] = [];
 
 for (const [ref, frag] of Object.entries(MAP)) {
   const j = db().query(
-    `SELECT human_call, notes FROM judgments WHERE external_ref=$r AND judged_by='yish' ORDER BY id DESC LIMIT 1`,
+    // Show the most INFORMED grade — the re-review if one exists, else the
+    // original. Otherwise a second pass re-argues against a grade already
+    // superseded with the evidence on screen.
+    `SELECT human_call, notes FROM judgments WHERE external_ref=$r
+     ORDER BY CASE judged_by WHEN 'yish-rereview' THEN 0 ELSE 1 END, id DESC LIMIT 1`,
   ).get({ $r: ref }) as { human_call: string; notes: string | null } | null;
 
   const l = db().query(
