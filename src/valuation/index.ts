@@ -171,7 +171,26 @@ export interface ChannelResult {
   note?: string;
 }
 
-export function netByChannel(grossEbayCents: number, category: string): ChannelResult[] {
+/**
+ * What market is the input price denominated in?
+ *
+ * `ebay`  a price from eBay sold comps. Facebook is assumed to fetch ~15% less.
+ * `local` a price that is ALREADY what it sells for locally. Do not discount.
+ *
+ * Yish: *"why did you * 0.6 and then *0.85 the build? theres no fees if i
+ * resell it on marketplace."* The 0.85 is not a fee — eBay's 13.25% is charged
+ * separately — but he is right that it was applied twice over.
+ *
+ * A tower cannot be shipped economically, so `SHIP_CENTS.prebuilt` is null and
+ * an assembled PC only ever sells LOCALLY. The whole-unit ratio that produced
+ * the price was itself derived from whole-machine sales, which are local sales.
+ * Discounting a local price by "the local discount" charges it a second time.
+ */
+export type PriceBasis = "ebay" | "local";
+
+export function netByChannel(
+  grossEbayCents: number, category: string, basis: PriceBasis = "ebay",
+): ChannelResult[] {
   const ship = SHIP_CENTS[category] ?? 1500;
   const out: ChannelResult[] = [];
 
@@ -189,11 +208,21 @@ export function netByChannel(grossEbayCents: number, category: string): ChannelR
     });
   }
 
-  const fbGross = Math.round(grossEbayCents * FACEBOOK_GROSS_RATIO);
+  /**
+   * A `local` price is ALREADY what it fetches on Facebook. Discounting it again
+   * charged the local penalty twice — on the NZXT build that was 0.6 x 0.85, so
+   * the machine was valued at 51% of its parts and read PASS against an asking
+   * price Yish judged a clear BUY.
+   */
+  const fbGross = basis === "local"
+    ? grossEbayCents
+    : Math.round(grossEbayCents * FACEBOOK_GROSS_RATIO);
   out.push({
     channel: "facebook", grossCents: fbGross, feesCents: 0, shippingCents: 0,
     netCents: fbGross, available: true,
-    note: "local pool only, but no fees and no shipping",
+    note: basis === "local"
+      ? "no fees, no shipping — and this value is already a local price"
+      : "local pool only, but no fees and no shipping",
   });
 
   return out;
@@ -225,6 +254,8 @@ export function requiredProfitCents(econ: UserEconomics, driveMinutesOneWay: num
  * a valuation would be worse than returning nothing.
  */
 export interface PartsValuation extends Valuation {
+  /** Parts valuations land in the LOCAL market — a tower cannot be shipped. */
+  basis: PriceBasis;
   parts: Array<{ role: string; query: string; skuId: number | null; medianCents: number | null; compCount: number }>;
   coverage: number;          // 0-1, share of expected components actually priced
   partsSumCents: number;
@@ -267,7 +298,28 @@ export interface PartsValuation extends Valuation {
  * PSU is not. Counting roles equally treated "I know the GPU and CPU" as 2/7 of
  * the answer when it is closer to two thirds of the money.
  */
-const WHOLE_UNIT_RATIO = 0.6;   // midpoint of the researched 50-70% band
+/**
+ * Whole-machine price as a fraction of what its parts SELL for.
+ *
+ * **The old 0.6 was applied to the wrong base.** The research line it came from
+ * reads: *"parting out realises roughly 60-80% of component value; selling whole
+ * realises 50-70%."* Both percentages are of COMPONENT VALUE — but our parts sum
+ * is built from eBay SOLD prices, which is already the realised part-out figure,
+ * not component value. So 0.6 discounted a number that had been discounted once
+ * already.
+ *
+ * The ratio that actually applies here is whole-versus-part-out:
+ *
+ *   whole / part-out  =  60% / 70%  =  0.86     (band midpoints)
+ *   part-out on eBay also loses ~13% in fees, which our gross sum does not
+ *   subtract, so                       0.86 x 0.87  =  ~0.75
+ *
+ * STILL A PRIOR, not a measurement, and Yish is the domain authority here — he
+ * flipped gaming PCs. The outcome loop is what will eventually replace it: a
+ * build we valued and then watched clear at a real price is the only honest
+ * source for this number.
+ */
+const WHOLE_UNIT_RATIO = 0.75;
 
 /**
  * Share of a typical gaming build's resale value by component. Priors, and
@@ -346,6 +398,7 @@ export function valueByParts(attributes: Record<string, string | number>): Parts
   const wholeUnitCents = priced.length ? Math.round(impliedPartsCents * WHOLE_UNIT_RATIO) : null;
 
   return {
+    basis: "local" as PriceBasis,
     parts, coverage: +coverage.toFixed(2), partsSumCents, impliedPartsCents, wholeUnitCents,
     status: coverage >= 0.6 ? "ok" : priced.length ? "sparse" : "no_comps",
     // The band widens as coverage falls: pricing 64% of a machine is a rougher

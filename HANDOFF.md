@@ -489,6 +489,31 @@ Divide by coverage first, then discount once.
 an RTX 5070 read $674 inside a build and $615 standalone. It now calls
 `valueSku` per part. **A component's price cannot depend on which path asked.**
 
+### ⚠ Know what market a price is denominated in
+Yish: *"why did you * 0.6 and then *0.85 the build? theres no fees if i resell
+it on marketplace."* Two separate double-counts, stacked:
+
+**1. The local discount was applied twice.** `FACEBOOK_GROSS_RATIO` (0.85) is
+NOT a fee — eBay's 13.25% is charged separately — it is a claim that the same
+item fetches ~15% less locally. But a tower cannot be shipped
+(`SHIP_CENTS.prebuilt` is null), so an assembled PC only ever sells locally and
+the whole-unit ratio already lands in that market. `netByChannel` now takes a
+`PriceBasis`; a parts valuation declares itself `local` and is not re-discounted.
+
+**2. The whole-unit ratio was applied to the wrong base.** The research reads
+*"parting out realises 60-80% of component value; selling whole realises
+50-70%"* — both are percentages of COMPONENT VALUE, but our parts sum is built
+from eBay SOLD prices, which is the realised part-out figure already. The ratio
+that actually applies is whole-versus-part-out: 60/70 = 0.86, times ~0.87 for
+the eBay fees a real part-out would pay = **~0.75**, not 0.6.
+
+Effect on the NZXT build: $712 -> **$890**, and the verdict moved PASS -> VERIFY
+with $140 of margin against a $135 floor. Yish graded it BUY; the remaining gap
+is the GPU display-output check, which is in-person and correctly still open.
+
+**0.75 is a PRIOR, not a measurement.** The outcome loop replaces it: a build we
+valued and then watched clear is the only honest source for this number.
+
 ### ⚠ Apple machines are whole units, never part sums
 Yish: *"its an apple imac, your not supposed to grade it off of just gpu and cpu
 because most of the time its not gonna give that info."* The GPU is soldered,

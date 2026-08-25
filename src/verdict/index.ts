@@ -13,7 +13,7 @@
 import type { SignalReport, Verdict, Confidence } from "../types.ts";
 import type { Match } from "../catalog/match.ts";
 import { buildQuestions } from "./questions.ts";
-import { valueSku, valueByParts, netByChannel, requiredProfitCents, getEconomics, type UserEconomics, type ChannelResult } from "../valuation/index.ts";
+import { valueSku, valueByParts, netByChannel, requiredProfitCents, getEconomics, type UserEconomics, type ChannelResult, type PriceBasis } from "../valuation/index.ts";
 import { normalizeCondition, type Condition } from "../valuation/condition.ts";
 import { resolveProductType, isAppleWholeUnit } from "../signals/product-type.ts";
 import { evaluateRisk, riskGate, inPersonConditions, type RiskCheck, type RiskGate } from "./risk-gates.ts";
@@ -224,7 +224,13 @@ export function buildVerdict(input: {
   }
 
   // --- 5. Money, relative to the user ----------------------------------
-  const channels = netByChannel(valuation.medianCents, match.category ?? signals.category);
+  /**
+   * A parts-derived value is already a LOCAL price; a SKU-derived one is an eBay
+   * price. Passing the basis is what stops an assembled PC being discounted for
+   * "selling locally" when local IS the market it was priced in.
+   */
+  const basis = (valuation as { basis?: PriceBasis }).basis ?? "ebay";
+  const channels = netByChannel(valuation.medianCents, match.category ?? signals.category, basis);
   const usable = channels.filter((c) => c.available);
   const best = usable.reduce((a, b) => (b.netCents > a.netCents ? b : a));
   const ask = input.askingPriceCents;
