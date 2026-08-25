@@ -130,6 +130,43 @@ signal. It currently matches on title+price; **the right version keys on the
 photo dhash already in `listing_photos`**, since a seller who edits the title
 while reusing photos slips past the cheap check. That is the next upgrade.
 
+### Facebook Marketplace — BUILT 2026-08-24, needs one manual login
+`src/sources/facebook.ts` (Bun, parsing) + `src/browser/fb-worker.mjs` (NODE,
+browser). `bun run fb:login` once, then `bun run fb:crawl`.
+
+**⚠ PLAYWRIGHT HANGS UNDER BUN ON THIS MACHINE.** Measured: `chromium.launch()`
+never resolves under Bun; the identical script under Node 24 launches Chrome in
+~3s. Bun cannot be dropped (`bun:sqlite` is the database), so the two split:
+**Node drives the browser, Bun owns the database**, talking over NDJSON on
+stdout. Do not "simplify" this back into one process.
+
+**`playwright-core`, not `playwright`, and `executablePath` to the installed
+Chrome.** Playwright ships x64-only browser bundles on Windows and the ARM64
+request was closed as not planned — its bundled Chromium would run emulated.
+The installed Chrome is native ARM64 (PE machine type 0xAA64, v151), so we drive
+that and download no browsers at all.
+
+**Forward slashes in the Chrome path.** `"C:\Program Files\..."` in a JS string
+silently becomes `C:Program FilesGoogleChromeApplicationchrome.exe`. Cost one
+debugging round.
+
+**No credential handling exists and none may be added.** Yish signs in by hand in
+a real Chrome window; the session lives in `~/.assyze/browser-profile`, which is
+OUTSIDE the repo on purpose — one `git add -A` with it inside and his live
+Facebook session is on GitHub.
+
+**Parsing is in TypeScript, the worker is dumb.** The worker emits raw card text
+and raw body lines; `parseCard`/`detailToListing` do the work in Bun, so a
+parser fix never needs a browser to verify. All parsers are pure and tested.
+
+**Two browser passes per crawl, deliberately.** Pass 1 finds what is worth
+opening, pass 2 opens only those. Opening 100 detail pages to discard 80 is the
+traffic pattern that gets an account flagged.
+
+**`checkFetched(listing)` is the seam** that lets Facebook into the engine.
+Nothing after it may branch on `source` — the moment something does, the eval
+set stops meaning anything.
+
 ### NOT built
 Accounts · payments · mobile app · listing auto-draft · outcome loop · alerts · real comps.
 
@@ -366,6 +403,16 @@ M3, reintroduced through the catalog where the matcher's guard cannot see it.
 - **Never ask a user for Facebook credentials or a session token.**
 
 ---
+
+## 4b. Decisions the maintainer made — do not re-litigate
+
+- **Craigslist crawling proceeds despite their Terms of Use.** Green-lit by Yish
+  2026-08-24 after the audit raised it (P0-4): "Im not worried about getting
+  caught or anything so go right ahead even if it is against their terms."
+  Do not raise it again.
+- **Facebook Marketplace automation likewise.** Same call, same date. The
+  realistic penalty is his account, not legal action, which is why the crawler
+  runs at human pace in a visible window rather than headless and fast.
 
 ## 5. Open decisions
 

@@ -154,6 +154,20 @@ async function persistPhotos(listingId: number, urls: string[]) {
  * verdicts, not a placeholder and a real one.
  */
 export async function checkListing(url: string, opts: CheckOptions = {}): Promise<CheckResult> {
+  return checkFetched(await fetchListing(url), opts);
+}
+
+/**
+ * Same pipeline, for a listing somebody else already fetched.
+ *
+ * This is the seam that lets Facebook Marketplace in. Facebook needs a real
+ * logged-in browser, so it cannot be a `fetch()` behind `fetchListing` — but
+ * once it has produced a `RawListing`, every stage after that point is
+ * source-agnostic and MUST stay that way. Signals, matching, vision and the
+ * verdict should never learn which site a listing came from; the moment one of
+ * them branches on `source`, the eval set stops meaning anything.
+ */
+export async function checkFetched(listing: RawListing, opts: CheckOptions = {}): Promise<CheckResult> {
   const t0 = Date.now();
   const since = () => Date.now() - t0;
   const emit = (stage: StageName, data: unknown) =>
@@ -161,8 +175,6 @@ export async function checkListing(url: string, opts: CheckOptions = {}): Promis
 
   const econ = opts.econ ?? getEconomics();
 
-  // --- fetch -----------------------------------------------------------
-  const listing = await fetchListing(url);
   emit("fetched", {
     title: listing.title,
     askingPriceCents: listing.askingPriceCents,
