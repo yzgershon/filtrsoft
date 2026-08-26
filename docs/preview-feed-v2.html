@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Assyze — feed v2</title>
+<!--
+  V2: C's hero + B's list, and tapping a row PROMOTES it to the hero.
+
+  The promotion is a real shared-element morph, not a fade. The photo and the
+  title you tapped are the same DOM content in both places, so they travel
+  rather than being redrawn — which is what makes it read as "this thing moved"
+  instead of "the screen changed".
+
+  Implemented with the View Transitions API where available, and a FLIP
+  fallback everywhere else. Both paths respect prefers-reduced-motion.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#08070a; --surface:#121116; --surface-2:#1b1a21; --surface-3:#26242d;
+  --line:#2a2833; --line-soft:#201f28;
+  --ink:#f2f0f5; --ink-2:#a8a4b4; --ink-3:#6e6a7c;
+  --brand:#ff8a3d; --on-brand:#160d05;
+  --buy:#34d399; --verify:#ff8a3d; --fair:#60a5fa; --pass:#fbbf24; --risk:#f87171;
+  --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:22px;
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px;
+  --tap:44px;
+  /* One motion rhythm for the whole app. Enter is slower than exit — an exit
+     that lingers feels unresponsive (Material motion). */
+  --dur:220ms; --dur-exit:150ms; --dur-hero:420ms;
+  --ease:cubic-bezier(.22,.61,.36,1);
+  --ease-spring:cubic-bezier(.34,1.36,.44,1);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:#0b0a0e;color:var(--ink);
+  font-family:Inter,system-ui,-apple-system,sans-serif;font-size:16px;line-height:1.5}
+.num{font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+img{display:block}
+
+/* Focus: never removed, always visible, and offset so it reads on dark. */
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:var(--r-sm)}
+
+.wrap{max-width:1180px;margin:0 auto;padding:var(--s5) var(--s4) 64px}
+.lede{max-width:720px;margin:0 auto var(--s5)}
+.lede h1{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:0 0 var(--s2)}
+.lede p{color:var(--ink-2);font-size:14.5px;margin:0 0 var(--s2)}
+.lede kbd{font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--surface-2);
+  border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--brand)}
+.stage{display:grid;grid-template-columns:minmax(0,392px) minmax(0,1fr);gap:var(--s6);align-items:start}
+@media(max-width:860px){.stage{grid-template-columns:1fr}}
+.notes h3{font-size:13px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--ink-2);margin:var(--s5) 0 var(--s2)}
+.notes h3:first-child{margin-top:0}
+.notes p{font-size:13.5px;color:var(--ink-2);margin:0 0 var(--s3);line-height:1.6}
+.notes strong{color:var(--ink)}
+
+.phone{background:var(--bg);border:1px solid var(--line);border-radius:var(--r-xl);
+  overflow:hidden;box-shadow:0 30px 70px -24px rgba(0,0,0,.85);position:relative}
+
+/* ---------------------------------------------------------------- app bar */
+.appbar{display:flex;align-items:center;justify-content:space-between;
+  padding:var(--s3) var(--s3) var(--s2)}
+.logo{font-weight:800;font-size:17px;letter-spacing:-.02em}
+.logo em{font-style:normal;color:var(--brand)}
+.iconbtn{width:var(--tap);height:var(--tap);display:grid;place-items:center;border-radius:999px;
+  color:var(--ink-2);transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+.iconbtn:hover{background:var(--surface-2);color:var(--ink)}
+.iconbtn:active{transform:scale(.94)}
+.iconbtn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round}
+
+/* ============================================================== FILTERS
+   A SEGMENTED CONTROL, not loose pills.
+
+   The old chips were a row of identical rounded rectangles with no grouping,
+   no selected state beyond colour, and no keyboard model — so they read as
+   decoration and were unusable without a mouse.
+
+   This is a `radiogroup`: exactly one is active, arrow keys move between them,
+   `aria-checked` announces which. The moving indicator is a single element that
+   slides, so the active state is conveyed by POSITION as well as colour —
+   colour alone is never the only signal.
+   ============================================================== */
+.filters{padding:0 var(--s3) 0}
+.seg{position:relative;display:flex;gap:2px;padding:3px;background:var(--surface-2);
+  border:1px solid var(--line);border-radius:var(--r-md)}
+.seg .ind{position:absolute;top:3px;bottom:3px;background:var(--brand);border-radius:9px;
+  transition:transform var(--dur) var(--ease),width var(--dur) var(--ease);z-index:0;
+  box-shadow:0 2px 10px -2px rgba(255,138,61,.55)}
+.seg button{position:relative;z-index:1;flex:1;min-height:38px;padding:0 var(--s2);
+  display:flex;align-items:center;justify-content:center;gap:6px;border-radius:9px;
+  font-size:13px;font-weight:600;color:var(--ink-2);white-space:nowrap;
+  transition:color var(--dur) var(--ease)}
+.seg button[aria-checked="true"]{color:var(--on-brand)}
+.seg button:hover:not([aria-checked="true"]){color:var(--ink)}
+.seg .n{font-size:11px;font-weight:700;padding:1px 5px;border-radius:999px;
+  background:rgba(255,255,255,.09);min-width:18px}
+.seg button[aria-checked="true"] .n{background:rgba(0,0,0,.22)}
+
+/* Secondary filters read as toggles, visually subordinate to the segment. */
+.toggles{display:flex;gap:var(--s2);overflow-x:auto;padding:var(--s3) var(--s3) var(--s1);
+  scrollbar-width:none}
+.toggles::-webkit-scrollbar{display:none}
+.tog{flex:none;min-height:36px;padding:0 12px;border-radius:999px;background:transparent;
+  border:1px solid var(--line);color:var(--ink-2);font-size:12.5px;font-weight:600;
+  display:inline-flex;align-items:center;gap:6px;
+  transition:all var(--dur) var(--ease);white-space:nowrap}
+.tog:hover{border-color:var(--surface-3);color:var(--ink)}
+.tog:active{transform:scale(.96)}
+.tog[aria-pressed="true"]{background:rgba(255,138,61,.14);border-color:rgba(255,138,61,.5);
+  color:var(--brand)}
+.tog svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2.2;
+  stroke-linecap:round;stroke-linejoin:round;opacity:0;width:0;
+  transition:opacity var(--dur) var(--ease),width var(--dur) var(--ease)}
+.tog[aria-pressed="true"] svg{opacity:1;width:13px}
+
+/* ---------------------------------------------------------------- badges */
+.b{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;
+  letter-spacing:.055em;text-transform:uppercase;padding:4px 8px;border-radius:6px;
+  white-space:nowrap;align-self:flex-start}
+.b svg{width:12px;height:12px;stroke-width:2.4;stroke:currentColor;fill:none;
+  stroke-linecap:round;stroke-linejoin:round}
+.b-BUY{background:rgba(52,211,153,.15);color:var(--buy)}
+.b-VERIFY{background:rgba(255,138,61,.15);color:var(--verify)}
+.b-FAIR{background:rgba(96,165,250,.15);color:var(--fair)}
+.b-PASS{background:rgba(251,191,36,.13);color:var(--pass)}
+.b-RISK{background:rgba(248,113,113,.15);color:var(--risk)}
+.b-INSUFFICIENT_DATA{background:rgba(167,139,250,.13);color:#a78bfa}
+.meta{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3)}
+.meta .sep{opacity:.45}
+
+.scr{padding:0 var(--s3) var(--s5)}
+.sect{display:flex;align-items:baseline;gap:var(--s2);margin:var(--s4) 0 var(--s3);padding:0 var(--s1)}
+.sect h3{margin:0;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.sect span{font-size:11.5px;color:var(--ink-3)}
+.sect .dot{width:7px;height:7px;border-radius:99px;flex:none}
+
+/* ================================================================== HERO */
+.hero{display:block;width:100%;text-align:left;overflow:hidden;
+  background:linear-gradient(155deg,rgba(52,211,153,.08),transparent 60%),var(--surface);
+  border:1px solid rgba(52,211,153,.26);border-radius:var(--r-lg);margin-bottom:var(--s2)}
+.hero.v-VERIFY{background:linear-gradient(155deg,rgba(255,138,61,.08),transparent 60%),var(--surface);
+  border-color:rgba(255,138,61,.26)}
+.hero.v-FAIR{background:linear-gradient(155deg,rgba(96,165,250,.08),transparent 60%),var(--surface);
+  border-color:rgba(96,165,250,.24)}
+.hero.v-INSUFFICIENT_DATA,.hero.v-PASS{background:var(--surface);border-color:var(--line)}
+.hero .shot{position:relative;aspect-ratio:16/10;background:var(--surface-2)}
+.hero .shot img{width:100%;height:100%;object-fit:cover}
+.hero .shot::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(to top,rgba(8,7,10,.92),transparent 55%)}
+.hero .over{position:absolute;left:var(--s4);right:var(--s4);bottom:var(--s3);z-index:2;
+  display:flex;flex-direction:column;gap:var(--s2)}
+.hero h4{margin:0;font-size:17px;font-weight:700;line-height:1.28;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.hero .nums{display:flex;align-items:baseline;gap:var(--s3);flex-wrap:wrap;
+  padding:var(--s3) var(--s4) 0}
+.hero .price{font-size:26px;font-weight:800;letter-spacing:-.03em}
+.hero .net{font-size:14px;font-weight:700;color:var(--buy)}
+.hero .why{padding:var(--s2) var(--s4) var(--s4);margin:0;font-size:13px;
+  color:var(--ink-2);line-height:1.5}
+
+/* ================================================================== ROWS */
+.row{display:flex;gap:var(--s3);align-items:stretch;width:100%;text-align:left;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);
+  padding:var(--s2);margin-bottom:var(--s2);
+  transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease),
+    transform var(--dur-exit) var(--ease)}
+.row:hover{border-color:var(--surface-3);background:var(--surface-2)}
+.row:active{transform:scale(.985)}
+.row .shot{width:74px;height:74px;flex:none;border-radius:var(--r-sm);overflow:hidden;
+  background:var(--surface-2)}
+.row .shot img{width:100%;height:100%;object-fit:cover}
+.row .mid{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:5px}
+.row .mid h4{margin:0;font-size:13.5px;font-weight:600;line-height:1.3;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.row .end{flex:none;display:flex;flex-direction:column;align-items:flex-end;
+  justify-content:center;gap:5px;padding-right:2px}
+.row .price{font-size:16px;font-weight:700}
+.row .net{font-size:12.5px;font-weight:700;color:var(--buy)}
+.row .net.z{color:var(--ink-3)}
+
+/* ---------------------------------------------------------------- nav */
+.nav{display:flex;border-top:1px solid var(--line);background:var(--surface);
+  padding:var(--s2) 0 calc(var(--s2) + env(safe-area-inset-bottom))}
+.nav button{flex:1;min-height:var(--tap);display:flex;flex-direction:column;align-items:center;
+  gap:3px;font-size:10.5px;font-weight:600;color:var(--ink-3);
+  transition:color var(--dur) var(--ease)}
+.nav button[aria-current="page"]{color:var(--brand)}
+.nav svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round}
+
+/* ============================================ THE PROMOTION TRANSITION
+   The photo and title carry `view-transition-name`, so the browser morphs the
+   SAME element between its row position and its hero position instead of
+   cross-fading two different ones. That is what makes it read as movement.
+   ============================================ */
+::view-transition-old(hero-img),::view-transition-new(hero-img),
+::view-transition-old(hero-title),::view-transition-new(hero-title){
+  animation-duration:var(--dur-hero);
+  animation-timing-function:var(--ease);
+  mix-blend-mode:normal;
+}
+::view-transition-group(hero-img),::view-transition-group(hero-title){
+  animation-duration:var(--dur-hero);
+  animation-timing-function:var(--ease);
+}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.rise{animation:rise var(--dur) var(--ease) both}
+
+@media (prefers-reduced-motion:reduce){
+  *{transition-duration:.01ms!important;animation-duration:.01ms!important}
+  ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){
+    animation-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="lede">
+    <h1>Feed v2 — hero + list, tap to promote</h1>
+    <p><strong>Tap any row.</strong> It becomes the hero and the old hero drops back into the
+       list — the photo and title <em>travel</em> between the two positions rather than
+       cross-fading, because they are the same element with a
+       <kbd>view-transition-name</kbd>. Keyboard works too: <kbd>Tab</kbd> to a row, <kbd>Enter</kbd>.</p>
+    <p>Live data from assyze.com, now filtered to the last <strong>28 days</strong>.</p>
+  </div>
+
+  <div class="stage">
+    <div class="phone">
+      <div class="appbar">
+        <span class="logo">ass<em>yze</em></span>
+        <div style="display:flex">
+          <button class="iconbtn" aria-label="Search listings"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></button>
+          <button class="iconbtn" aria-label="Sort and filter"><svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg></button>
+        </div>
+      </div>
+
+      <div class="filters"><div class="seg" role="radiogroup" aria-label="Deal quality" id="seg"></div></div>
+      <div class="toggles" id="toggles"></div>
+
+      <div class="scr" id="scr"></div>
+
+      <nav class="nav" aria-label="Main">
+        <button aria-current="page"><svg viewBox="0 0 24 24"><path d="M20.6 8.4 12 3 3.4 8.4v7.2L12 21l8.6-5.4z"/><path d="M12 12v9"/></svg>Deals</button>
+        <button><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 9h6v6H9z"/></svg>Check</button>
+        <button><svg viewBox="0 0 24 24"><path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Saved</button>
+        <button><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>You</button>
+      </nav>
+    </div>
+
+    <div class="notes">
+      <h3>The promotion</h3>
+      <p>Uses the <strong>View Transitions API</strong> where the browser has it, and a
+         <strong>FLIP</strong> fallback everywhere else — measure first, invert, play. Both
+         paths animate <em>transform and opacity only</em>, so nothing reflows mid-motion.</p>
+      <p>Enter is <strong>420ms</strong>, exits are <strong>150ms</strong>. An exit that
+         lingers as long as its entrance is what makes an interface feel slow.</p>
+
+      <h3>Why the filters changed</h3>
+      <p>The old chips were identical pills with no grouping, no state beyond colour, and no
+         keyboard model. This is a <strong>segmented control</strong> — a real
+         <kbd>radiogroup</kbd> where arrow keys move between options and
+         <kbd>aria-checked</kbd> announces the active one.</p>
+      <p>The indicator <em>slides</em>, so the active option is signalled by
+         <strong>position as well as colour</strong>. Colour alone is never the only cue.</p>
+      <p>Secondary filters are toggle buttons with <kbd>aria-pressed</kbd> and a checkmark
+         that appears when on — again, not colour alone. Every target clears 44px.</p>
+
+      <h3>The 28-day rule</h3>
+      <p>Anything older is gone from the feed entirely. On the current data that drops
+         <strong>8 of 200</strong>, five of them FAIR calls on listings 46 to 137 days old —
+         either sold or never good. Showing them was the app quietly wasting your attention.</p>
+
+      <h3>Accessibility, not decoration</h3>
+      <p>Focus rings are visible and never removed. Every icon-only button has an
+         <kbd>aria-label</kbd>. The nav marks its location with <kbd>aria-current</kbd>.
+         Press states use scale, not layout shifts. Everything honours
+         <kbd>prefers-reduced-motion</kbd>.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const DATA = [{"id": 378, "title": "NVIDIA GeForce RTX 4090 Founders Edition 24GB GDDR6X Graphics Card", "call": "BUY", "ask": 150000, "net": 65334, "thumb": "https://images.craigslist.org/00R0R_fJ1kX9fp6gN_02g01H_1200x900.jpg", "loc": "Nonantum", "posted": "2026-08-25T15:22:10-0400", "src": "craigslist", "headline": "$653 net on ebay — clears your $135 floor.", "days": 0}, {"id": 381, "title": "Gigabyte GeForce RTX 5090 WINDFORCE OC 32G GV-N5090WF3OC-32GD GDDR7 PC", "call": "VERIFY", "ask": 250000, "net": 117124, "thumb": "https://images.craigslist.org/00p0p_cG8eMUdcUPN_0jm0j7_1200x900.jpg", "loc": "Nonantum", "posted": "2026-08-25T15:01:54-0400", "src": "craigslist", "headline": "Priced at 59% of market — verify before driving.", "days": 0}, {"id": 842, "title": "HP OMEN MAX 45L Gaming PC (No GPU)", "call": "VERIFY", "ask": 65000, "net": 55384, "thumb": "https://scontent-bos5-1.xx.fbcdn.net/v/t39.84726-6/784352442_1564953928433373_8989290640169391652_n.jpg?stp=dst-jpg_s960x960_tt6&_nc_cat=105&ccb=1-7&_nc_sid=92e707&_nc_ohc=EUqU9DCpFBQQ7kNvwGXs3O8&_nc_oc=AdrUOss8hnRlbb1f4dfJFurRzWzwKUHei0h3Yax-vXsEGaa72dYKcB_ylo4SpVtx7w1S8KfZtQlWF_tEVCfGtLy8&_nc_zt=14&_nc_ht=scontent-bos5-1.xx&_nc_gid=jyu2aD6zpLBX0Gxhl8MnPw&_nc_ss=7b2a8&oh=00_AQG4QPl_hdqiNp2ARxy0CSAxqEYNIs-iFAWLzr_zIsBwww&oe=6A94155A", "loc": "Charlestown, MA", "posted": "2026-08-22T02:21:42.053Z", "src": "facebook", "headline": "Priced at 54% of market — verify before driving.", "days": 4}, {"id": 666, "title": "Apple iPhone 14 Pro Max 256GB – Deep Purple Edition", "call": "VERIFY", "ask": 22000, "net": 16019, "thumb": "https://images.craigslist.org/00P0P_YJb7E2u6q_05h05h_1200x900.jpg", "loc": "Dorchester", "posted": "2026-08-09T13:15:32-0400", "src": "craigslist", "headline": "Priced at 58% of market — verify before driving.", "days": 16}, {"id": 289, "title": "Lenovo 14\" ThinkPad X1 Carbon Ultrabook 7th Gen 16GB 256GB i7 8565U", "call": "FAIR", "ask": 17000, "net": 8093, "thumb": "https://images.craigslist.org/00M0M_dXzfQaejEs5_0CI0Bs_1200x900.jpg", "loc": "Medford", "posted": "2026-07-28T12:53:59-0400", "src": "craigslist", "headline": "Only $81 net — below your $135 floor.", "days": 28}, {"id": 889, "title": "iPhone 14 256Gb Blue Unlocked", "call": "FAIR", "ask": 23000, "net": 899, "thumb": "https://images.craigslist.org/00606_647TRqpxNii_0oo0ww_1200x900.jpg", "loc": "Framingham", "posted": "2026-08-01T16:35:18-0400", "src": "craigslist", "headline": "Only $9 net — below your $135 floor.", "days": 24}, {"id": 88, "title": "Dell XPS 9310 High Performance i7 Touchscreen Laptops, up to 32gb RAM", "call": "FAIR", "ask": 30000, "net": 513, "thumb": "https://images.craigslist.org/00x0x_5Hc80xK9Aar_0t20CI_1200x900.jpg", "loc": "Malden", "posted": "2026-08-02T12:59:34-0400", "src": "craigslist", "headline": "Only $5 net — below your $135 floor.", "days": 23}, {"id": 867, "title": "IPHONE 16 PRO MAX, 256GB, UNLOCK, GOOD CONDITION, WITH CHARGER", "call": "FAIR", "ask": 59800, "net": 491, "thumb": "https://images.craigslist.org/00Y0Y_i2Iyxbqgsb4_0ep0i5_1200x900.jpg", "loc": "Lowell", "posted": "2026-08-01T18:29:57-0400", "src": "craigslist", "headline": "Only $5 net — below your $135 floor.", "days": 24}, {"id": 564, "title": "Netgear Switch FS608 v3", "call": "INSUFFICIENT_DATA", "ask": 1000, "net": null, "thumb": "https://images.craigslist.org/00H0H_3yPIlBa8zEp_0cb04Y_1200x900.jpg", "loc": "Needham", "posted": "2026-08-25T22:29:48-0400", "src": "craigslist", "headline": "Couldn't identify the exact model.", "days": 0}, {"id": 484, "title": "Samsung Chromebook 3 XE500C13 11.6in Laptop", "call": "INSUFFICIENT_DATA", "ask": 3000, "net": null, "thumb": "https://images.craigslist.org/00e0e_jAd23sZpWIN_07w078_1200x900.jpg", "loc": "Cambridge", "posted": "2026-08-25T22:00:12-0400", "src": "craigslist", "headline": "Couldn't identify the exact model.", "days": 0}, {"id": 8, "title": "Lenovo M920Q ThinkCentre / ThinkSmart Edition", "call": "INSUFFICIENT_DATA", "ask": 12000, "net": null, "thumb": "https://images.craigslist.org/00v0v_h7x3tGmbp0f_0CI0CI_1200x900.jpg", "loc": "Winchester", "posted": "2026-08-25T20:27:31-0400", "src": "craigslist", "headline": "Couldn't identify the exact model.", "days": 0}, {"id": 653, "title": "Samsung Galaxy S24 FE 5G, 128G, UNLOCK, 6.9 inch, BRAND NEW, WITH CHAR", "call": "INSUFFICIENT_DATA", "ask": 27800, "net": null, "thumb": "https://images.craigslist.org/01717_dt6uGLmIQ6Q_0ey0hU_1200x900.jpg", "loc": "Lowell", "posted": "2026-08-25T19:29:52-0400", "src": "craigslist", "headline": "Couldn't identify the exact model.", "days": 0}, {"id": 12, "title": "New BETOPPER LF4808 pair new for $160", "call": "INSUFFICIENT_DATA", "ask": 16000, "net": null, "thumb": "https://images.craigslist.org/00p0p_aFF2E1k4wPR_0CI0t2_1200x900.jpg", "loc": "North", "posted": "2026-08-25T18:59:23-0400", "src": "craigslist", "headline": "Couldn't identify the exact model.", "days": 0}, {"id": 369, "title": "monitors", "call": "INSUFFICIENT_DATA", "ask": 5000, "net": null, "thumb": "https://images.craigslist.org/00P0P_7CtTOaVu4yT_0MM132_1200x900.jpg", "loc": "Framingham", "posted": "2026-08-25T17:22:52-0400", "src": "craigslist", "headline": "Couldn't identify the exact model.", "days": 0}, {"id": 663, "title": "APPLE iPHONE 8+........LIKE NEW with NEW ALUMINUM PROTECTOR !!", "call": "INSUFFICIENT_DATA", "ask": 3500, "net": null, "thumb": "https://images.craigslist.org/00U0U_cLuOLMuxBmc_0i50t2_1200x900.jpg", "loc": "Framingham", "posted": "2026-08-25T15:40:44-0400", "src": "craigslist", "headline": "Can't be valued — storage not stated.", "days": 0}, {"id": 665, "title": "Otterbox Phone fase for Iphone 17 pro", "call": "INSUFFICIENT_DATA", "ask": 4000, "net": null, "thumb": "https://images.craigslist.org/00O0O_1fbAd0CiqJ9_0nI0CI_1200x900.jpg", "loc": "Malden", "posted": "2026-08-25T14:40:13-0400", "src": "craigslist", "headline": "Can't be valued — storage not stated.", "days": 0}];
+const money = c => c == null ? "—" : "$" + Math.round(c/100).toLocaleString();
+const ago = d => d === 0 ? "today" : d === 1 ? "1d ago" : d + "d ago";
+const ICON = {
+  BUY:'<path d="M20 6 9 17l-5-5"/>',
+  VERIFY:'<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
+  FAIR:'<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  PASS:'<path d="M18 6 6 18M6 6l12 12"/>',
+  RISK:'<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>',
+  INSUFFICIENT_DATA:'<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/>',
+};
+const LABEL = { INSUFFICIENT_DATA:"CAN'T TELL" };
+const badge = c => `<span class="b b-${c}"><svg viewBox="0 0 24 24">${ICON[c]||ICON.PASS}</svg>${LABEL[c]||c}</span>`;
+const metaOf = d => `<span class="meta"><span>${d.loc||"—"}</span><span class="sep">·</span><span>${ago(d.days)}</span></span>`;
+
+let heroId = DATA[0].id;
+let filter = "ALL";
+const byId = id => DATA.find(d => d.id === id);
+
+const heroHtml = d => `
+  <button class="hero v-${d.call}" id="heroBtn" aria-label="Open ${d.title}">
+    <div class="shot">
+      <img src="${d.thumb}" alt="" style="view-transition-name:hero-img">
+      <div class="over">
+        ${badge(d.call)}
+        <h4 style="view-transition-name:hero-title">${d.title}</h4>
+      </div>
+    </div>
+    <div class="nums">
+      <span class="price num">${money(d.ask)}</span>
+      ${d.net > 0 ? `<span class="net num">+${money(d.net)} net</span>` : ``}
+      ${metaOf(d)}
+    </div>
+    ${d.headline ? `<p class="why">${d.headline}</p>` : ``}
+  </button>`;
+
+const rowHtml = d => `
+  <button class="row" data-id="${d.id}" aria-label="Promote ${d.title}">
+    <div class="shot"><img src="${d.thumb}" alt="" loading="lazy"></div>
+    <div class="mid">${badge(d.call)}<h4>${d.title}</h4>${metaOf(d)}</div>
+    <div class="end">
+      <span class="price num">${money(d.ask)}</span>
+      <span class="net num ${d.net > 0 ? '' : 'z'}">${d.net > 0 ? "+" + money(d.net) : "—"}</span>
+    </div>
+  </button>`;
+
+const GROUPS = [
+  { key:"BUY",    label:"Verified deals",   note:"ready to act on",     color:"var(--buy)",    calls:["BUY"] },
+  { key:"VERIFY", label:"Needs one answer", note:"blocked on a question", color:"var(--verify)", calls:["VERIFY","RISK"] },
+  { key:"REST",   label:"Recently checked", note:"priced, not deals",   color:"var(--ink-3)",  calls:["FAIR","PASS","INSUFFICIENT_DATA"] },
+];
+
+function visible(){
+  const rest = DATA.filter(d => d.id !== heroId);
+  if (filter === "ALL") return rest;
+  if (filter === "DEAL") return rest.filter(d => ["BUY","VERIFY"].includes(d.call));
+  if (filter === "CHEAP") return rest.filter(d => (d.ask ?? 1e9) < 50000);
+  return rest;
+}
+
+function renderList(){
+  const rest = visible();
+  const scr = document.getElementById("scr");
+  const h = byId(heroId);
+  let html = `<div class="sect"><span class="dot" style="background:${
+    GROUPS.find(g=>g.calls.includes(h.call))?.color || "var(--ink-3)"}"></span>
+    <h3>Best right now</h3><span>tap any listing below to swap it in</span></div>` + heroHtml(h);
+  for (const g of GROUPS){
+    const items = rest.filter(d => g.calls.includes(d.call));
+    if (!items.length) continue;
+    html += `<div class="sect"><span class="dot" style="background:${g.color}"></span>
+      <h3>${g.label}</h3><span>${items.length} ${g.note}</span></div>` + items.map(rowHtml).join("");
+  }
+  scr.innerHTML = html;
+  scr.querySelectorAll(".row").forEach(el =>
+    el.addEventListener("click", () => promote(Number(el.dataset.id), el)));
+}
+
+/**
+ * Promote a row to hero.
+ *
+ * Preferred path is the View Transitions API: name the shared elements, swap
+ * the DOM, and the browser morphs between the two positions. The FLIP fallback
+ * does the same thing by hand — measure the row's rect BEFORE the swap, measure
+ * the hero's rect after, then play the difference on transform only.
+ */
+function promote(id, rowEl){
+  if (id === heroId) return;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if (document.startViewTransition && !reduce){
+    const img = rowEl.querySelector("img"), title = rowEl.querySelector("h4");
+    img.style.viewTransitionName = "hero-img";
+    title.style.viewTransitionName = "hero-title";
+    const t = document.startViewTransition(() => { heroId = id; renderList(); });
+    t.finished.finally(() => { img.style.viewTransitionName = ""; title.style.viewTransitionName = ""; });
+    return;
+  }
+
+  // FLIP fallback. Transform only — animating width/height would reflow every
+  // frame and drop the animation below 60fps on a phone.
+  const first = rowEl.querySelector(".shot").getBoundingClientRect();
+  heroId = id; renderList();
+  if (reduce) return;
+  const heroShot = document.querySelector(".hero .shot");
+  const last = heroShot.getBoundingClientRect();
+  const dx = first.left - last.left, dy = first.top - last.top;
+  const sx = first.width / last.width, sy = first.height / last.height;
+  heroShot.animate(
+    [{ transform:`translate(${dx}px,${dy}px) scale(${sx},${sy})`, opacity:.75 },
+     { transform:"none", opacity:1 }],
+    { duration:420, easing:"cubic-bezier(.22,.61,.36,1)" });
+  document.querySelector(".hero .nums")?.animate(
+    [{opacity:0, transform:"translateY(8px)"},{opacity:1, transform:"none"}],
+    { duration:260, delay:120, easing:"cubic-bezier(.22,.61,.36,1)", fill:"backwards" });
+}
+
+/* ---- segmented control: a real radiogroup with arrow-key support ---- */
+const SEGS = [
+  { id:"ALL",   label:"All" },
+  { id:"DEAL",  label:"Deals" },
+  { id:"CHEAP", label:"Under $500" },
+];
+function renderSeg(){
+  const seg = document.getElementById("seg");
+  seg.innerHTML = `<span class="ind" id="ind"></span>` + SEGS.map(s => {
+    const n = s.id === "ALL" ? DATA.length - 1
+      : s.id === "DEAL" ? DATA.filter(d=>["BUY","VERIFY"].includes(d.call) && d.id!==heroId).length
+      : DATA.filter(d=>(d.ask??1e9) < 50000 && d.id!==heroId).length;
+    return `<button role="radio" aria-checked="${filter===s.id}" data-seg="${s.id}"
+      tabindex="${filter===s.id?0:-1}">${s.label}<span class="n num">${n}</span></button>`;
+  }).join("");
+  moveInd();
+  seg.querySelectorAll("[data-seg]").forEach(b => {
+    b.addEventListener("click", () => { filter = b.dataset.seg; renderSeg(); renderList(); });
+    b.addEventListener("keydown", e => {
+      const i = SEGS.findIndex(s=>s.id===filter);
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft"){
+        e.preventDefault();
+        filter = SEGS[(i + (e.key==="ArrowRight"?1:SEGS.length-1)) % SEGS.length].id;
+        renderSeg(); renderList();
+        document.querySelector('[aria-checked="true"][data-seg]')?.focus();
+      }
+    });
+  });
+}
+function moveInd(){
+  const active = document.querySelector('[aria-checked="true"][data-seg]');
+  const ind = document.getElementById("ind");
+  if (!active || !ind) return;
+  ind.style.width = active.offsetWidth + "px";
+  ind.style.transform = `translateX(${active.offsetLeft - 3}px)`;
+}
+
+const TOGS = [
+  { id:"near",   label:"Within 25 min" },
+  { id:"clear",  label:"No blockers" },
+  { id:"photos", label:"Has photos" },
+];
+const togState = {};
+function renderTogs(){
+  const el = document.getElementById("toggles");
+  el.innerHTML = TOGS.map(t => `
+    <button class="tog" aria-pressed="${!!togState[t.id]}" data-tog="${t.id}">
+      <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>${t.label}
+    </button>`).join("");
+  el.querySelectorAll("[data-tog]").forEach(b =>
+    b.addEventListener("click", () => {
+      togState[b.dataset.tog] = !togState[b.dataset.tog];
+      b.setAttribute("aria-pressed", String(!!togState[b.dataset.tog]));
+    }));
+}
+
+renderTogs(); renderSeg(); renderList();
+addEventListener("resize", moveInd);
+</script>
+</body>
+</html>

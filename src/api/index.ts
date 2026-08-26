@@ -261,6 +261,20 @@ app.get("/v1/feed", (c) => {
     FROM listings l
     JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
     WHERE v.call NOT IN ('OUT_OF_SCOPE')
+      /**
+       * NOTHING OLDER THAN 28 DAYS. Yish's rule, 2026-08-26: past a month a
+       * listing is either sold or was never a deal, and either way showing it
+       * spends the reader's attention on a dead end.
+       *
+       * Undated listings are KEPT. Facebook and the marketplaces do not always
+       * expose a post date, and dropping everything without one would silently
+       * delete whole SOURCES rather than stale rows.
+       *
+       * Measured when it shipped: 275 -> 200 locally, and on the production
+       * page five of the eight it removed were FAIR calls on listings 46 to
+       * 137 days old.
+       */
+      AND (l.posted_at IS NULL OR l.posted_at >= date('now', '-28 days'))
     ORDER BY l.posted_at DESC
     LIMIT 1200
   `).all() as any[];

@@ -7,9 +7,27 @@
     <title>Assyze — what a used tech listing is really worth</title>
     <meta name="description" content="Paste a listing. Find out what it's actually worth and what's wrong with it, before you drive." />
     <link rel="preconnect" href="https://images.craigslist.org" />
+
+    <!-- PWA. Chrome offers INSTALL only with a manifest AND a service worker
+         with a fetch handler, over HTTPS. Without both it downgrades to "Add
+         shortcut", which is what Assyze was doing. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Assyze" />
+    <meta name="mobile-web-app-capable" content="yes" />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Registered after load so it never competes with first paint.
+      if ("serviceWorker" in navigator) {
+        addEventListener("load", () =>
+          navigator.serviceWorker.register("/sw.js").catch(() => {}));
+      }
+    </script>
   </body>
 </html>
