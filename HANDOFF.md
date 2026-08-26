@@ -1224,6 +1224,68 @@ count contradicted the header. `offset` + `total` on the API, a **Show more**
 button in the web app. Ranking happens across the whole pool, so page 2 is the
 continuation of one ordered list rather than a second-best bucket.
 
+### The app shell — read this before touching any layout CSS
+
+**THERE IS NO FAKE PHONE FRAME AND THERE MUST NEVER BE ONE AGAIN.** A
+`.stage`/`.phone` pair used to draw a simulated iPhone at `min-width: 880px`
+with a "Shown at iPhone 16 size" hint. It was a desktop preview aid and it
+leaked onto real devices, causing three symptoms that all looked like separate
+bugs:
+
+- the document was WIDER than the viewport, so the page could only be scrolled
+  with two fingers and pinch-zoom stayed enabled;
+- the frame was a fixed-height box and `.tabs` was `position: absolute` inside
+  it, so the bottom nav rendered at the END OF THE SCROLL CONTENT — Deals /
+  Check / You were unreachable until you scrolled past 285 listings;
+- every measurement taken in a desktop browser looked correct, because at
+  desktop width the simulation is what you are supposed to see.
+
+`.app` is now a plain `max-width: 560px` centred column and `.topbar` is
+`position: sticky`. **Verify layout at 384x832, DPR 3, `isMobile: true`** — a
+1280px headless check cannot see any of the above.
+
+**There is no bottom nav.** Three tabs was one place and two actions: pasting a
+link is something you DO and a profile is not a destination you visit. Both are
+icon buttons in the top bar; the feed owns the screen.
+
+**The grid card radius is hard-coded 18px, on purpose.** It does not read
+`--r-lg`. It is deliberately rounder than Facebook Marketplace's ~8px and it is
+the single shape decision that makes the feed read as an app rather than a web
+grid, so it must not be able to change as a side effect of a token tweak
+somewhere else.
+
+**Stats are overlaid on the photo, not printed under it.** `.gshot::after` is a
+scrim over the LOWER 58% only — it exists to make the numbers legible, not to
+dim the product.
+
+**The clipboard is the primary action on Check.** `navigator.clipboard
+.readText()` behind "Paste link and check". You arrive there having just copied
+a link elsewhere; tap-hold-wait-Paste is four gestures for something the browser
+gives up in one. It throws when refused or unavailable, and the catch focuses
+the input — the old behaviour, never a dead button.
+
+**Supported sources are stated as chips before you paste.** `badUrl` accepts
+Craigslist only, so an OfferUp link used to come back as an error that read like
+the app was broken. When a source goes live, flip its chip in `App.tsx` AND
+`SUPPORTED` in `src/api/index.ts` together.
+
+#### A class rename that lands on one side is INVISIBLE
+
+The feed hero rendered with no card, border or radius for a full session. The
+JSX said `dealhero`; the CSS said `.fhero`. Every INNER class (`.hshot`,
+`.hover`, `.hprice`) still matched, so it did not look broken — it looked like a
+deliberately flat hero. Screenshots confirmed "the hero is there" while a
+`document.querySelector` check kept returning null, and the contradiction got
+written off as a hydration race. **Trust the selector, not the screenshot:** a
+partially-styled component is the failure mode a screenshot cannot show you.
+
+#### A disabled brand-fill button reads as BROKEN, not inactive
+
+`.cta:disabled { opacity: .4 }` over a solid orange fill is still obviously
+"the orange button", just dim — it reads as a button that failed rather than one
+waiting for input. Disabled drops the fill entirely and falls back to a bordered
+ghost.
+
 ---
 
 ## 12. Live traps
