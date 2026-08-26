@@ -83,6 +83,38 @@ const toggleWatch = (id: number): number[] => {
   return next;
 };
 
+/**
+ * Which checks we have already asked about, so nobody gets nagged twice.
+ *
+ * Stored separately from the history rather than as a flag on it: the history
+ * is capped at 30 and rolls, and an answer must survive its listing falling off
+ * the end or the same listing would come back around and ask again.
+ */
+const AKEY = "assyze:asked";
+const readAsked = (): number[] => { try { return JSON.parse(localStorage.getItem(AKEY) || "[]"); } catch { return []; } };
+const markAsked = (id: number) => {
+  const all = [id, ...readAsked().filter((x) => x !== id)].slice(0, 200);
+  localStorage.setItem(AKEY, JSON.stringify(all));
+};
+
+/**
+ * The oldest check we looked at more than a day ago and never asked about.
+ *
+ * **A DAY, not immediately.** Asking "did you buy it?" on the results screen
+ * gets you an answer about intent, not outcome — you have not driven anywhere
+ * yet. The whole value of this data is that it is what ACTUALLY happened, and
+ * that takes a day to become true.
+ *
+ * Oldest first, because the answer decays: what you did about a listing three
+ * days ago is still recoverable, three weeks is a guess.
+ */
+const DAY = 86_400_000;
+function pendingOutcome(hist: Hist[], asked: number[]): Hist | null {
+  const set = new Set(asked);
+  const ripe = hist.filter((h) => !set.has(h.id) && Date.now() - h.at > DAY);
+  return ripe.sort((a, b) => a.at - b.at)[0] ?? null;
+}
+
 /** Settings the user actually controls. Server-side economics stay server-side. */
 const SKEY = "assyze:settings";
 export interface Settings {
@@ -916,6 +948,59 @@ function Tabbar({ tab, go, savedCount }: { tab: Tab; go: (t: Tab) => void; saved
   );
 }
 
+/**
+ * "What happened with this one?"
+ *
+ * Outcomes are the only data in this product that nobody can copy: comps are
+ * scraped, listings are public, but what a real buyer DID about a specific
+ * verdict exists nowhere else. The buttons for recording it shipped a while
+ * ago and the table stayed empty for one reason — nothing ever asked.
+ *
+ * Four taps, no free text. An outcome you have to write a sentence about is an
+ * outcome nobody records.
+ *
+ * Dismissing counts as asked. Being shown the same question every launch until
+ * you answer is how a prompt becomes something people learn to close without
+ * reading, and then the honest answers stop too.
+ */
+function OutcomePrompt({ h, onDone }: { h: Hist; onDone: () => void }) {
+  const [sent, setSent] = useState<string | null>(null);
+
+  const send = (action: string, label: string) => {
+    setSent(label);
+    markAsked(h.id);
+    // Fire and forget: the answer is already recorded locally as asked, and
+    // making the user wait on a network round trip to dismiss a prompt is a
+    // good way to have them stop answering.
+    fetch(`/v1/checks/${h.id}/outcome`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action }),
+    }).catch(() => {});
+    setTimeout(onDone, 900);
+  };
+
+  if (sent) {
+    return <div className="ask done"><Check size={15} /> {sent}. Thanks — that trains the engine.</div>;
+  }
+
+  return (
+    <div className="ask">
+      <div className="askhead">
+        <b>What happened with this one?</b>
+        <button className="askx" onClick={() => { markAsked(h.id); onDone(); }} aria-label="Dismiss">×</button>
+      </div>
+      <span className="asktitle">{h.title}</span>
+      <div className="askrow">
+        <button onClick={() => send("bought", "Bought")}>I bought it</button>
+        <button onClick={() => send("passed", "Passed")}>Passed</button>
+        <button onClick={() => send("no_reply", "No reply")}>No reply</button>
+        <button onClick={() => send("gone", "Gone")}>Gone</button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const { path, go } = useRoute();
   const [tab, setTab] = useState<Tab>("deals");
@@ -933,6 +1018,7 @@ export default function App() {
   const [hist, setHist] = useState<Hist[]>(readHist);
   const [savedCount, setSavedCount] = useState(() => readWatch().length);
   const [settings, setSettings] = useState<Settings>(readSettings);
+  const [ask, setAsk] = useState<Hist | null>(() => pendingOutcome(readHist(), readAsked()));
   const es = useRef<EventSource | null>(null);
   const field = useRef<HTMLInputElement | null>(null);
 
@@ -953,6 +1039,36 @@ export default function App() {
     const next = { ...settings, ...patch };
     setSettings(next); writeSettings(next);
   };
+
+  /**
+   * ANDROID SHARE SHEET. The manifest registers `/share` as a share target, so
+   * Assyze appears in Chrome's Share menu on a Craigslist page and the whole
+   * copy-paste step disappears.
+   *
+   * **The link usually arrives in `text`, not `url`.** `url` is only populated
+   * when the sharing app explicitly marks a field as a URL; Chrome's page share
+   * hands over a `text` blob like "Listing title https://boston.craigslist.org/…",
+   * so reading `url` alone silently receives nothing on the most common path.
+   * Both are checked and a URL is extracted from anywhere in the string.
+   *
+   * The entry is replaced in history rather than pushed: `/share?...` is a
+   * one-shot delivery address, and leaving it in the stack means Back re-runs
+   * the check instead of leaving.
+   *
+   * iOS is NOT supported and cannot be — Web Share Target is Chromium-only and
+   * Safari has never shipped it. On iPhone the home-screen install works, the
+   * share sheet does not.
+   */
+  useEffect(() => {
+    if (path !== "/share") return;
+    const q = new URLSearchParams(location.search);
+    const blob = [q.get("url"), q.get("text"), q.get("title")].filter(Boolean).join(" ");
+    const found = blob.match(/https?:\/\/[^\s]+/)?.[0];
+    history.replaceState({}, "", "/");
+    if (found) runUrl(found);
+    else { setTab("check"); setError("That share didn't contain a link. Copy the listing URL and paste it instead."); }
+    // Fires once per delivery; `runUrl` is stable enough for this one-shot.
+  }, [path]);
 
   useEffect(() => {
     const m = path.match(/^\/c\/(\d+)$/);
@@ -1085,6 +1201,9 @@ export default function App() {
                   <h1>Worth driving for</h1>
                   <p>Only listings the engine actually verified. Newest and best first.</p>
                 </div>
+                {settings.askOutcomes && ask && (
+                  <OutcomePrompt h={ask} onDone={() => setAsk(null)} />
+                )}
                 <Feed onOpen={(id) => { setTab("check"); go(`/c/${id}`); }}
                   onWatchChange={setSavedCount} />
               </>

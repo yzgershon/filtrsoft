@@ -956,3 +956,33 @@ a { color: inherit; }
   border: 1px solid var(--line); background: var(--surface-2);
   color: var(--ink-2); font-size: 12.5px; font-weight: 600;
 }
+
+/* ============================================================ ask outcome */
+.ask {
+  margin-bottom: var(--s4); padding: var(--s3) var(--s4) var(--s4);
+  border-radius: var(--r-lg);
+  border: 1px solid color-mix(in srgb, var(--brand) 32%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 10%, transparent), transparent 70%), var(--surface);
+}
+.askhead { display: flex; align-items: center; gap: var(--s2); }
+.askhead b { flex: 1; font-size: 14.5px; font-weight: 680; }
+.askx {
+  flex: none; width: 26px; height: 26px; border-radius: 8px; border: 0;
+  background: none; color: var(--ink-3); font-size: 19px; line-height: 1;
+}
+.asktitle {
+  display: block; margin: 3px 0 var(--s3);
+  color: var(--ink-2); font-size: 12.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.askrow { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.askrow button {
+  min-height: 40px; border-radius: 10px; font-size: 13.5px; font-weight: 600;
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-1);
+}
+.askrow button:active { transform: scale(.97); }
+.ask.done {
+  display: flex; align-items: center; gap: 7px;
+  color: var(--buy); font-size: 13.5px; font-weight: 600;
+  padding: var(--s4);
+}
