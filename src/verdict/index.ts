@@ -287,11 +287,31 @@ export function buildVerdict(input: {
    * Real tech, wrong market — checked BEFORE the SKU lookup, because the
    * failure to find a SKU is the expected outcome, not a problem to report.
    */
-  if (!match.skuId && NOT_OUR_MARKET.test(input.title)) {
+  /**
+   * ⚠ THE HEAD NOUN DECIDES, NOT A SUBSTRING MATCH.
+   *
+   * `NOT_OUR_MARKET` used to run straight over the raw title, so ANY mention
+   * of a peripheral rejected the whole listing. "iMac 21.5, i5, 8gb, 1tb,
+   * Catalina OS, keyboard and mouse" came back as OUT_OF_SCOPE with the
+   * reasoning "that reads as keyboard gear" — a computer thrown away because
+   * the seller listed what came in the box.
+   *
+   * That is not an edge case. "Comes with keyboard and mouse", "includes
+   * monitor", "with headset" are among the most common things a Craigslist
+   * computer listing says, and every one of them was being discarded.
+   *
+   * `resolveProductType` already solves this properly — it finds the HEAD noun
+   * and reports `bundle listing led by "imac"`. The verdict layer simply was
+   * not asking it. Now the regex only gets to reject when the head noun really
+   * is an accessory, which is the same lesson as the `\blaptop\b` vs "laptops"
+   * bug already recorded in this file.
+   */
+  const head = resolveProductType(input.title, input.description ?? "");
+  if (!match.skuId && NOT_OUR_MARKET.test(head.head)) {
     return {
       ...base, call: "OUT_OF_SCOPE", confidence: "high",
       headline: "Not a category Assyze covers.",
-      reasoning: `That reads as ${input.title.match(NOT_OUR_MARKET)?.[0]?.toLowerCase() ?? "peripheral"} gear. Assyze covers phones, laptops, GPUs, consoles, tablets and PC components — the things with deep enough sold-comp data to price confidently. There are no comps here because nobody has ever asked for any.`,
+      reasoning: `That reads as ${head.head.toLowerCase()} gear. Assyze covers phones, laptops, GPUs, consoles, tablets and PC components — the things with deep enough sold-comp data to price confidently. There are no comps here because nobody has ever asked for any.`,
     };
   }
 
