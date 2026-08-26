@@ -709,56 +709,70 @@ DRAM-less and TLC vs QLC for SSDs, 80+ tier and modularity for PSUs. The
 
 ---
 
-## 11f. assyze.com is NOT serving — diagnosed 2026-08-25, needs a dashboard click
+## 11f. assyze.com — the TXT verify record was copied TRUNCATED
 
-**The live app is `https://assyze-production.up.railway.app`** (health 200,
-engine 0.3.0, serves the frontend). **DNS points somewhere else.**
+**Root cause, 2026-08-25: the `_railway-verify` TXT value in Namecheap ends
+with a literal ellipsis.** It is the truncated string Railway's "Configure DNS
+Records" modal DISPLAYS, copied verbatim including the `…` the UI adds to show
+the value was cut off.
 
-| Check | Result |
-|---|---|
-| `assyze.com` A record | `69.46.46.22` — Railway's edge |
-| `www.assyze.com` CNAME | `n3reqlxc.up.railway.app` |
-| `https://n3reqlxc.up.railway.app` | **404 `Application not found`** from `railway-hikari` |
-| `http://assyze.com` (port 80) | 301 to https — the edge DOES answer |
-| `https://assyze.com` | TLS fails, `SEC_E_WRONG_PRINCIPAL` |
-| cert served for `assyze.com` | `CN=*.up.railway.app` |
+    stored:  railway-verify=a05568e0d5fb544fb073a78d0778cb…
+                                                          ^ not a hex digit
 
-**Root cause: `assyze.com` is not registered as a custom domain on the Railway
-service.** Pointing DNS at Railway is not enough and this is the part that
-looks like it should work — the edge answers on port 80 and redirects, which
-reads like the site is nearly up. On 443 Railway has no certificate for that
-hostname, because it only requests a Let's Encrypt cert for a domain you have
-ADDED in Settings -> Networking. The wildcard it falls back to covers
-`*.up.railway.app` and nothing else, which is the wrong-principal error.
+Railway therefore never verifies the domain, never requests a Let's Encrypt
+certificate, and the dashboard sits on *"Waiting for DNS update"* with a green
+tick on the CNAME row and a warning on the TXT row. On :443 the edge falls back
+to its own `CN=*.up.railway.app` wildcard, which does not cover `assyze.com` —
+that is the `SEC_E_WRONG_PRINCIPAL` error.
 
-`n3reqlxc.up.railway.app` returning "Application not found" says that target is
-stale — it belongs to a service or domain that no longer exists, so the DNS is
-aimed at a dead address as well.
+**Fix: paste the COMPLETE token.** Use the copy control in the Railway modal
+rather than selecting the visible text, then replace the Namecheap TXT value.
+Everything else is already correct.
 
-**The fix, in order:**
-1. Railway -> the assyze service -> **Settings -> Networking -> Custom Domain**
-   -> add `assyze.com`, then add `www.assyze.com`. Copy the CNAME target
-   Railway shows for each; it will NOT be `n3reqlxc`.
-2. Namecheap -> Advanced DNS: point `www` at that target with a CNAME, and the
-   apex with an **ALIAS record** (a CNAME at the apex is invalid DNS; Namecheap
-   BasicDNS supports ALIAS). Remove the stale `n3reqlxc` record.
-3. Wait for Railway to show the domain as verified — the certificate is issued
-   only after it validates, and until then 443 keeps failing.
+### CORRECTION: `n3reqlxc.up.railway.app` is NOT stale
 
-### Production is running on an EMPTY archive
+An earlier entry here said that target was dead because it returns 404
+`Application not found`. **That was wrong, and the mistake is worth keeping.**
+Railway's edge routes by HOST HEADER, so requesting the bare CNAME target has
+no app bound to it and 404s BY DESIGN. With the right Host it routes fine:
 
-Found while checking the health endpoint, and it is worse than the domain:
+    curl -H "Host: assyze.com" http://n3reqlxc.up.railway.app/v1/health   -> 301
+
+So the CNAME target was correct the whole time. Do not "fix" the DNS target.
+
+### Verified good, so do not touch these
+
+| Record | Value | State |
+|---|---|---|
+| ALIAS `@` | `n3reqlxc.up.railway.app.` | resolves to `69.46.46.22` |
+| CNAME `www` | `n3reqlxc.up.railway.app.` | resolves |
+| CAA | none | nothing blocking cert issuance |
+
+`assyze.com` correctly uses an **ALIAS** at the apex — a CNAME there is invalid
+DNS and Namecheap's ALIAS is the right instrument.
+
+### Production is running on an EMPTY archive — worse than the domain
+
+Found while checking the health endpoint:
 
     {"ok":true,"engine":"0.3.0","db":"ok","comps":0,"skus":62, ...}
 
 **Zero comps and 62 SKUs**, against 6,169 comps and 221 SKUs locally. Every
-verdict in production is INSUFFICIENT_DATA by construction. The volume has
-never received the archive. Fixing the domain would publish an engine that
-cannot price anything, so this is the more urgent of the two.
+verdict in production is INSUFFICIENT_DATA by construction — the volume has
+never received the archive. Fixing the domain publishes an engine that cannot
+price anything, so do this first.
 
 **Vision IS configured in production** — `visionEnabled: true`,
-`tokenRequired: false`, `$2/day` budget, `claude-haiku-4-5`. The Anthropic key
-reached Railway, so the old "set `ASSYZE_VISION_TOKEN`" item is DONE.
+`tokenRequired: false`, `$2/day`, `claude-haiku-4-5`. The Anthropic key reached
+Railway, so the old "set `ASSYZE_VISION_TOKEN`" item is DONE.
+
+### `www` will not work on the current plan
+
+The Networking page reads *"You have hit the custom domain limit for your
+plan"* with one custom domain used. Railway treats `www.assyze.com` as a
+SECOND custom domain, so the `www` CNAME resolves but Railway will not serve
+it — no binding, no certificate. Apex-only until the plan changes. The record
+is harmless to leave in place for later.
 
 ---
 
