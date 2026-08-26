@@ -16,6 +16,7 @@ import { serveStatic } from "hono/bun";
 import { existsSync } from "node:fs";
 import { checkListing, checkStored, ENGINE_VERSION, type Stage } from "../engine/index.ts";
 import { handlePush } from "./push.ts";
+import { handleDeletionChallenge, handleDeletionNotice, deletionEndpoint, deletionConfigured } from "./ebay-deletion.ts";
 import { getEconomics } from "../valuation/index.ts";
 import { db, DB_PATH } from "../db/index.ts";
 import { VISION_MODEL, visionConfigured } from "../vision/index.ts";
@@ -129,6 +130,12 @@ app.get("/v1/health", (c) => {
     engine: ENGINE_VERSION,
     ...stats,
     vision: { configured: visionConfigured(), model: VISION_MODEL, ...guardStatus() },
+    /**
+     * Reports WHETHER the eBay verification token is set, never its value.
+     * Without this the only way to know production has it is to make eBay
+     * fail the challenge, which disables the keyset again.
+     */
+    ebay: { deletionEndpoint: deletionEndpoint(), deletionConfigured: deletionConfigured() },
   });
 });
 
@@ -237,6 +244,14 @@ app.get("/v1/checks/stream", (c) => {
  * re-scores everything it receives with its own engine — see `push.ts`.
  */
 app.post("/v1/push", handlePush);
+
+/**
+ * eBay requires these two before it will ENABLE a production keyset. See
+ * `ebay-deletion.ts` — until they answer, every token request returns
+ * `invalid_client` and looks like bad credentials.
+ */
+app.get("/v1/ebay/deletion", handleDeletionChallenge);
+app.post("/v1/ebay/deletion", handleDeletionNotice);
 
 /**
  * One-tap outcomes — Codex's highest-leverage small feature, and the one that
