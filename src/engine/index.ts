@@ -335,5 +335,12 @@ export function checkStored(
  * 0.3.3 — title-first category, unknown=out-of-scope, Apple M5, feed paging.
  * 0.3.4 — archive import runs unconditionally so catalog rows reach prod.
  * 0.3.5 — laptop-before-prebuilt, bare i7 counts, monitors/bulk out of scope.
+ * 0.3.6 — storage extraction no longer reads RAM as the drive capacity.
+ *
+ * 0.3.6 is also the reminder that this list is not a changelog. The storage
+ * fix shipped WITHOUT a bump and production kept serving the old verdicts,
+ * because reverdictStale found nothing stale — the stored rows already claimed
+ * the current version. Exactly the failure this constant was made load-bearing
+ * to prevent, two days after writing that down.
  */
-export const ENGINE_VERSION = "0.3.5";
+export const ENGINE_VERSION = "0.3.6";
