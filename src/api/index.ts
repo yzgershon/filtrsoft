@@ -26,6 +26,7 @@ import {
 } from "./billing.ts";
 import { getEconomics } from "../valuation/index.ts";
 import { db, DB_PATH } from "../db/index.ts";
+import { archiveStatus } from "../db/archive.ts";
 import { VISION_MODEL, visionConfigured } from "../vision/index.ts";
 import {
   rateLimit, clientKey, visionAllowed, visionKilled, budgetAvailable,
@@ -144,6 +145,12 @@ app.get("/v1/health", (c) => {
      */
     ebay: { deletionEndpoint: deletionEndpoint(), deletionConfigured: deletionConfigured() },
     push: { configured: pushConfigured() },
+    /**
+     * What the SHIPPED archive holds, vs what the database holds. If
+     * `archive.comps` exceeds `comps`, the file arrived and the import did not
+     * run — which is invisible any other way.
+     */
+    archive: archiveStatus(),
     billing: { enabled: billingEnabled() },
   });
 });

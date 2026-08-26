@@ -245,9 +245,39 @@ export function importArchive(a: Archive): ImportResult {
  * passed happily while the engine could not price a single listing. The thing
  * worth checking is the thing that was missing.
  */
+/**
+ * Is the archive actually IN the image, and what does it hold?
+ *
+ * Added because production sat at 13,981 comps across three successful
+ * deploys while the committed archive held 15,294, and NOTHING said why. A
+ * missing archive file and a fully-imported one both leave
+ * importArchiveIfThin returning null with no log line, so from the outside
+ * they are identical — and the whole point of this mechanism is that it is
+ * the only route the comps archive has to production.
+ *
+ * Reported on /v1/health so the next person can tell "the file never shipped"
+ * from "the file shipped and had nothing new" without reading container logs.
+ */
+export function archiveStatus(): {
+  present: boolean; path: string; comps: number; skus: number; exportedAt: string | null;
+} {
+  const a = readArchive();
+  return {
+    present: Boolean(a),
+    path: ARCHIVE_PATH,
+    comps: a?.comps.length ?? 0,
+    skus: a?.skus.length ?? 0,
+    exportedAt: a?.exportedAt ?? null,
+  };
+}
+
 export function importArchiveIfThin(): ImportResult | null {
   const a = readArchive();
-  if (!a) return null;
+  if (!a) {
+    // Never silent. This is the ONLY path the comps archive has to production.
+    console.error(`archive MISSING at ${ARCHIVE_PATH} — production cannot receive comps`);
+    return null;
+  }
 
   /**
    * ALWAYS import. The old gate was `comps >= archive.comps * 0.9`, and it
