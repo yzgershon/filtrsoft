@@ -26,7 +26,10 @@
     "ebay:login": "bun run src/scripts/ebay-login.ts",
     "ebay:comps": "bun run src/scripts/ebay-comps.ts",
     "retail": "bun run src/scripts/retail.ts",
-    "archive": "bun run src/scripts/archive.ts"
+    "archive": "bun run src/scripts/archive.ts",
+    "push": "bun run src/scripts/push.ts",
+    "ou:crawl": "bun run src/scripts/marketplace-crawl.ts --source offerup",
+    "mc:crawl": "bun run src/scripts/marketplace-crawl.ts --source mercari"
   },
   "devDependencies": {
     "@types/bun": "latest",

@@ -15,6 +15,7 @@ import { cors } from "hono/cors";
 import { serveStatic } from "hono/bun";
 import { existsSync } from "node:fs";
 import { checkListing, ENGINE_VERSION, type Stage } from "../engine/index.ts";
+import { handlePush } from "./push.ts";
 import { getEconomics } from "../valuation/index.ts";
 import { db, DB_PATH } from "../db/index.ts";
 import { VISION_MODEL, visionConfigured } from "../vision/index.ts";
@@ -228,6 +229,15 @@ app.get("/v1/checks/stream", (c) => {
  * Ranking is the thing no competitor can do: they filter by keyword and price
  * because they have no verdict to sort by.
  */
+/**
+ * Locally-crawled listings arriving from Yish's machine.
+ *
+ * Facebook (and any other source needing a signed-in browser) cannot run in
+ * the container, so it runs on his laptop and pushes the FACTS here. The server
+ * re-scores everything it receives with its own engine — see `push.ts`.
+ */
+app.post("/v1/push", handlePush);
+
 app.get("/v1/feed", (c) => {
   const call = c.req.query("call");           // optional filter
   const cat = c.req.query("category");

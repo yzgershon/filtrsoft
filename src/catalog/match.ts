@@ -52,8 +52,26 @@ export function extractAttributes(text: string): Record<string, string | number>
 
   // Storage: prefer an explicit drive mention; otherwise take the largest GB
   // figure that isn't already claimed by RAM or VRAM.
+  /**
+   * THE DRIVE-WORD LOOKAHEAD MUST NOT REACH PAST ANOTHER CAPACITY.
+   *
+   * `(?=[^.]{0,14}...ssd...)` let the RAM figure claim the drive word sitting
+   * behind the real storage figure, because 14 characters is exactly enough to
+   * step over one. Every one of these was wrong:
+   *
+   *     "Dell XPS 16GB RAM 512GB SSD"        -> storage 16
+   *     "MacBook Air M3 8GB 256GB SSD"       -> storage 8
+   *     "Gaming PC 32GB DDR5 1TB NVMe"       -> storage 32
+   *
+   * `valueSku` filters comps by storage tier, so this was quietly pricing
+   * laptops against the wrong capacity band. The added negative lookahead
+   * rejects a candidate when ANOTHER capacity figure sits between it and the
+   * drive word — which is precisely the "RAM then storage" shape.
+   */
   const explicit = t.match(/\bstorage\s*[:=]\s*(\d{1,4})\s?(gb|tb)\b/)
-    ?? t.match(/\b(\d{1,4})\s?(gb|tb)\b(?=[^.]{0,14}\b(?:ssd|hdd|nvme|storage|drive|flash)\b)/);
+    ?? t.match(
+      /\b(\d{1,4})\s?(gb|tb)\b(?![^.]{0,14}\b\d{1,4}\s?(?:gb|tb)\b)(?=[^.]{0,14}\b(?:ssd|hdd|nvme|storage|drive|flash)\b)/,
+    );
   if (explicit) {
     a.storage_gb = explicit[2] === "tb" ? Number(explicit[1]) * 1024 : Number(explicit[1]);
   } else {
