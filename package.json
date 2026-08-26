@@ -30,7 +30,8 @@
     "push": "bun run src/scripts/push.ts",
     "ou:crawl": "bun run src/scripts/marketplace-crawl.ts --source offerup",
     "mc:crawl": "bun run src/scripts/marketplace-crawl.ts --source mercari",
-    "ebay:auth": "bun run src/scripts/ebay-auth.ts"
+    "ebay:auth": "bun run src/scripts/ebay-auth.ts",
+    "ebay:search": "bun run src/scripts/ebay-search.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
