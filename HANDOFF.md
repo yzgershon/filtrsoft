@@ -1288,6 +1288,135 @@ ghost.
 
 ---
 
+## 11i. The tracker, alerts, billing — shipped 2026-08-26
+
+### The sweep now RUNS. It never did before.
+
+`sweep` was written, worked, had a script, and nothing in the container ever
+called it, so the feed had never once checked whether its listings were still
+up. Now on its own 24h chain (`startSweepLoop`) with a `sweeping` flag separate
+from `running`, so a sweep and a crawl overlap without delaying each other.
+First run at +10min; probes capped at `ASSYZE_SWEEP_PROBE` (60) so the first
+production sweep does not fire hundreds of requests in one burst.
+
+**Delisted listings are hidden from the feed by default**, `?gone=1` shows them.
+They rank last rather than being deleted, because "sold in 4 days at $650" is
+the clearing evidence the outcome loop is built on.
+
+#### ⚠ `listing_prices` was NOT a history, and the drop read as zero
+
+The move branch only writes on a CHANGE; the baseline branch only fires when a
+listing had no price at all. So a listing captured at $1,800 and cut to $1,500
+held ONE row, containing $1,500 — and `MIN(observed_at)` returned the CURRENT
+price, giving a drop of zero. That is why the feed showed no price moves on the
+day a sweep reported four. Sweep now seeds `(asking_price_cents, captured_at)`
+where no row exists at or before capture: idempotent, backfills, and it is a
+real observation rather than an invented one. Seeded 492 locally.
+
+#### ⚠⚠ ZERO IS "NO PRICE SHOWN", NEVER A PRICE
+
+A search card whose price fails to parse yields 0 and the guard only tested for
+`null`, so two listings had a real `$145 -> $0` history — a 100% discount that
+would have been the top-ranked deal on the site. Same family as the "missing
+asking price became zero" trap. Guarded at the source AND in the feed. A drop
+must clear **$5 and 3%** to be badged; below that it is a seller rounding their
+own number, and badging it trains people to ignore the badge.
+
+### The app shell has a bottom toolbar again
+
+Removing it was wrong. The bug was `position: absolute` inside the fake phone
+frame, which put it at the end of the scroll content. It is `position: fixed`
+with `env(safe-area-inset-bottom)` now, `.scroll` reserves its height, and
+there are four real destinations: Deals / Check / Saved / You. **Settings is
+NOT a tab** — twice-a-year screen, and it would cost the room Saved needs.
+
+**`.gcard` is a DIV, not a button.** It contains a save button, and a button
+inside a button is invalid HTML that browsers "fix" by hoisting the inner one
+out, detaching the tap target. `.gopen` fills the card; `.gsave` sits on top.
+
+### Watchlist stores IDS, never listings
+
+`/v1/watchlist?ids=` re-reads current state every visit. Storing a copy would
+freeze the price at save time, which defeats the point — you save something to
+be told when it CHANGES. localStorage means no account; ids the server no
+longer resolves are pruned or the count drifts from the screen forever.
+
+### Alerts: the push subscription IS the account
+
+`src/api/alerts.ts`. VAPID + `web-push`. Rules, each one a way the feature gets
+itself switched off:
+
+- **Only listings captured AFTER the search was saved.** Matching the backlog
+  sends fifteen notifications for week-old listings.
+- **Every query word must appear**, not any. "rtx 4090" on "rtx" alone returns
+  every GPU on the site.
+- **A listing with no price never satisfies "under $1,400."**
+- `alert_sent` is a real table: a re-verdict bumps a listing without changing
+  its id, so "already sent" cannot be inferred from timestamps.
+- Alerts run right after the crawl, not on a timer — the whole value is latency.
+
+#### ⚠ TWO kinds of dead subscription
+
+404/410 is the push service. But a bad `p256dh` fails while web-push is
+ENCRYPTING, before any HTTP request, so there is **no status code** and the row
+survives to be retried every crawl forever. Both are dropped now. Verified
+against a real FCM 410.
+
+`applicationServerKey` needs raw BYTES, not the base64 string — the string
+fails with an opaque `InvalidCharacterError`.
+
+### Billing is BUILT AND OFF
+
+`src/api/billing.ts`. `billingEnabled()` is false until `STRIPE_PRICE_ID` is
+set; every endpoint 503s and the UI shows the free plan. The Phase 3 gate is
+"10 payers, >=3% conversion" and there are no users — a paywall in front of an
+audience of one costs the only thing that matters. Flipping it on is one env
+var.
+
+**No card details ever reach this server** (hosted Checkout). **The webhook is
+the ONLY thing that grants access** — `?paid=1` is a hint to refresh, never
+proof, which is the most common way a checkout integration gives the product
+away. Signature verification needs the RAW body; re-serialised JSON breaks it
+and the usual "fix" is to skip verification, which makes the endpoint a free
+subscription generator. Verified both ways: forged event -> 400 and no
+entitlement, HMAC-signed -> 200 and active.
+
+Subscription id is stored on the way in because `customer.subscription.*` carry
+no `client_reference_id`, so without it a cancellation can never be matched and
+access is never revoked.
+
+### Share target — ANDROID ONLY
+
+`share_target` in the manifest -> `/share`. **The link arrives in `text`, not
+`url`**, on the most common path (Chrome's page share sends a text blob), so
+all three params are joined and a URL extracted from anywhere in the string.
+History is REPLACED, or Back re-runs the check. **iOS cannot do this** — Web
+Share Target is Chromium-only and Safari has never shipped it.
+
+### eBay is now a SOURCE
+
+`src/sources/ebay-source.ts`, Browse API, `bun run ebay:search "rtx 4090"`.
+Asking prices on active listings — never comps. Marked `basis: ebay` because
+eBay-to-eBay pays fees on BOTH ends.
+
+#### ⚠ `conditions:` IS SILENTLY IGNORED — use `conditionIds:`
+
+The `conditions` filter takes a fixed enum (USED_EXCELLENT, USED_VERY_GOOD, …).
+The obvious `conditions:{USED|VERY_GOOD|GOOD|ACCEPTABLE}` is not rejected, it is
+IGNORED — the request succeeds unfiltered. A live search returned a $1,453 NEW
+card and a $465 open-box one, i.e. retail inventory in an arbitrage feed. Now
+`conditionIds:{3000|4000|5000|6000}`; 1000 (New) and 1500 (Open box) are
+deliberately absent. FIXED_PRICE only — an auction's current bid is not a price
+you can buy at.
+
+### Environment variables added
+
+    VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT   push alerts
+    STRIPE_SECRET_KEY / STRIPE_PRICE_ID / STRIPE_WEBHOOK_SECRET   billing (off)
+    ASSYZE_SWEEP=off · ASSYZE_SWEEP_INTERVAL_MS · ASSYZE_SWEEP_PROBE
+
+---
+
 ## 12. Live traps
 
 ### ⚠⚠ NEVER pool a category to measure a ratio — Simpson's paradox
