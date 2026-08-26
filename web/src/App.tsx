@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { Scan, Clock, User, Alert, Check, Info, Link, Again, Eye, Shield, Tag, Ghost } from "./icons.tsx";
+import { Scan, Clock, User, Alert, Check, Info, Link, Again, Eye, Shield, Tag, Ghost, Clip } from "./icons.tsx";
 
 // ---------------------------------------------------------------- types
 type Call = "BUY" | "FAIR" | "PASS" | "VERIFY" | "RISK" | "INSUFFICIENT_DATA" | "OUT_OF_SCOPE";
@@ -221,26 +221,37 @@ function Feed({ onOpen }: { onOpen: (id: number) => void }) {
             return (
               <div key={g.label}>
                 <SectionHead tone={g.tone} label={g.label} note={`${list.length} ${g.note}`} />
-                <div className="feed">
+                {/**
+                  * TWO-UP GRID. Yish's call, from Facebook Marketplace: twice
+                  * the listings on screen for the same scrolling, and on a feed
+                  * where ~2% are actionable that is the difference between
+                  * skimming and hunting.
+                  *
+                  * The money sits ON the photo, not beside it. A card this
+                  * narrow cannot afford a separate price column without
+                  * squeezing the title to nothing, and a price over its own
+                  * product reads faster than a price in a column anyway.
+                  */}
+                <div className="grid">
                   {list.map((i) => (
-                    <button className="deal" key={i.id}
+                    <button className="gcard" key={i.id}
                       aria-label={`Show ${i.title} at the top`}
                       onClick={(e) => promote(i.id, e.currentTarget)}>
-                      {i.thumb
-                        ? <img src={i.thumb} alt="" loading="lazy" width={78} height={78} />
-                        : <span className="noimg"><Ghost size={20} /></span>}
-                      <span className="dbody">
-                        <span className={`dcall b-${i.call}`}>{LABEL[i.call]}</span>
-                        <b>{i.title}</b>
-                        <span className="dmeta">
-                          <span className="dloc">{[i.location, ago(i.postedAt)].filter(Boolean).join(" · ")}</span>
+                      <span className="gshot">
+                        {i.thumb
+                          ? <img src={i.thumb} alt="" loading="lazy" />
+                          : <span className="noimg"><Ghost size={22} /></span>}
+                        <span className={`gcall b-${i.call}`}>{LABEL[i.call]}</span>
+                        <span className="gstats">
+                          <span className="num gprice">{money(i.askingPriceCents)}</span>
+                          {i.netProfitCents && i.netProfitCents > 0
+                            ? <span className="num gnet">+{money(i.netProfitCents)}</span>
+                            : null}
                         </span>
                       </span>
-                      <span className="dend">
-                        <span className="num dprice">{money(i.askingPriceCents)}</span>
-                        {i.netProfitCents && i.netProfitCents > 0
-                          ? <span className="num dnet">+{money(i.netProfitCents)}</span>
-                          : <span className="num dnet z">—</span>}
+                      <span className="gbody">
+                        <b>{i.title}</b>
+                        <span className="gloc">{[i.location, ago(i.postedAt)].filter(Boolean).join(" \u00b7 ")}</span>
                       </span>
                     </button>
                   ))}
@@ -709,6 +720,7 @@ export default function App() {
   const [checkId, setCheckId] = useState<number | null>(null);
   const [hist, setHist] = useState<Hist[]>(readHist);
   const es = useRef<EventSource | null>(null);
+  const field = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const m = path.match(/^\/c\/(\d+)$/);
@@ -731,9 +743,34 @@ export default function App() {
 
   function run(e?: React.FormEvent) {
     e?.preventDefault();
-    const u = url.trim();
+    runUrl(url);
+  }
+
+  /**
+   * Reading the clipboard IS the primary action on a phone.
+   *
+   * You arrive here having just copied a link in another app. Making you tap the
+   * field, long-press, wait for the bubble and hit Paste is four gestures for
+   * something the browser will hand over in one. `readText()` prompts once on
+   * Android Chrome and is remembered; if it is refused or unavailable we fall
+   * back to focusing the input, which is exactly the old behaviour.
+   */
+  async function pasteAndCheck() {
+    setError(null);
+    try {
+      const t = (await navigator.clipboard.readText()).trim();
+      if (!t) { setError("Clipboard is empty. Copy a listing link first."); return; }
+      runUrl(t);
+    } catch {
+      setError("Couldn't read the clipboard. Paste the link into the box instead.");
+      field.current?.focus();
+    }
+  }
+
+  function runUrl(raw: string) {
+    const u = raw.trim();
     if (!u || busy) return;
-    reset(); setBusy(true); setTab("check");
+    reset(); setUrl(u); setBusy(true); setTab("check");
 
     const src = new EventSource(`/v1/checks/stream?url=${encodeURIComponent(u)}`);
     es.current = src;
@@ -778,27 +815,43 @@ export default function App() {
   const fresh = !listing && !busy;
 
   return (
-    <div className="stage">
-      <div className="phone">
-        <div className="app">
-          <header className="topbar">
-            <div className="brand">ass<span>yze</span></div>
-            <div className="spacer" />
-            {checkId && (
-              <button className="iconbtn" aria-label="Copy link to this verdict"
-                onClick={() => navigator.clipboard.writeText(`${location.origin}/c/${checkId}`)}>
-                <Link size={18} />
-              </button>
-            )}
-            {listing && (
-              <button className="iconbtn" aria-label="Check another listing"
-                onClick={() => { reset(); setUrl(""); go("/"); }}>
-                <Again size={18} />
-              </button>
-            )}
-          </header>
+    <div className="app">
+      {/**
+        * TOP BAR OWNS EVERY ACTION. There is no bottom nav.
+        *
+        * The old one was `position: absolute` inside a fixed-height fake phone,
+        * so on a real device it sat at the bottom of the SCROLL CONTENT — you
+        * could only reach Deals/Check/You by scrolling to the end of a
+        * 285-listing feed. A nav you have to scroll to is not navigation.
+        *
+        * It also did not deserve three tabs. Pasting a link is an action, not a
+        * place, and a profile is not a destination you visit — both are icons
+        * here, and the feed gets the entire screen.
+        */}
+      <header className="topbar">
+        <button className="brand" onClick={() => { setTab("deals"); reset(); setUrl(""); go("/"); }}
+          aria-label="Assyze home">ass<span>yze</span></button>
+        <div className="spacer" />
 
-          <main className="scroll">
+        {checkId && (
+          <button className="iconbtn" aria-label="Copy link to this verdict"
+            onClick={() => navigator.clipboard.writeText(`${location.origin}/c/${checkId}`)}>
+            <Link size={19} />
+          </button>
+        )}
+        <button className={`iconbtn ${tab === "check" && !listing ? "on" : ""}`}
+          aria-label="Check a listing link" aria-pressed={tab === "check" && !listing}
+          onClick={() => { reset(); setUrl(""); setTab("check"); go("/"); }}>
+          <Scan size={19} />
+        </button>
+        <button className={`iconbtn ${tab === "you" ? "on" : ""}`}
+          aria-label="Your settings" aria-pressed={tab === "you"}
+          onClick={() => { reset(); setTab(tab === "you" ? "deals" : "you"); go("/"); }}>
+          <User size={19} />
+        </button>
+      </header>
+
+      <main className="scroll">
             {tab === "deals" && !listing && (
               <>
                 <div className="feedhead">
@@ -811,10 +864,20 @@ export default function App() {
 
             {(tab === "check" || (tab === "deals" && listing)) && (
               <>
+                {/**
+                  * An APP screen, not a landing page.
+                  *
+                  * This was a 34px marketing headline over three value-prop rows
+                  * — copy written to convince a stranger to try the product,
+                  * shown to someone who has already installed it. Inside the app
+                  * the only question is "what do I do here", so the title states
+                  * the task, the clipboard button IS the task, and the pitch is
+                  * demoted to a compact "what you get" list.
+                  */}
                 {fresh && !error && (
-                  <div className="hero">
-                    <h1>Know what it's<br />really worth <span className="under">before you drive.</span></h1>
-                    <p>Paste a listing. We read the photos and the fine print, then tell you straight.</p>
+                  <div className="checkhead">
+                    <h1>Check a listing</h1>
+                    <p>Paste a link and get a real number before you drive.</p>
                   </div>
                 )}
 
@@ -828,21 +891,48 @@ export default function App() {
                   * view.
                   */}
                 {!listing && (
-                  <form className="field" onSubmit={run}>
-                    <input
-                      value={url} onChange={(e) => setUrl(e.target.value)}
-                      placeholder="Paste a listing link" inputMode="url"
-                      autoCapitalize="off" autoCorrect="off" spellCheck={false}
-                      aria-label="Listing URL"
-                    />
-                    <button className="cta" disabled={busy || !url.trim()}>
-                      {busy ? "…" : "Check"}
+                  <>
+                    <button className="paste" onClick={pasteAndCheck} disabled={busy}>
+                      <Clip size={18} />
+                      {busy ? "Checking…" : "Paste link and check"}
                     </button>
-                  </form>
+
+                    <div className="ordiv"><span>or type it</span></div>
+
+                    <form className="field" onSubmit={run}>
+                      <input
+                        ref={field}
+                        value={url} onChange={(e) => setUrl(e.target.value)}
+                        placeholder="https://boston.craigslist.org/…" inputMode="url"
+                        autoCapitalize="off" autoCorrect="off" spellCheck={false}
+                        aria-label="Listing URL"
+                      />
+                      <button className="cta" disabled={busy || !url.trim()}>
+                        {busy ? "…" : "Check"}
+                      </button>
+                    </form>
+                  </>
                 )}
 
-                {fresh && !error && <div className="micro">Craigslist for now. Facebook Marketplace next.</div>}
                 {error && <div className="alert" role="alert">{error}</div>}
+
+                {/**
+                  * Sources are stated UP FRONT rather than as an error.
+                  *
+                  * Pasting an OfferUp link used to look like the app was broken.
+                  * `badUrl` accepts Craigslist only, so the screen says so before
+                  * you spend a paste on it — and the greyed chips are also the
+                  * roadmap, which is honest about what is coming.
+                  */}
+                {fresh && !error && (
+                  <div className="srcs">
+                    <span className="lbl">Works with</span>
+                    <span className="chip on">Craigslist</span>
+                    <span className="chip">Facebook<i>soon</i></span>
+                    <span className="chip">OfferUp<i>soon</i></span>
+                    <span className="chip">Mercari<i>soon</i></span>
+                  </div>
+                )}
 
                 {fresh && !error && (
                   <div className="pitch">
@@ -856,7 +946,7 @@ export default function App() {
                     </div>
                     <div className="row">
                       <span className="ic"><Eye /></span>
-                      <div><b>When we don't know</b><span>Everyone else always gives you a number. A confident wrong answer is worse than none.</span></div>
+                      <div><b>When we don't know</b><span>A confident wrong answer is worse than none, so we say so.</span></div>
                     </div>
                   </div>
                 )}
@@ -879,38 +969,70 @@ export default function App() {
               </>
             )}
 
-            {tab === "you" && (
-              <section className="sec">
-                <h4>Your numbers</h4>
-                <div className="panel">
-                  <div className="kv"><div className="k">Won't leave home for less than</div><div className="v num">$100</div></div>
-                  <div className="kv"><div className="k">Your time is worth</div><div className="v num">$125/hr</div></div>
-                  <div className="kv"><div className="k">Based in</div><div className="v">Newton, MA</div></div>
-                  <div className="kv"><div className="k">Prefer to resell on</div><div className="v">Facebook</div></div>
-                </div>
-                <p style={{ color: "var(--ink-3)", fontSize: 13, marginTop: 12, lineHeight: 1.5 }}>
-                  Every verdict is calculated against these. The same listing is a buy for one
-                  person and a pass for another — editing these is coming.
-                </p>
-              </section>
-            )}
+            {tab === "you" && <You hist={hist} onOpen={(id) => go(`/c/${id}`)} />}
           </main>
-
-          <nav className="tabs">
-            <button className="tab" aria-current={tab === "deals" ? "page" : undefined}
-              onClick={() => { setTab("deals"); reset(); go("/"); }}>
-              <Tag size={21} /> Deals
-            </button>
-            <button className="tab" aria-current={tab === "check" ? "page" : undefined} onClick={() => setTab("check")}>
-              <Scan size={21} /> Check
-            </button>
-            <button className="tab" aria-current={tab === "you" ? "page" : undefined} onClick={() => setTab("you")}>
-              <User size={21} /> You
-            </button>
-          </nav>
-        </div>
-      </div>
-      <div className="deskhint">Shown at iPhone 16 size. Open on a phone for the real thing.</div>
     </div>
   );
 }
+
+/**
+ * The You screen.
+ *
+ * It was four rows of a key/value table with a paragraph under it — the same
+ * treatment a debug dump gets. These numbers are the ones every verdict on the
+ * site is computed against, so they are worth stating as a claim rather than a
+ * spec sheet.
+ *
+ * History lives here too. It was rendered on the Check screen where it competed
+ * with the paste box; this is where you go to find something you already looked
+ * at.
+ */
+function You({ hist, onOpen }: { hist: Hist[]; onOpen: (id: number) => void }) {
+  const ECON = [
+    { k: "Won't leave home for less than", v: "$100", why: "Below this, the drive costs more than the flip makes." },
+    { k: "Your time is worth", v: "$125/hr", why: "Used to price the round trip into every verdict." },
+    { k: "Based in", v: "Newton, MA", why: "Drive time is measured from here." },
+    { k: "Prefer to resell on", v: "Facebook", why: "No fees and no shipping, so local nets more." },
+  ];
+
+  return (
+    <>
+      <div className="youhead">
+        <div className="youav" aria-hidden="true"><User size={22} /></div>
+        <div>
+          <h2>Your numbers</h2>
+          <p>Every verdict is computed against these. The same listing is a buy
+             for one person and a pass for another.</p>
+        </div>
+      </div>
+
+      <div className="econ">
+        {ECON.map((e) => (
+          <div className="econrow" key={e.k}>
+            <div className="econk">
+              <b>{e.k}</b>
+              <span>{e.why}</span>
+            </div>
+            <div className="econv num">{e.v}</div>
+          </div>
+        ))}
+      </div>
+      <p className="soon">Editing these is coming.</p>
+
+      {hist.length > 0 && (
+        <section className="sec">
+          <h4>Recently checked <em>({hist.length})</em></h4>
+          <div className="histlist">
+            {hist.slice(0, 12).map((h) => (
+              <button className="histrow" key={h.id} onClick={() => onOpen(h.id)}>
+                <span className={`dcall b-${h.call}`}>{LABEL[h.call]}</span>
+                <span className="histtitle">{h.title}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
+

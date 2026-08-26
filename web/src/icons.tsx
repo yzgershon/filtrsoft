@@ -53,3 +53,7 @@ export const Tag = ({ size = 18, className }: P) =>
 
 export const Ghost = ({ size = 40, className }: P) =>
   svg(size, <><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" /><path d="M8 12h8" /></>, className);
+
+/** Clipboard — the paste-and-check action on the Check screen. */
+export const Clip = ({ size = 22, className }: P) =>
+  svg(size, <><rect x="8" y="3" width="8" height="4" rx="1.5" /><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2" /><path d="M9 13h6M9 17h4" /></>, className);
