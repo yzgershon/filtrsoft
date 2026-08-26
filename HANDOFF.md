@@ -3,7 +3,7 @@
 **Master plan AND current state. Update before you stop working.** A stale line
 here is worse than a missing one, because a fresh session will believe it.
 
-Last updated **2026-08-25**.
+Last updated **2026-08-26**.
 
 ---
 
@@ -29,22 +29,44 @@ components. **Out:** furniture, accessories, cameras.
 
 ---
 
-## 2. Current state — 2026-08-25
+## 2. Current state — 2026-08-26
+
+**assyze.com is LIVE and pricing real listings.** `https://assyze.com` — use it
+everywhere; `assyze-production.up.railway.app` is a debugging fallback, never
+the address of the product.
 
 ```
-listings   366    (341 craigslist · 25 facebook)
-skus       220    (120 laptop · 45 phone · 21 gpu · 14 component · 12 console · 8 prebuilt)
-comps     6169    ALL REAL, from eBay sold listings. 89 SKUs covered.
-                  The 80 hand-typed provisional rows are DELETED.
-verdicts   255 INSUFFICIENT_DATA · 54 OUT_OF_SCOPE · 43 PASS · 7 VERIFY
-           6 FAIR · 1 RISK
+listings   430 local  (345 craigslist · 62 facebook · 13 offerup · 10 mercari)
+           ~1,025 in production, which crawls Craigslist on its own
+skus       291    (173 laptop · 45 phone · 27 component · 24 gpu · 12 console · 10 prebuilt)
+comps    13,981   ALL REAL, from eBay sold listings. 227 of 291 SKUs covered.
+verdicts   181 INSUFFICIENT_DATA · 164 OUT_OF_SCOPE · 69 PASS · 11 FAIR
+           2 BUY · 2 VERIFY · 1 RISK
 judgments   79  (69 original + 10 re-reviewed WITH the comps visible)
 outcomes     3  (observed, from delistings)
-retail          9 SKUs with a corroborated ceiling, across 3 retailers
-                (newegg · microcenter · bestbuy). Every one agrees with the
-                archive: used median at 53-93% of new.
+retail      35 quotes across 3 retailers (newegg · microcenter · bestbuy),
+                per board tier. Every ceiling agrees with the archive.
 vision spend to date: $0.055
 ```
+
+### The 2026-08-26 session, in one table
+
+Yish went through the live feed and found four wrong answers in about a minute.
+Diagnosing them turned into the largest correctness pass so far.
+
+| | before | after |
+|---|---|---|
+| comps | 6,247 | **13,981** |
+| SKUs | 224 | **291** |
+| SKUs with comps | 91 | **227** |
+| INSUFFICIENT_DATA | 425 | **181** |
+| OUT_OF_SCOPE | 54 | **164** |
+| PASS | 35 | **69** |
+| FAIR | 4 | **11** |
+
+**The engine version went 0.3.0 -> 0.3.7 in one day.** Every bump is a
+behaviour change that production re-scored itself for; the list in
+`engine/index.ts` is the changelog.
 
 ### The eval set has two generations — `score` uses the newer one
 
@@ -83,6 +105,10 @@ bun run retail [--skus N] [--sku "RTX 5070"] [--source newegg] [--replay]
 bun run archive [--check|--import]
                                   ship the comps archive to production
 bun run catalog:derive [--min N] [--apply]    dry run by default
+
+bun run ou:crawl --query "graphics card"      OfferUp   (local basis)
+bun run mc:crawl --query "rtx 4070"           Mercari   (eBay basis)
+bun run push --source facebook                local crawl -> assyze.com
 
 bun run check <url>               one listing, staged timings
 bun run verdict                   re-score every stored listing
@@ -173,6 +199,59 @@ headed + sold filter      redirected to "Sign in or Register"
 ```
 So: **headed, warmed, and signed in.** Warming is not superstition — going
 straight to a search URL on a cold profile is what triggered the challenge.
+
+---
+
+### OfferUp — `src/sources/marketplace.ts` + `browser/marketplace-worker.mjs`
+### Mercari — same files
+
+**Both are USED markets, closer to eBay than to Craigslist.** Yish's
+correction, 2026-08-25, and `BASIS` encodes it:
+
+- **Mercari** is national, shipped, ~10% seller fee -> **eBay-basis**. Running
+  its prices through the local discount takes ~15% off a number that already
+  has eBay economics in it. That double-discount read the NZXT build at $890
+  against a real $1,375.
+- **OfferUp** is mostly local pickup but has shipped listings, so basis is
+  decided **per listing** from what the card says, not per source.
+
+Neither needs a login to browse, which is why they can eventually run in the
+container — unlike Facebook. Both render client side, so they are browser-driven.
+
+**Two parser bugs, each of which made a full page look EMPTY:**
+
+- **OfferUp URLs are `/item/detail/<uuid>`.** A pattern of
+  `/(item|p)/([A-Za-z0-9_-]+)` captured the literal string `"detail"` for every
+  card — one shared id, 54 of 55 deduped away, reported as *"70 links -> 1
+  card"*. The id is the LAST path segment.
+- **Cards are PIPE-separated, not newline-separated**:
+  `White Custom Gaming PC Build | $1,400 | Salem, MA`. Splitting on newlines
+  left the whole card as one line, so the price was never isolated and the
+  longest-line title rule returned the entire string.
+
+    bun run ou:crawl --query "graphics card"
+    bun run mc:crawl --query "rtx 4070"
+
+### Facebook reaches production by PUSH — `POST /v1/push`
+
+**Facebook cannot run in the container and that is architectural.** It needs a
+logged-in Chrome profile Yish signs into by hand, and session cookies do not go
+into a server image. So it crawls locally and pushes.
+
+    bun run fb:crawl --query "rtx 4070"     # local, real browser
+    bun run push --source facebook          # -> assyze.com
+
+**The push carries FACTS ONLY — never verdicts.** The server re-scores
+everything on arrival. If clients sent verdicts, the feed would mix calls from
+whatever engine version happened to be on a laptop, and `reverdictStale` could
+never correct them because they would already claim the current version. Facts
+are portable; judgements are not.
+
+Auth is `ASSYZE_PUSH_TOKEN`, set in BOTH the local `.env` and Railway
+Variables. **Without it on the server the endpoint refuses every request** — an
+unauthenticated write path into a deals feed lets anyone put anything in front
+of a buyer. A re-push UPDATES rather than skips, because that is how a price
+drop arrives, and a price drop is the most actionable event in the system.
 
 ---
 
@@ -934,6 +1013,219 @@ is harmless to leave in place for later.
 
 ---
 
+## 11g. The 2026-08-26 correctness pass — every bug the LIVE FEED found
+
+**None of these were visible before the feed had real listings in it.** Yish
+opened the "can't tell" verdicts, found four wrong answers in a minute, and
+diagnosing them exposed several more. Counting outputs is not reading them.
+
+### The matcher was blind to single characters
+
+`matchSku` filtered model tokens with `w.length > 1`, dropping the single most
+discriminating token a model name can carry. `norm("Switch 2")` splits to
+`["switch", "2"]`, the `2` was filtered out, and the SKU was left with **no
+discriminators at all** — so the generation guard sitting directly above it
+silently did nothing for any model whose generation is one character:
+
+    "Sony PlayStation 4 console"  -> priced as PlayStation 5
+    "Sony PlayStation 3 slim"     -> priced as PlayStation 5 Slim
+    "Xbox One S console"          -> priced as Xbox One X
+    "D-Link Ethernet Switch"      -> priced as Nintendo Switch 2, $311 net on
+                                     a $5 network switch
+
+A single character in a MODEL name is now a discriminator, **digit or letter** —
+model names are curated catalog data where a lone character is never noise and
+is usually the whole distinction.
+
+### Variants gate the MATCHER now, not just the comps
+
+`n.includes(alias)` is a substring test, so **"ASUS TUF RTX 5070 Ti" matched the
+plain RTX 5070 SKU at HIGH confidence** and was priced ~40% under what a Ti is
+worth — turning a good listing into a PASS. `compMatchesQuery` had guarded the
+COMPS against this for weeks; the matcher never learned it, and the
+longest-alias rule cannot help when the more specific SKU **does not exist in
+the catalog at all**, which is exactly when being wrong is most expensive.
+
+**Both paths check it.** Guarding only the alias path moved the bug: the Ti fell
+through to token matching, scored 1.0 against the plain 5070, and came back
+MEDIUM — which `valueSku` prices, since only `low` is refused.
+
+`variantPattern` now lives in **`src/signals/variants.ts`**. It was in
+`sources/ebay.ts`, and the catalog must not depend on a source.
+
+### The title decides the category; the description only breaks ties
+
+    "NVIDIA GeForce RTX 4090 Founders Edition 24GB GDDR6X Graphics Card"
+    -> category `prebuilt` -> "Can't be valued — cpu not stated."
+
+The seller had pasted NVIDIA's own marketing copy into the description
+("ultra-high performance gaming", "gamers and creators"), which trips the
+prebuilt pattern. **Assyze asked a graphics card which CPU it had.** That
+listing is a BUY at $653 net; the bug was hiding it.
+
+### `laptop` runs BEFORE `prebuilt`
+
+They are both whole machines, so the machines-before-parts ordering never
+applied between them — and prebuilt's vocabulary swallows portable hardware.
+**31 laptops were being priced as desktops**: "Dell 5540 Mobile Workstations
+8-Core i9", "Lenovo P50 Mobile Workstation", "Dell Precision 7510 Workstation
+Laptop". A mobile workstation is a laptop. `all-in-one` also needs a computer
+word nearby, because "PRINTER HP ENVY 6055E---Wireless All In One" was a
+prebuilt asked for its GPU.
+
+### A bare "i7" is a stated CPU
+
+"Lenovo P50 Mobile Workstation. Windows 10 Pro, i7, 32GB RAM" came back "cpu not
+stated" with the CPU in the middle of the title. It is a weak spec, but the
+field asks whether the seller SAID it — and the comp spread already expresses
+the uncertainty.
+
+### RAM was being read as STORAGE
+
+The drive-word lookahead let the RAM figure claim the drive word sitting behind
+the real storage figure. Fourteen characters is exactly enough to step over one:
+
+    "Dell XPS 16GB RAM 512GB SSD"   -> storage 16
+    "MacBook Air M3 8GB 256GB SSD"  -> storage 8
+    "Gaming PC 32GB DDR5 1TB NVMe"  -> storage 32
+
+`valueSku` filters comps by storage tier, so this quietly priced laptops and
+phones against the wrong capacity band.
+
+### `unknown` is OUT OF SCOPE, and so are monitors and bulk listings
+
+An **autographed Aaron Rodgers jersey** reached the deals feed reading
+*"Couldn't identify the exact model"*. A jersey has no model. `inScope()`
+already existed and already returned false for it — `buildVerdict` just never
+called it.
+
+**46 monitors, TVs, routers and hard drives** said the same thing. They are
+genuinely tech, so the grammar layer correctly called them tech and they fell
+through to a failure message. A 24-inch Asus monitor is not something Assyze
+covers and never will be: there are no comps because nobody ever asked for any.
+`NOT_OUR_MARKET` says so plainly. `BULK_LISTING` catches inventory dumps
+("24 Computers, Printers, Monitors left starting at just $30").
+
+### COUNTERFEITS — checked FIRST, before anything can price them
+
+*"Apple iPhone 15 Pro Max 1TB CLONE Unlocked"* at $99 read as **VERIFY with $433
+of net profit**. Every layer downstream did its job correctly on the assumption
+the thing was real: the matcher resolved a genuine SKU, the comps were genuine
+1TB comps, the margin genuinely was enormous.
+
+Nothing later in `buildVerdict` can undo that, because the rest of that function
+reasons about PRICE. A counterfeit is not mispriced — it is a different object,
+worth nothing to resell at any price, and reselling one is fraud. **There is no
+asking price at which the answer changes, which is what makes it a blocker
+rather than a discount.** So it is settled before valuation, alongside
+out-of-scope.
+
+Matched on the **title only**: a description reading "genuine, not a clone" or
+"beware of clones on here" is a seller distinguishing themselves FROM one, and
+reading that as a confession punishes the honest listing. `refurbished` and
+`aftermarket battery` are deliberately absent — a repaired real phone is a real
+phone.
+
+### The scam signals the RTX 5090 exposed
+
+A $2,500 Gigabyte RTX 5090 at 59% of market, in Nonantum, returned **zero
+flags**. Three separate failures:
+
+1. **The Craigslist parser dropped BARE attributes.** It required a `labl`
+   span, and flag attributes render with no label — so `cryptocurrency ok` and
+   `delivery available`, the two strongest signals on the page, were discarded
+   as structured data Craigslist hands us for free.
+2. **`analyze()` never read attributes at all**, only title and description.
+3. **`IRREVERSIBLE_RAILS` had no crypto** — it listed Zelle, Venmo, Cash App
+   and wire, but not the one rail that is untraceable as well as irreversible.
+
+Added `SHIPS_ON_LOCAL_MARKET`: a pickup-market listing offering to ship, gated
+at $400+. Not a veto on its own — some genuine sellers ship — but next to crypto
+and a price far below market it is the whole pattern in one post.
+
+**That card was never found on Facebook Marketplace** (two searches). The only
+5090 results were people BUYING at $4,450-4,500 — nearly double what this seller
+was asking, ten minutes from him.
+
+---
+
+## 11h. Production runs itself — crawl loop, re-verdict, archive
+
+### `ENGINE_VERSION` IS LOAD-BEARING. BUMP IT ON ANY BEHAVIOUR CHANGE.
+
+The matcher fix deployed cleanly and **the bad rows stayed on the live feed**,
+because the feed reads STORED verdicts and the crawler skips listings it has
+already seen. Shipping an engine fix changed nothing a user could see.
+
+`reverdictStale` in `api/scheduler.ts` compares `verdicts.engine_version`
+against `ENGINE_VERSION` on every crawl tick and re-scores anything older.
+**Forgetting the bump is now the way a fix silently fails to reach users** — and
+it happened again the same day, on the storage fix, which is why 0.3.6 exists.
+
+It DRAINS the backlog rather than nibbling: 400 per tick was fine during
+backfill (3-minute ticks) and useless in steady mode (45-minute ticks), where a
+945-listing backlog took over two hours.
+
+### The crawl loop — `src/api/scheduler.ts`
+
+assyze.com served **three Craigslist listings, all 2+ weeks old, `lastCrawl:
+null`** — `crawl` is a CLI script and nothing in the container ever called it.
+Fixing the comps archive gave the engine the ability to price and nothing to
+price. Same bug, one layer up.
+
+- **Backfill mode.** Under 400 listings: 4x the limit every 3 minutes. Above:
+  40 every 45. The first crawl found 1,376 live Craigslist listings in 2
+  seconds.
+- **A self-rescheduling chain, NOT `setInterval`** — the delay is decided AFTER
+  each run so backfill can switch back, and the next run is scheduled from the
+  END of the last, so a slow crawl cannot stack up behind itself.
+- **`maxVision: 0`.** The guard is $2/day and an unattended loop is exactly how
+  that gets spent on listings nobody asked about.
+- **Never throws.** An unhandled rejection would take down the server.
+
+### The comps archive ships as a COMMITTED FILE
+
+Production ran for weeks reporting `comps: 0, skus: 62` — live, healthy, serving
+the frontend, returning INSUFFICIENT_DATA for **every single listing**. The boot
+seed fires only when `skus == 0` and plants only the hardcoded catalog, so the
+empty-database check passed happily forever.
+
+`data/archive.json.gz` is committed and imported on boot.
+
+    bun run archive           export local -> data/archive.json.gz
+    bun run archive --check   what the committed archive holds
+    bun run archive --import  merge it into THIS database
+
+**It imports UNCONDITIONALLY.** The old gate was `comps >= archive.comps * 0.9`
+and it silently blocked everything that was not a comp: `MacBook Air M5` was
+added, exported, deployed — and production kept answering "Couldn't identify the
+exact model", because its comp count already matched. SKUs, aliases and retail
+quotes were riding on a comp-count check that had nothing to do with them.
+
+**SKU ids are REMAPPED, never carried.** Local and production `skus.id` are
+independent autoincrements seeded in different orders, so copying `comps.sku_id`
+verbatim would file thousands of comps against the WRONG products — silently,
+with confident wrong medians as the only symptom. Comps reference their SKU by
+`category|brand|model`.
+
+**THE ARCHIVE DRIFTS and `bun run stats` says so.** Production prices off the
+committed file, not your local database, so every comps pull widens the gap.
+
+### `/v1/health` means something now
+
+`ok` is computed from `canPrice` (comps > 0 && skus > 0) rather than the literal
+`true`. A probe that cannot tell "working" from "structurally unable to answer"
+is a ping, not a health check.
+
+### The feed pages
+
+It served 40 of 425 with no pager, so the rest was unreachable and the on-screen
+count contradicted the header. `offset` + `total` on the API, a **Show more**
+button in the web app. Ranking happens across the whole pool, so page 2 is the
+continuation of one ordered list rather than a second-best bucket.
+
+---
+
 ## 12. Live traps
 
 ### ⚠⚠ NEVER pool a category to measure a ratio — Simpson's paradox
@@ -1191,36 +1483,58 @@ P1-5 (asking price -> 0), P1-1 (stale vision cache).
 
 ## 15. Next actions
 
-1. **OfferUp / Mercari sources.** The last two channels Yish asked for. The
-   two-runtime Playwright pattern from Facebook and Best Buy carries over.
+**Yish's stated order, 2026-08-26: UI and the Codex-audit features are next.**
+Everything below the line is engine work he has already asked to be deferred
+until after that.
 
-   **These are USED markets, closer to eBay than to the delisting tracker** —
-   Yish's correction, 2026-08-25, and an earlier draft of this line had it
-   wrong. Mercari is national, shipped and takes ~10%, so its prices are
-   eBay-basis and must NOT be discounted again by `netByChannel`. OfferUp is
-   mixed: mostly local pickup, but it has shipped listings too, so `PriceBasis`
-   has to be decided per LISTING there, not per source. Getting that wrong is
-   the double-discount bug that made the NZXT build read $890 instead of
-   $1,375.
-2. **Phone comps are the open valuation dispute.** iPhone 15 128GB and iPhone
+1. **UI + the features Codex flagged.** His words: *"after all of that we will
+   focus on UI and features such as the ones that Codex pointed out."* See
+   section 14 for the audit status.
+
+---
+
+2. **Keep filling the comps queue.** 64 SKUs still have zero comps.
+   `bun run ebay:comps --skus 10` orders itself worst-first; ten batches is
+   about thirty minutes and moved INSUFFICIENT_DATA from 425 to 181 in one
+   session. **Re-export the archive afterwards or production stays behind** —
+   `bun run stats` reports the drift.
+
+3. **The remaining INSUFFICIENT_DATA is mostly real coverage now**, not bugs.
+   The composition after the 2026-08-26 pass: unmatched laptops (Latitudes,
+   Chromebooks, Inspirons the catalog lacks) and custom builds whose CPU is
+   named only as "Ryzen 5" with no part number. `bun run catalog:derive
+   --apply` mines new SKUs from observed listings and added 67 last run.
+
+4. **Retail coverage is GPU-heavy.** Newegg and Micro Center are shipped and
+   cover gpu/component well. Phones and laptops have no usable ceiling — Best
+   Buy sells carrier phones on financing only, and neither of the other two
+   sells phones at all. Walmart is the obvious next source. **Yish ruled out
+   Apple deliberately on 2026-08-25.**
+
+5. **Phone comps are the open valuation dispute.** iPhone 15 128GB and iPhone
    16 Pro Max are the two remaining eval disagreements and Yish reads the
-   medians as low. **Best Buy cannot referee this one** — it stopped selling
-   carrier iPhones outright — so it needs better comps or `bun run outcomes`.
-3. **Write tests.** Still none. Start with `product-type`, `condition`, the
-   eBay parsers and `parseBestBuy` — all pure, all currently verified only by
-   hand, and `docs/testset/retail-lines.json` is already a ready-made fixture.
-4. **Re-export the archive after every comps pull.** `bun run archive`, commit,
-   push. `bun run stats` reports the drift; production prices off the committed
-   file, not your local database.
-5. **Run `bun run sweep` daily.** Every day it does not run is clearing-price
+   medians as low. Retail cannot referee this one, so it needs better comps or
+   `bun run outcomes`.
+
+6. **eBay as a SOURCE, not just a comp feed.** Yish raised it 2026-08-25: good
+   deals exist there if you are alerted the moment they post. **It changes the
+   margin math** — eBay-to-eBay means fees on both ends, so it needs a
+   different basis from local arbitrage. Alerts come after the UI, his call.
+
+7. **Write tests.** Still none, and this session shipped seven engine versions
+   in a day. Start with `product-type`, `condition`, `matchSku`, the eBay
+   parsers, `parseBestBuy` and `parseCards` — all pure, all currently verified
+   only by hand, and `docs/testset/*-lines.json` are ready-made fixtures.
+
+8. **Run `bun run sweep` daily.** Every day it does not run is clearing-price
    history nobody can refetch.
-6. **Retail coverage is GPU-heavy.** Newegg and Micro Center are shipped and
-   cover gpu/component well. The phone and laptop SKUs still have no usable
-   ceiling — Best Buy sells carrier phones on financing only, and neither of
-   the new two sells phones at all. Walmart is the obvious next source for
-   unlocked phones; Yish ruled out Apple deliberately on 2026-08-25.
-7. **Surface `retail` and `riskChecks` in the web API.** Both are carried on
-   the verdict and rendered by `bun run review`, but neither reaches the site.
+
+9. **`/v1/checks` still only accepts Craigslist URLs.** Facebook, OfferUp and
+   Mercari need a browser to fetch a single listing, so the paste-a-link box
+   cannot serve them the way the crawlers do. `badUrl` says so honestly.
+
+10. **`retail` and `riskChecks` do not reach the web API.** Both are carried on
+    the verdict and rendered by `bun run review`, but the site never sees them.
 
 ---
 
