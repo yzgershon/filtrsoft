@@ -430,10 +430,36 @@ export function valueByParts(attributes: Record<string, string | number>): Parts
    *
    * A component's price cannot depend on which code path asked for it.
    */
+  /**
+   * ⚠ SEPARATORS ARE NOISE IN A PART NUMBER, AND EXACT MATCH TREATED THEM AS
+   * MEANING.
+   *
+   * The catalog stores CPUs hyphenated (`i7-9700`) because that is how Intel
+   * writes them. Sellers do not: "GAMING PC: I7 10700 / RTX 2080" is a real
+   * Facebook title, and extraction faithfully returns `i7 10700` with a space.
+   * `LOWER(model) = LOWER(q)` then misses — **even when the catalog has the
+   * part.** Proven directly: `i7-9700` FOUND, `i7 9700` MISS, same row.
+   *
+   * The same bug runs the other way for GPUs, where sellers close the gap
+   * instead of opening it: `rtx3070` was extracted from a live listing and the
+   * catalog's "RTX 3070" never matched it.
+   *
+   * So: exact match first, then a separator-insensitive retry. Stripping
+   * spaces and hyphens does NOT collapse distinct parts — "rtx 4070" becomes
+   * `rtx4070` and "rtx 4070 ti" becomes `rtx4070ti`, which stay different — so
+   * this recovers real misses without inventing matches.
+   */
   const lookup = (q: string, category: string) => {
-    const row = db()
+    const flat = (s: string) => s.toLowerCase().replace(/[\s-]/g, "");
+    const row = (db()
       .query(`SELECT id FROM skus WHERE LOWER(model) = LOWER($q) LIMIT 1`)
-      .get({ $q: q }) as { id: number } | null;
+      .get({ $q: q })
+      ?? db()
+        .query(
+          `SELECT id FROM skus
+           WHERE REPLACE(REPLACE(LOWER(model), ' ', ''), '-', '') = $f LIMIT 1`,
+        )
+        .get({ $f: flat(q) })) as { id: number } | null;
     if (!row) return { skuId: null, medianCents: null, compCount: 0 };
     const v = valueSku(row.id, { condition: "used", category });
     return { skuId: row.id, medianCents: v.medianCents, compCount: v.compCount };

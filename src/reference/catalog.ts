@@ -86,6 +86,41 @@ export const CATALOG: SeedSku[] = [
   { category: "gpu", brand: "NVIDIA", model: "RTX 3050", attributes: { vram: 8 }, liquidity: "slow" },
   { category: "gpu", brand: "NVIDIA", model: "GTX 1080", attributes: { miningEra: true }, liquidity: "slow" },
 
+  /**
+   * The gaps that made "Custom build — not enough component comps" the fourth
+   * most common refusal, added 2026-08-26.
+   *
+   * The catalog jumped 3080 -> 4060 -> 4090 with no Ti tiers and almost no AMD,
+   * so a build led by an RTX 2080 or a 3060 Ti could not be priced at all — the
+   * GPU is 42% of a gaming build's value, so missing it drops coverage below
+   * the gate on its own and the whole machine returns "can't tell".
+   *
+   * A Ti/Super is a SEPARATE SKU, never an alias of the base card: a 4070 Ti
+   * and a 4070 are hundreds of dollars apart, and aliasing them would put that
+   * error straight into a median. `matchSku` already treats a digit-bearing
+   * token as a discriminator, and "Ti"/"Super" are handled by `variantPattern`.
+   */
+  { category: "gpu", brand: "NVIDIA", model: "RTX 5070 Ti", attributes: { vram: 16 }, liquidity: "hot" },
+  { category: "gpu", brand: "NVIDIA", model: "RTX 4080", attributes: { vram: 16 }, liquidity: "hot" },
+  { category: "gpu", brand: "NVIDIA", model: "RTX 4070 Ti", attributes: { vram: 12 }, liquidity: "hot" },
+  { category: "gpu", brand: "NVIDIA", model: "RTX 4060 Ti", attributes: { vram: 8 }, liquidity: "normal" },
+  { category: "gpu", brand: "NVIDIA", model: "RTX 3090", attributes: { vram: 24, miningEra: true }, liquidity: "normal" },
+  { category: "gpu", brand: "NVIDIA", model: "RTX 3060 Ti", attributes: { vram: 8, miningEra: true }, liquidity: "normal" },
+  { category: "gpu", brand: "NVIDIA", model: "RTX 2080 Ti", attributes: { vram: 11, miningEra: true }, liquidity: "normal" },
+  { category: "gpu", brand: "NVIDIA", model: "RTX 2080", attributes: { vram: 8, miningEra: true }, liquidity: "normal" },
+  { category: "gpu", brand: "NVIDIA", model: "GTX 1660 Super", attributes: {}, liquidity: "slow" },
+  { category: "gpu", brand: "NVIDIA", model: "GTX 1650 Super", attributes: {}, liquidity: "slow" },
+  { category: "gpu", brand: "NVIDIA", model: "GTX 1070", attributes: { miningEra: true }, liquidity: "slow" },
+  { category: "gpu", brand: "NVIDIA", model: "GTX 1060", attributes: { miningEra: true }, liquidity: "slow" },
+
+  // AMD was one card. Radeon is a real share of the used market.
+  { category: "gpu", brand: "AMD", model: "RX 7900 XTX", attributes: { vram: 24 }, liquidity: "normal" },
+  { category: "gpu", brand: "AMD", model: "RX 7800 XT", attributes: { vram: 16 }, liquidity: "normal" },
+  { category: "gpu", brand: "AMD", model: "RX 6800 XT", attributes: { vram: 16, miningEra: true }, liquidity: "normal" },
+  { category: "gpu", brand: "AMD", model: "RX 6750 XT", attributes: { vram: 12, miningEra: true }, liquidity: "slow" },
+  { category: "gpu", brand: "AMD", model: "RX 6600", attributes: { vram: 8, miningEra: true }, liquidity: "slow" },
+  { category: "gpu", brand: "AMD", model: "RX 5700 XT", attributes: { vram: 8, miningEra: true }, liquidity: "slow" },
+
   // Display-less compute cards. Not GPUs for any normal buyer.
   { category: "gpu", brand: "NVIDIA", model: "Tesla (datacenter)", attributes: { noDisplayOutput: true, passiveCooling: true }, liquidity: "dead",
     aliases: ["tesla p100", "tesla v100", "tesla k80", "tesla m40", "tesla p40"] },
