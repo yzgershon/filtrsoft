@@ -56,16 +56,37 @@ function useRoute() {
   };
 }
 
+const PAGE = 60;
+
 function Feed({ onOpen }: { onOpen: (id: number) => void }) {
   const [items, setItems] = useState<FeedItem[] | null>(null);
   const [filter, setFilter] = useState<Call | "ALL">("ALL");
   const [counts, setCounts] = useState<Record<string, number>>({});
+  /**
+   * `total` is what the API found AFTER filtering, not what fits on screen.
+   *
+   * This page fetched a hard-coded 60 and had no way to ask for more, so on a
+   * 425-listing feed the other 365 were unreachable and the count on screen
+   * disagreed with the count in the header. Adding `offset` to the API was only
+   * half the fix — nothing was calling it.
+   */
+  const [total, setTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  useEffect(() => {
-    fetch("/v1/feed?limit=60").then((r) => r.json()).then((d) => {
-      setItems(d.items ?? []); setCounts(d.counts ?? {});
-    }).catch(() => setItems([]));
+  const load = useCallback((offset: number) => {
+    setLoadingMore(offset > 0);
+    return fetch(`/v1/feed?limit=${PAGE}&offset=${offset}`)
+      .then((r) => r.json())
+      .then((d) => {
+        setItems((prev) => (offset === 0 ? (d.items ?? []) : [...(prev ?? []), ...(d.items ?? [])]));
+        setCounts(d.counts ?? {});
+        setTotal(d.total ?? 0);
+      })
+      .catch(() => setItems((prev) => prev ?? []))
+      .finally(() => setLoadingMore(false));
   }, []);
+
+  useEffect(() => { void load(0); }, [load]);
 
   if (!items) return (
     <div className="sec">
@@ -113,6 +134,19 @@ function Feed({ onOpen }: { onOpen: (id: number) => void }) {
           ))}
         </div>
       )}
+
+      {/* Only meaningful on the unfiltered list: the chips filter what is
+          already loaded, so "load more" under a filter would be misleading
+          about what it is fetching. */}
+      {filter === "ALL" && items.length < total ? (
+        <button
+          className="more"
+          disabled={loadingMore}
+          onClick={() => void load(items.length)}
+        >
+          {loadingMore ? "Loading…" : `Show more — ${items.length} of ${total}`}
+        </button>
+      ) : null}
     </>
   );
 }

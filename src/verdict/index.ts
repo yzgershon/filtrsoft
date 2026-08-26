@@ -23,6 +23,31 @@ import type { VisionResult } from "../vision/index.ts";
 
 const OUT_OF_SCOPE = /\b(lens|dslr|mirrorless|camera body|tripod|nikon|canon ef|sigma \d|tamron|zeiss|leica|scanner|camcorder)\b/i;
 
+/**
+ * Tech Assyze does not trade. Not junk — just not Yish's market.
+ *
+ * Diagnosing the 259 INSUFFICIENT_DATA verdicts on the live feed, **46 were
+ * monitors, TVs, routers, network switches and bare hard drives.** They are
+ * genuinely tech, so `resolveProductType` correctly called them tech and they
+ * fell through to "Couldn't identify the exact model" — which reads as a
+ * failure when the honest answer is that a 24" Asus monitor is not something
+ * Assyze covers. It never will be: there are no comps for it because nobody
+ * ever asked for any.
+ *
+ * Saying so plainly is better than implying we tried and failed. It also stops
+ * them competing for space in a deals feed.
+ */
+const NOT_OUR_MARKET =
+  /\b(monitor|display|smart ?tv|television|\d{2}" ?(class )?(tv|led|lcd|oled)\b|router|modem|access point|network switch|ethernet switch|gigabit switch|printer|projector|scanner|hard drive|external drive|nas\b|keyboard|webcam|speakers?|soundbar|headphones?)\b/i;
+
+/**
+ * Bulk and multi-item listings. "24 Computers, Printers, Monitors left starting
+ * at just $30" is a shop's inventory dump, not a unit with a price, and pricing
+ * it against one machine's comps is meaningless.
+ */
+const BULK_LISTING =
+  /\b(\d{2,}\s+(computers|laptops|monitors|printers|phones)|lot of \d|wholesale|bulk|liquidation|starting at (just )?\$|do you need a)\b/i;
+
 /** Reader-facing retailer names. "microcenter" is not how anyone says it. */
 const RETAILER_NAME: Record<string, string> = {
   bestbuy: "Best Buy",
@@ -236,6 +261,26 @@ export function buildVerdict(input: {
    * (webcams, cable locks, keyboards) was returning INSUFFICIENT_DATA anyway.
    * "Not something Assyze covers" is the honest version of that answer.
    */
+  /**
+   * Real tech, wrong market — checked BEFORE the SKU lookup, because the
+   * failure to find a SKU is the expected outcome, not a problem to report.
+   */
+  if (!match.skuId && NOT_OUR_MARKET.test(input.title)) {
+    return {
+      ...base, call: "OUT_OF_SCOPE", confidence: "high",
+      headline: "Not a category Assyze covers.",
+      reasoning: `That reads as ${input.title.match(NOT_OUR_MARKET)?.[0]?.toLowerCase() ?? "peripheral"} gear. Assyze covers phones, laptops, GPUs, consoles, tablets and PC components — the things with deep enough sold-comp data to price confidently. There are no comps here because nobody has ever asked for any.`,
+    };
+  }
+
+  if (BULK_LISTING.test(input.title)) {
+    return {
+      ...base, call: "OUT_OF_SCOPE", confidence: "high",
+      headline: "Bulk listing, not a single item.",
+      reasoning: `"${input.title.slice(0, 60)}" is an inventory dump rather than one unit at one price. There is nothing single to compare against comps.`,
+    };
+  }
+
   if (product.kind === "unknown") {
     return {
       ...base, call: "OUT_OF_SCOPE", confidence: "high",

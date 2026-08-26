@@ -31,8 +31,26 @@ const CATEGORY_PATTERNS: Array<[Category, RegExp]> = [
   ["phone",    /\b(iphone|galaxy s\d|pixel \d|z ?flip|z ?fold|smartphone|note ?\d{2})\b/i],
   ["tablet",   /\b(ipad|galaxy tab|surface pro|tablet)\b/i],
   ["console",  /\b(playstation|ps[45]\b|xbox|nintendo switch|steam deck)\b/i],
-  ["prebuilt", /\b(gaming (pc|desktop|computer)|desktop (pc|computer)|prebuilt|imac|all[- ]in[- ]one|mac (mini|studio|pro)|workstation|tower)\b/i],
-  ["laptop",   /\b(laptop|macbook|thinkpad|latitude|xps|notebook|chromebook|inspiron|precision|elitebook|pavilion)\b/i],
+  /**
+   * `laptop` MUST come before `prebuilt`. They are both whole machines, so the
+   * "machines before their parts" ordering below does not apply between them —
+   * and prebuilt's vocabulary swallows portable hardware.
+   *
+   * Measured on the live feed: **31 laptops were being priced as desktops.**
+   * "Dell 5540 Windows 11 Mobile Workstations 8-Core i9", "Lenovo P50 Mobile
+   * Workstation", "Dell Precision 7510 Workstation Laptop" all matched
+   * `workstation` and were then asked which GPU they had, as though they were
+   * towers. A mobile workstation is a laptop.
+   */
+  ["laptop",   /\b(laptop|macbook|thinkpad|latitude|xps|notebook|chromebook|inspiron|precision|elitebook|pavilion|mobile workstations?|workstation laptops?)\b/i],
+  /**
+   * `all-in-one` is printer vocabulary too, and the printers won.
+   * "PRINTER HP ENVY 6055E---Wireless All In One" was classified as a prebuilt
+   * PC and asked for its GPU and CPU. Requiring a computer word nearby, and
+   * excluding an explicit printer, keeps the iMac-style listings it was added
+   * for. `workstation` now requires it NOT be a mobile one.
+   */
+  ["prebuilt", /\b(gaming (pc|desktop|computer)|desktop (pc|computer)|prebuilt|imac|mac (mini|studio|pro)|tower)\b|\ball[- ]in[- ]one\b(?=.*\b(pc|computer|desktop|imac)\b)|(?<!mobile )\bworkstation\b/i],
   ["gpu",      /\b(rtx|gtx|radeon|rx ?[5-9]\d{3}|quadro|tesla|graphics card|gpu|video card)\b/i],
   ["component",/\b(ddr[45]|ram\b|ssd|nvme|motherboard|cpu|processor|power supply|psu)\b/i],
 ];
@@ -49,11 +67,22 @@ const VALUE_FIELDS: Partial<Record<Category, Array<[string, RegExp]>>> = {
   // part number meant vision could read the CPU straight off a photo and the
   // verdict would still say "cpu not stated" — paying for vision, then
   // ignoring it. Found 2026-08-24 on listing 338.
-  laptop:   [["cpu", /\b(?:intel\s+)?core\s+i[3579]\b|\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d|m[1-9]\b|celeron|core ultra|snapdragon)/i],
+  /**
+   * A BARE "i7" IS A STATED CPU. Requiring "core i7" or a part number meant
+   * "Lenovo P50 Mobile Workstation. Windows 10 Pro, i7, 32GB RAM" came back
+   * "cpu not stated" with the CPU sitting in the middle of the title.
+   *
+   * It is a weak spec — an i7 spans a decade of silicon — but the field asks
+   * whether the seller SAID it, and they did. Refusing to price something the
+   * seller told us is worse than pricing it with a wide band, which is what the
+   * comp spread already expresses.
+   */
+  laptop:   [["cpu", /\bi[3579]\b|\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d|m[1-9]\b|celeron|core ultra|snapdragon|mediatek|exynos)/i],
              ["ram", /\b\d{1,3}\s?gb\b/i]],
   gpu:      [["model", /\b(rtx|gtx|rx|tesla|quadro)\s?[a-z]?\d{3,4}/i]],
   prebuilt: [["gpu", /\b(rtx|gtx|rx)\s?\d{3,4}|\b(integrated|igpu|iris|radeon graphics)\b/i],
-             ["cpu", /\b(?:intel\s+)?core\s+i[3579]\b|\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d|m[1-9]\b|core ultra|xeon)/i]],
+             // Same reasoning as laptop above: a bare i7 is a stated CPU.
+             ["cpu", /\bi[3579]\b|\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d|m[1-9]\b|core ultra|xeon|threadripper)/i]],
   console:  [["storage", /\b(\d{3,4}\s?gb|\d{1,2}\s?tb)\b/i]],
   tablet:   [["storage", /\b(\d{1,4})\s?(gb|tb)\b/i]],
 };
