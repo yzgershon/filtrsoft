@@ -333,5 +333,6 @@ export function checkStored(
  * 0.3.1 — single-character discriminators + variant gating in matchSku.
  * 0.3.2 — crypto payment rail, ships-on-local-market, Craigslist bare attrs.
  * 0.3.3 — title-first category, unknown=out-of-scope, Apple M5, feed paging.
+ * 0.3.4 — archive import runs unconditionally so catalog rows reach prod.
  */
-export const ENGINE_VERSION = "0.3.3";
+export const ENGINE_VERSION = "0.3.4";

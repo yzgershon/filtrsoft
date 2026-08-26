@@ -235,12 +235,25 @@ export function importArchive(a: Archive): ImportResult {
  * worth checking is the thing that was missing.
  */
 export function importArchiveIfThin(): ImportResult | null {
-  const have = (db().query("SELECT COUNT(*) n FROM comps").get() as { n: number }).n;
   const a = readArchive();
   if (!a) return null;
-  // Only import when the shipped archive would MATERIALLY add. A production
-  // volume that has been crawling on its own is not "thin" just because it
-  // holds fewer rows than the last export.
-  if (have >= a.comps.length * 0.9) return null;
-  return importArchive(a);
+
+  /**
+   * ALWAYS import. The old gate was `comps >= archive.comps * 0.9`, and it
+   * silently blocked everything that was not a comp.
+   *
+   * `MacBook Air M5` was added to the catalog, exported, deployed — and
+   * production kept answering *"Couldn't identify the exact model"*, because
+   * its comp count already matched the archive so the import never ran. SKUs,
+   * aliases and retail quotes all rode on a comp-count check that had nothing
+   * to do with them.
+   *
+   * Running unconditionally is safe and cheap: every insert is `ON CONFLICT DO
+   * NOTHING` inside one transaction, a full 6,247-comp import measured 107ms
+   * on a cold database, and a re-import adds 0 rows. Gating an idempotent
+   * operation bought nothing and cost a wrong answer on the live site.
+   */
+  const r = importArchive(a);
+  const changed = r.skus + r.aliases + r.comps + r.retail > 0;
+  return changed ? r : null;
 }
