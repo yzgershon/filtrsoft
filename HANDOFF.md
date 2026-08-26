@@ -80,6 +80,8 @@ bun run ebay:login                sign in to eBay by hand (once)
 bun run ebay:comps [--query ...] [--skus N]
 bun run retail [--skus N] [--sku "RTX 5070"] [--source newegg] [--replay]
                                   NEW retail from Newegg / Micro Center / Best Buy
+bun run archive [--check|--import]
+                                  ship the comps archive to production
 bun run catalog:derive [--min N] [--apply]    dry run by default
 
 bun run check <url>               one listing, staged timings
@@ -751,20 +753,58 @@ So the CNAME target was correct the whole time. Do not "fix" the DNS target.
 `assyze.com` correctly uses an **ALIAS** at the apex — a CNAME there is invalid
 DNS and Namecheap's ALIAS is the right instrument.
 
-### Production is running on an EMPTY archive — worse than the domain
+### Production could not price anything — FIXED 2026-08-25
 
-Found while checking the health endpoint:
+    before:  {"ok":true, "comps":0,  "skus":62}
+    after:   {"ok":true, "canPrice":true, "comps":6247, "skus":221}
 
-    {"ok":true,"engine":"0.3.0","db":"ok","comps":0,"skus":62, ...}
+**Zero comps.** Live, healthy, serving the frontend, and returning
+INSUFFICIENT_DATA for every single listing because it held not one sold price.
+The boot seed fires only when `skus == 0` and plants only the hardcoded
+catalog — it never carried a comp, so the empty-database check passed happily
+forever and `/v1/health` said `ok: true` the whole time.
 
-**Zero comps and 62 SKUs**, against 6,169 comps and 221 SKUs locally. Every
-verdict in production is INSUFFICIENT_DATA by construction — the volume has
-never received the archive. Fixing the domain publishes an engine that cannot
-price anything, so do this first.
+**Fix: `data/archive.json.gz` is COMMITTED** (390 KB: 221 SKUs, 258 aliases,
+6,247 comps, 35 retail quotes). The container imports it on boot when its comp
+count is materially below the archive's. See `src/db/archive.ts` and DEPLOY.md.
+
+    bun run archive           export local -> data/archive.json.gz
+    bun run archive --check   what the committed archive holds
+    bun run archive --import  merge it into THIS database
+
+**Why a committed file.** Every other route to the volume needs a credential —
+CLI login, SSH, an upload endpoint with a shared secret. This travels the path
+already authorised and already working: commit, push, Railway builds, import on
+boot.
+
+**Idempotent, verified.** `UNIQUE(source, source_item_id)` on comps and a
+unique `alias`, so every insert is `ON CONFLICT DO NOTHING`; a second import
+adds 0 rows. A newer archive MERGES, never replaces, and nothing is deleted.
+
+**SKU IDS ARE REMAPPED, NEVER CARRIED.** Local and production `skus.id` are
+independent autoincrements seeded in different orders, so copying
+`comps.sku_id` verbatim would file thousands of comps against the WRONG
+products — silently, with confident wrong medians as the only symptom. Comps
+reference their SKU by `category|brand|model` and re-resolve on import.
+
+Verified against a fresh database seeded exactly as production is: 62 catalog
+SKUs, then +159 SKUs and +6,247 comps in 107ms, every spot-checked median
+matching local to the dollar (RTX 5080 $1251/n=99, RTX 5070 $615/n=64, iPhone
+16 Pro Max $756/n=51). Then verified LIVE — the same Craigslist URL returns the
+identical verdict from production and local ("Overpriced — $392 underwater
+after fees", 179 comps).
+
+**`/v1/health` now sets `ok` from `canPrice`** (comps > 0 && skus > 0) rather
+than the literal `true`. A liveness probe that cannot tell "working" from
+"structurally unable to answer" is a ping, not a health check.
+
+**THE ARCHIVE DRIFTS. `bun run stats` now says so.** Production prices off the
+committed file, not your local db, so every comps pull widens the gap
+silently — the same shape as the original bug. Re-export and commit after any
+`ebay:comps` or `retail` run.
 
 **Vision IS configured in production** — `visionEnabled: true`,
-`tokenRequired: false`, `$2/day`, `claude-haiku-4-5`. The Anthropic key reached
-Railway, so the old "set `ASSYZE_VISION_TOKEN`" item is DONE.
+`tokenRequired: false`, `$2/day`, `claude-haiku-4-5`.
 
 ### `www` will not work on the current plan
 
@@ -1051,9 +1091,9 @@ P1-5 (asking price -> 0), P1-1 (stale vision cache).
 3. **Write tests.** Still none. Start with `product-type`, `condition`, the
    eBay parsers and `parseBestBuy` — all pure, all currently verified only by
    hand, and `docs/testset/retail-lines.json` is already a ready-made fixture.
-4. **Ship the comps archive to the production volume.** Production reports
-   `comps: 0, skus: 62` against 6,169 and 221 locally, so every deployed
-   verdict is INSUFFICIENT_DATA. More urgent than the domain — see 11f.
+4. **Re-export the archive after every comps pull.** `bun run archive`, commit,
+   push. `bun run stats` reports the drift; production prices off the committed
+   file, not your local database.
 5. **Run `bun run sweep` daily.** Every day it does not run is clearing-price
    history nobody can refetch.
 6. **Retail coverage is GPU-heavy.** Newegg and Micro Center are shipped and
