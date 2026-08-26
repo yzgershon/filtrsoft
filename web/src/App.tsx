@@ -194,7 +194,7 @@ function Feed({ onOpen }: { onOpen: (id: number) => void }) {
               <SectionHead
                 tone={hero.call === "BUY" ? "buy" : hero.call === "VERIFY" ? "verify" : "mute"}
                 label="Best right now" note="tap any listing to swap it in" />
-              <button className={`fhero v-${hero.call}`} onClick={() => onOpen(hero.id)}>
+              <button className={`dealhero v-${hero.call}`} onClick={() => onOpen(hero.id)}>
                 <span className="hshot">
                   {hero.thumb
                     ? <img src={hero.thumb} alt="" style={{ viewTransitionName: "hero-img" }} />
