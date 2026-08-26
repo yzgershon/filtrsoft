@@ -117,6 +117,26 @@ const IRREVERSIBLE_RAILS =
 const SHIPS_ON_LOCAL_MARKET =
   /\b(flat[- ]rate shipping|shipping (is )?(available|included|only)|will ship|can ship|ships? (nationwide|anywhere|to you)|delivery available|i deliver)\b/i;
 
+/**
+ * COUNTERFEITS. The seller usually says so, and Assyze was not listening.
+ *
+ * Live on assyze.com: *"Apple iPhone 15 Pro Max 1TB **CLONE** Unlocked"* at $99
+ * came back **VERIFY with $433 of net profit**, because the matcher resolved it
+ * to a real 1TB Pro Max and priced it against real comps. The word "CLONE" was
+ * in the title in capitals.
+ *
+ * This is not a discount, it is a different object. A clone has no resale
+ * value at any price — you cannot flip it, and listing one yourself is fraud.
+ * So it is a BLOCKER rather than a risk flag: there is no asking price at which
+ * the answer changes, which is exactly what separates a blocker from a discount.
+ *
+ * `1:1`, `AAA` and "master copy" are the replica-trade's own vocabulary.
+ * "Goophone" is a specific line of iPhone clones. `refurbished` and `aftermarket
+ * battery` are NOT here — a repaired real phone is a real phone.
+ */
+const COUNTERFEIT =
+  /\b(clone|replica|counterfeit|knock ?off|fake|goophone|1:1 (copy|version)|master copy|aaa\+? (quality|grade)|not (a )?(genuine|original|real) (apple|samsung|iphone)|mirror (copy|grade))\b/i;
+
 const SPEC_SHEET_LANGUAGE =
   /\b(designed for professionals|features include|is a high-performance|delivers (up to|exceptional)|engineered (for|to)|ideal for (creators|professionals))\b/i;
 
@@ -253,6 +273,19 @@ export function analyze(l: RawListing, opts?: { clusterSize?: number; visionText
     signals.push({
       code: "SPECS_ONLY_IN_PHOTOS", severity: "info", polarity: "positive",
       evidence: `${recoveredFromPhotos.join(" and ")} readable in the photos but never written in the description. The seller didn't put the value-determining spec in words — that's the low-knowledge pattern that tends to underprice, and it means most buyers scrolling past never saw it.`,
+    });
+  }
+
+  /**
+   * Counterfeit, stated by the seller. A blocker, not a discount — see
+   * `COUNTERFEIT`. Title only: a description saying "not a clone" or "beware of
+   * clones on here" is the seller distinguishing themselves FROM one, and
+   * reading that as a confession would punish the honest listing.
+   */
+  if (COUNTERFEIT.test(l.title)) {
+    signals.push({
+      code: "COUNTERFEIT", severity: "blocker", polarity: "negative",
+      evidence: `The listing says "${l.title.match(COUNTERFEIT)?.[0]}". That is a counterfeit, not a cheap genuine unit — it has no resale value at any price, and reselling one is fraud. There is no asking price that makes this a deal.`,
     });
   }
 

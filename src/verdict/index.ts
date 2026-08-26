@@ -216,6 +216,28 @@ export function buildVerdict(input: {
 
   const base = { valuation, blockers, questions, riskChecks, retail };
 
+  /**
+   * --- 0. Counterfeit. Checked FIRST, before anything can price it. ------
+   *
+   * An "iPhone 15 Pro Max 1TB CLONE" at $99 read as VERIFY with $433 of net
+   * profit, because every layer downstream did its job correctly on the
+   * assumption that the thing was real: the matcher resolved a genuine SKU, the
+   * comps were genuine 1TB comps, and the margin was genuinely enormous.
+   *
+   * Nothing later in this function can undo that, because the whole rest of the
+   * file reasons about price. A counterfeit is not mispriced — it is a
+   * different object, worth nothing to resell at any price. So it has to be
+   * settled before valuation, in the same position as out-of-scope.
+   */
+  const counterfeit = signals.signals.find((s) => s.code === "COUNTERFEIT");
+  if (counterfeit) {
+    return {
+      ...base, call: "PASS", confidence: "high",
+      headline: "Counterfeit — not a deal at any price.",
+      reasoning: counterfeit.evidence,
+    };
+  }
+
   // --- 1. Out of scope -------------------------------------------------
   if (OUT_OF_SCOPE.test(`${input.title} ${input.description}`)) {
     return {
