@@ -93,19 +93,38 @@ function badUrl(url: string | undefined): string | null {
  * silent 91-second healthcheck timeout instead of an error anyone could read.
  * Database trouble is reported IN the payload, never by failing the check.
  */
+/**
+ * `ok` means THE ENGINE CAN DO ITS JOB, not merely that the process is alive.
+ *
+ * It used to be the literal `true`, and that is how production ran for weeks
+ * reporting `{"ok":true, "comps":0}` — live, healthy, serving the frontend, and
+ * returning INSUFFICIENT_DATA for every single listing because it had no sold
+ * prices to compare against. A liveness probe that cannot distinguish "working"
+ * from "structurally unable to answer" is not a health check, it is a ping.
+ *
+ * Still HTTP 200: the container IS up and should not be restart-looped over
+ * this. `canPrice` is the field to alert on.
+ */
 app.get("/v1/health", (c) => {
   let stats: Record<string, unknown> = { db: "unavailable" };
+  let canPrice = false;
   try {
+    const comps = (db().query("SELECT COUNT(*) n FROM comps").get() as { n: number }).n;
+    const skus = (db().query("SELECT COUNT(*) n FROM skus").get() as { n: number }).n;
+    canPrice = comps > 0 && skus > 0;
     stats = {
-      db: "ok",
-      comps: (db().query("SELECT COUNT(*) n FROM comps").get() as { n: number }).n,
-      skus: (db().query("SELECT COUNT(*) n FROM skus").get() as { n: number }).n,
+      db: "ok", comps, skus,
+      ...(canPrice ? {} : {
+        warning: "no sold comps — every verdict will be INSUFFICIENT_DATA. " +
+          "Run `bun run archive`, commit data/archive.json.gz, redeploy.",
+      }),
     };
   } catch (e) {
     stats = { db: "error", dbPath: DB_PATH, error: (e as Error).message };
   }
   return c.json({
-    ok: true,
+    ok: canPrice,
+    canPrice,
     engine: ENGINE_VERSION,
     ...stats,
     vision: { configured: visionConfigured(), model: VISION_MODEL, ...guardStatus() },
@@ -311,16 +330,44 @@ if (hasBuild) {
 // (a missing volume, a read-only mount) meant the module never finished
 // evaluating, so the server never listened at all and the platform saw nothing
 // but a timeout. Start first, seed second, survive either way.
-setTimeout(() => {
+setTimeout(async () => {
   try {
     const n = (db().query("SELECT COUNT(*) n FROM skus").get() as { n: number }).n;
     if (n === 0) {
       console.log("empty database — seeding catalog + economics…");
-      import("../scripts/seed.ts")
-        .then((m) => m.seed())
-        .catch((e) => console.error("seed failed:", (e as Error).message));
-    } else {
-      console.log(`database ready — ${n} skus`);
+      try {
+        (await import("../scripts/seed.ts")).seed();
+      } catch (e) {
+        console.error("seed failed:", (e as Error).message);
+      }
+    }
+
+    /**
+     * THE COMPS ARCHIVE, and the reason this check is on comps and not on skus.
+     *
+     * Production ran for weeks reporting `comps: 0, skus: 62` — healthy, live,
+     * serving the frontend, and returning INSUFFICIENT_DATA for every listing
+     * because it had not one sold price to compare against. The catalog seed
+     * above had run and "succeeded", so every empty-database check passed while
+     * the engine was structurally unable to do its job.
+     *
+     * Nothing reported it. `/v1/health` said `ok: true`. The check that matters
+     * is the one on the thing that was actually missing.
+     */
+    const imported = (await import("../db/archive.ts")).importArchiveIfThin();
+    if (imported) {
+      console.log(
+        `archive imported — +${imported.comps} comps, +${imported.skus} skus, ` +
+        `+${imported.aliases} aliases, +${imported.retail} retail`,
+      );
+    }
+
+    const comps = (db().query("SELECT COUNT(*) n FROM comps").get() as { n: number }).n;
+    const skus = (db().query("SELECT COUNT(*) n FROM skus").get() as { n: number }).n;
+    console.log(`database ready — ${skus} skus · ${comps} comps`);
+    if (comps === 0) {
+      console.error("WARNING: zero comps. Every verdict will be INSUFFICIENT_DATA.");
+      console.error("  Run `bun run archive` locally, commit data/archive.json.gz, redeploy.");
     }
   } catch (e) {
     console.error(`DATABASE UNAVAILABLE at ${DB_PATH}: ${(e as Error).message}`);

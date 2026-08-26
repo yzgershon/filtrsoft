@@ -22,6 +22,53 @@ Anthropic SDK. Both are on the roadmap; neither is worth doing just to change ho
 
 ---
 
+## The comps archive ships as a COMMITTED FILE
+
+`data/archive.json.gz` — 390 KB gzipped, holding every SKU, alias, sold comp
+and retail quote. `src/api/index.ts` imports it on boot when the database has
+materially fewer comps than the archive.
+
+    bun run archive           # export from local -> data/archive.json.gz
+    bun run archive --check   # what the committed archive holds
+    bun run archive --import  # merge it into THIS database
+
+**Why a committed file and not a data sync.** Every other route to the
+production volume needs a credential — a CLI login, an SSH session, an upload
+endpoint with a shared secret. This one travels the path that already works:
+commit, push, Railway builds, the container imports on boot.
+
+**It is idempotent.** `comps` has `UNIQUE(source, source_item_id)` and
+`sku_aliases.alias` is unique, so every insert is `ON CONFLICT DO NOTHING`.
+Re-importing on each redeploy is a no-op; a newer archive MERGES rather than
+replacing, and nothing is ever deleted.
+
+**SKU ids are remapped, never carried across.** Local and production `skus.id`
+are independent autoincrements seeded in different orders, so copying
+`comps.sku_id` verbatim would file thousands of comps against the wrong
+products — silently, with confident wrong medians as the only symptom. Comps
+reference their SKU by `category|brand|model` and re-resolve on import.
+
+**Re-export after any comps pull**, or production drifts behind local.
+
+---
+
+## THE BUG THIS FIXED: production could not price anything
+
+For weeks the deployed app reported:
+
+    {"ok":true,"engine":"0.3.0","db":"ok","comps":0,"skus":62}
+
+Live, healthy, serving the frontend, and returning INSUFFICIENT_DATA for
+**every single listing**, because it held not one sold price. The boot seed
+fires only when `skus == 0` and plants only the hardcoded catalog — it never
+carried a comp, so the empty-database check passed happily forever.
+
+`/v1/health` now sets `ok` from `canPrice` (comps > 0 && skus > 0) rather than
+the literal `true`. A liveness probe that cannot tell "working" from
+"structurally unable to answer" is a ping, not a health check.
+
+---
+
 ## ⚠ Vision does NOT run in production
 
 The container has no Claude CLI and no credentials, so `visionAccounts` is empty
