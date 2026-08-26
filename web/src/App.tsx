@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { Scan, Clock, User, Alert, Check, Info, Link, Again, Eye, Shield, Tag, Ghost, Clip } from "./icons.tsx";
+import { Scan, Clock, User, Alert, Check, Info, Link, Again, Eye, Shield, Tag, Ghost, Clip, Save, Grid, Gear, Cut, Bell, Card } from "./icons.tsx";
 
 // ---------------------------------------------------------------- types
 type Call = "BUY" | "FAIR" | "PASS" | "VERIFY" | "RISK" | "INSUFFICIENT_DATA" | "OUT_OF_SCOPE";
@@ -32,6 +32,10 @@ interface FeedItem {
   id: number; title: string; url: string; source: string;
   askingPriceCents: number | null; location: string | null; postedAt: string | null;
   thumb: string | null; call: Call; headline: string | null; netProfitCents: number | null;
+  /** From the daily sweep. The difference between a list and a tracker. */
+  gone?: boolean; goneReason?: string | null;
+  currentPriceCents?: number | null;
+  priceDropCents?: number | null; priceWasCents?: number | null;
 }
 interface Listing {
   title: string; url: string; askingPriceCents: number | null;
@@ -58,6 +62,44 @@ const pushHist = (h: Hist) => {
   localStorage.setItem(HKEY, JSON.stringify(all));
 };
 
+/**
+ * The watchlist is a list of IDS in localStorage, never a copy of the listing.
+ *
+ * Storing the listing itself would freeze the price and the verdict at the
+ * moment you saved it, which defeats the entire point — the reason to save
+ * something is to be told when it CHANGES. `/v1/watchlist` re-reads current
+ * state for the ids on every visit, so a saved card is always live.
+ *
+ * No account required, and the tradeoff is stated on the screen: the list does
+ * not follow you to another device.
+ */
+const WKEY = "assyze:watch";
+const readWatch = (): number[] => { try { return JSON.parse(localStorage.getItem(WKEY) || "[]"); } catch { return []; } };
+const writeWatch = (ids: number[]) => localStorage.setItem(WKEY, JSON.stringify(ids.slice(0, 200)));
+const toggleWatch = (id: number): number[] => {
+  const cur = readWatch();
+  const next = cur.includes(id) ? cur.filter((x) => x !== id) : [id, ...cur];
+  writeWatch(next);
+  return next;
+};
+
+/** Settings the user actually controls. Server-side economics stay server-side. */
+const SKEY = "assyze:settings";
+export interface Settings {
+  driveMinutes: number;
+  hideGone: boolean;
+  reduceMotion: boolean;
+  askOutcomes: boolean;
+}
+const DEFAULT_SETTINGS: Settings = {
+  driveMinutes: 15, hideGone: true, reduceMotion: false, askOutcomes: true,
+};
+const readSettings = (): Settings => {
+  try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem(SKEY) || "{}") }; }
+  catch { return DEFAULT_SETTINGS; }
+};
+const writeSettings = (s: Settings) => localStorage.setItem(SKEY, JSON.stringify(s));
+
 // --------------------------------------------------------------- router
 function useRoute() {
   const [path, setPath] = useState(location.pathname);
@@ -74,7 +116,72 @@ function useRoute() {
 
 const PAGE = 60;
 
-function Feed({ onOpen }: { onOpen: (id: number) => void }) {
+/**
+ * One card in the 2-up grid. Shared by the feed and the watchlist so a saved
+ * listing looks exactly like the thing you saved.
+ *
+ * **IT IS A DIV, NOT A BUTTON, AND THAT IS NOT A STYLE CHOICE.** The card
+ * needs a save control inside it, and a `<button>` inside a `<button>` is
+ * invalid HTML — browsers recover by hoisting the inner one out, which detaches
+ * it from the card and makes the save target land somewhere unpredictable. The
+ * open action is its own button filling the card; the save button is a sibling
+ * on top of it.
+ *
+ * The tracker badges are the entire reason the sweep exists. A price cut is the
+ * strongest signal on any marketplace, so it gets the loudest treatment on the
+ * card; `gone` greys the photo out because a dead listing should not look
+ * equally actionable next to a live one.
+ */
+function Gcard({ i, saved, onSave, onOpen }: {
+  i: FeedItem;
+  saved: boolean;
+  onSave: () => void;
+  onOpen: (el: HTMLElement) => void;
+}) {
+  const price = i.currentPriceCents ?? i.askingPriceCents;
+  return (
+    <div className={`gcard${i.gone ? " is-gone" : ""}`}>
+      <button className="gopen" onClick={(e) => onOpen(e.currentTarget.closest(".gcard") as HTMLElement)}
+        aria-label={`Open ${i.title}`}>
+        <span className="gshot">
+          {i.thumb
+            ? <img src={i.thumb} alt="" loading="lazy" />
+            : <span className="noimg"><Ghost size={22} /></span>}
+          <span className={`gcall b-${i.call}`}>{LABEL[i.call]}</span>
+          {i.gone ? <span className="gghost">Gone</span> : null}
+          <span className="gstats">
+            <span className="num gprice">{money(price)}</span>
+            {i.priceDropCents
+              ? <span className="num gdrop"><Cut size={12} />{money(i.priceDropCents)}</span>
+              : i.netProfitCents && i.netProfitCents > 0
+                ? <span className="num gnet">+{money(i.netProfitCents)}</span>
+                : null}
+          </span>
+        </span>
+        <span className="gbody">
+          <b>{i.title}</b>
+          <span className="gloc">
+            {i.priceDropCents
+              ? <s className="num">{money(i.priceWasCents)}</s>
+              : null}
+            {[i.location, ago(i.postedAt)].filter(Boolean).join(" · ")}
+          </span>
+        </span>
+      </button>
+      <button className={`gsave${saved ? " on" : ""}`} onClick={onSave}
+        aria-label={saved ? `Remove ${i.title} from your watchlist` : `Save ${i.title}`}
+        aria-pressed={saved}>
+        <Save size={16} filled={saved} />
+      </button>
+    </div>
+  );
+}
+
+function Feed({ onOpen, onWatchChange }: {
+  onOpen: (id: number) => void;
+  /** Lifted so the Saved tab's badge updates the moment you tap a bookmark. */
+  onWatchChange: (n: number) => void;
+}) {
   const [items, setItems] = useState<FeedItem[] | null>(null);
   const [filter, setFilter] = useState<"ALL" | "DEAL" | "CHEAP">("ALL");
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -82,6 +189,7 @@ function Feed({ onOpen }: { onOpen: (id: number) => void }) {
   const [loadingMore, setLoadingMore] = useState(false);
   /** Which listing currently occupies the hero slot. */
   const [heroId, setHeroId] = useState<number | null>(null);
+  const [watch, setWatch] = useState<number[]>(readWatch);
 
   const load = useCallback((offset: number) => {
     setLoadingMore(offset > 0);
@@ -234,26 +342,9 @@ function Feed({ onOpen }: { onOpen: (id: number) => void }) {
                   */}
                 <div className="grid">
                   {list.map((i) => (
-                    <button className="gcard" key={i.id}
-                      aria-label={`Show ${i.title} at the top`}
-                      onClick={(e) => promote(i.id, e.currentTarget)}>
-                      <span className="gshot">
-                        {i.thumb
-                          ? <img src={i.thumb} alt="" loading="lazy" />
-                          : <span className="noimg"><Ghost size={22} /></span>}
-                        <span className={`gcall b-${i.call}`}>{LABEL[i.call]}</span>
-                        <span className="gstats">
-                          <span className="num gprice">{money(i.askingPriceCents)}</span>
-                          {i.netProfitCents && i.netProfitCents > 0
-                            ? <span className="num gnet">+{money(i.netProfitCents)}</span>
-                            : null}
-                        </span>
-                      </span>
-                      <span className="gbody">
-                        <b>{i.title}</b>
-                        <span className="gloc">{[i.location, ago(i.postedAt)].filter(Boolean).join(" \u00b7 ")}</span>
-                      </span>
-                    </button>
+                    <Gcard key={i.id} i={i} saved={watch.includes(i.id)}
+                      onSave={() => { const n = toggleWatch(i.id); setWatch(n); onWatchChange(n.length); }}
+                      onOpen={(el) => promote(i.id, el)} />
                   ))}
                 </div>
               </div>
@@ -704,9 +795,130 @@ function Report({ listing, verdict, signals, meta, stage, reading, checkId }: {
 }
 
 // ------------------------------------------------------------------ app
+/**
+ * The watchlist.
+ *
+ * It re-fetches current state for the saved ids on every visit rather than
+ * rendering what you saw when you saved them. A watchlist that showed the old
+ * price would be a screenshot, and the point of saving something is to be told
+ * when it changes.
+ *
+ * The summary line leads because it is the answer to "why did I open this":
+ * two dropped, one is gone. That sentence is the whole feature.
+ */
+function Watchlist({ onOpen, onWatchChange }: {
+  onOpen: (id: number) => void;
+  onWatchChange: (n: number) => void;
+}) {
+  const [ids, setIds] = useState<number[]>(readWatch);
+  const [items, setItems] = useState<FeedItem[] | null>(null);
+  const [summary, setSummary] = useState<{ dropped: number; gone: number }>({ dropped: 0, gone: 0 });
+
+  useEffect(() => {
+    if (!ids.length) { setItems([]); return; }
+    fetch(`/v1/watchlist?ids=${ids.join(",")}`)
+      .then((r) => r.json())
+      .then((d) => {
+        setItems(d.items ?? []);
+        setSummary(d.summary ?? { dropped: 0, gone: 0 });
+        /**
+         * PRUNE IDS THE SERVER NO LONGER KNOWS. Without this a purged listing
+         * stays in localStorage forever and every future request carries a
+         * dead id, so the saved count never matches what is on screen.
+         */
+        if (d.missing?.length) {
+          const keep = ids.filter((i: number) => !d.missing.includes(i));
+          writeWatch(keep); setIds(keep);
+        }
+      })
+      .catch(() => setItems([]));
+    // `ids` is intentionally the only dep: re-running on every render would
+    // hammer the endpoint.
+  }, [ids.join(",")]);
+
+  if (!items) return <div className="sec">{[0, 1].map((i) => <div className="skel" key={i} style={{ height: 240, marginBottom: 8 }} />)}</div>;
+
+  if (!items.length) {
+    return (
+      <div className="empty">
+        <span className="eic"><Save size={26} /></span>
+        <b>Nothing saved yet</b>
+        <p>Tap the bookmark on any listing. We re-check saved listings every day and tell you when the price drops or it disappears.</p>
+      </div>
+    );
+  }
+
+  const news: string[] = [];
+  if (summary.dropped) news.push(`${summary.dropped} dropped in price`);
+  if (summary.gone) news.push(`${summary.gone} ${summary.gone === 1 ? "is" : "are"} gone`);
+
+  return (
+    <div className="sec">
+      <div className="feedhead">
+        <h1>Saved</h1>
+        <p>{news.length ? news.join(" · ") : `${items.length} saved, nothing changed yet.`}</p>
+      </div>
+      <div className="grid">
+        {items.map((i) => (
+          <Gcard key={i.id} i={i} saved
+            onSave={() => { const n = toggleWatch(i.id); setIds(n); onWatchChange(n.length); }}
+            onOpen={() => onOpen(i.id)} />
+        ))}
+      </div>
+      <p className="micro2">Saved on this device only. Signing in is coming.</p>
+    </div>
+  );
+}
+
+type Tab = "deals" | "check" | "saved" | "you" | "settings";
+
+/**
+ * The bottom toolbar.
+ *
+ * There WAS one, it was removed, and removing it was the wrong call. The
+ * original bug was that `.tabs` was `position: absolute` inside a fixed-height
+ * fake phone frame, so on a real device it rendered at the end of the scroll
+ * content and you had to scroll past 285 listings to reach it. That is a
+ * positioning bug, not an argument against bottom navigation, and every mobile
+ * app has one for the good reason that the bottom of the screen is where the
+ * thumb already is.
+ *
+ * `position: fixed` with `env(safe-area-inset-bottom)` this time, so it sits
+ * above the home indicator rather than under it.
+ *
+ * FOUR ITEMS, ALL REAL DESTINATIONS. Settings is deliberately NOT among them —
+ * it is somewhere you go twice a year, and spending a quarter of the toolbar on
+ * it would cost the same room the watchlist needs. It lives in the top bar.
+ */
+function Tabbar({ tab, go, savedCount }: { tab: Tab; go: (t: Tab) => void; savedCount: number }) {
+  const items: Array<[Tab, string, React.ReactNode]> = [
+    ["deals", "Deals", <Grid size={21} />],
+    ["check", "Check", <Scan size={21} />],
+    ["saved", "Saved", <Save size={21} filled={tab === "saved"} />],
+    ["you", "You", <User size={21} />],
+  ];
+  return (
+    <nav className="tabbar" aria-label="Main">
+      {items.map(([id, label, icon]) => (
+        <button key={id} className={`tab${tab === id ? " on" : ""}`}
+          aria-current={tab === id ? "page" : undefined}
+          onClick={() => go(id)}>
+          <span className="ti">
+            {icon}
+            {id === "saved" && savedCount > 0
+              ? <span className="tdot" aria-hidden="true">{savedCount > 9 ? "9+" : savedCount}</span>
+              : null}
+          </span>
+          <span className="tl">{label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 export default function App() {
   const { path, go } = useRoute();
-  const [tab, setTab] = useState<"deals" | "check" | "you">("deals");
+  const [tab, setTab] = useState<Tab>("deals");
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -719,8 +931,28 @@ export default function App() {
   const [reading, setReading] = useState(0);   // photos being read, 0 = not reading
   const [checkId, setCheckId] = useState<number | null>(null);
   const [hist, setHist] = useState<Hist[]>(readHist);
+  const [savedCount, setSavedCount] = useState(() => readWatch().length);
+  const [settings, setSettings] = useState<Settings>(readSettings);
   const es = useRef<EventSource | null>(null);
   const field = useRef<HTMLInputElement | null>(null);
+
+  /**
+   * Switching tabs always clears the open listing and returns to `/`.
+   *
+   * Without the reset, tapping Deals while a verdict was open left the detail
+   * view mounted under the feed's own state and the tab bar highlighted a
+   * screen you were not looking at.
+   */
+  const goTab = useCallback((t: Tab) => {
+    reset(); setUrl(""); setTab(t);
+    setSavedCount(readWatch().length);
+    if (location.pathname !== "/") go("/");
+  }, [go]);
+
+  const saveSettings = (patch: Partial<Settings>) => {
+    const next = { ...settings, ...patch };
+    setSettings(next); writeSettings(next);
+  };
 
   useEffect(() => {
     const m = path.match(/^\/c\/(\d+)$/);
@@ -829,7 +1061,7 @@ export default function App() {
         * here, and the feed gets the entire screen.
         */}
       <header className="topbar">
-        <button className="brand" onClick={() => { setTab("deals"); reset(); setUrl(""); go("/"); }}
+        <button className="brand" onClick={() => goTab("deals")}
           aria-label="Assyze home">ass<span>yze</span></button>
         <div className="spacer" />
 
@@ -839,15 +1071,10 @@ export default function App() {
             <Link size={19} />
           </button>
         )}
-        <button className={`iconbtn ${tab === "check" && !listing ? "on" : ""}`}
-          aria-label="Check a listing link" aria-pressed={tab === "check" && !listing}
-          onClick={() => { reset(); setUrl(""); setTab("check"); go("/"); }}>
-          <Scan size={19} />
-        </button>
-        <button className={`iconbtn ${tab === "you" ? "on" : ""}`}
-          aria-label="Your settings" aria-pressed={tab === "you"}
-          onClick={() => { reset(); setTab(tab === "you" ? "deals" : "you"); go("/"); }}>
-          <User size={19} />
+        <button className={`iconbtn ${tab === "settings" ? "on" : ""}`}
+          aria-label="Settings" aria-pressed={tab === "settings"}
+          onClick={() => goTab(tab === "settings" ? "deals" : "settings")}>
+          <Gear size={19} />
         </button>
       </header>
 
@@ -858,7 +1085,8 @@ export default function App() {
                   <h1>Worth driving for</h1>
                   <p>Only listings the engine actually verified. Newest and best first.</p>
                 </div>
-                <Feed onOpen={(id) => { setTab("check"); go(`/c/${id}`); }} />
+                <Feed onOpen={(id) => { setTab("check"); go(`/c/${id}`); }}
+                  onWatchChange={setSavedCount} />
               </>
             )}
 
@@ -969,8 +1197,21 @@ export default function App() {
               </>
             )}
 
-            {tab === "you" && <You hist={hist} onOpen={(id) => go(`/c/${id}`)} />}
+            {tab === "saved" && !listing && (
+              <Watchlist onOpen={(id) => { setTab("check"); go(`/c/${id}`); }}
+                onWatchChange={setSavedCount} />
+            )}
+
+            {tab === "you" && <You hist={hist} onOpen={(id) => { setTab("check"); go(`/c/${id}`); }} />}
+
+            {tab === "settings" && (
+              <SettingsScreen s={settings} save={saveSettings}
+                savedCount={savedCount}
+                onClearSaved={() => { writeWatch([]); setSavedCount(0); }} />
+            )}
           </main>
+
+          <Tabbar tab={tab} go={goTab} savedCount={savedCount} />
     </div>
   );
 }
@@ -987,6 +1228,146 @@ export default function App() {
  * with the paste box; this is where you go to find something you already looked
  * at.
  */
+/** A labelled row with a switch. */
+function Toggle({ label, hint, on, onChange }: {
+  label: string; hint: string; on: boolean; onChange: (v: boolean) => void;
+}) {
+  return (
+    <button className="srow" role="switch" aria-checked={on} onClick={() => onChange(!on)}>
+      <span className="stext"><b>{label}</b><span>{hint}</span></span>
+      <span className={`sw${on ? " on" : ""}`} aria-hidden="true"><i /></span>
+    </button>
+  );
+}
+
+/**
+ * Settings.
+ *
+ * There was no settings screen at all, which is why "your numbers" ended up on
+ * the You tab as a read-only table with "editing these is coming" under it.
+ *
+ * Only things that DO something are here. A settings screen padded with
+ * switches that toggle nothing teaches people the screen is decorative, and
+ * then the one that matters gets ignored too. Anything not yet wired says so
+ * plainly rather than pretending.
+ */
+function SettingsScreen({ s, save, savedCount, onClearSaved }: {
+  s: Settings; save: (p: Partial<Settings>) => void;
+  savedCount: number; onClearSaved: () => void;
+}) {
+  const [cleared, setCleared] = useState(false);
+  const [pushState, setPushState] = useState<string>(() =>
+    typeof Notification === "undefined" ? "unsupported" : Notification.permission);
+
+  return (
+    <div className="sec settings">
+      <div className="feedhead"><h1>Settings</h1></div>
+
+      <div className="sgroup">
+        <div className="shead"><Card size={14} /> Billing</div>
+        <div className="scard">
+          <div className="planrow">
+            <div>
+              <b>Free</b>
+              <span>Every listing in the feed, unlimited checks, and the daily tracker.</span>
+            </div>
+            <span className="pill">Current</span>
+          </div>
+          {/**
+            * Honest about the state rather than showing a dead Upgrade button.
+            * There is no paid tier to sell yet — the checkout exists, the plan
+            * does not — and a button that opens nothing is worse than a
+            * sentence saying why.
+            */}
+          <p className="snote">
+            Assyze is free while the feed is being built out. Paid plans come when
+            there is something worth charging for, and nothing you use today moves
+            behind a paywall.
+          </p>
+        </div>
+      </div>
+
+      <div className="sgroup">
+        <div className="shead"><Tag size={14} /> Your numbers</div>
+        <div className="scard">
+          <label className="srow static">
+            <span className="stext">
+              <b>Willing to drive</b>
+              <span>Longer drives need a bigger margin to be worth it.</span>
+            </span>
+            <span className="stepper">
+              <button aria-label="Less driving time"
+                onClick={() => save({ driveMinutes: Math.max(5, s.driveMinutes - 5) })}>−</button>
+              <span className="num">{s.driveMinutes}m</span>
+              <button aria-label="More driving time"
+                onClick={() => save({ driveMinutes: Math.min(90, s.driveMinutes + 5) })}>+</button>
+            </span>
+          </label>
+          <p className="snote">
+            Your profit floor and hourly rate are set on the server for now. They
+            show on the You tab.
+          </p>
+        </div>
+      </div>
+
+      <div className="sgroup">
+        <div className="shead"><Grid size={14} /> Feed</div>
+        <div className="scard">
+          <Toggle label="Hide listings that are gone"
+            hint="The daily sweep marks a listing dead when the seller pulls it."
+            on={s.hideGone} onChange={(v) => save({ hideGone: v })} />
+          <Toggle label="Ask what happened"
+            hint="A day after you open a listing, ask if you bought it. This is what teaches the engine."
+            on={s.askOutcomes} onChange={(v) => save({ askOutcomes: v })} />
+          <Toggle label="Reduce motion"
+            hint="Turns off the card-to-hero animation."
+            on={s.reduceMotion} onChange={(v) => save({ reduceMotion: v })} />
+        </div>
+      </div>
+
+      <div className="sgroup">
+        <div className="shead"><Bell size={14} /> Alerts</div>
+        <div className="scard">
+          <p className="snote">
+            {pushState === "granted"
+              ? "Notifications are on. Saved searches will use them."
+              : pushState === "unsupported"
+                ? "This browser cannot show notifications. Install Assyze to your home screen first."
+                : "Get told when something matching a saved search posts."}
+          </p>
+          {pushState !== "granted" && pushState !== "unsupported" && (
+            <button className="btn2" onClick={async () => {
+              // Must be called from a user gesture or the browser refuses.
+              const p = await Notification.requestPermission();
+              setPushState(p);
+            }}>
+              <Bell size={15} /> Turn on notifications
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="sgroup">
+        <div className="shead"><Save size={14} /> Data</div>
+        <div className="scard">
+          <div className="srow static">
+            <span className="stext">
+              <b>{savedCount} saved {savedCount === 1 ? "listing" : "listings"}</b>
+              <span>Stored on this device. Signing in is coming.</span>
+            </span>
+            {savedCount > 0 && !cleared && (
+              <button className="btn3" onClick={() => { onClearSaved(); setCleared(true); }}>Clear</button>
+            )}
+            {cleared && <span className="pill">Cleared</span>}
+          </div>
+        </div>
+      </div>
+
+      <p className="micro2">Assyze · assyze.com</p>
+    </div>
+  );
+}
+
 function You({ hist, onOpen }: { hist: Hist[]; onOpen: (id: number) => void }) {
   const ECON = [
     { k: "Won't leave home for less than", v: "$100", why: "Below this, the drive costs more than the flip makes." },

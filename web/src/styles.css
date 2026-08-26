@@ -799,3 +799,160 @@ a { color: inherit; }
   flex: 1; min-width: 0; font-size: 13px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+
+/* ================================================================= tabbar */
+/*
+ * FIXED, not absolute. The previous bottom nav was `position: absolute` inside
+ * a fixed-height fake phone frame, which on a real device put it at the end of
+ * the scroll content — reachable only after scrolling past every listing. That
+ * was a positioning bug and it got the whole toolbar deleted; this is the same
+ * navigation done correctly.
+ *
+ * `env(safe-area-inset-bottom)` keeps it clear of the iOS home indicator and
+ * Android's gesture bar.
+ */
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.tab {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; padding: 9px 0 7px; min-height: 54px;
+  color: var(--ink-3); background: none; border: 0;
+  transition: color var(--dur) var(--ease);
+}
+.tab .ti { position: relative; display: grid; place-items: center; }
+.tab .tl { font-size: 10.5px; font-weight: 600; letter-spacing: .01em; }
+.tab.on { color: var(--brand); }
+.tab:active { transform: none; }
+.tab .tdot {
+  position: absolute; top: -5px; right: -9px; min-width: 15px; height: 15px;
+  padding: 0 3px; border-radius: 999px; background: var(--brand); color: var(--on-brand);
+  font-size: 9.5px; font-weight: 800; display: grid; place-items: center;
+}
+/*
+ * The scroll area has to end ABOVE the bar or the last card sits under it.
+ * Measured against the bar height plus the safe area, not a guessed number.
+ */
+.scroll { padding-bottom: calc(66px + env(safe-area-inset-bottom, 0px)); }
+
+/* ============================================================ card extras */
+/*
+ * `.gcard` is a div now (a save button cannot live inside another button), so
+ * `.gopen` is the control that fills it and carries the press feedback.
+ */
+.gcard { position: relative; }
+.gopen {
+  display: flex; flex-direction: column; text-align: left; min-width: 0; width: 100%;
+  background: none; border: 0; padding: 0;
+  transition: transform var(--dur) var(--ease);
+}
+.gcard:active .gopen { transform: scale(.98); }
+
+.gsave {
+  position: absolute; top: 6px; right: 6px; z-index: 2;
+  width: 30px; height: 30px; border-radius: 999px; border: 0;
+  display: grid; place-items: center;
+  background: rgba(8,7,10,.55); color: #fff;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease), transform 120ms var(--ease);
+}
+.gsave:active { transform: scale(.88); }
+.gsave.on { background: var(--brand); color: var(--on-brand); }
+
+/* A price cut outranks net profit on the card: it is the stronger signal. */
+.gdrop {
+  display: inline-flex; align-items: center; gap: 1px;
+  color: var(--buy); font-weight: 800;
+}
+.gloc s { color: var(--ink-3); margin-right: 5px; text-decoration-thickness: 1px; }
+
+/* A dead listing must not look as actionable as a live one. */
+.gcard.is-gone .gshot img { filter: grayscale(1) brightness(.5); }
+.gcard.is-gone .gbody b { color: var(--ink-2); }
+.gghost {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  color: #fff; background: rgba(8,7,10,.35);
+}
+
+/* ================================================================= empty */
+.empty { text-align: center; padding: var(--s7) var(--s4); }
+.empty .eic {
+  display: grid; place-items: center; width: 54px; height: 54px; margin: 0 auto var(--s3);
+  border-radius: 16px; background: var(--surface-2); color: var(--ink-3);
+}
+.empty b { display: block; font-size: 17px; margin-bottom: 6px; }
+.empty p { margin: 0 auto; max-width: 30ch; color: var(--ink-2); font-size: 14px; line-height: 1.55; }
+
+.micro2 {
+  margin-top: var(--s5); text-align: center;
+  color: var(--ink-3); font-size: 11.5px;
+}
+
+/* ============================================================== settings */
+.sgroup { margin-bottom: var(--s5); }
+.shead {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+  color: var(--ink-3); font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .09em;
+}
+.scard {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-lg); overflow: hidden;
+}
+.srow {
+  display: flex; align-items: center; gap: var(--s3); width: 100%;
+  padding: var(--s3) var(--s4); text-align: left;
+  background: none; border: 0; border-bottom: 1px solid var(--line);
+}
+.srow:last-child { border-bottom: 0; }
+.srow.static { cursor: default; }
+.stext { flex: 1; min-width: 0; }
+.stext b { display: block; font-size: 14.5px; font-weight: 620; margin-bottom: 2px; }
+.stext span { display: block; color: var(--ink-2); font-size: 12.5px; line-height: 1.45; }
+
+.sw {
+  flex: none; width: 44px; height: 26px; border-radius: 999px;
+  background: var(--surface-3); position: relative;
+  transition: background var(--dur) var(--ease);
+}
+.sw i {
+  position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
+  border-radius: 50%; background: var(--ink-2);
+  transition: transform var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.sw.on { background: var(--brand); }
+.sw.on i { transform: translateX(18px); background: var(--on-brand); }
+
+.stepper { flex: none; display: flex; align-items: center; gap: 2px; }
+.stepper button {
+  width: 30px; height: 30px; border-radius: 9px; border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--ink-1); font-size: 17px; line-height: 1;
+}
+.stepper .num { min-width: 42px; text-align: center; font-size: 14px; font-weight: 700; }
+
+.planrow { display: flex; align-items: center; gap: var(--s3); padding: var(--s4); }
+.planrow > div { flex: 1; min-width: 0; }
+.planrow b { display: block; font-size: 16px; margin-bottom: 3px; }
+.planrow span { color: var(--ink-2); font-size: 12.5px; line-height: 1.45; }
+.pill {
+  flex: none; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  color: var(--buy); background: color-mix(in srgb, var(--buy) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--buy) 35%, transparent);
+}
+.snote {
+  margin: 0; padding: 0 var(--s4) var(--s4);
+  color: var(--ink-3); font-size: 12.5px; line-height: 1.55;
+}
+.scard .btn2 { margin: 0 var(--s4) var(--s4); }
+.btn3 {
+  flex: none; padding: 7px 12px; border-radius: 9px;
+  border: 1px solid var(--line); background: var(--surface-2);
+  color: var(--ink-2); font-size: 12.5px; font-weight: 600;
+}

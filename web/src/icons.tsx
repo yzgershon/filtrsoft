@@ -57,3 +57,31 @@ export const Ghost = ({ size = 40, className }: P) =>
 /** Clipboard — the paste-and-check action on the Check screen. */
 export const Clip = ({ size = 22, className }: P) =>
   svg(size, <><rect x="8" y="3" width="8" height="4" rx="1.5" /><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2" /><path d="M9 13h6M9 17h4" /></>, className);
+
+/** Bookmark — save to the watchlist. Filled variant when saved. */
+export const Save = ({ size = 22, className, filled }: P & { filled?: boolean }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" className={className} aria-hidden="true"
+    {...base} fill={filled ? "currentColor" : "none"}>
+    <path d="M6 4h12a1 1 0 0 1 1 1v15l-7-4-7 4V5a1 1 0 0 1 1-1z" />
+  </svg>
+);
+
+/** Grid — the deals feed tab. */
+export const Grid = ({ size = 22, className }: P) =>
+  svg(size, <><rect x="3" y="3" width="7.5" height="7.5" rx="2" /><rect x="13.5" y="3" width="7.5" height="7.5" rx="2" /><rect x="3" y="13.5" width="7.5" height="7.5" rx="2" /><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2" /></>, className);
+
+/** Gear — settings. */
+export const Gear = ({ size = 22, className }: P) =>
+  svg(size, <><circle cx="12" cy="12" r="3.2" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.9 19.3a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.7 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.7 8.9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.1 4.7a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9v.09a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03z" /></>, className);
+
+/** Down arrow in a circle — a price cut. */
+export const Cut = ({ size = 22, className }: P) =>
+  svg(size, <><path d="M12 5v13" /><path d="m6.5 12.5 5.5 5.5 5.5-5.5" /></>, className);
+
+/** Bell — alerts and saved searches. */
+export const Bell = ({ size = 22, className }: P) =>
+  svg(size, <><path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6" /><path d="M13.7 20a2 2 0 0 1-3.4 0" /></>, className);
+
+/** Card — billing. */
+export const Card = ({ size = 22, className }: P) =>
+  svg(size, <><rect x="2.5" y="5" width="19" height="14" rx="2.5" /><path d="M2.5 10h19" /><path d="M6 15h3" /></>, className);

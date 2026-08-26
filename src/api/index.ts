@@ -479,6 +479,73 @@ app.get("/v1/feed", (c) => {
 });
 
 /** A previously-run check, by listing id. Shareable permalink target. */
+/**
+ * The watchlist: current state for a set of listing ids.
+ *
+ * **THE WATCHLIST LIVES IN THE BROWSER, and that is a deliberate choice.** The
+ * ids are in localStorage, and this endpoint answers "what happened to these"
+ * without knowing who is asking. Saving a listing therefore needs no account,
+ * no signup and no row tied to a person — which is the difference between a
+ * feature you can ship today and one that waits on auth.
+ *
+ * The tradeoff is honest and stated in the UI: a saved list does not follow you
+ * to another device. When accounts exist, this endpoint does not change — only
+ * where the id list comes from.
+ *
+ * It returns what the tracker knows, because a saved listing is only worth
+ * saving if it can tell you the price fell or the thing is gone. That is the
+ * entire reason the sweep exists.
+ */
+app.get("/v1/watchlist", (c) => {
+  const raw = (c.req.query("ids") ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0);
+  // Bounded: this is a public GET taking a caller-supplied id list, and an
+  // unbounded IN clause is a way to make one request read the whole table.
+  const ids = [...new Set(raw)].slice(0, 200);
+  if (!ids.length) return c.json({ items: [] });
+
+  const rows = db().query(`
+    SELECT l.id, l.title, l.url, l.source, l.asking_price_cents, l.location, l.posted_at,
+           l.delisted_at, l.delist_reason, l.last_price_cents, l.last_seen,
+           v.call, v.confidence, v.payload,
+           (SELECT url FROM listing_photos p WHERE p.listing_id = l.id ORDER BY position LIMIT 1) thumb,
+           (SELECT price_cents FROM listing_prices lp WHERE lp.listing_id = l.id
+             AND lp.price_cents > 0 ORDER BY lp.observed_at ASC LIMIT 1) first_price_cents,
+           (SELECT price_cents FROM listing_prices lp WHERE lp.listing_id = l.id
+             AND lp.price_cents > 0 ORDER BY lp.observed_at DESC LIMIT 1) latest_price_cents
+    FROM listings l
+    JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
+    WHERE l.id IN (${ids.map(() => "?").join(",")})
+  `).all(...ids) as any[];
+
+  const items = rows.map((r) => {
+    const v = r.payload ? JSON.parse(r.payload) : null;
+    return {
+      id: r.id, title: r.title, url: r.url, source: r.source,
+      askingPriceCents: r.asking_price_cents, location: r.location, postedAt: r.posted_at,
+      thumb: r.thumb, call: r.call, confidence: r.confidence,
+      headline: v?.headline ?? null,
+      netProfitCents: v?.netProfitCents ?? null,
+      flagCount: v?.blockers?.length ?? 0,
+      ...tracker(r),
+    };
+  });
+
+  /**
+   * Ids the caller asked about that no longer resolve. A listing can be purged
+   * from the database, and a watchlist that silently shrank would look like it
+   * lost the save rather than the listing.
+   */
+  const found = new Set(items.map((i) => i.id));
+  return c.json({
+    items,
+    missing: ids.filter((i) => !found.has(i)),
+    summary: {
+      dropped: items.filter((i) => i.priceDropCents).length,
+      gone: items.filter((i) => i.gone).length,
+    },
+  });
+});
+
 app.get("/v1/checks/:id", (c) => {
   const id = Number(c.req.param("id"));
   const row = db()
