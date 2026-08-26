@@ -23,6 +23,7 @@ import { join } from "node:path";
 import { db, now } from "../db/index.ts";
 import { isMultiUnit } from "../signals/product-type.ts";
 import { compMatchesQuery } from "./ebay.ts";
+import { boardTier, type BoardTier } from "../signals/board-tier.ts";
 
 const WORKER = join(import.meta.dir, "../browser/retail-worker.mjs");
 
@@ -495,6 +496,41 @@ export function retailCeiling(
   return { offer: pool.reduce((a, b) => (b.priceCents < a.priceCents ? b : a)), rejected };
 }
 
+/**
+ * One ceiling PER BOARD TIER, plus the untiered one.
+ *
+ * **Yish's point, and the reason a single ceiling was not enough.** The ceiling
+ * takes the cheapest matching offer, so an untiered ceiling for a GPU always
+ * lands on the budget card — measured, PNY's Epic-X at $795.59 was the cheapest
+ * of 42 new RTX 5070s while an ASUS T1 was $1,669. Comparing an ASUS TUF
+ * listing to a PNY ceiling is the worst case in the system, because the ceiling
+ * drives a PASS and the error runs in the direction that kills a real deal.
+ *
+ * The tier premium is much larger NEW than used — 1.40x vs 1.11x measured — so
+ * this matters more here than it does in the comps. Storing one row per tier
+ * costs nothing extra: the offers are already on the page we scraped.
+ *
+ * The untiered entry is kept under `any` as the fallback for a listing whose
+ * own tier cannot be read, and for every non-GPU category, where tier is
+ * meaningless and `readBoard` returns null anyway.
+ */
+export function retailCeilingsByTier(
+  offers: RetailOffer[], query: string, category?: string | null,
+): Map<string, RetailOffer> {
+  const out = new Map<string, RetailOffer>();
+  const any = retailCeiling(offers, query, category).offer;
+  if (any) out.set("any", any);
+  if (category !== "gpu") return out;
+
+  for (const tier of ["base", "mid", "premium"] as const) {
+    const sub = offers.filter((o) => boardTier(o.title) === tier);
+    if (!sub.length) continue;
+    const found = retailCeiling(sub, query, category).offer;
+    if (found) out.set(tier, found);
+  }
+  return out;
+}
+
 /** Reasons a query produced no ceiling, most useful first. Purely for output. */
 export function noCeilingReason(
   offers: RetailOffer[], rejected: Array<{ title: string; why: string }>,
@@ -620,16 +656,22 @@ export function retailApplies(category: string | null | undefined): boolean {
   return !!category && !NO_RETAIL_TWIN.includes(category);
 }
 
-export function saveRetail(skuId: number | null, offer: RetailOffer, query: string): void {
+export function saveRetail(
+  skuId: number | null, offer: RetailOffer, query: string, tier: string | null = null,
+): void {
   db()
     .query(
-      `INSERT INTO retail_prices (sku_id, source, title, price_cents, is_new, storage_gb, query, observed_at)
-       VALUES ($sku,$src,$title,$price,$new,$gb,$q,$now)`,
+      `INSERT INTO retail_prices (sku_id, source, title, price_cents, is_new, storage_gb, board_tier, query, observed_at)
+       VALUES ($sku,$src,$title,$price,$new,$gb,$tier,$q,$now)`,
     )
     .run({
       $sku: skuId, $src: offer.source, $title: offer.title,
       $price: offer.priceCents, $new: offer.isNew ? 1 : 0,
-      $gb: capacityOf(offer.title), $q: query, $now: now(),
+      $gb: capacityOf(offer.title),
+      // The tier this row is the ceiling FOR, not the tier of the title —
+      // "any" rows are stored with NULL so the tier filter ignores them.
+      $tier: tier === "any" ? null : tier,
+      $q: query, $now: now(),
     });
 }
 
@@ -677,8 +719,33 @@ const CORROBORATION_FLOOR = 0.6;
  * year's launch price would cap nothing and flag nothing, so age travels with
  * the number and callers decide rather than being silently misled.
  */
-export function latestRetail(skuId: number | null, storageGb?: number | null): RetailPrice | null {
+export function latestRetail(
+  skuId: number | null, storageGb?: number | null, tier?: BoardTier | null,
+): RetailPrice | null {
   if (!skuId) return null;
+
+  /**
+   * TIER FIRST, untiered as the fallback.
+   *
+   * A premium card must be capped by a premium card. Measured, the new-market
+   * tier premium is 1.40x — so an ASUS TUF listing compared against the PNY
+   * that wins an untiered ceiling is being told it is 40% overpriced when it is
+   * not, and that lands as a PASS on a real deal.
+   *
+   * Falls back rather than returning nothing: a tier we hold no quote for is
+   * still better served by the untiered ceiling than by no ceiling at all,
+   * since the untiered one is a genuine lower bound on the price of a new card.
+   */
+  if (tier) {
+    const tiered = latestRetailRows(skuId, storageGb, tier);
+    if (tiered) return tiered;
+  }
+  return latestRetailRows(skuId, storageGb, null);
+}
+
+function latestRetailRows(
+  skuId: number, storageGb: number | null | undefined, tier: BoardTier | null,
+): RetailPrice | null {
   /**
    * The latest NEW quote FROM EACH RETAILER, then one ceiling chosen from them.
    *
@@ -691,13 +758,15 @@ export function latestRetail(skuId: number | null, storageGb?: number | null): R
       `SELECT source, price_cents, title, observed_at FROM retail_prices r
         WHERE sku_id=$id AND is_new=1
           AND (storage_gb IS NULL OR $gb IS NULL OR storage_gb = $gb)
+          AND ($tier IS NULL AND board_tier IS NULL OR board_tier = $tier)
           AND observed_at = (
             SELECT MAX(observed_at) FROM retail_prices r2
              WHERE r2.sku_id = r.sku_id AND r2.source = r.source AND r2.is_new = 1
+               AND ($tier IS NULL AND r2.board_tier IS NULL OR r2.board_tier = $tier)
                AND (r2.storage_gb IS NULL OR $gb IS NULL OR r2.storage_gb = $gb))
         ORDER BY price_cents ASC`,
     )
-    .all({ $id: skuId, $gb: storageGb ?? null }) as Array<
+    .all({ $id: skuId, $gb: storageGb ?? null, $tier: tier }) as Array<
       { source: string; price_cents: number; title: string; observed_at: string }
     >;
   if (!rows.length) return null;

@@ -650,6 +650,65 @@ reason has not been chased down.
 
 ---
 
+## 11e2. A chip is not a product — board tier, 2026-08-25
+
+**Yish's observation**, and the measurements back it. He said a graphics card
+search returns a very broad price range because brands, fan counts and cooler
+tiers differ, and the same is true of RAM and other parts.
+
+Measured across Newegg, Micro Center and Best Buy on one day, 42 genuinely-new
+in-stock RTX 5070s ran **$795.59 (PNY Epic-X) to $1,669 (ASUS T1) — 110% for
+identical silicon.** Normalised against the cheapest card for each chip:
+
+| tier | n | median vs cheapest card for the same chip |
+|---|---|---|
+| base | 66 | 1.07x |
+| mid | 48 | 1.16x |
+| premium | 54 | **1.40x** |
+
+An ASUS PRIME RTX 5070 was $819.99 and the PRIME **White** $919.99 on the same
+page — **$100 for a colour**, a bigger step than base-to-mid. Confirmed
+independently at Micro Center. `special` promotes one tier for that reason.
+
+### The used market COMPRESSES the tier premium, and that is the useful part
+
+Measured within each chip, salvage excluded, on SKUs with >=6 comps in both
+buckets: premium/base is **1.36x (5080), 1.03x (4090), 1.11x (3080 Ti)** —
+3/3 positive, median **1.11x**. Against 1.40x new.
+
+So the honest scope is narrower than the raw range suggests, and the
+interquartile spread of used GPU comps is only **1.08x-1.25x** — the median is
+robust and the extremes are the tails, not the bulk. Tier matters:
+
+1. **Enormously for the retail ceiling**, which takes the CHEAPEST offer and so
+   always lands on the budget card. Comparing an ASUS TUF listing to a PNY
+   ceiling is the worst case in the system, because the ceiling drives a PASS.
+   `retail_prices.board_tier` now stores one ceiling PER TIER per source — the
+   offers are already on the page, so the extra rows cost nothing. Resolved
+   RTX 5070: base $796, mid $810, premium $900.
+2. **Modestly for the comps.** The filter is gated at **n>=8** rather than the
+   storage filter's 5, precisely because tier is a weaker discriminator and a
+   thin tier-matched sample trades a small bias for a large variance.
+
+Cards naming no known line are KEPT in both places. Silence is not
+disagreement, and treating an unnamed card as budget runs in the direction that
+turns a good deal into a PASS.
+
+**The ladder is NAMED, not inferred** (`signals/board-tier.ts`). Deriving tiers
+from observed prices needs retail coverage for every chip, and would be
+circular for the ceiling — the thing being corrected. Validation is empirical
+though: the first run left 19 cards `unknown` whose median was 1.27x, i.e. they
+were not unclassifiable but PREMIUM lines missing from the ladder (ZOTAC
+Apocalypse/ARCTICSTORM, ASUS NOCTUA, Gigabyte MASTER). Adding them dropped
+unknown to 12 at 1.16x — mixed, as unknown should be.
+
+**Still to do: the same treatment for RAM, SSDs and PSUs.** Yish named them and
+they have the identical shape — CL latency and kit brand for RAM, DRAM vs
+DRAM-less and TLC vs QLC for SSDs, 80+ tier and modularity for PSUs. The
+`component` SKUs are unsplit today.
+
+---
+
 ## 11f. assyze.com is NOT serving — diagnosed 2026-08-25, needs a dashboard click
 
 **The live app is `https://assyze-production.up.railway.app`** (health 200,

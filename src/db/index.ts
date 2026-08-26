@@ -73,6 +73,7 @@ function addColumns(d: Database, table: string, cols: Array<[string, string]>) {
  */
 const RETAIL_COLUMNS: Array<[string, string]> = [
   ["storage_gb", "INTEGER"],
+  ["board_tier", "TEXT"],
 ];
 
 function migrate(d: Database) {

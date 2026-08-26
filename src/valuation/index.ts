@@ -11,6 +11,7 @@
  */
 import { db } from "../db/index.ts";
 import { adjustPrice, normalizeCondition, comparable, type Condition } from "./condition.ts";
+import { boardTier, tierComparable, type BoardTier } from "../signals/board-tier.ts";
 
 export type Channel = "ebay" | "facebook";
 
@@ -74,6 +75,11 @@ export function valueSku(
     category?: string | null;
     /** Listing attributes. Storage is the one that reprices a SKU on its own. */
     attributes?: Record<string, string | number>;
+    /**
+     * The LISTING's board tier, for GPUs. Yish's point: a chip is not a
+     * product. See `signals/board-tier.ts` for the measurements.
+     */
+    boardTier?: BoardTier | null;
   },
 ): Valuation {
   if (!skuId) return { status: "no_comps", lowCents: null, highCents: null, medianCents: null, compCount: 0, confidence: "low" };
@@ -106,6 +112,30 @@ export function valueSku(
       return got === null || Math.abs(got - want) / want < 0.2;
     });
     if (matched.length >= 5) raw = matched;
+  }
+
+  /**
+   * BOARD TIER, same shape as the storage filter and for the same reason.
+   *
+   * Yish, 2026-08-25: a graphics card search returns a very broad price range
+   * because board partners and cooler tiers differ. Measured across three
+   * retailers on one day, 42 new RTX 5070s ran $795.59 (PNY Epic-X) to $1,669
+   * (ASUS T1) — 110% for identical silicon — and premium lines sit ~32% above
+   * base at the median. On the used side an MSI Ventus 2X cleared $450 and an
+   * ASUS TUF $1,555, both filed under one SKU whose median is $639.
+   *
+   * The threshold is 8, not the storage filter's 5, because tier is a WEAKER
+   * discriminator than capacity: the interquartile spread of used GPU comps is
+   * only 1.08x-1.25x, so the median already absorbs most of this, and a thin
+   * tier-matched sample would trade a small bias for a large variance.
+   *
+   * Cards naming no known line are KEPT — silence is not disagreement, and
+   * treating an unnamed card as budget is the direction that turns a good deal
+   * into a PASS.
+   */
+  if (opts?.boardTier) {
+    const matched = raw.filter((r) => tierComparable(boardTier(r.raw_title), opts.boardTier!));
+    if (matched.length >= 8) raw = matched;
   }
 
   /**

@@ -22,7 +22,7 @@
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import {
-  runRetailWorker, parseRetail, retailCeiling, saveRetail, saveNoRetail,
+  runRetailWorker, parseRetail, retailCeiling, retailCeilingsByTier, saveRetail, saveNoRetail,
   noCeilingReason, retailQueryForSku, skusNeedingRetail, latestRetail,
   retailApplies, RETAIL_SOURCES, type RetailSource,
 } from "../sources/retail.ts";
@@ -161,7 +161,25 @@ for (const src of sources) {
       for (const r of found.rejected.slice(0, 3)) {
         console.log(`    \x1b[90m  rejected: ${r.title.slice(0, 52)} — ${r.why}\x1b[0m`);
       }
-      if (!has("dry")) { saveRetail(bySku.get(ev.query) ?? null, ceiling, ev.query); saved++; }
+      /**
+       * Store ONE CEILING PER BOARD TIER, not just the cheapest overall.
+       *
+       * The offers are already on the page we scraped, so the extra rows cost
+       * nothing — and without them a premium card is capped by a budget card.
+       * The new-market tier premium is 1.40x measured, so that error is large
+       * and it runs in the direction that kills a real deal.
+       */
+      if (!has("dry")) {
+        const tiers = retailCeilingsByTier(offers, ev.query, catBy.get(ev.query) ?? null);
+        for (const [tier, offer] of tiers) {
+          saveRetail(bySku.get(ev.query) ?? null, offer, ev.query, tier);
+          saved++;
+        }
+        const extra = [...tiers.keys()].filter((k) => k !== "any");
+        if (extra.length) {
+          console.log(`    \x1b[90mtiers: ${extra.map((t) => `${t} $${(tiers.get(t)!.priceCents / 100).toFixed(0)}`).join(" · ")}\x1b[0m`);
+        }
+      }
     }
   }
 

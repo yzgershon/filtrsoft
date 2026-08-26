@@ -252,6 +252,12 @@ CREATE TABLE IF NOT EXISTS retail_prices (
   -- a 512GB phone with the 128GB shelf price. NULL = capacity is not a price
   -- driver for this product, e.g. a GPU.
   storage_gb  INTEGER,
+  -- Board tier for GPUs: base | mid | premium. A chip is not a product — 42 new
+  -- RTX 5070s ran $795.59 to $1,669 across three retailers on one day, and the
+  -- ceiling takes the CHEAPEST, so an untiered ceiling always lands on the
+  -- budget card. One row per tier per source, so a TUF listing can be compared
+  -- to a TUF. See signals/board-tier.ts.
+  board_tier  TEXT,
   query       TEXT NOT NULL,
   observed_at TEXT NOT NULL
 );

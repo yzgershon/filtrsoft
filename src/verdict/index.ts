@@ -18,6 +18,7 @@ import { normalizeCondition, type Condition } from "../valuation/condition.ts";
 import { resolveProductType, isAppleWholeUnit } from "../signals/product-type.ts";
 import { evaluateRisk, riskGate, inPersonConditions, type RiskCheck, type RiskGate } from "./risk-gates.ts";
 import { latestRetail, retailMeaning, type RetailPrice } from "../sources/retail.ts";
+import { boardTier } from "../signals/board-tier.ts";
 import type { VisionResult } from "../vision/index.ts";
 
 const OUT_OF_SCOPE = /\b(lens|dslr|mirrorless|camera body|tripod|nikon|canon ef|sigma \d|tamron|zeiss|leica|scanner|camcorder)\b/i;
@@ -131,11 +132,22 @@ export function buildVerdict(input: {
   );
   const condition: Condition = damaged && claimed !== "for_parts" ? "used" : claimed;
 
+  /**
+   * The listing's own board tier, read from its title.
+   *
+   * Not a SKU attribute — the SKU is the CHIP, and which board partner built
+   * the card is a fact about this listing. Same relationship storage has to a
+   * phone model.
+   */
+  const tier = boardTier(`${input.title} ${input.description}`);
+
   const skuVal = valueSku(match.confidence === "low" ? null : match.skuId, {
     condition,
     category: match.category ?? signals.category,
     // Storage tier reprices a SKU on its own — a 1TB phone is not a 256GB one.
     attributes: match.attributes,
+    // And so does board tier on a GPU: $796-$1,670 for one RTX 5070 die.
+    boardTier: tier,
   });
   const valuation =
     wholeVal ??
@@ -171,6 +183,9 @@ export function buildVerdict(input: {
     // The LISTING's capacity, the same field `valueSku` uses to pick a comp
     // tier. Without it a 128GB shelf price would cap a 512GB device.
     Number(match.attributes.storage_gb ?? match.attributes.storage_tier) || null,
+    // And its board tier, so an ASUS TUF is capped by a TUF rather than by the
+    // cheapest PNY on the page. Measured 1.40x new between the two.
+    tier,
   );
   const retail = retailRow && !retailRow.stale ? retailRow : null;
 
