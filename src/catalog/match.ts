@@ -10,6 +10,7 @@
  */
 import { db, now } from "../db/index.ts";
 import { DEAD_PATTERNS } from "../reference/catalog.ts";
+import { variantPattern } from "../signals/variants.ts";
 
 export interface Match {
   skuId: number | null;
@@ -134,8 +135,35 @@ export function matchSku(title: string, description = "", categoryHint?: string)
     .filter((r) => n.includes(r.alias))
     .sort((a, b) => b.alias.length - a.alias.length);
 
-  if (hits.length) {
-    const h = hits[0];
+  /**
+   * AN ALIAS HIT IS NOT ENOUGH IF THE TITLE CARRIES A VARIANT THE SKU LACKS.
+   *
+   * `n.includes(alias)` is a substring test, so "ASUS TUF RTX 5070 **Ti** 16GB"
+   * contains "rtx 5070" and matched the plain RTX 5070 SKU at HIGH confidence —
+   * then got priced against 5070 comps, roughly 40% under what a Ti is worth,
+   * which turns a genuinely good listing into a PASS. "RTX 4070 **Super**" did
+   * the same against the base 4070.
+   *
+   * `compMatchesQuery` has guarded the COMPS against this for weeks. The
+   * matcher never learned it, and the longest-alias rule cannot help when the
+   * more specific SKU does not exist in the catalog at all — which is exactly
+   * when being wrong is most expensive.
+   *
+   * One direction only: a variant in the TITLE that the MODEL lacks. The
+   * reverse is already impossible, since the alias would not have matched.
+   */
+  const variantsIn = (s: string, cat?: string | null) =>
+    new Set((s.toLowerCase().match(variantPattern(cat)) ?? []).map((v) => v.toLowerCase()));
+
+  const clean = hits.filter((h) => {
+    const tv = variantsIn(n, h.category);
+    const mv = variantsIn(norm(h.model), h.category);
+    for (const v of tv) if (!mv.has(v)) return false;
+    return true;
+  });
+
+  if (clean.length) {
+    const h = clean[0];
     return {
       ...base, skuId: h.id, brand: h.brand, model: h.model, category: h.category,
       liquidity: h.liquidity, confidence: "high", method: "alias",
@@ -155,16 +183,62 @@ export function matchSku(title: string, description = "", categoryHint?: string)
   // So: a SKU token containing a DIGIT is a discriminator (m3, 15, 5070, 6700k).
   // If the listing does not contain every one of them, this is a family
   // resemblance, not a match, and it is refused outright.
-  const tokens = new Set(n.split(" ").filter((w) => w.length > 1));
-  const hasDigit = (w: string) => /\d/.test(w);
+  /**
+   * KEEP SINGLE-CHARACTER TOKENS WHEN THEY ARE DIGITS.
+   *
+   * `w.length > 1` was dropping the single most discriminating token a model
+   * name can have. `norm("Switch 2")` splits to `["switch", "2"]`, the "2" was
+   * filtered out, and the SKU was left with NO discriminators — so the whole
+   * generation guard below silently did nothing for any model whose generation
+   * is one digit. It defeated the exact trap that guard exists to catch.
+   *
+   * Found live on assyze.com's first production feed, 2026-08-26:
+   *
+   *     "Sony PlayStation 4 console"   -> priced as PlayStation 5
+   *     "Sony PlayStation 3 slim"      -> priced as PlayStation 5 Slim
+   *     "Xbox One S console"           -> priced as Xbox One X
+   *     "D-Link Ethernet Switch"       -> priced as Nintendo Switch 2, and a
+   *                                       $5 network switch showed $311 net
+   *
+   * The length filter exists to drop noise words like "a" and "of". A digit is
+   * never noise.
+   */
+  const keep = (w: string) => w.length > 1 || /[a-z0-9]/.test(w);
+  const tokens = new Set(n.split(" ").filter(keep));
+
+  /**
+   * A SINGLE CHARACTER IN A MODEL NAME IS A DISCRIMINATOR, digit or letter.
+   *
+   * Model names are curated catalog data, not scraped text, so a lone character
+   * in one is never noise — it is the whole distinction. "Xbox One X" vs "Xbox
+   * One S" and "PlayStation 5" vs "PlayStation 4" are different consoles at
+   * different prices, and the entire difference is one character.
+   *
+   * Requiring a digit was not enough: with digits only, "Xbox One S console"
+   * still matched "Xbox One X" on {xbox, one} because the "x" was neither kept
+   * nor treated as discriminating.
+   */
+  const hasDigit = (w: string) => /\d/.test(w) || w.length === 1;
 
   let best: { r: (typeof aliasRows)[number]; score: number; matched: number } | null = null;
   for (const r of aliasRows) {
-    const mt = norm(r.model).split(" ").filter((w) => w.length > 1);
+    const mt = norm(r.model).split(" ").filter(keep);
     if (!mt.length) continue;
 
     const discriminators = mt.filter(hasDigit);
     if (discriminators.some((w) => !tokens.has(w))) continue;
+
+    /**
+     * The variant rule applies HERE TOO, and leaving it off the token path
+     * only moved the bug rather than fixing it: with the alias path guarded,
+     * "RTX 5070 Ti" simply fell through to token matching, scored 2/2 = 1.0
+     * against the plain RTX 5070, and came back MEDIUM — which `valueSku`
+     * prices, because only `low` is refused. Same wrong number, one confidence
+     * level down.
+     */
+    const tv = variantsIn(n, r.category);
+    const mv = variantsIn(norm(r.model), r.category);
+    if ([...tv].some((v) => !mv.has(v))) continue;
 
     const matched = mt.filter((w) => tokens.has(w)).length;
     const overlap = matched / mt.length;

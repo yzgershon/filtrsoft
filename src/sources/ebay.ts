@@ -19,6 +19,7 @@ import { join } from "node:path";
 import { insertComp, db, now } from "../db/index.ts";
 import { normalizeCondition, type Condition } from "../valuation/condition.ts";
 import { resolveProductType, resolveCategory, isMultiUnit } from "../signals/product-type.ts";
+import { variantPattern } from "../signals/variants.ts";
 
 const WORKER = join(import.meta.dir, "../browser/ebay-worker.mjs");
 
@@ -250,39 +251,6 @@ export async function* runEbayWorker(
  * waterblock "for RTX 3080" is not an RTX 3080, and the `for X` rule in
  * `resolveProductType` already understands that.
  */
-/**
- * Which words are real product VARIANTS, per category.
- *
- * This cannot be one list. On a GPU, "Ti" and "Super" are different silicon
- * with different prices — but "Ultra" is EVGA's cooler name ("RTX 3080 XC3
- * Ultra") and "Pro"/"Max" are board-partner marketing. On a PHONE the opposite
- * holds: "Pro Max" is the product and there is no such thing as a Ti.
- *
- * A single combined list rejected a perfectly good RTX 3080 for saying "Ultra".
- */
-function variantPattern(category?: string | null): RegExp {
-  switch (category) {
-    case "gpu":
-    case "component":
-      return /\b(ti|super|xt|xtx)\b/gi;
-    case "phone":
-    case "tablet":
-      return /\b(pro|max|plus|mini|ultra|se|fe)\b/gi;
-    case "laptop":
-      return /\b(pro|air)\b/gi;
-    /**
-     * Consoles. "Digital Edition" has no disc drive and sells for meaningfully
-     * less; "Slim" and "Pro" are different hardware again. Found while building
-     * the retail ceiling: a $599.99 PS5 Slim **Digital** came back as the new
-     * price of a disc PS5, and since the ceiling takes the CHEAPEST offer, the
-     * cheaper sibling wins every time unless it is named as a variant.
-     */
-    case "console":
-      return /\b(digital|slim|pro|oled|lite)\b/gi;
-    default:
-      return /\b(ti|super|xt|xtx)\b/gi;
-  }
-}
 
 /** Console lines sold ONLY without a disc drive, so "digital" describes them
  * rather than distinguishing them. See the variant check below. */

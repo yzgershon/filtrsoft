@@ -846,6 +846,54 @@ locally and pushed** — no mechanism for that exists yet.
 Craigslist items do not resolve to a SKU that has comps. That is the real
 coverage ceiling on the feed, and it is a catalog problem, not a crawler one.
 
+### The live feed immediately exposed a matcher bug — FIXED 2026-08-26
+
+The first production crawl put two network switches in the feed as **VERIFY at
+$311 and $269 net on $5 and $50 asking prices.** A D-Link Ethernet switch was
+matching the Nintendo Switch 2 SKU and being priced against console comps.
+
+**Root cause, and it was much wider than one silly match.** `matchSku` filtered
+model tokens with `w.length > 1`, which DROPPED the single most discriminating
+token a model name can carry. `norm("Switch 2")` splits to `["switch","2"]`,
+the `2` was filtered out, and the SKU was left with NO discriminators — so the
+generation guard directly above it silently did nothing for any model whose
+generation is one character:
+
+    "Sony PlayStation 4 console"  -> priced as PlayStation 5
+    "Sony PlayStation 3 slim"     -> priced as PlayStation 5 Slim
+    "Xbox One S console"          -> priced as Xbox One X
+    "D-Link Ethernet Switch"      -> priced as Nintendo Switch 2
+
+It defeated the exact trap that guard was written to catch. Single characters
+are now kept, and **a single character in a MODEL name is treated as a
+discriminator** — digit or letter, because model names are curated catalog data
+where a lone character is never noise and is usually the whole distinction
+(Xbox One **X** vs **S**).
+
+### Variants now gate the MATCHER, not just the comps
+
+Found in the same pass. `n.includes(alias)` is a substring test, so **"ASUS TUF
+RTX 5070 Ti" matched the plain RTX 5070 SKU at HIGH confidence** and was priced
+~40% under what a Ti is worth — turning a genuinely good listing into a PASS.
+"RTX 4070 Super" did the same against the base 4070.
+
+`compMatchesQuery` had guarded the COMPS against this for weeks; the matcher
+never learned it. The longest-alias rule cannot help either, because the more
+specific SKU **does not exist in the catalog at all** — which is precisely when
+being wrong is most expensive.
+
+Both the alias path AND the token path check it. Guarding only the alias path
+moved the bug rather than fixing it: "RTX 5070 Ti" fell through to token
+matching, scored 2/2 = 1.0 against the plain 5070 and came back MEDIUM, which
+`valueSku` happily prices since only `low` is refused.
+
+`variantPattern` moved to **`src/signals/variants.ts`**. It lived in
+`sources/ebay.ts`, and the catalog must not depend on a source.
+
+Re-verdicting all 366 stored listings after the fix: 269 INSUFFICIENT_DATA, 54
+OUT_OF_SCOPE, 36 PASS, 5 FAIR, 1 RISK, 1 BUY. More INSUFFICIENT_DATA than
+before, which is the point — those were confident wrong numbers.
+
 **THE ARCHIVE DRIFTS. `bun run stats` now says so.** Production prices off the
 committed file, not your local db, so every comps pull widens the gap
 silently — the same shape as the original bug. Re-export and commit after any
