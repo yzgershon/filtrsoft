@@ -16,10 +16,20 @@
  * against the rule that no credential handling gets added. Facebook listings
  * therefore have to be crawled locally and pushed.
  *
- * **VISION IS OFF IN THIS LOOP** (`maxVision: 0`). The budget guard is $2/day
- * and an unattended loop is exactly how you wake up to it spent on listings
- * nobody asked about. The text layer produces every risk signal that matters;
- * vision runs on demand when someone actually opens a listing.
+ * **VISION IS ON, BOUNDED** — Yish's call, 2026-08-26, after noticing his
+ * Anthropic bill had not moved. It was `maxVision: 0` while the text layer was
+ * still returning wrong answers, because paying to read photos of a listing you
+ * are about to misprice is waste on top of waste. The text layer is solid now.
+ *
+ * **The value is specifically in the listings that CANNOT be priced from text.**
+ * The low-knowledge sellers who underprice are exactly the ones who do not
+ * write the specs — they photograph the box. `deservesVision` already ranks
+ * INSUFFICIENT_DATA alongside BUY and VERIFY for that reason.
+ *
+ * Three independent bounds, because this loop runs unattended forever:
+ *   · `VISION_PER_RUN` listings per crawl, best-looking first
+ *   · the $2/day budget, checked before EVERY call inside `crawl()`
+ *   · `ASSYZE_VISION=off` kills it outright
  */
 import { crawl } from "../crawler/index.ts";
 import { checkStored, ENGINE_VERSION } from "../engine/index.ts";
@@ -30,6 +40,20 @@ const INTERVAL_MS = Number(process.env.ASSYZE_CRAWL_INTERVAL_MS ?? 45 * 60 * 100
 
 /** Listings analysed per run. Bounded so one pass cannot run away. */
 const LIMIT = Number(process.env.ASSYZE_CRAWL_LIMIT ?? 40);
+
+/**
+ * Listings whose photos get read per crawl run.
+ *
+ * Deliberately small. At Haiku rates a listing runs well under a cent, so 8 per
+ * run against a 45-minute steady cadence is a few dollars a month — but the
+ * $2/day guard inside `crawl()` is what actually enforces the ceiling, and it
+ * is checked before every single call. This number only decides how fast the
+ * budget could be reached, never whether it can be exceeded.
+ */
+const VISION_PER_RUN = Number(process.env.ASSYZE_CRAWL_VISION ?? 8);
+
+/** `ASSYZE_VISION=off` kills photo reading without stopping the crawl. */
+const VISION_ON = (process.env.ASSYZE_VISION ?? "on").toLowerCase() !== "off";
 
 /** Set `ASSYZE_CRAWL=off` to disable — the local box does not need it. */
 const ENABLED = (process.env.ASSYZE_CRAWL ?? "on").toLowerCase() !== "off";
@@ -72,7 +96,13 @@ async function runOnce(reason: string) {
     const st = await crawl({
       limit: p.limit,
       pages: 1,
-      maxVision: 0,
+      /**
+       * Backfill mode reads NO photos. It exists to fill an empty feed fast,
+       * and a 1,376-listing backlog at even a cent each is real money spent
+       * before anyone has looked at the feed once. Vision starts when the
+       * crawl settles into keeping up with new posts.
+       */
+      maxVision: VISION_ON && p.mode === "steady" ? VISION_PER_RUN : 0,
       concurrency: 3,
       onProgress: (m) => console.log(`  crawl: ${m}`),
     });

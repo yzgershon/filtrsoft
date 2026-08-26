@@ -46,7 +46,7 @@ const NOT_OUR_MARKET =
  * it against one machine's comps is meaningless.
  */
 const BULK_LISTING =
-  /\b(\d{2,}\s+(computers|laptops|monitors|printers|phones)|lot of \d|wholesale|bulk|liquidation|starting at (just )?\$|do you need a)\b/i;
+  /\b(\d{2,}\s+(computers|laptops|monitors|printers|phones)|lot of \d|wholesale|bulk|liquidation|starting at (just )?\$|do you need a)\b|\b(laptops|computers|desktops|phones|monitors|tablets)\b[^.]{0,20}\bfor sale\b|\bmultiple\s+(laptops|computers|phones)\b/i;
 
 /** Reader-facing retailer names. "microcenter" is not how anyone says it. */
 const RETAILER_NAME: Record<string, string> = {

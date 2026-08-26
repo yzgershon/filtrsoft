@@ -337,6 +337,7 @@ export function checkStored(
  * 0.3.5 — laptop-before-prebuilt, bare i7 counts, monitors/bulk out of scope.
  * 0.3.6 — storage extraction no longer reads RAM as the drive capacity.
  * 0.3.7 — counterfeit detection: a clone is a blocker, not a discount.
+ * 0.3.8 — bulk-listing pattern catches plural "laptops for sale".
  *
  * 0.3.6 is also the reminder that this list is not a changelog. The storage
  * fix shipped WITHOUT a bump and production kept serving the old verdicts,
@@ -344,4 +345,4 @@ export function checkStored(
  * the current version. Exactly the failure this constant was made load-bearing
  * to prevent, two days after writing that down.
  */
-export const ENGINE_VERSION = "0.3.7";
+export const ENGINE_VERSION = "0.3.8";
