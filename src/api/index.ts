@@ -363,7 +363,37 @@ const hasBuild = existsSync(`${DIST}/index.html`);
 
 if (hasBuild) {
   app.use("/assets/*", serveStatic({ root: DIST }));
-  app.use("/favicon.ico", serveStatic({ root: DIST }));
+
+  /**
+   * ROOT-LEVEL STATIC FILES MUST BE LISTED, or the SPA fallback eats them.
+   *
+   * Only `/assets/*` was served, so every other real file — the manifest, the
+   * service worker, every icon — fell through to `app.get("*")` and came back
+   * as `index.html` with a **200**. Silently: the status looked fine and the
+   * bytes were HTML.
+   *
+   * That defeats the whole install. Chrome fetches `/manifest.webmanifest`,
+   * gets HTML, cannot parse it, and falls back to offering "Add shortcut" —
+   * exactly the symptom Yish reported. It would have survived any check that
+   * only looked at status codes, which is how it nearly shipped.
+   *
+   * Listed explicitly rather than mounting a broad `/*` static handler,
+   * because a wildcard here would sit in front of the `/v1/*` API routes.
+   *
+   * **`path`, not `root`.** `serveStatic({ root })` strips the mount prefix
+   * and resolves what remains — which for an exact-path mount is the empty
+   * string, so it looks for a directory and never matches. That is why the
+   * pre-existing `/favicon.ico` line never worked either. `path` names the
+   * file outright, which is the form the index.html fallback below already
+   * uses successfully.
+   */
+  for (const f of [
+    "manifest.webmanifest", "sw.js", "favicon.ico", "icon.svg",
+    "icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png",
+  ]) {
+    app.get(`/${f}`, serveStatic({ path: `${DIST}/${f}` }));
+  }
+
   // SPA fallback — /c/:id must survive a hard refresh and a shared link.
   app.get("*", serveStatic({ path: `${DIST}/index.html` }));
 }
