@@ -299,6 +299,51 @@ app.post("/v1/checks/:id/outcome", async (c) => {
   return c.json({ ok: true, action: body.action, totalOutcomes: n });
 });
 
+/**
+ * The tracker fields, derived once and shared by the ranker and the response.
+ *
+ * These come from `sweep`, which re-checks every live listing daily. They are
+ * the difference between a feed that lists things and a feed that knows what
+ * happened to them.
+ *
+ * **A drop is measured from the FIRST observed price, not the last.** A seller
+ * who walks $1,800 down to $1,500 in three steps has made one $300 concession,
+ * and reporting it as three $100 moves both understates the signal and makes it
+ * disappear the moment they stop moving.
+ *
+ * `asking_price_cents` is the price at CAPTURE and `last_price_cents` is the
+ * price at the most recent sweep, so the current price is the latter when we
+ * have one. Using the capture price as "current" would show a stale number
+ * beside a correct drop and read as a bug.
+ */
+export function tracker(r: {
+  delisted_at: string | null; delist_reason: string | null;
+  asking_price_cents: number | null; last_price_cents: number | null;
+  first_price_cents: number | null; latest_price_cents: number | null;
+  last_seen: string | null;
+}) {
+  const pos = (n: number | null | undefined) => (typeof n === "number" && n > 0 ? n : null);
+  const current = pos(r.latest_price_cents) ?? pos(r.last_price_cents) ?? pos(r.asking_price_cents);
+  const origin = pos(r.first_price_cents) ?? pos(r.asking_price_cents);
+  const raw = origin !== null && current !== null && origin > current ? origin - current : 0;
+  /**
+   * A drop has to be worth saying. Below $5 or 3% it is a seller rounding
+   * their own number, and badging that as a price cut trains people to ignore
+   * the badge — which costs us the times it means something.
+   */
+  const drop = raw >= 500 && origin !== null && raw / origin >= 0.03 ? raw : 0;
+  return {
+    gone: Boolean(r.delisted_at),
+    goneReason: r.delist_reason,
+    goneAt: r.delisted_at,
+    currentPriceCents: current,
+    /** Only set when it actually moved down, so the UI can test one field. */
+    priceDropCents: drop || null,
+    priceWasCents: drop ? origin : null,
+    lastSeen: r.last_seen,
+  };
+}
+
 app.get("/v1/feed", (c) => {
   const call = c.req.query("call");           // optional filter
   const cat = c.req.query("category");
@@ -314,11 +359,30 @@ app.get("/v1/feed", (c) => {
    */
   const limit = Math.min(Number(c.req.query("limit")) || 60, 200);
   const offset = Math.max(0, Number(c.req.query("offset")) || 0);
+  const showGone = c.req.query("gone") === "1";
 
   const rows = db().query(`
     SELECT l.id, l.title, l.url, l.asking_price_cents, l.location, l.posted_at, l.source,
+           l.delisted_at, l.delist_reason, l.last_price_cents, l.last_seen,
            v.call, v.confidence, v.payload,
-           (SELECT url FROM listing_photos p WHERE p.listing_id = l.id ORDER BY position LIMIT 1) thumb
+           (SELECT url FROM listing_photos p WHERE p.listing_id = l.id ORDER BY position LIMIT 1) thumb,
+           /**
+            * FIRST and LATEST observed price, both filtered to POSITIVE values.
+            *
+            * The drop is measured from where the listing STARTED, not from the
+            * previous sweep: a seller who walks $1,800 down in three steps has
+            * made one $300 concession, and reporting three $100 moves both
+            * understates it and makes it vanish the moment they stop cutting.
+            *
+            * The price_cents > 0 guard is load-bearing, not defensive. A card
+            * whose price fails to parse yields 0, and a zero read as a price
+            * turns a $145 laptop into a $145 discount — it would have been the
+            * top-ranked "deal" on the site.
+            */
+           (SELECT price_cents FROM listing_prices lp WHERE lp.listing_id = l.id
+             AND lp.price_cents > 0 ORDER BY lp.observed_at ASC LIMIT 1) first_price_cents,
+           (SELECT price_cents FROM listing_prices lp WHERE lp.listing_id = l.id
+             AND lp.price_cents > 0 ORDER BY lp.observed_at DESC LIMIT 1) latest_price_cents
     FROM listings l
     JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
     WHERE v.call NOT IN ('OUT_OF_SCOPE')
@@ -348,7 +412,25 @@ app.get("/v1/feed", (c) => {
     const ageDays = r.posted_at ? (Date.now() - Date.parse(r.posted_at)) / 86_400_000 : 99;
     // Deals decay: a great listing from 3 weeks ago is usually already gone.
     const freshness = Math.max(0, 1 - ageDays / 21);
-    const score = (10 - (RANK[r.call] ?? 9)) * 1000 + Math.min(net / 100, 500) + freshness * 200;
+    const t = tracker(r);
+    /**
+     * A price DROP is the strongest buy signal on any marketplace and it was
+     * sitting unused in the database — `listing_prices` has been recorded on
+     * every sweep since the tracker shipped and nothing ever read it.
+     *
+     * Bounded at +150 so it can reorder within a call band without ever
+     * outranking the call itself: a PASS that got cheaper is still a PASS.
+     */
+    const dropBoost = t.priceDropCents ? Math.min(t.priceDropCents / 200, 150) : 0;
+    /**
+     * A DELISTED listing sinks below everything live. Not removed — see the
+     * `gone` filter — because "this sold in 4 days at $650" is exactly the
+     * evidence the outcome loop needs, and hiding it entirely would also hide
+     * the proof that the tracker is working.
+     */
+    const goneP = t.gone ? -100_000 : 0;
+    const score = (10 - (RANK[r.call] ?? 9)) * 1000 + Math.min(net / 100, 500)
+      + freshness * 200 + dropBoost + goneP;
     return {
       id: r.id, title: r.title, url: r.url, source: r.source,
       askingPriceCents: r.asking_price_cents, location: r.location, postedAt: r.posted_at,
@@ -356,11 +438,20 @@ app.get("/v1/feed", (c) => {
       headline: v?.headline ?? null,
       netProfitCents: v?.netProfitCents ?? null,
       flagCount: (v?.blockers?.length ?? 0),
+      ...tracker(r),
       score,
     };
   })
     .filter((i) => (call ? i.call === call : true))
-    .filter((i) => (cat ? true : true))
+    /**
+     * DELISTED LISTINGS ARE HIDDEN BY DEFAULT. This is the fix for the feed
+     * being able to send someone to a listing that sold two weeks ago.
+     *
+     * `?gone=1` shows them, because "sold in 4 days at $650" is the clearing
+     * evidence the outcome loop is built on and there needs to be somewhere to
+     * see it.
+     */
+    .filter((i) => (showGone ? true : !i.gone))
     .sort((a, b) => b.score - a.score);
 
   // Rank globally, then page. Paging before ranking would make page 2 a

@@ -32,6 +32,7 @@
  *   · `ASSYZE_VISION=off` kills it outright
  */
 import { crawl } from "../crawler/index.ts";
+import { sweep } from "../tracker/index.ts";
 import { checkStored, ENGINE_VERSION } from "../engine/index.ts";
 import { db, now } from "../db/index.ts";
 
@@ -74,7 +75,40 @@ function pace(): { limit: number; nextMs: number; mode: string } {
   return { limit: LIMIT, nextMs: INTERVAL_MS, mode: "steady" };
 }
 
+/**
+ * How often to re-check listings we have already seen.
+ *
+ * **THIS NEVER RAN IN PRODUCTION AND THAT WAS THE BIGGEST CREDIBILITY BUG IN
+ * THE PRODUCT.** `sweep` was written, worked, and had a `package.json` script,
+ * but nothing in the container called it — so the feed had never once checked
+ * whether any of its listings were still up. 96 of the 200 rows it served on
+ * 2026-08-26 were over two weeks old and nothing marked them dead. An app whose
+ * entire promise is "worth driving for" was able to send you to something that
+ * sold a fortnight ago.
+ *
+ * Daily, not hourly. A sweep re-fetches every live listing's SEARCH page and
+ * then probes the missing ones individually; running it often would multiply
+ * our request rate at the source for information that changes on the scale of
+ * days. It also produces the clearing-price history that `outcomes` reads, and
+ * every day it does not run is history nobody can refetch.
+ */
+const SWEEP_INTERVAL_MS = Number(process.env.ASSYZE_SWEEP_INTERVAL_MS ?? 24 * 60 * 60 * 1000);
+const SWEEP_ON = (process.env.ASSYZE_SWEEP ?? "on").toLowerCase() !== "off";
+
+/**
+ * Cap the per-run individual probes.
+ *
+ * Step 3 of a sweep fetches EVERY listing the search pages did not return, one
+ * request each. On the first production sweep that set is the entire backlog of
+ * listings that expired while nothing was watching — hundreds of requests in a
+ * burst, which is the single most likely way to get the IP blocked. Unprobed
+ * listings simply stay live until the next sweep, so the backlog drains over
+ * several days instead of arriving as one spike.
+ */
+const SWEEP_PROBE_LIMIT = Number(process.env.ASSYZE_SWEEP_PROBE ?? 60);
+
 let running = false;
+let sweeping = false;
 
 async function runOnce(reason: string) {
   /**
@@ -222,4 +256,46 @@ export function startCrawlLoop() {
     setTimeout(() => void tick("scheduled"), p.nextMs).unref?.();
   };
   setTimeout(() => void tick("first"), first).unref?.();
+
+  if (SWEEP_ON) startSweepLoop();
+}
+
+/**
+ * The sweep loop, on its own chain rather than folded into the crawl.
+ *
+ * Two different cadences — 45 minutes against 24 hours — and a sweep must not
+ * delay a crawl or vice versa. `sweeping` and `running` are separate flags so
+ * they can overlap; they touch different rows and SQLite serialises the writes.
+ *
+ * The first sweep waits 10 minutes. On a cold container the crawl is the thing
+ * that makes the feed non-empty, and sweeping a database that is still filling
+ * spends requests re-checking listings we just fetched.
+ */
+function startSweepLoop() {
+  const FIRST_MS = 10 * 60_000;
+  console.log(
+    `sweep loop: every ${Math.round(SWEEP_INTERVAL_MS / 3600_000)}h, ` +
+    `probe cap ${SWEEP_PROBE_LIMIT}, first run in ${Math.round(FIRST_MS / 60000)}m`,
+  );
+
+  const tick = async () => {
+    if (sweeping) { console.log("sweep: previous run still going, skipping"); return; }
+    sweeping = true;
+    const t0 = Date.now();
+    try {
+      const st = await sweep({ pages: 1, probeLimit: SWEEP_PROBE_LIMIT });
+      console.log(
+        `sweep done in ${Math.round((Date.now() - t0) / 1000)}s — ` +
+        `${st.stillUp} still up, ${st.delisted} delisted, ${st.priceMoves} price moves`,
+      );
+    } catch (e) {
+      // A failed sweep must never take the API down with it. The feed is still
+      // correct, just staler than it should be.
+      console.error("sweep failed:", (e as Error).message);
+    } finally {
+      sweeping = false;
+      setTimeout(() => void tick(), SWEEP_INTERVAL_MS).unref?.();
+    }
+  };
+  setTimeout(() => void tick(), FIRST_MS).unref?.();
 }

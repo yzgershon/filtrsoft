@@ -82,6 +82,39 @@ export async function sweep(opts: {
     probed: 0, delisted: 0, priceMoves: 0, byReason: {},
   };
 
+  /**
+   * SEED THE BASELINE, or `listing_prices` is not a history and "was $1,800"
+   * is wrong.
+   *
+   * The move-recording branch below only writes a row when the price CHANGES,
+   * and the original branch only fires when the listing had no price at all.
+   * So a listing captured at $1,800 that later drops to $1,500 ends up with
+   * exactly ONE row in this table — holding $1,500. Anything reading
+   * `MIN(observed_at)` as "the first price we saw" then gets the CURRENT price
+   * back and computes a drop of zero, which is how the feed showed no price
+   * moves on the same day a sweep reported four.
+   *
+   * `asking_price_cents` at `captured_at` is a real observation — it is what
+   * the listing said when we first fetched it — so writing it here records
+   * history rather than inventing it. Guarded on there being no row at or
+   * before capture, which makes it idempotent AND backfills listings that
+   * already have a change row but no origin.
+   *
+   * It has to live in the sweep rather than the crawler because the rows that
+   * need fixing already exist.
+   */
+  const seeded = db().run(
+    `INSERT INTO listing_prices (listing_id, price_cents, observed_at)
+     SELECT l.id, l.asking_price_cents, l.captured_at
+     FROM listings l
+     WHERE l.asking_price_cents > 0
+       AND NOT EXISTS (
+         SELECT 1 FROM listing_prices p
+         WHERE p.listing_id = l.id AND p.observed_at <= l.captured_at
+       )`,
+  );
+  if (seeded.changes) log(`  seeded ${seeded.changes} baseline price rows`);
+
   // ---- 1. discover what is currently up, WITH prices -------------------
   const current = new Map<string, number | null>();
   for (const cat of cats) {
@@ -114,15 +147,30 @@ export async function sweep(opts: {
     const seen = current.get(l.source_id) ?? null;
     const known = l.last_price_cents ?? l.asking_price_cents;
 
+    /**
+     * ZERO IS "NO PRICE SHOWN", NEVER "FREE" — and recording it as a price is
+     * how a $145 laptop acquires a $145 price DROP.
+     *
+     * A search card whose price fails to parse yields 0, and the branch below
+     * only tests for `null`. Two listings in the local database had a real
+     * `$145 -> $0` history from exactly this, which the feed would have ranked
+     * as the biggest bargain on the site. Same family as the "missing asking
+     * price became zero" trap already in HANDOFF.
+     *
+     * Treated as NOT OBSERVED: the listing keeps its last known price rather
+     * than acquiring a fake one.
+     */
+    const price = seen !== null && seen > 0 ? seen : null;
+
     // Seed the baseline on first sight, then only write on an actual change.
     // A row per sweep per listing would be 341 rows a day of pure noise.
-    if (seen !== null && known === null) {
-      addPrice.run({ $id: l.id, $p: seen, $t: t });
-    } else if (seen !== null && known !== null && seen !== known) {
-      addPrice.run({ $id: l.id, $p: seen, $t: t });
+    if (price !== null && known === null) {
+      addPrice.run({ $id: l.id, $p: price, $t: t });
+    } else if (price !== null && known !== null && price !== known) {
+      addPrice.run({ $id: l.id, $p: price, $t: t });
       st.priceMoves++;
     }
-    touch.run({ $t: t, $p: seen ?? known, $id: l.id });
+    touch.run({ $t: t, $p: price ?? known, $id: l.id });
   }
   log(`${st.stillUp} still up · ${st.priceMoves} price changes · ${missing.length} not seen`);
 
