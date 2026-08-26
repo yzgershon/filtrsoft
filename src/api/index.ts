@@ -720,12 +720,30 @@ setTimeout(async () => {
      * Nothing reported it. `/v1/health` said `ok: true`. The check that matters
      * is the one on the thing that was actually missing.
      */
-    const imported = (await import("../db/archive.ts")).importArchiveIfThin();
-    if (imported) {
-      console.log(
-        `archive imported — +${imported.comps} comps, +${imported.skus} skus, ` +
-        `+${imported.aliases} aliases, +${imported.retail} retail`,
-      );
+    /**
+     * ⚠ EACH BOOT STEP GETS ITS OWN CATCH.
+     *
+     * All of this used to sit under ONE try/catch whose handler said
+     * "DATABASE UNAVAILABLE". So a failure in the archive import — which has
+     * nothing to do with the volume — was reported as a database problem AND
+     * skipped everything after it, including `startCrawlLoop`. Production ran
+     * for 13 hours with no crawl, no sweep and no import, serving happily,
+     * with one misleading log line as the only trace.
+     *
+     * The steps are independent: a bad archive must not stop the crawler, and
+     * a crawler that will not start must not hide why the archive is stale.
+     */
+    try {
+      const imported = (await import("../db/archive.ts")).importArchiveIfThin();
+      if (imported) {
+        console.log(
+          `archive imported — +${imported.comps} comps, +${imported.skus} skus, ` +
+          `+${imported.aliases} aliases, +${imported.retail} retail`,
+        );
+      }
+    } catch (e) {
+      console.error("ARCHIVE IMPORT FAILED — production will serve stale comps");
+      console.error(`  ${(e as Error).stack ?? (e as Error).message}`);
     }
 
     const comps = (db().query("SELECT COUNT(*) n FROM comps").get() as { n: number }).n;
@@ -741,7 +759,15 @@ setTimeout(async () => {
      * listings on it — which is exactly what it was. Craigslist only; Facebook
      * needs a logged-in browser and cannot run here. See `scheduler.ts`.
      */
-    (await import("./scheduler.ts")).startCrawlLoop();
+    try {
+      (await import("./scheduler.ts")).startCrawlLoop();
+    } catch (e) {
+      // The feed goes stale rather than the process dying, and the reason is
+      // named. This is where a bad dynamic import (a new dependency missing
+      // from the image, say) would surface.
+      console.error("CRAWL LOOP FAILED TO START — the feed will not refresh");
+      console.error(`  ${(e as Error).stack ?? (e as Error).message}`);
+    }
   } catch (e) {
     console.error(`DATABASE UNAVAILABLE at ${DB_PATH}: ${(e as Error).message}`);
     console.error("  The server is still serving. Fix the volume mount or ASSYZE_DB.");
