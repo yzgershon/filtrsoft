@@ -1348,6 +1348,109 @@ export default function App() {
  * at.
  */
 /**
+ * A stable per-device ref, used as Stripe's `client_reference_id`.
+ *
+ * There are no accounts yet, and inventing an email login purely to hang a
+ * subscription off would be the largest change on the list for the least
+ * benefit. The browser mints a random ref once; Stripe echoes it back on the
+ * webhook and that is what the entitlement is keyed on. When real accounts
+ * exist this becomes a user id and nothing else changes.
+ */
+const REFKEY = "assyze:ref";
+function deviceRef(): string {
+  let v = localStorage.getItem(REFKEY);
+  if (!v) {
+    v = crypto.randomUUID().replace(/-/g, "");
+    localStorage.setItem(REFKEY, v);
+  }
+  return v;
+}
+
+/**
+ * Billing.
+ *
+ * **The server decides whether there is anything to sell.** `enabled` is false
+ * until a Stripe price is configured, and the screen then shows the free plan
+ * with a real explanation instead of a dead Upgrade button — a control that
+ * opens nothing teaches people the whole screen is decorative.
+ *
+ * `?paid=1` on return from Checkout only triggers a REFRESH. It is never taken
+ * as proof of payment; the webhook is the only thing that grants access.
+ */
+function Billing() {
+  const [st, setSt] = useState<{ enabled: boolean; plan: string; active?: boolean; until?: string | null } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    fetch(`/v1/billing/status?ref=${deviceRef()}`).then((r) => r.json()).then(setSt).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    load();
+    if (new URLSearchParams(location.search).get("paid") === "1") {
+      history.replaceState({}, "", "/");
+      // The webhook may land a beat after the redirect, so re-check shortly.
+      setTimeout(load, 2500);
+    }
+  }, [load]);
+
+  async function go(path: string) {
+    setBusy(true);
+    try {
+      const r = await (await fetch(`/v1/billing/${path}`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ref: deviceRef() }),
+      })).json();
+      if (r.url) location.href = r.url;
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="sgroup">
+      <div className="shead"><Card size={14} /> Billing</div>
+      <div className="scard">
+        <div className="planrow">
+          <div>
+            <b>{st?.active ? "Pro" : "Free"}</b>
+            <span>
+              {st?.active
+                ? "Everything in Assyze, including alerts."
+                : "Every listing in the feed, unlimited checks, and the daily tracker."}
+            </span>
+          </div>
+          <span className="pill">Current</span>
+        </div>
+
+        {!st?.enabled && (
+          <p className="snote">
+            Assyze is free while the feed is being built out. Paid plans come when there
+            is something worth charging for, and nothing you use today moves behind a
+            paywall.
+          </p>
+        )}
+
+        {st?.enabled && !st.active && (
+          <button className="btn2" disabled={busy} onClick={() => go("checkout")}>
+            <Card size={15} /> {busy ? "Opening…" : "Upgrade"}
+          </button>
+        )}
+
+        {st?.enabled && st.active && (
+          <>
+            {st.until && (
+              <p className="snote">Renews {new Date(st.until).toLocaleDateString()}.</p>
+            )}
+            <button className="btn2" disabled={busy} onClick={() => go("portal")}>
+              {busy ? "Opening…" : "Manage subscription"}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Base64url -> Uint8Array, required by `pushManager.subscribe`.
  *
  * `applicationServerKey` will NOT accept the base64 string the server sends;
@@ -1533,29 +1636,7 @@ function SettingsScreen({ s, save, savedCount, onClearSaved }: {
     <div className="sec settings">
       <div className="feedhead"><h1>Settings</h1></div>
 
-      <div className="sgroup">
-        <div className="shead"><Card size={14} /> Billing</div>
-        <div className="scard">
-          <div className="planrow">
-            <div>
-              <b>Free</b>
-              <span>Every listing in the feed, unlimited checks, and the daily tracker.</span>
-            </div>
-            <span className="pill">Current</span>
-          </div>
-          {/**
-            * Honest about the state rather than showing a dead Upgrade button.
-            * There is no paid tier to sell yet — the checkout exists, the plan
-            * does not — and a button that opens nothing is worse than a
-            * sentence saying why.
-            */}
-          <p className="snote">
-            Assyze is free while the feed is being built out. Paid plans come when
-            there is something worth charging for, and nothing you use today moves
-            behind a paywall.
-          </p>
-        </div>
-      </div>
+      <Billing />
 
       <div className="sgroup">
         <div className="shead"><Tag size={14} /> Your numbers</div>

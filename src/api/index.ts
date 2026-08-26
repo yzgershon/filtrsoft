@@ -21,6 +21,9 @@ import {
   handleVapid, handleSubscribe, handleListSearches, handleCreateSearch,
   handleDeleteSearch, handleTestPush, pushConfigured, ensureAlertTables,
 } from "./alerts.ts";
+import {
+  handleBillingStatus, handleCheckout, handlePortal, handleWebhook, billingEnabled,
+} from "./billing.ts";
 import { getEconomics } from "../valuation/index.ts";
 import { db, DB_PATH } from "../db/index.ts";
 import { VISION_MODEL, visionConfigured } from "../vision/index.ts";
@@ -141,6 +144,7 @@ app.get("/v1/health", (c) => {
      */
     ebay: { deletionEndpoint: deletionEndpoint(), deletionConfigured: deletionConfigured() },
     push: { configured: pushConfigured() },
+    billing: { enabled: billingEnabled() },
   });
 });
 
@@ -268,6 +272,19 @@ app.post("/v1/push/test", handleTestPush);
 app.get("/v1/searches", handleListSearches);
 app.post("/v1/searches", handleCreateSearch);
 app.delete("/v1/searches/:id", handleDeleteSearch);
+
+/**
+ * Billing. Built, and OFF until `STRIPE_PRICE_ID` is set — see `billing.ts`
+ * for why putting a paywall in front of zero users is the wrong move.
+ *
+ * The webhook is NOT under the CORS or rate-limit middleware by accident: it
+ * is a server-to-server callback from Stripe, and rate-limiting it by client
+ * IP would drop legitimate retries during exactly the burst that matters.
+ */
+app.get("/v1/billing/status", handleBillingStatus);
+app.post("/v1/billing/checkout", handleCheckout);
+app.post("/v1/billing/portal", handlePortal);
+app.post("/v1/billing/webhook", handleWebhook);
 
 /**
  * One-tap outcomes — Codex's highest-leverage small feature, and the one that
