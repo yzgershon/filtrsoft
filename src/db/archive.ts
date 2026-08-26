@@ -171,7 +171,8 @@ export function importArchive(a: Archive): ImportResult {
       * can never re-file a sold price onto a different product.
       */
      ON CONFLICT(source, source_item_id) DO UPDATE SET
-       sku_id = COALESCE(comps.sku_id, excluded.sku_id)`,
+       sku_id = excluded.sku_id
+       WHERE comps.sku_id IS NULL`,
   );
   const insRetail = d.query(
     `INSERT INTO retail_prices (sku_id, source, title, price_cents, is_new,

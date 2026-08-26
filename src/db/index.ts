@@ -136,7 +136,8 @@ export function insertComp(c: {
         * than leaving it orphaned.
         */
        ON CONFLICT(source, source_item_id) DO UPDATE SET
-         sku_id = COALESCE(comps.sku_id, excluded.sku_id)`,
+         sku_id = excluded.sku_id
+       WHERE comps.sku_id IS NULL`,
     )
     .run({
       $source: c.source,
