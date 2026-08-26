@@ -161,7 +161,17 @@ export function importArchive(a: Archive): ImportResult {
         shipping_cents, currency, condition_raw, condition_norm, sold_at,
         captured_at, seller_feedback, region, sku_id, query, raw_json)
      VALUES ($src,$sid,$url,$title,$price,$ship,$cur,$craw,$cnorm,$sold,$cap,$fb,$reg,$sku,$q,$raw)
-     ON CONFLICT(source, source_item_id) DO NOTHING`,
+     /*
+      * Same adoption rule as insertComp, for the same reason.
+      *
+      * DO NOTHING meant an archive import could never REPAIR a comp that had
+      * landed on production with a null sku_id — the row already exists, so
+      * the corrected attribution in the archive was discarded every time.
+      * Only ever fills a null; an attached comp keeps its SKU, so an import
+      * can never re-file a sold price onto a different product.
+      */
+     ON CONFLICT(source, source_item_id) DO UPDATE SET
+       sku_id = COALESCE(comps.sku_id, excluded.sku_id)`,
   );
   const insRetail = d.query(
     `INSERT INTO retail_prices (sku_id, source, title, price_cents, is_new,
