@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Assyze — feed design directions</title>
+<!--
+  THREE DIRECTIONS ON THE SAME REAL DATA.
+
+  Every listing, price, photo, verdict and headline below is live from
+  assyze.com. Nothing is invented — a mockup with lorem ipsum in it cannot tell
+  you whether a 68-character Craigslist title wraps badly, and that is exactly
+  the question a feed card has to answer.
+
+  Codex's feed rules (ECOSYSTEM-EXPANSION §2) are implemented in all three:
+    · separate Verified deals / Needs one answer / Recently checked, rather
+      than mixing weak calls under one promise
+    · last-observed time and confidence decay shown, not implied
+    · filter by unresolved blocker, not only category and price
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================================
+   TOKENS — shared. Only the CARD LANGUAGE differs between directions, which
+   is the point: this is a layout decision, not a repaint. The OLED palette,
+   the verdict colours and the 4/8 spacing rhythm are already in the app and
+   already correct.
+   ========================================================================== */
+:root{
+  --bg:#08070a; --surface:#121116; --surface-2:#1b1a21; --surface-3:#26242d;
+  --line:#2a2833; --line-soft:#201f28;
+  --ink:#f2f0f5; --ink-2:#a8a4b4; --ink-3:#6e6a7c;
+  --brand:#ff8a3d; --on-brand:#160d05;
+  --buy:#34d399; --verify:#ff8a3d; --fair:#60a5fa; --pass:#fbbf24;
+  --risk:#f87171; --unknown:#a78bfa;
+  --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:22px;
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px;
+  --tap:44px; --dur:200ms; --ease:cubic-bezier(.22,.61,.36,1);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:#0b0a0e;color:var(--ink);
+  font-family:Inter,system-ui,-apple-system,sans-serif;font-size:16px;line-height:1.5}
+.num{font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+img{display:block}
+
+/* ---- preview chrome (not part of the app) ---- */
+.wrap{max-width:1400px;margin:0 auto;padding:var(--s5) var(--s4) 64px}
+.lede{max-width:760px;margin:0 auto var(--s6)}
+.lede h1{font-size:28px;font-weight:800;letter-spacing:-.02em;margin:0 0 var(--s2)}
+.lede p{color:var(--ink-2);font-size:14.5px;margin:0 0 var(--s2)}
+.lede code{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--brand)}
+.rail{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:var(--s5);align-items:start}
+.col{min-width:0}
+.colhead{position:sticky;top:0;z-index:5;background:#0b0a0e;padding:var(--s3) 0 var(--s3);
+  border-bottom:1px solid var(--line);margin-bottom:var(--s4)}
+.colhead h2{margin:0;font-size:15px;font-weight:700;letter-spacing:.01em}
+.colhead p{margin:var(--s1) 0 0;font-size:12.5px;color:var(--ink-3);line-height:1.45}
+.phone{background:var(--bg);border:1px solid var(--line);border-radius:var(--r-xl);
+  overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.8)}
+.scr{padding:var(--s3) var(--s3) var(--s5)}
+
+/* ---- app bar, shared ---- */
+.appbar{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);
+  padding:var(--s3) var(--s3) var(--s2)}
+.logo{font-weight:800;font-size:17px;letter-spacing:-.02em}
+.logo em{font-style:normal;color:var(--brand)}
+.iconbtn{width:var(--tap);height:var(--tap);display:grid;place-items:center;border-radius:999px;
+  color:var(--ink-2);transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+.iconbtn:hover{background:var(--surface-2);color:var(--ink)}
+.iconbtn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round}
+
+/* ---- section headers: Codex's rule 2 ---- */
+.sect{display:flex;align-items:baseline;gap:var(--s2);margin:var(--s5) 0 var(--s3);padding:0 var(--s1)}
+.sect:first-of-type{margin-top:var(--s3)}
+.sect h3{margin:0;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.sect span{font-size:12px;color:var(--ink-3)}
+.sect .dot{width:7px;height:7px;border-radius:99px;flex:none}
+
+/* ---- filter chips ---- */
+.chips{display:flex;gap:var(--s2);overflow-x:auto;padding:var(--s2) var(--s1) var(--s3);
+  scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;min-height:34px;padding:0 13px;border-radius:999px;background:var(--surface-2);
+  border:1px solid var(--line);color:var(--ink-2);font-size:13px;font-weight:600;
+  display:flex;align-items:center;gap:6px;transition:all var(--dur) var(--ease);white-space:nowrap}
+.chip:hover{color:var(--ink);border-color:var(--surface-3)}
+.chip.on{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+.chip em{font-style:normal;opacity:.7;font-size:11.5px}
+
+/* ---- verdict badge, shared vocabulary ---- */
+.b{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;
+  letter-spacing:.055em;text-transform:uppercase;padding:4px 8px;border-radius:6px;white-space:nowrap}
+.b svg{width:12px;height:12px;stroke-width:2.4}
+.b-BUY{background:rgba(52,211,153,.15);color:var(--buy)}
+.b-VERIFY{background:rgba(255,138,61,.15);color:var(--verify)}
+.b-FAIR{background:rgba(96,165,250,.15);color:var(--fair)}
+.b-PASS{background:rgba(251,191,36,.13);color:var(--pass)}
+.b-RISK{background:rgba(248,113,113,.15);color:var(--risk)}
+
+.meta{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3);min-width:0}
+.meta .sep{opacity:.45}
+.stale{color:var(--pass)}
+
+/* ==========================================================================
+   DIRECTION A — "Storefront". Photo-led, one per row, big.
+   The bet: this is a MARKETPLACE, and marketplaces sell on the photo. Closest
+   to Facebook Marketplace / StockX. Costs vertical space, so fewer listings
+   fit on screen — which matters when only ~1% are actionable.
+   ========================================================================== */
+.A .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
+  overflow:hidden;margin-bottom:var(--s3);transition:transform var(--dur) var(--ease),
+  border-color var(--dur) var(--ease);width:100%;text-align:left;display:block}
+.A .card:hover{transform:translateY(-2px);border-color:var(--surface-3)}
+.A .shot{position:relative;aspect-ratio:4/3;background:var(--surface-2)}
+.A .shot img{width:100%;height:100%;object-fit:cover}
+.A .shot .b{position:absolute;top:var(--s3);left:var(--s3);backdrop-filter:blur(12px)}
+.A .net{position:absolute;bottom:var(--s3);right:var(--s3);background:rgba(8,7,10,.82);
+  backdrop-filter:blur(12px);border:1px solid rgba(52,211,153,.3);border-radius:var(--r-sm);
+  padding:5px 9px;font-size:13px;font-weight:700;color:var(--buy)}
+.A .body{padding:var(--s3)}
+.A .body h4{margin:0 0 var(--s2);font-size:15px;font-weight:600;line-height:1.35;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.A .row{display:flex;align-items:center;justify-content:space-between;gap:var(--s3)}
+.A .price{font-size:21px;font-weight:700;letter-spacing:-.02em}
+.A .why{margin:var(--s2) 0 0;font-size:12.5px;color:var(--ink-2);line-height:1.45;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+/* ==========================================================================
+   DIRECTION B — "Trade desk". Dense rows, thumbnail left, numbers aligned.
+   The bet: you are scanning for MARGIN, not browsing. ~3x the listings per
+   screen and the money column lines up, so comparison is vertical eye travel
+   instead of memory. Tabular numerals do real work here.
+   ========================================================================== */
+.B .card{display:flex;gap:var(--s3);align-items:stretch;background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--r-md);padding:var(--s2);
+  margin-bottom:var(--s2);width:100%;text-align:left;
+  transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+.B .card:hover{border-color:var(--surface-3);background:var(--surface-2)}
+.B .shot{width:76px;height:76px;flex:none;border-radius:var(--r-sm);overflow:hidden;
+  background:var(--surface-2)}
+.B .shot img{width:100%;height:100%;object-fit:cover}
+.B .mid{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:5px}
+/* A flex COLUMN stretches its children to full width by default, so the verdict
+   badge rendered as a full-bleed coloured bar instead of a chip. `align-self`
+   is what makes it hug its own text. Same reason the hero overlay needs it. */
+.B .mid .b,.C .over .b{align-self:flex-start}
+.B .mid h4{margin:0;font-size:13.5px;font-weight:600;line-height:1.3;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.B .end{flex:none;display:flex;flex-direction:column;align-items:flex-end;
+  justify-content:center;gap:5px;padding-right:var(--s1)}
+.B .price{font-size:16px;font-weight:700;letter-spacing:-.01em}
+.B .net{font-size:12.5px;font-weight:700;color:var(--buy)}
+.B .net.neg{color:var(--ink-3)}
+
+/* ==========================================================================
+   DIRECTION C — "Hero + rest". One BUY treated as the headline, everything
+   else compact underneath.
+   The bet: on a 763-listing feed with 1% actionable, the job is not to browse
+   — it is to answer "is there anything for me right now". One card earns the
+   space; the rest is a list you skim.
+   ========================================================================== */
+.C .hero{background:linear-gradient(155deg,rgba(52,211,153,.09),transparent 62%),var(--surface);
+  border:1px solid rgba(52,211,153,.28);border-radius:var(--r-lg);overflow:hidden;
+  margin-bottom:var(--s4);width:100%;text-align:left;display:block}
+.C .hero .shot{position:relative;aspect-ratio:16/10;background:var(--surface-2)}
+.C .hero .shot img{width:100%;height:100%;object-fit:cover}
+.C .hero .shot::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(to top,rgba(8,7,10,.9),transparent 52%)}
+.C .hero .over{position:absolute;left:var(--s4);right:var(--s4);bottom:var(--s3);z-index:2}
+.C .hero h4{margin:var(--s2) 0 0;font-size:17px;font-weight:700;line-height:1.3;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.C .hero .nums{display:flex;align-items:baseline;gap:var(--s3);margin-top:var(--s3);
+  padding:0 var(--s4) var(--s4)}
+.C .hero .price{font-size:26px;font-weight:800;letter-spacing:-.03em}
+.C .hero .net{font-size:14px;font-weight:700;color:var(--buy)}
+.C .hero .why{padding:0 var(--s4) var(--s4);margin:calc(var(--s3) * -1) 0 0;
+  font-size:13px;color:var(--ink-2);line-height:1.5}
+.C .mini{display:flex;gap:var(--s3);align-items:center;padding:var(--s2) var(--s1);
+  border-bottom:1px solid var(--line-soft);width:100%;text-align:left}
+.C .mini:hover{background:var(--surface)}
+.C .mini .shot{width:52px;height:52px;flex:none;border-radius:var(--r-sm);overflow:hidden;
+  background:var(--surface-2)}
+.C .mini .shot img{width:100%;height:100%;object-fit:cover}
+.C .mini .mid{flex:1;min-width:0}
+.C .mini h4{margin:0 0 3px;font-size:13px;font-weight:600;line-height:1.3;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.C .mini .end{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.C .mini .price{font-size:14px;font-weight:700}
+
+/* ---- bottom nav, shared ---- */
+.nav{display:flex;border-top:1px solid var(--line);background:var(--surface);
+  padding:var(--s2) 0 calc(var(--s2) + env(safe-area-inset-bottom))}
+.nav button{flex:1;min-height:var(--tap);display:flex;flex-direction:column;align-items:center;
+  gap:3px;font-size:10.5px;font-weight:600;color:var(--ink-3);letter-spacing:.02em}
+.nav button.on{color:var(--brand)}
+.nav svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="lede">
+    <h1>Assyze feed — three directions</h1>
+    <p>Every listing, price, photo, verdict and headline below is <strong>live from assyze.com</strong>.
+       Nothing is invented: a mockup full of lorem ipsum cannot tell you whether a 68-character
+       Craigslist title wraps badly, and that is exactly what a feed card has to survive.</p>
+    <p>All three implement Codex's feed rules — sections instead of one mixed list,
+       staleness shown rather than implied, and filtering by <em>unresolved blocker</em>
+       rather than only category and price. The palette, verdict colours and
+       <code>4/8</code> spacing are the app's existing tokens, unchanged. What differs is the
+       card language, which is the actual decision.</p>
+  </div>
+  <div class="rail" id="rail"></div>
+</div>
+
+<script>
+const DATA = [{"id": 378, "title": "NVIDIA GeForce RTX 4090 Founders Edition 24GB GDDR6X Graphics Card", "call": "BUY", "ask": 150000, "net": 65334, "thumb": "https://images.craigslist.org/00R0R_fJ1kX9fp6gN_02g01H_1200x900.jpg", "loc": "Nonantum", "posted": "2026-08-25T15:22:10-0400", "src": "craigslist", "headline": "$653 net on ebay — clears your $135 floor.", "conf": "high", "flags": 0}, {"id": 381, "title": "Gigabyte GeForce RTX 5090 WINDFORCE OC 32G GV-N5090WF3OC-32GD GDDR7 PC", "call": "VERIFY", "ask": 250000, "net": 117124, "thumb": "https://images.craigslist.org/00p0p_cG8eMUdcUPN_0jm0j7_1200x900.jpg", "loc": "Nonantum", "posted": "2026-08-25T15:01:54-0400", "src": "craigslist", "headline": "Priced at 59% of market — verify before driving.", "conf": "high", "flags": 0}, {"id": 842, "title": "HP OMEN MAX 45L Gaming PC (No GPU)", "call": "VERIFY", "ask": 65000, "net": 55384, "thumb": "https://scontent-bos5-1.xx.fbcdn.net/v/t39.84726-6/784352442_1564953928433373_8989290640169391652_n.jpg?stp=dst-jpg_s960x960_tt6&_nc_cat=105&ccb=1-7&_nc_sid=92e707&_nc_ohc=EUqU9DCpFBQQ7kNvwGXs3O8&_nc_oc=AdrUOss8hnRlbb1f4dfJFurRzWzwKUHei0h3Yax-vXsEGaa72dYKcB_ylo4SpVtx7w1S8KfZtQlWF_tEVCfGtLy8&_nc_zt=14&_nc_ht=scontent-bos5-1.xx&_nc_gid=jyu2aD6zpLBX0Gxhl8MnPw&_nc_ss=7b2a8&oh=00_AQG4QPl_hdqiNp2ARxy0CSAxqEYNIs-iFAWLzr_zIsBwww&oe=6A94155A", "loc": "Charlestown, MA", "posted": "2026-08-22T02:21:42.053Z", "src": "facebook", "headline": "Priced at 54% of market — verify before driving.", "conf": "high", "flags": 0}, {"id": 666, "title": "Apple iPhone 14 Pro Max 256GB – Deep Purple Edition", "call": "VERIFY", "ask": 22000, "net": 16019, "thumb": "https://images.craigslist.org/00P0P_YJb7E2u6q_05h05h_1200x900.jpg", "loc": "Dorchester", "posted": "2026-08-09T13:15:32-0400", "src": "craigslist", "headline": "Priced at 58% of market — verify before driving.", "conf": "medium", "flags": 0}, {"id": 184, "title": "2019 5K A2115 27 Inch iMac", "call": "FAIR", "ask": 29500, "net": 11928, "thumb": "https://images.craigslist.org/00O0O_dk1weRDJ6ch_08I08I_1200x900.jpg", "loc": "Boston", "posted": "2026-04-11T08:53:56-0400", "src": "craigslist", "headline": "Only $119 net — below your $135 floor.", "conf": "high", "flags": 0}, {"id": 289, "title": "Lenovo 14\" ThinkPad X1 Carbon Ultrabook 7th Gen 16GB 256GB i7 8565U", "call": "FAIR", "ask": 17000, "net": 8093, "thumb": "https://images.craigslist.org/00M0M_dXzfQaejEs5_0CI0Bs_1200x900.jpg", "loc": "Medford", "posted": "2026-07-28T12:53:59-0400", "src": "craigslist", "headline": "Only $81 net — below your $135 floor.", "conf": "high", "flags": 0}, {"id": 170, "title": "13\" M1 MacBook Pro", "call": "FAIR", "ask": 37500, "net": 7536, "thumb": "https://images.craigslist.org/00t0t_dJOJXR4pg7q_0qF0t2_1200x900.jpg", "loc": "Winchester", "posted": "2026-07-10T14:35:00-0400", "src": "craigslist", "headline": "Only $75 net — below your $135 floor.", "conf": "medium", "flags": 0}, {"id": 147, "title": "Macbook Air 13.3” Retina, Intel Core i5 1.6GHz 8GB RAM & Bellroy case", "call": "FAIR", "ask": 14000, "net": 3388, "thumb": "https://images.craigslist.org/00s0s_8duavv50Hjx_0t20CI_1200x900.jpg", "loc": "Dover", "posted": "2026-07-05T15:19:25-0400", "src": "craigslist", "headline": "Only $34 net — below your $135 floor.", "conf": "high", "flags": 0}, {"id": 895, "title": "iPhone 15 Pro Max 256GB - white", "call": "FAIR", "ask": 46000, "net": 3299, "thumb": "https://images.craigslist.org/00G0G_2iPAljgNm2s_0fi0ir_1200x900.jpg", "loc": "Boston", "posted": "2026-04-24T07:16:50-0400", "src": "craigslist", "headline": "Only $33 net — below your $135 floor.", "conf": "high", "flags": 0}, {"id": 269, "title": "Dell Latitude E6440 i5", "call": "FAIR", "ask": 4000, "net": 1994, "thumb": "https://images.craigslist.org/00X0X_blI2N3hZmQX_0x20oM_1200x900.jpg", "loc": "Lawrence", "posted": "2026-04-13T13:14:13-0400", "src": "craigslist", "headline": "Only $20 net — below your $135 floor.", "conf": "high", "flags": 0}, {"id": 889, "title": "iPhone 14 256Gb Blue Unlocked", "call": "FAIR", "ask": 23000, "net": 899, "thumb": "https://images.craigslist.org/00606_647TRqpxNii_0oo0ww_1200x900.jpg", "loc": "Framingham", "posted": "2026-08-01T16:35:18-0400", "src": "craigslist", "headline": "Only $9 net — below your $135 floor.", "conf": "medium", "flags": 0}, {"id": 88, "title": "Dell XPS 9310 High Performance i7 Touchscreen Laptops, up to 32gb RAM", "call": "FAIR", "ask": 30000, "net": 513, "thumb": "https://images.craigslist.org/00x0x_5Hc80xK9Aar_0t20CI_1200x900.jpg", "loc": "Malden", "posted": "2026-08-02T12:59:34-0400", "src": "craigslist", "headline": "Only $5 net — below your $135 floor.", "conf": "high", "flags": 0}, {"id": 867, "title": "IPHONE 16 PRO MAX, 256GB, UNLOCK, GOOD CONDITION, WITH CHARGER", "call": "FAIR", "ask": 59800, "net": 491, "thumb": "https://images.craigslist.org/00Y0Y_i2Iyxbqgsb4_0ep0i5_1200x900.jpg", "loc": "Lowell", "posted": "2026-08-01T18:29:57-0400", "src": "craigslist", "headline": "Only $5 net — below your $135 floor.", "conf": "high", "flags": 0}, {"id": 564, "title": "Netgear Switch FS608 v3", "call": "INSUFFICIENT_DATA", "ask": 1000, "net": null, "thumb": "https://images.craigslist.org/00H0H_3yPIlBa8zEp_0cb04Y_1200x900.jpg", "loc": "Needham", "posted": "2026-08-25T22:29:48-0400", "src": "craigslist", "headline": "Couldn't identify the exact model.", "conf": "medium", "flags": 0}];
+
+const money = c => c == null ? "—" : "$" + Math.round(c/100).toLocaleString();
+const ago = iso => {
+  if (!iso) return "";
+  const h = (Date.now() - Date.parse(iso)) / 36e5;
+  if (h < 1) return Math.max(1, Math.round(h*60)) + "m ago";
+  if (h < 24) return Math.round(h) + "h ago";
+  return Math.round(h/24) + "d ago";
+};
+// Codex: "show last-observed time and confidence decay". A check older than a
+// few days is a claim about a listing that may already be gone.
+const isStale = iso => iso && (Date.now() - Date.parse(iso)) / 36e5 > 72;
+
+const ICON = {
+  BUY:'<path d="M20 6 9 17l-5-5"/>',
+  VERIFY:'<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
+  FAIR:'<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  PASS:'<path d="M18 6 6 18M6 6l12 12"/>',
+  RISK:'<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>',
+};
+const badge = call => `<span class="b b-${call}"><svg viewBox="0 0 24 24">${ICON[call]||ICON.PASS}</svg>${call}</span>`;
+
+const metaLine = d => {
+  const stale = isStale(d.posted);
+  return `<span class="meta"><span>${d.loc||"—"}</span><span class="sep">·</span>` +
+    `<span class="${stale?'stale':''}">${ago(d.posted)}</span>` +
+    (stale ? `<span class="sep">·</span><span class="stale">recheck</span>` : ``) +
+    `</span>`;
+};
+
+const appbar = () => `
+  <div class="appbar">
+    <span class="logo">ass<em>yze</em></span>
+    <div style="display:flex">
+      <button class="iconbtn" aria-label="Search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></button>
+      <button class="iconbtn" aria-label="Filters"><svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg></button>
+    </div>
+  </div>`;
+
+// Codex §2: filter by unresolved blocker, not only category and price.
+const chips = () => `
+  <div class="chips">
+    <button class="chip on">Verified <em>1</em></button>
+    <button class="chip">Needs 1 answer <em>3</em></button>
+    <button class="chip">Under $500</button>
+    <button class="chip">Within 25 min</button>
+    <button class="chip">No blockers</button>
+  </div>`;
+
+const section = (label, color, note) => `
+  <div class="sect"><span class="dot" style="background:${color}"></span>
+    <h3>${label}</h3><span>${note}</span></div>`;
+
+const nav = () => `
+  <div class="nav">
+    <button class="on"><svg viewBox="0 0 24 24"><path d="M20.6 8.4 12 3 3.4 8.4v7.2L12 21l8.6-5.4z"/><path d="M12 12v9"/></svg>Deals</button>
+    <button><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 9h6v6H9z"/></svg>Check</button>
+    <button><svg viewBox="0 0 24 24"><path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Saved</button>
+    <button><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>You</button>
+  </div>`;
+
+/* ---------------------------------------------------------------- A */
+const cardA = d => `
+  <button class="card">
+    <div class="shot">
+      <img src="${d.thumb}" alt="" loading="lazy" width="400" height="300">
+      ${badge(d.call)}
+      ${d.net > 0 ? `<span class="net num">+${money(d.net)} net</span>` : ``}
+    </div>
+    <div class="body">
+      <h4>${d.title}</h4>
+      <div class="row">
+        <span class="price num">${money(d.ask)}</span>
+        ${metaLine(d)}
+      </div>
+      <p class="why">${d.headline||""}</p>
+    </div>
+  </button>`;
+
+/* ---------------------------------------------------------------- B */
+const cardB = d => `
+  <button class="card">
+    <div class="shot"><img src="${d.thumb}" alt="" loading="lazy" width="76" height="76"></div>
+    <div class="mid">
+      ${badge(d.call)}
+      <h4>${d.title}</h4>
+      ${metaLine(d)}
+    </div>
+    <div class="end">
+      <span class="price num">${money(d.ask)}</span>
+      <span class="net num ${d.net > 0 ? '' : 'neg'}">${d.net > 0 ? "+" + money(d.net) : "—"}</span>
+    </div>
+  </button>`;
+
+/* ---------------------------------------------------------------- C */
+const heroC = d => `
+  <button class="hero">
+    <div class="shot">
+      <img src="${d.thumb}" alt="" loading="lazy" width="400" height="250">
+      <div class="over">${badge(d.call)}<h4>${d.title}</h4></div>
+    </div>
+    <div class="nums">
+      <span class="price num">${money(d.ask)}</span>
+      ${d.net > 0 ? `<span class="net num">+${money(d.net)} net</span>` : ``}
+      ${metaLine(d)}
+    </div>
+    <p class="why">${d.headline||""}</p>
+  </button>`;
+const miniC = d => `
+  <button class="mini">
+    <div class="shot"><img src="${d.thumb}" alt="" loading="lazy" width="52" height="52"></div>
+    <div class="mid"><h4>${d.title}</h4>${metaLine(d)}</div>
+    <div class="end">
+      <span class="price num">${money(d.ask)}</span>
+      ${badge(d.call)}
+    </div>
+  </button>`;
+
+const RANK = { BUY:0, VERIFY:1, FAIR:2, PASS:3, RISK:4 };
+const sorted = [...DATA].sort((a,b)=>(RANK[a.call]??9)-(RANK[b.call]??9));
+const verified = sorted.filter(d=>d.call==="BUY");
+const needs    = sorted.filter(d=>d.call==="VERIFY"||d.call==="RISK");
+const rest     = sorted.filter(d=>!["BUY","VERIFY","RISK"].includes(d.call));
+
+const DIRS = [
+  { cls:"A", name:"A · Storefront",
+    note:"Photo-led, one per row. Closest to Facebook Marketplace. Sells on the image — but only ~2 listings fit a screen, and on a 763-listing feed where 1% is actionable that is a lot of scrolling.",
+    render(){ return section("Verified deals","var(--buy)",`${verified.length} ready to act on`)
+      + verified.map(cardA).join("")
+      + section("Needs one answer","var(--verify)",`${needs.length} blocked on a question`)
+      + needs.map(cardA).join("")
+      + section("Recently checked","var(--ink-3)",`${rest.length} priced, not deals`)
+      + rest.slice(0,4).map(cardA).join(""); } },
+
+  { cls:"B", name:"B · Trade desk",
+    note:"Dense rows, money column aligned right. ~3x the listings per screen and prices line up, so comparing is eye travel instead of memory. Reads like a tool, not a shop.",
+    render(){ return section("Verified deals","var(--buy)",`${verified.length} ready to act on`)
+      + verified.map(cardB).join("")
+      + section("Needs one answer","var(--verify)",`${needs.length} blocked on a question`)
+      + needs.map(cardB).join("")
+      + section("Recently checked","var(--ink-3)",`${rest.length} priced, not deals`)
+      + rest.map(cardB).join(""); } },
+
+  { cls:"C", name:"C · Hero + rest",
+    note:"The best deal gets the whole card; everything else is a skimmable list. Answers 'is there anything for me right now' in one glance, which is the actual daily question.",
+    render(){ return section("Best right now","var(--buy)","1 verified deal")
+      + (verified[0] ? heroC(verified[0]) : "")
+      + section("Needs one answer","var(--verify)",`${needs.length} blocked on a question`)
+      + needs.map(miniC).join("")
+      + section("Recently checked","var(--ink-3)",`${rest.length} priced, not deals`)
+      + rest.map(miniC).join(""); } },
+];
+
+document.getElementById("rail").innerHTML = DIRS.map(d=>`
+  <section class="col">
+    <div class="colhead"><h2>${d.name}</h2><p>${d.note}</p></div>
+    <div class="phone ${d.cls}">
+      ${appbar()}${chips()}
+      <div class="scr">${d.render()}</div>
+      ${nav()}
+    </div>
+  </section>`).join("");
+</script>
+</body>
+</html>
