@@ -1539,7 +1539,46 @@ P1-5 (asking price -> 0), P1-1 (stale vision cache).
   volume backup, and the local backup excludes ~117 MB of photos.
 - **No tests exist.** Everything verified this session was by hand.
 - P0-4 Craigslist ToU — decided, see §13.
-- P0-5 eBay API — resolved a different way, see §4.
+- P0-5 eBay API — see "The eBay production keyset" below. **Codex was right:**
+  a keyset does NOT unlock sold comps.
+
+### The eBay production keyset — LIVE as of 2026-08-26
+
+`bun run ebay:auth` proves it end to end. Credentials in the gitignored `.env`.
+
+**WHAT DISABLED IT, AND WHY THE ERROR LIES.** A production keyset with neither
+a deletion endpoint nor a granted exemption **cannot authenticate at all**, and
+eBay reports that as `invalid_client — client authentication failed`. The keys
+were byte-exact the whole time; the portal carried a "Your keyset is currently
+disabled" banner that nobody had read. **Never debug eBay credentials without
+looking at the keyset page first.**
+
+Satisfied by `src/api/ebay-deletion.ts` at `https://assyze.com/v1/ebay/deletion`.
+Endpoint over exemption because an exemption is a review queue with no deadline
+and we already run HTTPS on a stable domain. `EBAY_VERIFICATION_TOKEN` and
+`EBAY_DELETION_ENDPOINT` are set in Railway; `/v1/health` reports
+`ebay.deletionConfigured` so it can be checked without letting eBay fail a
+challenge (which disables the keyset again).
+
+**Measured surface, 2026-08-26:**
+
+| API | Status | Use |
+|---|---|---|
+| Buy → Browse | **200** | active listings, with condition / price / buying-option filters |
+| Commerce → Taxonomy | **200** | category tree AND per-category item aspects |
+| Buy → Marketplace Insights | **403 Access denied** | sold comps. Closed, as documented. |
+
+**SO THE BROWSER COMP SCRAPER STAYS.** Nothing about the 13,981 comps changes.
+What the keyset actually buys is eBay as a SOURCE (next actions §6, which was
+going to need another crawler and is now an API call), the Sell APIs for the
+Phase 5 sell side, and Taxonomy aspects as an authoritative schema for the
+catalog.
+
+**⚠ Browse search is as dirty as any scraped title.** A `q=rtx 4090` query
+returns laptops CONTAINING a 4090, external GPU docks, 4080s, and a $29.99
+1:1 scale REPLICA. Browse results must go through `matchSku` and the counterfeit
+signals exactly like every other source — a filtered `total` is not a count of
+the product you asked for.
 
 ---
 
