@@ -331,5 +331,6 @@ export function checkStored(
  * fixed and two network switches stayed on the site anyway.
  *
  * 0.3.1 — single-character discriminators + variant gating in matchSku.
+ * 0.3.2 — crypto payment rail, ships-on-local-market, Craigslist bare attrs.
  */
-export const ENGINE_VERSION = "0.3.1";
+export const ENGINE_VERSION = "0.3.2";

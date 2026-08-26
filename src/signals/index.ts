@@ -58,8 +58,35 @@ const VALUE_FIELDS: Partial<Record<Category, Array<[string, RegExp]>>> = {
   tablet:   [["storage", /\b(\d{1,4})\s?(gb|tb)\b/i]],
 };
 
+/**
+ * Payment rails with no recall. **Crypto was missing and it is the worst one.**
+ *
+ * Found 2026-08-25 on a live listing Yish wanted to buy: a $2,500 RTX 5090
+ * (59% of market) whose Craigslist attributes read *"cryptocurrency ok"* and
+ * *"delivery available"*. The engine returned **zero flags**. A crypto payment
+ * is not merely irreversible like Zelle — it is untraceable and off-platform,
+ * which is why it is the rail of choice for exactly this scam.
+ *
+ * Craigslist prints the attribute as the literal phrase "cryptocurrency ok",
+ * so that form is matched directly rather than relying on the word appearing
+ * in prose.
+ */
 const IRREVERSIBLE_RAILS =
-  /\b(friends\s*(and|&)\s*family|f\s*&\s*f|cash\s?app|cashapp|zelle|venmo|gift ?card|wire transfer|western union|apple ?pay only)\b/i;
+  /\b(friends\s*(and|&)\s*family|f\s*&\s*f|cash\s?app|cashapp|zelle|venmo|gift ?card|wire transfer|western union|apple ?pay only|crypto(currency)?( ok)?|bitcoin|btc|usdt|ethereum)\b/i;
+
+/**
+ * A LOCAL listing offering to SHIP is the classic remote-seller pattern.
+ *
+ * Craigslist and Facebook Marketplace are pickup markets. A private seller
+ * offering flat-rate shipping on a four-figure GPU is either a business — rare
+ * on Craigslist and usually stated — or the item is not where the post says it
+ * is, and the local town name is there purely to make the deal look reachable.
+ *
+ * On its own this is worth a flag, not a veto: some genuine sellers ship. Next
+ * to crypto and a price far below market it is the whole scam in one post.
+ */
+const SHIPS_ON_LOCAL_MARKET =
+  /\b(flat[- ]rate shipping|shipping (is )?(available|included|only)|will ship|can ship|ships? (nationwide|anywhere|to you)|delivery available|i deliver)\b/i;
 
 const SPEC_SHEET_LANGUAGE =
   /\b(designed for professionals|features include|is a high-performance|delivers (up to|exceptional)|engineered (for|to)|ideal for (creators|professionals))\b/i;
@@ -84,7 +111,23 @@ function detectCategory(text: string): Category {
  *     is exactly the low-knowledge case that tends to underprice (RISK-MODEL 3.5)
  */
 export function analyze(l: RawListing, opts?: { clusterSize?: number; visionText?: string }): SignalReport {
-  const text = `${l.title}\n${l.description}`;
+  /**
+   * ATTRIBUTES ARE PART OF THE LISTING TEXT, and leaving them out cost us the
+   * single best signal on a live scam.
+   *
+   * Craigslist states "cryptocurrency ok" and "delivery available" as
+   * STRUCTURED attributes, not prose. Reading only title + description threw
+   * both away, so a $2,500 RTX 5090 at 59% of market — crypto accepted,
+   * shipping offered, Nonantum — came back with zero flags. The seller told us
+   * exactly what they were; we just were not listening.
+   *
+   * Included as `key value` so a bare flag reads as "cryptocurrency ok yes"
+   * and a real pair as "condition like new".
+   */
+  const attrText = Object.entries(l.attributes ?? {})
+    .map(([k, v]) => `${k} ${v}`)
+    .join("\n");
+  const text = `${l.title}\n${l.description}\n${attrText}`;
   const t = text.toLowerCase();
   const signals: Signal[] = [];
   const category = detectCategory(text);
@@ -169,6 +212,23 @@ export function analyze(l: RawListing, opts?: { clusterSize?: number; visionText
     signals.push({
       code: "IRREVERSIBLE_PAYMENT", severity: "high", polarity: "negative",
       evidence: `Seller offers an irreversible payment rail (${text.match(IRREVERSIBLE_RAILS)?.[0]}). These strip buyer protection. Insist on cash in person; if they push back, walk.`,
+    });
+  }
+
+  /**
+   * Shipping offered on a pickup market, on something worth stealing.
+   *
+   * Gated on price because a $30 keyboard shipping is unremarkable and a
+   * $2,500 GPU shipping is the whole scam. $400 is roughly where "post it and
+   * hope" stops being worth a scammer's time.
+   */
+  if (
+    SHIPS_ON_LOCAL_MARKET.test(text) &&
+    (l.askingPriceCents ?? 0) >= 40000
+  ) {
+    signals.push({
+      code: "SHIPS_ON_LOCAL_MARKET", severity: "high", polarity: "negative",
+      evidence: `A local pickup listing offering to ship ("${text.match(SHIPS_ON_LOCAL_MARKET)?.[0]}") on a ${l.askingPriceCents ? `$${Math.round(l.askingPriceCents / 100).toLocaleString()}` : "high-value"} item. Craigslist and Marketplace are pickup markets; the usual reason to offer shipping is that the item is not where the post says it is. Insist on seeing it in person at the stated location before any money moves.`,
     });
   }
 

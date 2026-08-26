@@ -48,6 +48,30 @@ export async function fetchListing(url: string): Promise<RawListing> {
     attributes[strip(m[1]).toLowerCase()] = strip(m[2]);
   }
 
+  /**
+   * BARE attributes — the ones with no `label: value` shape.
+   *
+   * Craigslist renders "cryptocurrency ok" and "delivery available" as flag
+   * attributes with no `labl` span, so the pattern above skipped them entirely
+   * and they never reached the engine. On a live $2,500 RTX 5090 at 59% of
+   * market, "cryptocurrency ok" and "delivery available" were both present and
+   * Assyze returned **zero flags** — throwing away the two strongest scam
+   * signals on the page, both of which Craigslist hands us as structured data.
+   *
+   * Stored under their own text as the key so they survive into the
+   * description the signal layer reads.
+   */
+  for (const m of html.matchAll(
+    /<div class="attr ([a-z0-9_]+)"[^>]*>\s*<span class="valu">([\s\S]*?)<\/span>/g,
+  )) {
+    // The class name IS the flag (`attr crypto_currency_ok`), and the value is
+    // its human label wrapped in a search link. Take the label when it reads,
+    // fall back to the class, and store both so either form matches.
+    const label = strip(m[2]).toLowerCase();
+    const key = label || m[1].replace(/_/g, " ");
+    if (key && !attributes[key]) attributes[key] = "yes";
+  }
+
   // Craigslist no longer renders the location on the detail page. Two sources:
   //   1. the URL slug — always present, gives the CL-assigned area
   //   2. the seller-typed string — only visible on SEARCH pages
