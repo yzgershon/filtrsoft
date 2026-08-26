@@ -1347,6 +1347,159 @@ export default function App() {
  * with the paste box; this is where you go to find something you already looked
  * at.
  */
+/**
+ * Base64url -> Uint8Array, required by `pushManager.subscribe`.
+ *
+ * `applicationServerKey` will NOT accept the base64 string the server sends;
+ * it wants raw bytes, and passing the string fails with an opaque
+ * "InvalidCharacterError" that says nothing about the real problem.
+ */
+function urlB64ToBytes(s: string): Uint8Array {
+  const pad = "=".repeat((4 - (s.length % 4)) % 4);
+  const raw = atob((s + pad).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
+const SUBKEY = "assyze:subId";
+
+/**
+ * Saved searches and push alerts.
+ *
+ * **THE SUBSCRIPTION IS THE ACCOUNT.** The browser mints a push endpoint only
+ * this device can receive on, so a saved search hangs off that instead of a
+ * user row. No signup, no password, nothing to leak — and the screen says
+ * plainly that alerts belong to this device.
+ *
+ * Permission is requested from a real tap, never on load. A permission prompt
+ * fired on page load is denied by reflex, and on Chrome a denial is sticky
+ * enough that the feature is then unreachable without digging through site
+ * settings.
+ */
+function Alerts() {
+  const supported = typeof Notification !== "undefined" && "serviceWorker" in navigator && "PushManager" in window;
+  const [perm, setPerm] = useState(supported ? Notification.permission : "unsupported");
+  const [subId, setSubId] = useState<number | null>(() => {
+    const v = localStorage.getItem(SUBKEY); return v ? Number(v) : null;
+  });
+  const [list, setList] = useState<any[]>([]);
+  const [q, setQ] = useState("");
+  const [max, setMax] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!subId) return;
+    fetch(`/v1/searches?subId=${subId}`).then((r) => r.json())
+      .then((d) => setList(d.items ?? [])).catch(() => {});
+  }, [subId]);
+
+  async function enable() {
+    setBusy(true); setNote(null);
+    try {
+      const p = await Notification.requestPermission();
+      setPerm(p);
+      if (p !== "granted") { setNote("Notifications were blocked. You can undo that in your browser's site settings."); return; }
+
+      const { publicKey, configured } = await (await fetch("/v1/push/vapid")).json();
+      if (!configured || !publicKey) { setNote("Push isn't configured on the server yet."); return; }
+
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlB64ToBytes(publicKey),
+      });
+      const r = await (await fetch("/v1/push/subscribe", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify(sub.toJSON()),
+      })).json();
+      if (r.subId) { localStorage.setItem(SUBKEY, String(r.subId)); setSubId(r.subId); }
+    } catch (e) {
+      setNote(`Couldn't turn on alerts: ${(e as Error).message}`);
+    } finally { setBusy(false); }
+  }
+
+  async function add() {
+    const maxCents = max.trim() ? Math.round(Number(max.replace(/[^0-9.]/g, "")) * 100) : null;
+    setBusy(true); setNote(null);
+    const r = await (await fetch("/v1/searches", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ subId, query: q.trim() || null, maxPriceCents: maxCents, label: q.trim() || `Under ${max}` }),
+    })).json();
+    setBusy(false);
+    if (r.error) { setNote(r.error); return; }
+    setQ(""); setMax("");
+    fetch(`/v1/searches?subId=${subId}`).then((x) => x.json()).then((d) => setList(d.items ?? []));
+  }
+
+  async function remove(id: number) {
+    await fetch(`/v1/searches/${id}?subId=${subId}`, { method: "DELETE" });
+    setList((l) => l.filter((x) => x.id !== id));
+  }
+
+  return (
+    <div className="sgroup">
+      <div className="shead"><Bell size={14} /> Alerts</div>
+      <div className="scard">
+        {!supported && (
+          <p className="snote">
+            This browser can't show notifications. Install Assyze to your home screen and open it from there.
+          </p>
+        )}
+
+        {supported && !subId && (
+          <>
+            <p className="snote">
+              Get told the moment something matching your search posts. This is where the
+              feed stops being somewhere you have to remember to check.
+            </p>
+            <button className="btn2" disabled={busy} onClick={enable}>
+              <Bell size={15} /> {busy ? "Turning on…" : "Turn on alerts"}
+            </button>
+          </>
+        )}
+
+        {supported && subId && (
+          <>
+            {list.map((s) => (
+              <div className="srow static" key={s.id}>
+                <span className="stext">
+                  <b>{s.label}</b>
+                  <span>
+                    {[s.query && `matches "${s.query}"`,
+                      s.max_price_cents && `under ${money(s.max_price_cents)}`]
+                      .filter(Boolean).join(" · ") || "any listing"}
+                  </span>
+                </span>
+                <button className="btn3" onClick={() => remove(s.id)}>Remove</button>
+              </div>
+            ))}
+
+            <div className="srow static newsearch">
+              <input value={q} onChange={(e) => setQ(e.target.value)}
+                placeholder="rtx 4090" aria-label="Words to match" />
+              <input value={max} onChange={(e) => setMax(e.target.value)}
+                placeholder="max $" inputMode="decimal" aria-label="Maximum price" />
+              <button className="btn3" disabled={busy || (!q.trim() && !max.trim())} onClick={add}>Add</button>
+            </div>
+
+            <p className="snote">
+              Every word has to appear in the title, so "rtx 4090" won't alert on every
+              graphics card. Alerts only cover listings found after you save the search,
+              and they live on this device.
+            </p>
+            <button className="btn2" onClick={async () => {
+              const r = await (await fetch(`/v1/push/test?subId=${subId}`, { method: "POST" })).json();
+              setNote(r.sent ? "Sent — check your notifications." : r.error ?? "Couldn't send.");
+            }}>Send a test notification</button>
+          </>
+        )}
+
+        {note && <p className="snote alertnote">{note}</p>}
+      </div>
+    </div>
+  );
+}
+
 /** A labelled row with a switch. */
 function Toggle({ label, hint, on, onChange }: {
   label: string; hint: string; on: boolean; onChange: (v: boolean) => void;
@@ -1375,8 +1528,6 @@ function SettingsScreen({ s, save, savedCount, onClearSaved }: {
   savedCount: number; onClearSaved: () => void;
 }) {
   const [cleared, setCleared] = useState(false);
-  const [pushState, setPushState] = useState<string>(() =>
-    typeof Notification === "undefined" ? "unsupported" : Notification.permission);
 
   return (
     <div className="sec settings">
@@ -1444,27 +1595,7 @@ function SettingsScreen({ s, save, savedCount, onClearSaved }: {
         </div>
       </div>
 
-      <div className="sgroup">
-        <div className="shead"><Bell size={14} /> Alerts</div>
-        <div className="scard">
-          <p className="snote">
-            {pushState === "granted"
-              ? "Notifications are on. Saved searches will use them."
-              : pushState === "unsupported"
-                ? "This browser cannot show notifications. Install Assyze to your home screen first."
-                : "Get told when something matching a saved search posts."}
-          </p>
-          {pushState !== "granted" && pushState !== "unsupported" && (
-            <button className="btn2" onClick={async () => {
-              // Must be called from a user gesture or the browser refuses.
-              const p = await Notification.requestPermission();
-              setPushState(p);
-            }}>
-              <Bell size={15} /> Turn on notifications
-            </button>
-          )}
-        </div>
-      </div>
+      <Alerts />
 
       <div className="sgroup">
         <div className="shead"><Save size={14} /> Data</div>

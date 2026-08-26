@@ -986,3 +986,14 @@ a { color: inherit; }
   color: var(--buy); font-size: 13.5px; font-weight: 600;
   padding: var(--s4);
 }
+
+.newsearch { gap: 6px; }
+.newsearch input {
+  min-width: 0; padding: 9px 10px; font-size: 15px;
+  border-radius: 9px; border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--ink-1);
+}
+.newsearch input:first-of-type { flex: 1; }
+.newsearch input:nth-of-type(2) { width: 74px; flex: none; }
+.newsearch input:focus { outline: none; border-color: var(--brand); }
+.alertnote { color: var(--ink-1); }

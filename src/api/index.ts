@@ -17,6 +17,10 @@ import { existsSync } from "node:fs";
 import { checkListing, checkStored, ENGINE_VERSION, type Stage } from "../engine/index.ts";
 import { handlePush } from "./push.ts";
 import { handleDeletionChallenge, handleDeletionNotice, deletionEndpoint, deletionConfigured } from "./ebay-deletion.ts";
+import {
+  handleVapid, handleSubscribe, handleListSearches, handleCreateSearch,
+  handleDeleteSearch, handleTestPush, pushConfigured, ensureAlertTables,
+} from "./alerts.ts";
 import { getEconomics } from "../valuation/index.ts";
 import { db, DB_PATH } from "../db/index.ts";
 import { VISION_MODEL, visionConfigured } from "../vision/index.ts";
@@ -136,6 +140,7 @@ app.get("/v1/health", (c) => {
      * fail the challenge, which disables the keyset again.
      */
     ebay: { deletionEndpoint: deletionEndpoint(), deletionConfigured: deletionConfigured() },
+    push: { configured: pushConfigured() },
   });
 });
 
@@ -252,6 +257,17 @@ app.post("/v1/push", handlePush);
  */
 app.get("/v1/ebay/deletion", handleDeletionChallenge);
 app.post("/v1/ebay/deletion", handleDeletionNotice);
+
+/**
+ * Saved searches and push. See `alerts.ts` — a push subscription IS the
+ * identity here, so none of this needs an account.
+ */
+app.get("/v1/push/vapid", handleVapid);
+app.post("/v1/push/subscribe", handleSubscribe);
+app.post("/v1/push/test", handleTestPush);
+app.get("/v1/searches", handleListSearches);
+app.post("/v1/searches", handleCreateSearch);
+app.delete("/v1/searches/:id", handleDeleteSearch);
 
 /**
  * One-tap outcomes — Codex's highest-leverage small feature, and the one that

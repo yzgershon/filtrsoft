@@ -119,3 +119,49 @@ self.addEventListener("fetch", (e) => {
     return res;
   })());
 });
+
+/**
+ * ---- PUSH ----------------------------------------------------------------
+ *
+ * A push with no `showNotification` call is a PERMISSION VIOLATION on Chrome:
+ * the browser requires a user-visible notification for every push it delivers,
+ * and repeatedly failing to show one gets the subscription revoked. So the
+ * handler always shows something, even when the payload is unreadable.
+ */
+self.addEventListener("push", (e) => {
+  let d = { title: "Assyze", body: "A saved search matched.", url: "/" };
+  try { if (e.data) d = { ...d, ...e.data.json() }; } catch { /* keep defaults */ }
+  e.waitUntil(
+    self.registration.showNotification(d.title, {
+      body: d.body,
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      // Same tag replaces rather than stacks, so ten matches while the phone is
+      // in a pocket do not become ten separate lock-screen rows.
+      tag: d.url,
+      data: { url: d.url },
+    }),
+  );
+});
+
+/**
+ * Focus an EXISTING tab when one is open rather than opening another.
+ *
+ * Without this every notification tap spawns a new window, and after a few
+ * alerts the app is running in five copies with five service-worker clients.
+ */
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = e.notification.data?.url || "/";
+  e.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const c of all) {
+      if (new URL(c.url).origin === self.location.origin) {
+        await c.focus();
+        if ("navigate" in c) { try { await c.navigate(url); } catch { /* focus is enough */ } }
+        return;
+      }
+    }
+    await self.clients.openWindow(url);
+  })());
+});

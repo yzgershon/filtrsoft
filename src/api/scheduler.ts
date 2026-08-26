@@ -33,6 +33,7 @@
  */
 import { crawl } from "../crawler/index.ts";
 import { sweep } from "../tracker/index.ts";
+import { runAlerts } from "./alerts.ts";
 import { checkStored, ENGINE_VERSION } from "../engine/index.ts";
 import { db, now } from "../db/index.ts";
 
@@ -140,6 +141,20 @@ async function runOnce(reason: string) {
       concurrency: 3,
       onProgress: (m) => console.log(`  crawl: ${m}`),
     });
+    /**
+     * Alerts fire AFTER the crawl, so a saved search is matched against
+     * listings that were analysed in this very run. Doing it on its own timer
+     * would add up to a whole interval of delay to the one feature whose
+     * entire value is latency.
+     */
+    try {
+      const n = await runAlerts();
+      if (n) console.log(`alerts: sent ${n} notification(s)`);
+    } catch (e) {
+      // Never let a push failure abort the crawl bookkeeping below.
+      console.error("alerts failed:", (e as Error).message);
+    }
+
     console.log(
       `crawl (${reason}, ${p.mode}) done in ${Math.round((Date.now() - t0) / 1000)}s — ` +
       `${st.discovered} discovered · ${st.alreadySeen} seen · ${st.analysed} analysed · ` +
