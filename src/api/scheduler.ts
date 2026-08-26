@@ -66,7 +66,7 @@ async function runOnce(reason: string) {
   try {
     // Engine changes reach the FEED only through this. Cheap when there is
     // nothing stale, which is every run after the one following a deploy.
-    const rescored = reverdictStale();
+    const rescored = reverdictAll();
     if (rescored) console.log(`re-scored ${rescored} listings on engine ${ENGINE_VERSION}`);
 
     const st = await crawl({
@@ -106,6 +106,29 @@ async function runOnce(reason: string) {
  * `checkStored` re-runs signals, matching and valuation against the listing
  * text ALREADY in the database — no refetch, no network, no source traffic.
  */
+/**
+ * DRAIN THE BACKLOG, do not nibble at it.
+ *
+ * The first version re-scored 400 per crawl tick. That is fine during backfill
+ * (a tick every 3 minutes) and useless afterwards: once the feed passes 400
+ * listings the loop drops to steady mode at 45-minute ticks, so a 945-listing
+ * backlog took over two hours to clear. An engine fix that reaches users in
+ * two hours has not really shipped.
+ *
+ * Draining is cheap — `checkStored` is a database read plus pure engine work,
+ * around a millisecond each, so the whole backlog is about a second. The outer
+ * cap exists only so a pathological database cannot spin the boot path forever.
+ */
+function reverdictAll(max = 5000): number {
+  let total = 0;
+  for (let pass = 0; pass < 20 && total < max; pass++) {
+    const n = reverdictStale(400);
+    if (!n) break;
+    total += n;
+  }
+  return total;
+}
+
 function reverdictStale(limit = 400): number {
   const d = db();
   const rows = d.query(
