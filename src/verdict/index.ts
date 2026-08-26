@@ -219,6 +219,31 @@ export function buildVerdict(input: {
     };
   }
 
+  /**
+   * `unknown` IS OUT OF SCOPE, and treating it as INSUFFICIENT_DATA was a bug
+   * with a user-visible cost.
+   *
+   * An **autographed Aaron Rodgers jersey** reached the live deals feed reading
+   * *"Couldn't identify the exact model"* — which is both wrong and faintly
+   * ridiculous. A jersey has no model. Saying we could not identify one implies
+   * we tried and failed at something worth trying.
+   *
+   * `unknown` is narrower than it sounds: `resolveProductType` returns `tech`
+   * whenever the title carries anything model-ID-shaped, so `unknown` means no
+   * recognisable product noun AND nothing that looks like a model number.
+   * Measured over 400 stored listings it catches 90 — jerseys, trading cards,
+   * book stands, messenger bags, ink cartridges — and the tech it declines
+   * (webcams, cable locks, keyboards) was returning INSUFFICIENT_DATA anyway.
+   * "Not something Assyze covers" is the honest version of that answer.
+   */
+  if (product.kind === "unknown") {
+    return {
+      ...base, call: "OUT_OF_SCOPE", confidence: "high",
+      headline: "Not something Assyze covers.",
+      reasoning: `Nothing in "${input.title.slice(0, 60)}" reads as a device Assyze knows how to price — no recognisable product type and no model number. Assyze covers phones, laptops, GPUs, consoles, tablets and PC components.`,
+    };
+  }
+
   // --- 2. Hard blockers override any price gap -------------------------
   if (blockers.length) {
     return {

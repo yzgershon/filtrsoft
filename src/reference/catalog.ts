@@ -45,6 +45,19 @@ export const CATALOG: SeedSku[] = [
   { category: "phone", brand: "Samsung", model: "Galaxy Z Fold 5", attributes: { foldable: true }, liquidity: "slow" },
 
   // ---- laptops. The 2019 cutoff is Yish's rule, not a spec boundary. ----
+  /**
+   * **KEEP THE CURRENT APPLE SILICON GENERATION IN HERE.** A live listing read
+   * "Brand new APPLE MACBOOK AIR M5" and Assyze answered *"Couldn't identify
+   * the exact model"* — with the model printed in the title, in capitals.
+   *
+   * The catalog stopped at M4 and the failure surfaced as an identification
+   * problem rather than a coverage one, which reads as broken rather than new.
+   * Apple ships one of these a year; being a year behind is the default state
+   * unless someone adds the row.
+   */
+  { category: "laptop", brand: "Apple", model: "MacBook Air M5", attributes: { silicon: "M5", year: 2026 }, liquidity: "hot" },
+  { category: "laptop", brand: "Apple", model: "MacBook Pro M5", attributes: { silicon: "M5", year: 2026 }, liquidity: "hot" },
+  { category: "laptop", brand: "Apple", model: "MacBook Pro M4", attributes: { silicon: "M4", year: 2025 }, liquidity: "hot" },
   { category: "laptop", brand: "Apple", model: "MacBook Air M4", attributes: { silicon: "M4", year: 2025 }, liquidity: "hot" },
   { category: "laptop", brand: "Apple", model: "MacBook Air M3", attributes: { silicon: "M3", year: 2024 }, liquidity: "hot" },
   { category: "laptop", brand: "Apple", model: "MacBook Air M2", attributes: { silicon: "M2", year: 2022 }, liquidity: "hot" },

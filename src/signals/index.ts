@@ -49,11 +49,11 @@ const VALUE_FIELDS: Partial<Record<Category, Array<[string, RegExp]>>> = {
   // part number meant vision could read the CPU straight off a photo and the
   // verdict would still say "cpu not stated" — paying for vision, then
   // ignoring it. Found 2026-08-24 on listing 338.
-  laptop:   [["cpu", /\b(?:intel\s+)?core\s+i[3579]\b|\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d|m[1234]\b|celeron|core ultra|snapdragon)/i],
+  laptop:   [["cpu", /\b(?:intel\s+)?core\s+i[3579]\b|\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d|m[1-9]\b|celeron|core ultra|snapdragon)/i],
              ["ram", /\b\d{1,3}\s?gb\b/i]],
   gpu:      [["model", /\b(rtx|gtx|rx|tesla|quadro)\s?[a-z]?\d{3,4}/i]],
   prebuilt: [["gpu", /\b(rtx|gtx|rx)\s?\d{3,4}|\b(integrated|igpu|iris|radeon graphics)\b/i],
-             ["cpu", /\b(?:intel\s+)?core\s+i[3579]\b|\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d|m[1234]\b|core ultra|xeon)/i]],
+             ["cpu", /\b(?:intel\s+)?core\s+i[3579]\b|\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d|m[1-9]\b|core ultra|xeon)/i]],
   console:  [["storage", /\b(\d{3,4}\s?gb|\d{1,2}\s?tb)\b/i]],
   tablet:   [["storage", /\b(\d{1,4})\s?(gb|tb)\b/i]],
 };
@@ -97,8 +97,28 @@ const LOW_KNOWLEDGE =
 const HIGH_KNOWLEDGE =
   /\b(never mined|no mining|battery health|clean imei|paid off|no financing|off[- ]lease|passed diagnostics|cycle count|original box|comps?|retail|below ebay)\b/i;
 
-function detectCategory(text: string): Category {
-  for (const [cat, re] of CATEGORY_PATTERNS) if (re.test(text)) return cat;
+/**
+ * THE TITLE DECIDES THE CATEGORY. The description only breaks ties.
+ *
+ * Running the patterns over title + description let a seller's PROSE outvote
+ * what they were actually selling. Live on assyze.com, 2026-08-26:
+ *
+ *   "NVIDIA GeForce RTX 4090 Founders Edition 24GB GDDR6X Graphics Card"
+ *   -> category `prebuilt` -> "Can't be valued — cpu not stated."
+ *
+ * The seller had pasted NVIDIA's own marketing copy into the description
+ * ("ultra-high performance gaming", "gamers and creators", "productivity"),
+ * which trips the prebuilt pattern. So Assyze asked which CPU a graphics card
+ * has. The title says "Graphics Card" in plain English.
+ *
+ * A title is what someone is selling; a description is what they say about it.
+ * Falling back to the full text only when the title is genuinely unclassifiable
+ * keeps the recall the combined pass was there for.
+ */
+function detectCategory(title: string, description = ""): Category {
+  for (const [cat, re] of CATEGORY_PATTERNS) if (re.test(title)) return cat;
+  if (!description) return "unknown";
+  for (const [cat, re] of CATEGORY_PATTERNS) if (re.test(`${title}\n${description}`)) return cat;
   return "unknown";
 }
 
@@ -130,7 +150,7 @@ export function analyze(l: RawListing, opts?: { clusterSize?: number; visionText
   const text = `${l.title}\n${l.description}\n${attrText}`;
   const t = text.toLowerCase();
   const signals: Signal[] = [];
-  const category = detectCategory(text);
+  const category = detectCategory(l.title, l.description ?? "");
 
   // ---------------------------------------------------------- age (3c)
   let daysOnMarket: number | null = null;

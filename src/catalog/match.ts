@@ -64,7 +64,7 @@ export function extractAttributes(text: string): Record<string, string | number>
     if (all.length) a.storage_gb = Math.max(...all);
   }
 
-  const cpu = t.match(/\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d \d{4}[a-z0-9]*|m[1234](?:\s(?:pro|max|ultra))?)\b/);
+  const cpu = t.match(/\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d \d{4}[a-z0-9]*|m[1-9](?:\s(?:pro|max|ultra))?)\b/);
   if (cpu) a.cpu = cpu[1].trim();
 
   const gpu = t.match(/\b((?:rtx|gtx|rx)\s?\d{3,4}\s?(?:ti|super|xt)?)\b/);

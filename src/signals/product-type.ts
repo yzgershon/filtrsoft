@@ -126,7 +126,7 @@ const LEXICON: Array<{ term: string; kind: ProductKind }> = CLASSES
  * one. Nobody puts a part number on a desk.
  */
 const MODEL_ID =
-  /\b(rtx|gtx|rx)\s?\d{3,4}|\bi[3579][- ]\d{4,5}|\bryzen\s?\d\s?\d{4}|\bm[1-4]\b|\b[a-z]{2,3}\d{3,4}[a-z]{0,3}\b|\b\d{2,4}\s?(gb|tb)\b/i;
+  /\b(rtx|gtx|rx)\s?\d{3,4}|\bi[3579][- ]\d{4,5}|\bryzen\s?\d\s?\d{4}|\bm[1-9]\b|\b[a-z]{2,3}\d{3,4}[a-z]{0,3}\b|\b\d{2,4}\s?(gb|tb)\b/i;
 
 /**
  * A separator only makes a LIST when it sits BETWEEN two product nouns.

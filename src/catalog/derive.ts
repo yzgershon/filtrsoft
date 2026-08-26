@@ -169,7 +169,7 @@ const EXTRACTORS: Array<{
   },
   {
     category: "laptop", brand: () => "Apple",
-    re: /\bmacbook\s?(pro|air)\s?(m[1-4](?:\s?(?:pro|max|ultra))?)?\b/gi,
+    re: /\bmacbook\s?(pro|air)\s?(m[1-9](?:\s?(?:pro|max|ultra))?)?\b/gi,
     model: (m) => `MacBook ${title(m[1])}${m[2] ? " " + m[2].toUpperCase().replace(/\s+/g, " ") : ""}`,
   },
   /**

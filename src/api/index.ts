@@ -231,7 +231,18 @@ app.get("/v1/checks/stream", (c) => {
 app.get("/v1/feed", (c) => {
   const call = c.req.query("call");           // optional filter
   const cat = c.req.query("category");
-  const limit = Math.min(Number(c.req.query("limit")) || 40, 100);
+  /**
+   * The feed was showing 40 of 600+ and the UI has no pager, so the rest was
+   * simply unreachable — Yish counted the listings on screen against the total
+   * I quoted him and they did not match, because they genuinely did not.
+   *
+   * `offset` makes the tail reachable at all; the default page grows to 60 and
+   * the cap to 200, which is what the ranking pass already reads from the
+   * database anyway. Ranking happens across `RANK_POOL`, not across the page,
+   * so page 2 is still globally ranked rather than a second-best bucket.
+   */
+  const limit = Math.min(Number(c.req.query("limit")) || 60, 200);
+  const offset = Math.max(0, Number(c.req.query("offset")) || 0);
 
   const rows = db().query(`
     SELECT l.id, l.title, l.url, l.asking_price_cents, l.location, l.posted_at, l.source,
@@ -241,12 +252,12 @@ app.get("/v1/feed", (c) => {
     JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
     WHERE v.call NOT IN ('OUT_OF_SCOPE')
     ORDER BY l.posted_at DESC
-    LIMIT 400
+    LIMIT 1200
   `).all() as any[];
 
   // Rank in JS — the score needs fields that live inside the verdict JSON.
   const RANK: Record<string, number> = { BUY: 0, VERIFY: 1, FAIR: 2, INSUFFICIENT_DATA: 3, RISK: 4, PASS: 5 };
-  const items = rows.map((r) => {
+  const ranked = rows.map((r) => {
     const v = r.payload ? JSON.parse(r.payload) : null;
     const net = v?.netProfitCents ?? 0;
     const ageDays = r.posted_at ? (Date.now() - Date.parse(r.posted_at)) / 86_400_000 : 99;
@@ -265,8 +276,11 @@ app.get("/v1/feed", (c) => {
   })
     .filter((i) => (call ? i.call === call : true))
     .filter((i) => (cat ? true : true))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit);
+    .sort((a, b) => b.score - a.score);
+
+  // Rank globally, then page. Paging before ranking would make page 2 a
+  // second-best bucket rather than the continuation of one ordered list.
+  const items = ranked.slice(offset, offset + limit);
 
   const counts = db().query(`
     SELECT v.call, COUNT(*) n FROM verdicts v
@@ -277,6 +291,11 @@ app.get("/v1/feed", (c) => {
 
   return c.json({
     items,
+    // `total` is the count AFTER filters, so the UI can page honestly instead
+    // of implying the page is everything.
+    total: ranked.length,
+    offset,
+    limit,
     counts: Object.fromEntries(counts.map((x) => [x.call, x.n])),
     lastCrawl: lastCrawl ?? null,
     void: cat,
