@@ -842,9 +842,15 @@ into a server image is both a security problem and against the standing rule
 that no credential handling gets added. **Facebook listings must be crawled
 locally and pushed** — no mechanism for that exists yet.
 
-**71% of analysed listings come back INSUFFICIENT_DATA** (114/160), because most
+**71% of analysed listings come back INSUFFICIENT_DATA**, because most
 Craigslist items do not resolve to a SKU that has comps. That is the real
 coverage ceiling on the feed, and it is a catalog problem, not a crawler one.
+
+Live state 2026-08-26, 523 analysed listings on assyze.com: 373
+INSUFFICIENT_DATA, 109 OUT_OF_SCOPE, 35 PASS, 4 FAIR, 1 VERIFY, 1 RISK.
+**Actionable calls are ~1%.** That is the honest yield of a Craigslist-only
+feed against the current catalog, and growing the catalog — not crawling
+harder — is what moves it.
 
 ### The live feed immediately exposed a matcher bug — FIXED 2026-08-26
 
@@ -893,6 +899,22 @@ matching, scored 2/2 = 1.0 against the plain 5070 and came back MEDIUM, which
 Re-verdicting all 366 stored listings after the fix: 269 INSUFFICIENT_DATA, 54
 OUT_OF_SCOPE, 36 PASS, 5 FAIR, 1 RISK, 1 BUY. More INSUFFICIENT_DATA than
 before, which is the point — those were confident wrong numbers.
+
+### ENGINE_VERSION IS LOAD-BEARING — bump it on any behaviour change
+
+The matcher fix above deployed cleanly and **the two bad rows stayed on the
+live feed anyway.** The feed reads STORED verdicts, and the crawler skips
+listings it has already seen, so shipping an engine fix changed nothing a user
+could see. That is the shape to watch for: the fix was correct, deployed, and
+invisible.
+
+`verdicts.engine_version` was already being recorded and never read.
+`reverdictStale()` in `api/scheduler.ts` now compares it against
+`ENGINE_VERSION` on every crawl tick and re-scores anything older —
+`checkStored` re-runs signals, matching and valuation against listing text
+already in the database, so no refetch and no source traffic.
+
+**Forgetting the bump is now the way a fix silently fails to reach users.**
 
 **THE ARCHIVE DRIFTS. `bun run stats` now says so.** Production prices off the
 committed file, not your local db, so every comps pull widens the gap
