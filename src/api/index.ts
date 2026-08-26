@@ -369,6 +369,13 @@ setTimeout(async () => {
       console.error("WARNING: zero comps. Every verdict will be INSUFFICIENT_DATA.");
       console.error("  Run `bun run archive` locally, commit data/archive.json.gz, redeploy.");
     }
+
+    /**
+     * The feed has to REFRESH or the site is a search box with three stale
+     * listings on it — which is exactly what it was. Craigslist only; Facebook
+     * needs a logged-in browser and cannot run here. See `scheduler.ts`.
+     */
+    (await import("./scheduler.ts")).startCrawlLoop();
   } catch (e) {
     console.error(`DATABASE UNAVAILABLE at ${DB_PATH}: ${(e as Error).message}`);
     console.error("  The server is still serving. Fix the volume mount or ASSYZE_DB.");

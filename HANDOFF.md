@@ -711,47 +711,59 @@ DRAM-less and TLC vs QLC for SSDs, 80+ tier and modularity for PSUs. The
 
 ---
 
-## 11f. assyze.com — the TXT verify record was copied TRUNCATED
+## 11f. assyze.com is LIVE — 2026-08-26
 
-**Root cause, 2026-08-25: the `_railway-verify` TXT value in Namecheap ends
-with a literal ellipsis.** It is the truncated string Railway's "Configure DNS
-Records" modal DISPLAYS, copied verbatim including the `…` the UI adds to show
-the value was cut off.
+**`https://assyze.com` is the production URL. Use it everywhere.** Valid
+Let's Encrypt certificate (`CN=assyze.com`, issued 2026-08-26), HTTP 200,
+health reports `canPrice: true`.
 
-    stored:  railway-verify=a05568e0d5fb544fb073a78d0778cb…
-                                                          ^ not a hex digit
+`assyze-production.up.railway.app` still works and is the Railway-generated
+name. It is a fallback for debugging, **not the address of the product** —
+never quote it to Yish or put it in user-facing copy.
 
-Railway therefore never verifies the domain, never requests a Let's Encrypt
-certificate, and the dashboard sits on *"Waiting for DNS update"* with a green
-tick on the CNAME row and a warning on the TXT row. On :443 the edge falls back
-to its own `CN=*.up.railway.app` wildcard, which does not cover `assyze.com` —
-that is the `SEC_E_WRONG_PRINCIPAL` error.
+**`www.assyze.com` does NOT work and is not a bug to chase.** Railway counts it
+as a SECOND custom domain and the plan allows one; the Networking page says
+*"You have hit the custom domain limit for your plan."* The `www` CNAME resolves
+but Railway will not serve it — no binding, no certificate. Apex-only until the
+plan changes. Leaving the DNS record in place is harmless.
 
-**Fix: paste the COMPLETE token.** Use the copy control in the Railway modal
-rather than selecting the visible text, then replace the Namecheap TXT value.
-Everything else is already correct.
+### What was wrong: the TXT verify value was pasted TRUNCATED
 
-### CORRECTION: `n3reqlxc.up.railway.app` is NOT stale
+Worth keeping, because nothing about it looked like a typo:
 
-An earlier entry here said that target was dead because it returns 404
-`Application not found`. **That was wrong, and the mistake is worth keeping.**
-Railway's edge routes by HOST HEADER, so requesting the bare CNAME target has
-no app bound to it and 404s BY DESIGN. With the right Host it routes fine:
+    railway-verify=a05568e0d5fb544fb073a78d0778cb…
+                                                  ^ an ELLIPSIS, not a hex digit
+
+It is the string Railway's "Configure DNS Records" modal DISPLAYS — the `…` is
+the UI marking the value as cut off, and selecting the visible text copies it.
+Railway never verified, never requested a certificate, and the dashboard sat on
+*"Waiting for DNS update"* with a green tick on the CNAME row and a warning on
+the TXT row. On :443 the edge fell back to its own `CN=*.up.railway.app`
+wildcard, which does not cover `assyze.com` — the `SEC_E_WRONG_PRINCIPAL`
+error. **Use the modal's copy control, never the visible text.**
+
+### CORRECTION: `n3reqlxc.up.railway.app` was never stale
+
+An earlier entry said that target was dead because it returns 404 `Application
+not found`. **Wrong, and the mistake is worth keeping.** Railway's edge routes
+by HOST HEADER, so the bare CNAME target has no app bound to it and 404s BY
+DESIGN. With the right Host it always worked:
 
     curl -H "Host: assyze.com" http://n3reqlxc.up.railway.app/v1/health   -> 301
 
-So the CNAME target was correct the whole time. Do not "fix" the DNS target.
+The DNS target was correct the whole time. Do not "fix" it.
 
-### Verified good, so do not touch these
+### The working DNS, for reference
 
-| Record | Value | State |
+| Record | Host | Value |
 |---|---|---|
-| ALIAS `@` | `n3reqlxc.up.railway.app.` | resolves to `69.46.46.22` |
-| CNAME `www` | `n3reqlxc.up.railway.app.` | resolves |
-| CAA | none | nothing blocking cert issuance |
+| ALIAS | `@` | `n3reqlxc.up.railway.app.` |
+| CNAME | `www` | `n3reqlxc.up.railway.app.` (resolves, not served) |
+| TXT | `_railway-verify` | the FULL `railway-verify=...` token |
 
-`assyze.com` correctly uses an **ALIAS** at the apex — a CNAME there is invalid
-DNS and Namecheap's ALIAS is the right instrument.
+An **ALIAS** at the apex is correct — a CNAME there is invalid DNS, and
+Namecheap's ALIAS is the right instrument. No CAA records, so nothing blocks
+issuance.
 
 ### Production could not price anything — FIXED 2026-08-25
 
@@ -797,6 +809,42 @@ after fees", 179 comps).
 **`/v1/health` now sets `ok` from `canPrice`** (comps > 0 && skus > 0) rather
 than the literal `true`. A liveness probe that cannot tell "working" from
 "structurally unable to answer" is a ping, not a health check.
+
+### The feed now REFRESHES — production crawls Craigslist itself
+
+Fixed in the same pass, because a pricing engine with nothing to price is the
+same bug one layer up. assyze.com was serving **three Craigslist listings, all
+2+ weeks old, `lastCrawl: null`** — `crawl` is a CLI script and nothing in the
+container ever called it.
+
+`src/api/scheduler.ts` runs it on a self-rescheduling chain. Measured on a
+fresh database: **1,376 live Craigslist listings discovered across the five
+categories in 2 seconds**, and 160 analysed produced 18 PASS, 2 FAIR, 2 VERIFY,
+24 OUT_OF_SCOPE and 114 INSUFFICIENT_DATA.
+
+- **Backfill mode.** Under 400 listings it runs 4x the limit every 3 minutes;
+  above that, 40 every 45. A day-long fill for an empty marketplace is not
+  worth waiting for and the analysis is text-only and cheap.
+- **A self-rescheduling chain, not `setInterval`.** The delay is decided AFTER
+  each run so backfill can switch back to steady, and the next run is scheduled
+  from the END of the last, so a slow crawl cannot stack up behind itself.
+- **`maxVision: 0`.** The budget guard is $2/day and an unattended loop is
+  exactly how it gets spent on listings nobody asked about. Vision runs on
+  demand when someone opens a listing.
+- **Never throws.** An unhandled rejection in the loop would take down the
+  server; a failed crawl is not a reason to stop serving.
+- `ASSYZE_CRAWL=off` disables it. `ASSYZE_CRAWL_LIMIT` / `ASSYZE_CRAWL_INTERVAL_MS` tune it.
+
+**FACEBOOK CANNOT RUN IN THE CONTAINER, and that is architectural.**
+`sources/craigslist.ts` is a plain `fetch()`. Facebook Marketplace needs a
+logged-in Chrome profile that Yish signs into by hand, and shipping credentials
+into a server image is both a security problem and against the standing rule
+that no credential handling gets added. **Facebook listings must be crawled
+locally and pushed** — no mechanism for that exists yet.
+
+**71% of analysed listings come back INSUFFICIENT_DATA** (114/160), because most
+Craigslist items do not resolve to a SKU that has comps. That is the real
+coverage ceiling on the feed, and it is a catalog problem, not a crawler one.
 
 **THE ARCHIVE DRIFTS. `bun run stats` now says so.** Production prices off the
 committed file, not your local db, so every comps pull widens the gap
