@@ -60,7 +60,23 @@ html, body {
 }
 
 input, button { font: inherit; color: inherit; }
-button { cursor: pointer; }
+/**
+ * A real button reset, not just `cursor`.
+ *
+ * There was none, so any button that did not set its own background inherited
+ * the browser's default light grey. Every existing control happened to set one,
+ * which hid it — until the segmented control, where three opaque default
+ * buttons sat on top of the sliding indicator and covered it completely. The
+ * active option rendered white-on-white and the whole affordance vanished.
+ */
+button {
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+}
 a { color: inherit; }
 
 .num { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
@@ -417,3 +433,236 @@ a { color: inherit; }
 }
 .more:hover:not(:disabled) { color: var(--ink); border-color: var(--brand); }
 .more:disabled { opacity: .55; }
+
+/* ==========================================================================
+   FEED v2 — hero + list, and the promotion between them.
+   ========================================================================== */
+
+/* Segmented control. A radiogroup, not a row of loose pills: exactly one is
+   active, arrow keys move between them, and the indicator SLIDES so state is
+   carried by position as well as colour. */
+.seg {
+  position: relative; display: flex; gap: 2px; padding: 3px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-md); margin-bottom: var(--s3);
+}
+.segind {
+  position: absolute; top: 3px; bottom: 3px; left: 0; z-index: 0;
+  background: var(--brand); border-radius: 9px;
+  box-shadow: 0 2px 10px -2px rgba(255,138,61,.55);
+  transition: transform var(--dur) var(--ease), width var(--dur) var(--ease);
+}
+.seg button {
+  position: relative; z-index: 1; flex: 1; min-height: 38px; padding: 0 var(--s2);
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  border-radius: 9px; font-size: 13px; font-weight: 600; color: var(--ink-2);
+  white-space: nowrap; transition: color var(--dur) var(--ease);
+}
+.seg button[aria-checked="true"] { color: var(--on-brand); }
+.seg button:hover:not([aria-checked="true"]) { color: var(--ink); }
+.segn {
+  font-size: 11px; font-weight: 700; padding: 1px 5px; border-radius: 999px;
+  background: rgba(255,255,255,.09); min-width: 18px; text-align: center;
+}
+.seg button[aria-checked="true"] .segn { background: rgba(0,0,0,.22); }
+
+/* Section headers — Codex's rule: never mix weak calls under one promise. */
+.sect { display: flex; align-items: baseline; gap: var(--s2); margin: var(--s4) 0 var(--s2); }
+.sect h3 {
+  margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.sect span { font-size: 11.5px; color: var(--ink-3); }
+.sdot { width: 7px; height: 7px; border-radius: 99px; flex: none; }
+.t-buy { background: var(--buy); }
+.t-verify { background: var(--verify); }
+.t-mute { background: var(--ink-3); }
+
+/* Feed hero. NAMED `.fhero`, not `.hero`: the landing headline already owns
+   `.hero`, and reusing it wrapped that headline in a card border with an
+   image aspect-ratio. A collision like that is invisible until you look at
+   the one screen where both render. */
+.fhero {
+  display: block; width: 100%; text-align: left; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-lg); margin-bottom: var(--s2);
+  transition: border-color var(--dur) var(--ease), transform var(--dur-exit) var(--ease);
+}
+.fhero:active { transform: scale(.99); }
+.fhero.v-BUY {
+  background: linear-gradient(155deg, rgba(52,211,153,.08), transparent 60%), var(--surface);
+  border-color: rgba(52,211,153,.26);
+}
+.fhero.v-VERIFY, .fhero.v-RISK {
+  background: linear-gradient(155deg, rgba(255,138,61,.08), transparent 60%), var(--surface);
+  border-color: rgba(255,138,61,.26);
+}
+.fhero.v-FAIR {
+  background: linear-gradient(155deg, rgba(96,165,250,.08), transparent 60%), var(--surface);
+  border-color: rgba(96,165,250,.24);
+}
+.hshot {
+  position: relative; display: block; aspect-ratio: 16/10; background: var(--surface-2);
+}
+.hshot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hshot::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(8,7,10,.92), transparent 55%);
+}
+.hover {
+  position: absolute; left: var(--s4); right: var(--s4); bottom: var(--s3); z-index: 2;
+  display: flex; flex-direction: column; gap: var(--s2); align-items: flex-start;
+}
+.hover b {
+  font-size: 17px; font-weight: 700; line-height: 1.28; color: var(--ink);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.hnums {
+  display: flex; align-items: baseline; gap: var(--s3); flex-wrap: wrap;
+  padding: var(--s3) var(--s4) 0;
+}
+.hprice { font-size: 26px; font-weight: 800; letter-spacing: -.03em; }
+.hnet { font-size: 14px; font-weight: 700; color: var(--buy); }
+.hwhy {
+  display: block; padding: var(--s2) var(--s4) var(--s4);
+  font-size: 13px; color: var(--ink-2); line-height: 1.5;
+}
+
+/* Rows. Money right-aligned so comparing is eye travel, not memory. */
+.dend {
+  flex: none; display: flex; flex-direction: column; align-items: flex-end;
+  justify-content: center; gap: 4px;
+}
+.dnet.z { color: var(--ink-3); }
+
+/* The promotion morph. Both halves share one duration so the photo and the
+   title arrive together instead of racing. */
+::view-transition-old(hero-img), ::view-transition-new(hero-img),
+::view-transition-old(hero-title), ::view-transition-new(hero-title),
+::view-transition-group(hero-img), ::view-transition-group(hero-title) {
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(.22,.61,.36,1);
+}
+
+/* ==========================================================================
+   DETAIL — gallery, blockers, retail ceiling, outcomes.
+   ========================================================================== */
+
+/* Gallery. The old version was a contact sheet of 120x90 thumbnails, so a spec
+   sheet in photo 4 was unreadable — which is the one thing this screen is for. */
+.gal { position: relative; margin: 0 calc(var(--s4) * -1) var(--s3); }
+.galstrip {
+  display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.galstrip::-webkit-scrollbar { display: none; }
+.galshot {
+  flex: none; width: 100%; scroll-snap-align: center; aspect-ratio: 4/3;
+  background: var(--surface-2); padding: 0; border: 0;
+}
+.galshot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.galdots {
+  position: absolute; right: var(--s4); bottom: var(--s3);
+  background: rgba(8,7,10,.78); border: 1px solid var(--line);
+  border-radius: 999px; padding: 3px 9px; font-size: 11.5px; color: var(--ink-2);
+  backdrop-filter: blur(10px);
+}
+
+.lbx {
+  position: fixed; inset: 0; z-index: 100; background: rgba(4,3,6,.97);
+  display: flex; align-items: center;
+}
+.lbxstrip {
+  display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+  width: 100%; scrollbar-width: none;
+}
+.lbxstrip::-webkit-scrollbar { display: none; }
+.lbxstrip img {
+  flex: none; width: 100vw; scroll-snap-align: center;
+  object-fit: contain; max-height: 88dvh;
+}
+.lbxclose {
+  position: absolute; top: calc(var(--s4) + env(safe-area-inset-top)); right: var(--s4);
+  z-index: 2; width: var(--tap); height: var(--tap); border-radius: 999px;
+  background: rgba(255,255,255,.1); color: var(--ink); font-size: 17px;
+  display: grid; place-items: center;
+}
+
+/* Open on <source>. A primary action, not a footnote — every path through this
+   screen ends at the real listing. */
+.origin {
+  display: flex; align-items: center; gap: var(--s2); margin-top: var(--s3);
+  min-height: var(--tap); padding: 0 var(--s3);
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-md); color: var(--ink); font-size: 14px; font-weight: 600;
+  text-decoration: none; transition: all var(--dur) var(--ease);
+}
+.origin:hover { border-color: var(--brand); color: var(--brand); }
+.origin .arrow { margin-left: auto; color: var(--ink-3); }
+.origin:hover .arrow { color: var(--brand); }
+
+/* Hard blockers — the risk layer, which was computed and rendered nowhere. */
+.risks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s2); }
+.risk {
+  display: flex; gap: var(--s3); align-items: flex-start;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-md); padding: var(--s3);
+}
+.risk b { font-size: 13.5px; font-weight: 600; display: block; }
+.risk p { margin: 4px 0 0; font-size: 12.5px; color: var(--ink-2); line-height: 1.45; }
+.rstate {
+  flex: none; font-size: 10px; font-weight: 800; letter-spacing: .05em;
+  text-transform: uppercase; padding: 3px 7px; border-radius: 5px; margin-top: 1px;
+}
+.r-cleared { border-color: var(--line-soft); }
+.r-cleared .rstate { background: rgba(52,211,153,.14); color: var(--buy); }
+.r-cleared b { color: var(--ink-2); font-weight: 500; }
+.r-inPerson .rstate { background: rgba(96,165,250,.14); color: var(--fair); }
+.r-unresolved { border-color: rgba(255,138,61,.3); }
+.r-unresolved .rstate { background: rgba(255,138,61,.15); color: var(--verify); }
+.r-failed { border-color: rgba(248,113,113,.35); }
+.r-failed .rstate { background: rgba(248,113,113,.16); color: var(--risk); }
+
+/* Retail ceiling. Visually distinct because it is the one number here that is
+   NOT derived from the comps archive. */
+.ceil { border-left: 2px solid rgba(167,139,250,.5); padding-left: var(--s3); }
+.ceilrow { display: flex; align-items: baseline; gap: var(--s3); flex-wrap: wrap; }
+.ceilprice { font-size: 20px; font-weight: 700; }
+.ceilwho { font-size: 12px; color: var(--ink-3); }
+.ceilnote { margin: var(--s2) 0 0; font-size: 12px; color: var(--ink-3); line-height: 1.4; }
+.warn { color: var(--pass); }
+
+/* Copy-all. Codex: "Copy these three questions" — one tap, not three. */
+.copyall {
+  float: right; font-size: 11.5px; font-weight: 600; color: var(--ink-2);
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 999px; padding: 4px 10px; min-height: 28px;
+  transition: all var(--dur) var(--ease);
+}
+.copyall:hover { color: var(--ink); border-color: var(--surface-3); }
+.copyall.ok { color: var(--buy); border-color: rgba(52,211,153,.4); }
+
+/* Outcomes. The table that closes the loop had three rows because nothing
+   ever asked — so asking has to be one tap, with no form. */
+.outnote { margin: 0 0 var(--s3); font-size: 12.5px; color: var(--ink-3); line-height: 1.5; }
+.outrow { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
+.out {
+  min-height: var(--tap); border-radius: var(--r-md);
+  background: var(--surface-2); border: 1px solid var(--line);
+  color: var(--ink-2); font-size: 13.5px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: all var(--dur) var(--ease);
+}
+.out:hover:not(:disabled) { color: var(--ink); border-color: var(--surface-3); }
+.out:active:not(:disabled) { transform: scale(.97); }
+.out.on { background: rgba(52,211,153,.14); border-color: rgba(52,211,153,.45); color: var(--buy); }
+.out:disabled:not(.on) { opacity: .45; }
+.outok { margin: var(--s3) 0 0; font-size: 12.5px; color: var(--buy); }
+
+/* Provenance. Every wrong verdict this month traced to a wrong match, so what
+   the engine thought it was priced belongs on screen. */
+.prov {
+  margin-top: var(--s4); padding-top: var(--s3); border-top: 1px solid var(--line-soft);
+  font-size: 12px; color: var(--ink-3); line-height: 1.5;
+}
+.prov b { color: var(--ink-2); font-weight: 600; }

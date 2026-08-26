@@ -14,7 +14,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serveStatic } from "hono/bun";
 import { existsSync } from "node:fs";
-import { checkListing, ENGINE_VERSION, type Stage } from "../engine/index.ts";
+import { checkListing, checkStored, ENGINE_VERSION, type Stage } from "../engine/index.ts";
 import { handlePush } from "./push.ts";
 import { getEconomics } from "../valuation/index.ts";
 import { db, DB_PATH } from "../db/index.ts";
@@ -238,6 +238,52 @@ app.get("/v1/checks/stream", (c) => {
  */
 app.post("/v1/push", handlePush);
 
+/**
+ * One-tap outcomes — Codex's highest-leverage small feature, and the one that
+ * finally closes the loop.
+ *
+ * `outcomes` has THREE rows. It is the table that records what listings
+ * actually did, and without it every calibration argument between Yish and the
+ * engine is settled by opinion rather than evidence — which has already
+ * happened four times. The reason it is empty is that nothing in the product
+ * ever asked.
+ *
+ * Deliberately no free-text form. "Bought", "Passed", "Seller stopped
+ * replying", "Listing gone" are one tap each, because an outcome you have to
+ * write a paragraph about is an outcome nobody records.
+ */
+app.post("/v1/checks/:id/outcome", async (c) => {
+  const id = Number(c.req.param("id"));
+  const body = await c.req.json().catch(() => ({})) as {
+    action?: string; pricePaidCents?: number; notes?: string;
+  };
+  const ACTIONS = ["bought", "passed", "no_reply", "dead_listing", "was_scam"];
+  if (!body.action || !ACTIONS.includes(body.action)) {
+    return c.json({ error: `action must be one of ${ACTIONS.join(", ")}` }, 400);
+  }
+
+  const listing = db().query("SELECT id FROM listings WHERE id=$id").get({ $id: id });
+  if (!listing) return c.json({ error: "not found" }, 404);
+
+  // The SKU is resolved at RECORD time, not read time: the catalog changes, and
+  // an outcome should remember which product it was about when it happened.
+  let skuId: number | null = null;
+  try { skuId = checkStored(id, {}).match.skuId ?? null; } catch { /* fine */ }
+
+  db().query(
+    `INSERT INTO outcomes (listing_id, sku_id, action, purchase_price_cents, notes, created_at)
+     VALUES ($lid,$sku,$act,$price,$notes,$now)`,
+  ).run({
+    $lid: id, $sku: skuId, $act: body.action,
+    $price: body.pricePaidCents ?? null,
+    $notes: (body.notes ?? "").slice(0, 500) || null,
+    $now: new Date().toISOString(),
+  });
+
+  const n = (db().query("SELECT COUNT(*) n FROM outcomes").get() as { n: number }).n;
+  return c.json({ ok: true, action: body.action, totalOutcomes: n });
+});
+
 app.get("/v1/feed", (c) => {
   const call = c.req.query("call");           // optional filter
   const cat = c.req.query("category");
@@ -344,6 +390,38 @@ app.get("/v1/checks/:id", (c) => {
     .query("SELECT url FROM listing_photos WHERE listing_id=$id ORDER BY position")
     .all({ $id: id }) as Array<{ url: string }>).map((p) => p.url);
 
+  /**
+   * SIGNALS ARE RECOMPUTED, NOT STORED.
+   *
+   * The detail screen was rendering a verdict with no flags under it, because
+   * only the verdict payload is persisted — the signal list with its evidence
+   * strings never was. So "what's flagged" was permanently empty on anything
+   * opened from the feed, and the risk layer, which is the actual
+   * differentiator, was invisible unless you pasted the link fresh.
+   *
+   * `checkStored` re-runs signals, matching and valuation from the listing text
+   * already in the database: no refetch, no network, about a millisecond.
+   */
+  let signals: unknown[] = [];
+  let meta: Record<string, unknown> = {};
+  try {
+    const re = checkStored(id, {});
+    signals = re.signals.signals;
+    meta = {
+      category: re.signals.category,
+      listingQuality: re.signals.listingQuality,
+      sellerSophistication: re.signals.sellerSophistication,
+      daysOnMarket: re.signals.daysOnMarket,
+      missingValueFields: re.signals.missingValueFields,
+      match: {
+        model: re.match.model, brand: re.match.brand, category: re.match.category,
+        confidence: re.match.confidence, method: re.match.method,
+        attributes: re.match.attributes,
+      },
+      description: re.listing.description ?? "",
+    };
+  } catch { /* a listing we cannot re-read still renders its stored verdict */ }
+
   return c.json({
     checkId: row.id,
     listing: {
@@ -351,6 +429,8 @@ app.get("/v1/checks/:id", (c) => {
       location: row.location, postedAt: row.posted_at, source: row.source, photoUrls: photos,
     },
     verdict: row.payload ? JSON.parse(row.payload) : null,
+    signals,
+    meta,
   });
 });
 
