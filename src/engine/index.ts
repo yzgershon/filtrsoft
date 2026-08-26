@@ -321,4 +321,15 @@ export function checkStored(
   return { ...out, listing };
 }
 
-export const ENGINE_VERSION = "0.3.0";
+/**
+ * BUMP THIS whenever matching, signals or valuation change behaviour.
+ *
+ * It is not decoration:  in the API scheduler compares it to
+ *  and re-scores production on any mismatch. Without a
+ * bump, an engine fix deploys and the live feed keeps serving the old verdicts
+ * — which is exactly what happened when the Nintendo-Switch matcher bug was
+ * fixed and two network switches stayed on the site anyway.
+ *
+ * 0.3.1 — single-character discriminators + variant gating in matchSku.
+ */
+export const ENGINE_VERSION = "0.3.1";

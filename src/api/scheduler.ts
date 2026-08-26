@@ -22,7 +22,8 @@
  * vision runs on demand when someone actually opens a listing.
  */
 import { crawl } from "../crawler/index.ts";
-import { db } from "../db/index.ts";
+import { checkStored, ENGINE_VERSION } from "../engine/index.ts";
+import { db, now } from "../db/index.ts";
 
 /** Wall-clock gap between crawls. Craigslist does not turn over faster. */
 const INTERVAL_MS = Number(process.env.ASSYZE_CRAWL_INTERVAL_MS ?? 45 * 60 * 1000);
@@ -63,6 +64,11 @@ async function runOnce(reason: string) {
   const t0 = Date.now();
   const p = pace();
   try {
+    // Engine changes reach the FEED only through this. Cheap when there is
+    // nothing stale, which is every run after the one following a deploy.
+    const rescored = reverdictStale();
+    if (rescored) console.log(`re-scored ${rescored} listings on engine ${ENGINE_VERSION}`);
+
     const st = await crawl({
       limit: p.limit,
       pages: 1,
@@ -82,6 +88,52 @@ async function runOnce(reason: string) {
   } finally {
     running = false;
   }
+}
+
+/**
+ * Re-score listings whose latest verdict came from an older engine.
+ *
+ * **WHY THIS HAS TO BE AUTOMATIC.** The matcher fix that stopped a $5 D-Link
+ * Ethernet switch being priced as a Nintendo Switch 2 deployed cleanly — and
+ * the two bad rows stayed on the live feed regardless, because the feed reads
+ * STORED verdicts and the crawler skips listings it has already seen. Shipping
+ * an engine fix therefore did not fix anything a user could see.
+ *
+ * `verdicts.engine_version` was already recorded and never used. Comparing it
+ * to `ENGINE_VERSION` makes every future engine change self-healing: bump the
+ * version, deploy, and production re-scores itself.
+ *
+ * `checkStored` re-runs signals, matching and valuation against the listing
+ * text ALREADY in the database — no refetch, no network, no source traffic.
+ */
+function reverdictStale(limit = 400): number {
+  const d = db();
+  const rows = d.query(
+    `SELECT l.id FROM listings l
+       JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
+      WHERE v.engine_version IS NOT $v
+      ORDER BY l.id LIMIT $lim`,
+  ).all({ $v: ENGINE_VERSION, $lim: limit }) as Array<{ id: number }>;
+  if (!rows.length) return 0;
+
+  const ins = d.query(
+    `INSERT INTO verdicts (listing_id, engine_version, call, confidence, payload, created_at)
+     VALUES ($lid,$v,$call,$conf,$p,$now)`,
+  );
+  let n = 0;
+  for (const r of rows) {
+    try {
+      const { verdict } = checkStored(r.id, {});
+      ins.run({
+        $lid: r.id, $v: ENGINE_VERSION, $call: verdict.call,
+        $conf: verdict.confidence, $p: JSON.stringify(verdict), $now: now(),
+      });
+      n++;
+    } catch {
+      // One unparseable listing must not stop the sweep.
+    }
+  }
+  return n;
 }
 
 export function startCrawlLoop() {
