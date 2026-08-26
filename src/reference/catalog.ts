@@ -121,6 +121,55 @@ export const CATALOG: SeedSku[] = [
   { category: "gpu", brand: "AMD", model: "RX 6600", attributes: { vram: 8, miningEra: true }, liquidity: "slow" },
   { category: "gpu", brand: "AMD", model: "RX 5700 XT", attributes: { vram: 8, miningEra: true }, liquidity: "slow" },
 
+  // ---- desktop CPUs ----
+  /**
+   * Every CPU in the catalog before this arrived by `catalog:derive` mining
+   * whatever happened to appear in comps, so coverage was accidental: it had
+   * i7-9700 and i7-14700K but not the i7-10700, which is one of the most
+   * common chips in a used gaming build. A build whose CPU is unpriceable
+   * caps coverage at 42% (the GPU alone) and returns "can't tell" no matter
+   * how well the listing is written — that is exactly what happened to
+   * "GAMING PC: I7 10700 / RTX 2080".
+   *
+   * DESKTOP PARTS ONLY, deliberately. Laptop chips (-U, -H, -HQ, -G7) show up
+   * in the missing list too, but a laptop is priced as a WHOLE UNIT against
+   * its own SKU — the parts path never runs for one — so adding them would be
+   * comps pulled for a lookup nothing performs. There the CPU is a value
+   * FIELD, not a priceable part.
+   *
+   * No `liquidity`: a CPU is a component in a build, and the dead-liquidity
+   * veto exists for whole units nobody wants, not for parts.
+   */
+  { category: "component", brand: "Intel", model: "i9-14900K" },
+  { category: "component", brand: "Intel", model: "i9-13900K" },
+  { category: "component", brand: "Intel", model: "i9-13900F" },
+  { category: "component", brand: "Intel", model: "i7-13700K" },
+  { category: "component", brand: "Intel", model: "i5-13600K" },
+  { category: "component", brand: "Intel", model: "i5-13400" },
+  { category: "component", brand: "Intel", model: "i9-12900K" },
+  { category: "component", brand: "Intel", model: "i7-12700K" },
+  { category: "component", brand: "Intel", model: "i7-12700" },
+  { category: "component", brand: "Intel", model: "i5-12600K" },
+  { category: "component", brand: "Intel", model: "i5-12400" },
+  { category: "component", brand: "Intel", model: "i7-11700K" },
+  { category: "component", brand: "Intel", model: "i5-11400" },
+  { category: "component", brand: "Intel", model: "i9-10900K" },
+  { category: "component", brand: "Intel", model: "i7-10700K" },
+  { category: "component", brand: "Intel", model: "i7-10700" },
+  { category: "component", brand: "Intel", model: "i5-10400" },
+  { category: "component", brand: "Intel", model: "i7-8700K" },
+  { category: "component", brand: "Intel", model: "i5-9400F" },
+  { category: "component", brand: "AMD", model: "Ryzen 9 5950X" },
+  { category: "component", brand: "AMD", model: "Ryzen 9 5900X" },
+  { category: "component", brand: "AMD", model: "Ryzen 7 5800X3D" },
+  { category: "component", brand: "AMD", model: "Ryzen 7 5800X" },
+  { category: "component", brand: "AMD", model: "Ryzen 7 5700X" },
+  { category: "component", brand: "AMD", model: "Ryzen 5 5600X" },
+  { category: "component", brand: "AMD", model: "Ryzen 5 5600" },
+  { category: "component", brand: "AMD", model: "Ryzen 5 5500" },
+  { category: "component", brand: "AMD", model: "Ryzen 7 3700X" },
+  { category: "component", brand: "AMD", model: "Ryzen 5 3600" },
+
   // Display-less compute cards. Not GPUs for any normal buyer.
   { category: "gpu", brand: "NVIDIA", model: "Tesla (datacenter)", attributes: { noDisplayOutput: true, passiveCooling: true }, liquidity: "dead",
     aliases: ["tesla p100", "tesla v100", "tesla k80", "tesla m40", "tesla p40"] },

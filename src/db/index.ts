@@ -118,7 +118,25 @@ export function insertComp(c: {
          captured_at, seller_feedback, region, sku_id, query, raw_json)
        VALUES ($source, $sid, $url, $title, $price, $ship, $cur, $craw, $cnorm,
          $sold, $cap, $fb, $region, $sku, $query, $raw)
-       ON CONFLICT(source, source_item_id) DO NOTHING`,
+       /**
+        * ADOPT AN ORPHAN, NEVER RE-FILE AN ATTACHED COMP.
+        *
+        * This was DO NOTHING, and that quietly made --query pulls
+        * permanently useless. A raw query has no SKU to attach to, so its
+        * comps land with sku_id = NULL; they then occupy the
+        * UNIQUE(source, source_item_id) slot forever, so a later
+        * SKU-TARGETED run re-fetches the same eBay items, hits the conflict,
+        * does nothing, and the comps stay orphaned. 64 real i7-10700 sold
+        * prices sat in the archive unreachable by valueSku for exactly this
+        * reason, and the pull reported "64 new comps stored" both times.
+        *
+        * COALESCE(comps.sku_id, excluded.sku_id) only ever fills a NULL. An
+        * already-attached comp keeps its SKU, so this can never silently move
+        * a sold price from one product to another — which would be far worse
+        * than leaving it orphaned.
+        */
+       ON CONFLICT(source, source_item_id) DO UPDATE SET
+         sku_id = COALESCE(comps.sku_id, excluded.sku_id)`,
     )
     .run({
       $source: c.source,
