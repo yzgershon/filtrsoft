@@ -4,7 +4,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { parseModel } from "../src/catalog/derive.ts";
-import { resolveCategory, resolveProductType } from "../src/signals/product-type.ts";
+import { namedCatalogBrand } from "../src/catalog/match.ts";
+import { isUnsupportedPrinter, resolveCategory, resolveProductType } from "../src/signals/product-type.ts";
+import { detectCategory } from "../src/signals/index.ts";
 import { variantPattern } from "../src/signals/variants.ts";
 import {
   compMatchesQuery,
@@ -253,6 +255,41 @@ describe("product grammar", () => {
   test("does not let a trailing component retype a whole laptop", () => {
     expect(resolveCategory("HP EliteBook 840 Laptop i5 8GB RAM 256GB SSD")).toBe("laptop");
   });
+
+  test("keeps plural laptops ahead of their embedded GPU", () => {
+    const title = "Dell 9520 Windows 11 Pro Laptops. 14-Core, i9, Nvidia GPU";
+    expect(detectCategory(title)).toBe("laptop");
+  });
+
+  test("does not let a whole desktop fall through to its CPU category", () => {
+    expect(detectCategory("Dell OptiPlex 5070 SFF i7-9700 16GB 512GB")).toBe("prebuilt");
+    expect(detectCategory("HP EliteOne 800 G4 AIO Desktop i5-8500")).toBe("prebuilt");
+    expect(detectCategory("HP Envy TE01-1022 Desktop i7-10700")).toBe("prebuilt");
+  });
+
+  test("keeps printers out even when their product line sounds like a laptop", () => {
+    const title = "PRINTER HP ENVY 6055E Wireless All In One";
+    expect(isUnsupportedPrinter(title)).toBeTrue();
+    expect(detectCategory(title)).toBe("unknown");
+  });
+
+  test("recognises Apple towers but not replacement MacBook batteries", () => {
+    expect(resolveProductType("Mac Pro 2012 upgraded").kind).toBe("tech");
+    expect(resolveCategory("Mac Pro 2012 upgraded")).toBe("prebuilt");
+    expect(resolveProductType("Newertech MacBook battery 2017").kind).toBe("accessory");
+  });
+
+  test("treats a bare CPU generation as evidence of a computer", () => {
+    expect(resolveProductType("HP Touch screen i5 10th generation").kind).toBe("tech");
+    expect(resolveProductType("HP Touch screeni5 10th generation").kind).toBe("tech");
+  });
+
+  test("does not cross a seller-stated brand during catalog matching", () => {
+    const brands = ["Apple", "Dell", "Microsoft"];
+    expect(namedCatalogBrand("Dell 14-Core Pro Laptop with Microsoft Office", brands)).toBe("Dell");
+    expect(namedCatalogBrand("MacBook Pro 14", brands)).toBeNull();
+    expect(namedCatalogBrand("ThinkPad X1 with Microsoft Office", brands)).toBeNull();
+  });
 });
 
 describe("generative catalog parser", () => {
@@ -322,6 +359,7 @@ describe("attribute parsing", () => {
     ["Dell XPS 16GB RAM 512GB SSD", 512],
     ["MacBook Air M3 8GB 256GB SSD", 256],
     ["Gaming PC 32GB DDR5 1TB NVMe", 1024],
+    ["Samsung Galaxy S24 Ultra 256G unlocked", 256],
     ["Laptop with 32GB RAM", null],
   ])("extracts storage from %s", (title, storage) => {
     expect(storageOf(title)).toBe(storage);

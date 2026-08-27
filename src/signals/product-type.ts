@@ -37,6 +37,11 @@ export interface ProductType {
   reason: string;
 }
 
+/** Printers are devices, but not a market Assyze has chosen to judge. */
+export function isUnsupportedPrinter(title: string): boolean {
+  return /\b(printer|laserjet|officejet|deskjet|inkjet|ecotank)\b/i.test(title);
+}
+
 /**
  * Nouns that name the thing being sold, by class.
  *
@@ -50,7 +55,7 @@ const TECH = [
   // this beat the bare "desktop" that would otherwise classify it as a machine.
   "desktop processor", "mobile processor", "mini pc", "nuc",
   "pc", "computer", "desktop", "tower", "laptop", "notebook", "chromebook",
-  "macbook", "imac", "mac mini", "mac studio", "workstation", "server",
+  "macbook", "imac", "mac mini", "mac studio", "mac pro", "workstation", "server",
   "monitor", "display", "gpu", "cpu", "processor", "motherboard", "mobo",
   "ssd", "hdd", "nvme", "ram", "memory", "psu",
   "phone", "iphone", "ipad", "tablet", "galaxy", "pixel",
@@ -93,6 +98,7 @@ const FURNITURE = [
  * ever covers them.
  */
 const ACCESSORY = [
+  "macbook battery", "laptop battery", "notebook battery",
   "case", "bag", "sleeve", "backpack", "cover", "skin", "strap", "lanyard",
   "cable", "adapter", "charger", "power cord", "dock", "hub", "splitter",
   "mousepad", "mouse pad", "cooling pad", "pad", "mat", "screen protector", "bracket", "mount",
@@ -126,7 +132,7 @@ const LEXICON: Array<{ term: string; kind: ProductKind }> = CLASSES
  * one. Nobody puts a part number on a desk.
  */
 const MODEL_ID =
-  /\b(rtx|gtx|rx)\s?\d{3,4}|\bi[3579][- ]\d{4,5}|\bryzen\s?\d\s?\d{4}|\bm[1-9]\b|\b[a-z]{2,3}\d{3,4}[a-z]{0,3}\b|\b\d{2,4}\s?(gb|tb)\b/i;
+  /\b(rtx|gtx|rx)\s?\d{3,4}|\bi[3579][- ]\d{4,5}|\b(?:screen\s*)?i[3579]\s+\d{1,2}(st|nd|rd|th)\s+gen(eration)?\b|\bryzen\s?\d\s?\d{4}|\bm[1-9]\b|\b[a-z]{2,3}\d{3,4}[a-z]{0,3}\b|\b\d{2,4}\s?(gb|tb)\b/i;
 
 /**
  * A separator only makes a LIST when it sits BETWEEN two product nouns.
@@ -317,7 +323,7 @@ const DEVICE_CATEGORY: Array<[string, string[]]> = [
   ["prebuilt", ["gaming pc", "desktop computer", "gaming desktop", "pc", "desktop",
                 "tower", "workstation", "all-in-one", "all in one", "imac",
                 "thinkcentre", "optiplex", "elitedesk", "prodesk", "nuc", "mini pc",
-                "mac mini", "mac studio", "alienware", "server"]],
+                "mac mini", "mac studio", "mac pro", "alienware", "server"]],
   ["phone", ["iphone", "phone", "galaxy", "pixel"]],
   ["tablet", ["ipad", "tablet"]],
   ["console", ["console", "playstation", "ps4", "ps5", "xbox", "nintendo switch", "steam deck",

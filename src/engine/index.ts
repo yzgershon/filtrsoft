@@ -375,6 +375,7 @@ export function checkStored(
  * 0.3.17 — refreshed facts preserve first capture and paid vision is opt-in.
  * 0.3.18 — every paid path uses one atomic daily-budget ledger.
  * 0.3.19 — unresolved category hard blockers always veto BUY.
+ * 0.3.20 — category agreement, brand boundaries, printer purge, 256G storage.
  *
  * 0.3.6 is also the reminder that this list is not a changelog. The storage
  * fix shipped WITHOUT a bump and production kept serving the old verdicts,
@@ -382,4 +383,4 @@ export function checkStored(
  * the current version. Exactly the failure this constant was made load-bearing
  * to prevent, two days after writing that down.
  */
-export const ENGINE_VERSION = "0.3.19";
+export const ENGINE_VERSION = "0.3.20";

@@ -2125,6 +2125,48 @@ re-score changed exactly those two calls: BUY **2 → 0**, VERIFY **6 → 8**;
 the other 974 calls were unchanged. That is commercially uglier and correct.
 The way back to BUY is evidence, not weakening the gate.
 
+### ⚠⚠ The two category resolvers must agree before catalog matching
+`detectCategory()` and `resolveCategory()` had drifted into separate product
+taxonomies. The signal regex saw `RAM`, `SSD` or a CPU before its narrower
+desktop pattern recognized `OptiPlex`, `EliteOne`, `Micro PC`, `ThinkCentre`
+or a bare `Desktop`. `matchSku` was then handed `component` and confidently
+matched the Intel CPU inside an entire computer.
+
+Measured on the 976-listing database, **seven whole desktops were PASS only
+because the engine priced the whole listing from bare-CPU comps** (IDs 27, 56,
+134, 194, 339, 351 and 488). They now resolve as `prebuilt` and return
+INSUFFICIENT_DATA until the GPU/model evidence needed for a whole-machine
+valuation exists. A leading catalog brand also fences whole-device matching,
+so a Dell cannot token-match an Apple SKU; the guard deliberately does not run
+for GPUs, where an ASUS board correctly maps to an NVIDIA-chip SKU.
+
+### ⚠⚠ A supported SKU is a scope claim, not just a useful search string
+`HP Envy 6055E` existed as a **laptop** SKU with **15/15 printer comps**. The
+median looked valid because every row agreed with every other row; the product
+was simply not a laptop. Worse, those rows participated in the laptop-wide
+condition multiplier, so one unsupported SKU could move legitimate laptop
+valuations. Removing it moved listing 54 from FAIR to VERIFY at 58% of market.
+
+Engine **0.3.20** has a one-shot migration that deletes that exact SKU, alias
+and 15 comps (and clears any outcome reference), and printer titles now exit as
+OUT_OF_SCOPE before a mistaken SKU can override scope. A full archive audit for
+SKUs whose comp titles were at least 50% printer/router/monitor/switch found no
+second polluted SKU.
+
+### ⚠ Seller capacity shorthand often omits the B
+`128G` and `256G` are normal phone-listing shorthand, not missing storage.
+Requiring `GB` left five local phones unpriceable even though the capacity was
+in the title. Engine **0.3.20** accepts 2-4 digit `G` storage; the generic
+attribute path requires at least 64 so `RTX 3080 10G` cannot become a 10GB
+drive. Four newly crawled iPhones moved INSUFFICIENT_DATA → PASS (they were
+overpriced), and the S24 Ultra now filters comps at its stated 256GB tier.
+
+Final 0.3.20 re-score over **976 listings** took **2.07s** and was deterministic:
+OUT_OF_SCOPE **571**, INSUFFICIENT_DATA **288**, PASS **97**, FAIR **10**,
+VERIFY **9**, RISK **1**, BUY **0**. The 0.3.19 baseline was 563 / 293 / 100 /
+11 / 8 / 1 / 0 respectively. Coverage improved where evidence was present;
+the reduction in PASS is primarily the removal of silently wrong CPU pricing.
+
 ---
 
 ## 13. Decisions the maintainer made — do not re-litigate
@@ -2154,7 +2196,7 @@ P1-5 (asking price -> 0), P1-1 (stale vision cache).
 **Confirmed and still open:**
 - **P0-6/P0-7** production DB is disconnected from the local archive, has no
   volume backup, and the local backup excludes ~117 MB of photos.
-- **A first backend suite now exists:** 36 tests / 65 assertions over catalog,
+- **A first backend suite now exists:** 43 tests / 80 assertions over catalog,
   product grammar, sold/retail parsers, listing facts, verdict retention and the
   atomic vision ledger. Coverage is still narrow, but "zero tests" is no longer
   true.
@@ -2242,10 +2284,10 @@ until after that.
    margin math** — eBay-to-eBay means fees on both ends, so it needs a
    different basis from local arbitrage. Alerts come after the UI, his call.
 
-7. **Write tests.** Still none, and this session shipped seven engine versions
-   in a day. Start with `product-type`, `condition`, `matchSku`, the eBay
-   parsers, `parseBestBuy` and `parseCards` — all pure, all currently verified
-   only by hand, and `docs/testset/*-lines.json` are ready-made fixtures.
+7. **Expand tests.** The first 43 tests cover product grammar, risk gates,
+   persistence, the vision ledger and captured eBay/retail parsers. `matchSku`
+   still needs an isolated catalog fixture, and scheduler/queue behavior still
+   has no integration coverage.
 
 8. **Run `bun run sweep` daily.** Every day it does not run is clearing-price
    history nobody can refetch.

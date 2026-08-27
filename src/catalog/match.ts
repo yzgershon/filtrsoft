@@ -29,6 +29,32 @@ export interface Match {
 const norm = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
 
+/**
+ * Return the catalog brand the seller explicitly named, if any.
+ *
+ * Token overlap must not cross a stated brand boundary. A live Dell laptop
+ * title containing "Pro" and "14" was otherwise resolving to Apple's
+ * MacBook Pro 14 SKU: the family tokens happened to overlap even though the
+ * seller had written "Dell" in the title. Brands come from the catalog rather
+ * than a second hard-coded vocabulary. Only the opening three words count:
+ * component makers and bundled software later in a title ("Intel Core",
+ * "Microsoft Office") are not necessarily the device maker.
+ */
+export function namedCatalogBrand(title: string, brands: string[]): string | null {
+  const prefix = norm(title).split(" ").slice(0, 3).join(" ");
+  const padded = ` ${prefix} `;
+  let best: { brand: string; index: number } | null = null;
+
+  for (const brand of new Set(brands.filter(Boolean))) {
+    const normalized = norm(brand);
+    if (!normalized) continue;
+    const index = padded.indexOf(` ${normalized} `);
+    if (index >= 0 && (!best || index < best.index)) best = { brand, index };
+  }
+
+  return best?.brand ?? null;
+}
+
 /** Attributes that change value materially, pulled straight from text. */
 export function extractAttributes(text: string): Record<string, string | number> {
   const a: Record<string, string | number> = {};
@@ -80,6 +106,11 @@ export function extractAttributes(text: string): Record<string, string | number>
     const all = [...t.matchAll(/\b(\d{1,4})\s?(gb|tb)\b/g)]
       .map((m) => (m[2] === "tb" ? Number(m[1]) * 1024 : Number(m[1])))
       .filter((n) => !claimed.has(n));
+    // Sellers abbreviate phone capacity as "256G" constantly. Require at
+    // least 64 so GPU VRAM shorthand ("RTX 3080 10G") cannot become storage.
+    all.push(...[...t.matchAll(/\b(\d{2,4})\s?g\b/g)]
+      .map((m) => Number(m[1]))
+      .filter((n) => n >= 64 && !claimed.has(n)));
     if (all.length) a.storage_gb = Math.max(...all);
   }
 
@@ -145,6 +176,15 @@ export function matchSku(title: string, description = "", categoryHint?: string)
   // A whole machine is not the sum of a component SKU. Filter parts out.
   const WHOLE = new Set(["prebuilt", "laptop", "phone", "tablet", "console"]);
   if (categoryHint && WHOLE.has(categoryHint)) {
+    // Within a whole-device category, a leading maker is stronger evidence
+    // than coincidental family tokens. Do not apply this to GPUs: an ASUS card
+    // correctly resolves to an NVIDIA-chip SKU, for example.
+    const namedBrand = namedCatalogBrand(title, aliasRows.map((r) => r.brand));
+    if (namedBrand) {
+      const normalizedBrand = norm(namedBrand);
+      aliasRows = aliasRows.filter((r) => norm(r.brand) === normalizedBrand);
+    }
+
     const same = aliasRows.filter((r) => r.category === categoryHint);
     aliasRows = same.length ? same : aliasRows.filter((r) => WHOLE.has(r.category));
   }

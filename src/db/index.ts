@@ -136,6 +136,29 @@ function migrate(d: Database) {
       mark.run(name, now());
     })();
   }
+
+  /**
+   * A printer was entered as a laptop SKU, then a comp pull faithfully attached
+   * 15 printer sales to it. The resulting $55 median looked internally valid
+   * while being entirely outside Assyze's market. Match by identity rather than
+   * local id because archive imports can assign a different id on another DB.
+   */
+  const printerName = "2026-08-27-remove-hp-envy-6055e-printer-sku";
+  if (!applied.get(printerName)) {
+    d.transaction(() => {
+      const bad = d.query(
+        "SELECT id FROM skus WHERE category='laptop' AND brand='HP' AND model='Envy 6055E'",
+      ).get() as { id: number } | null;
+      if (bad) {
+        d.query("UPDATE outcomes SET sku_id=NULL WHERE sku_id=?").run(bad.id);
+        d.query("DELETE FROM retail_prices WHERE sku_id=?").run(bad.id);
+        d.query("DELETE FROM comps WHERE sku_id=?").run(bad.id);
+        d.query("DELETE FROM sku_aliases WHERE sku_id=?").run(bad.id);
+        d.query("DELETE FROM skus WHERE id=?").run(bad.id);
+      }
+      mark.run(printerName, now());
+    })();
+  }
 }
 
 export const now = () => new Date().toISOString();

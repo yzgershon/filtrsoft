@@ -8,7 +8,7 @@
  *
  * See RISK-MODEL.md section 3.
  */
-import { isAppleWholeUnit } from "./product-type.ts";
+import { isAppleWholeUnit, isUnsupportedPrinter, resolveCategory } from "./product-type.ts";
 import type { RawListing, Signal, SignalReport, Category } from "../types.ts";
 import { findContradictions } from "../reference/compatibility.ts";
 
@@ -42,7 +42,7 @@ const CATEGORY_PATTERNS: Array<[Category, RegExp]> = [
    * `workstation` and were then asked which GPU they had, as though they were
    * towers. A mobile workstation is a laptop.
    */
-  ["laptop",   /\b(laptop|macbook|thinkpad|latitude|xps|notebook|chromebook|inspiron|precision|elitebook|pavilion|mobile workstations?|workstation laptops?)\b/i],
+  ["laptop",   /\b(laptops?|macbook|thinkpad|latitude|xps|notebooks?|chromebook|inspiron|precision|elitebook|pavilion|mobile workstations?|workstation laptops?)\b/i],
   /**
    * `all-in-one` is printer vocabulary too, and the printers won.
    * "PRINTER HP ENVY 6055E---Wireless All In One" was classified as a prebuilt
@@ -50,7 +50,7 @@ const CATEGORY_PATTERNS: Array<[Category, RegExp]> = [
    * excluding an explicit printer, keeps the iMac-style listings it was added
    * for. `workstation` now requires it NOT be a mobile one.
    */
-  ["prebuilt", /\b(gaming (pc|desktop|computer)|desktop (pc|computer)|prebuilt|imac|mac (mini|studio|pro)|tower)\b|\ball[- ]in[- ]one\b(?=.*\b(pc|computer|desktop|imac)\b)|(?<!mobile )\bworkstation\b/i],
+  ["prebuilt", /\b(gaming (pc|desktop|computer)|desktop (pc|computer)|prebuilt|imac|mac (mini|studio|pro)|tower)\b|\bdesktop\b(?!\s+(?:processor|cpu))|\ball[- ]in[- ]one\b(?=.*\b(pc|computer|desktop|imac)\b)|(?<!mobile )\bworkstation\b/i],
   ["gpu",      /\b(rtx|gtx|radeon|rx ?[5-9]\d{3}|quadro|tesla|graphics card|gpu|video card)\b/i],
   ["component",/\b(ddr[45]|ram\b|ssd|nvme|motherboard|cpu|processor|power supply|psu)\b/i],
 ];
@@ -59,7 +59,7 @@ const CATEGORY_PATTERNS: Array<[Category, RegExp]> = [
 // NOTE: \d{1,4} not \d{2,4} — "1TB" and "2TB" are single-digit and were being
 // reported as missing storage on listings that clearly stated it.
 const VALUE_FIELDS: Partial<Record<Category, Array<[string, RegExp]>>> = {
-  phone:    [["storage", /\b(\d{1,4})\s?(gb|tb)\b/i]],
+  phone:    [["storage", /\b(?:\d{1,4}\s?(?:gb|tb)|\d{2,4}\s?g)\b/i]],
   // No trailing \b — real CPU model numbers carry letter suffixes ("i7-1185G7",
   // "i7-6700K") and a closing boundary can never match after them.
   // "core i7" with NO part number is the common form on a Mac spec screen
@@ -84,7 +84,7 @@ const VALUE_FIELDS: Partial<Record<Category, Array<[string, RegExp]>>> = {
              // Same reasoning as laptop above: a bare i7 is a stated CPU.
              ["cpu", /\bi[3579]\b|\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d|m[1-9]\b|core ultra|xeon|threadripper)/i]],
   console:  [["storage", /\b(\d{3,4}\s?gb|\d{1,2}\s?tb)\b/i]],
-  tablet:   [["storage", /\b(\d{1,4})\s?(gb|tb)\b/i]],
+  tablet:   [["storage", /\b(?:\d{1,4}\s?(?:gb|tb)|\d{2,4}\s?g)\b/i]],
 };
 
 /**
@@ -164,8 +164,26 @@ const HIGH_KNOWLEDGE =
  * Falling back to the full text only when the title is genuinely unclassifiable
  * keeps the recall the combined pass was there for.
  */
-function detectCategory(title: string, description = ""): Category {
-  for (const [cat, re] of CATEGORY_PATTERNS) if (re.test(title)) return cat;
+export function detectCategory(title: string, description = ""): Category {
+  if (isUnsupportedPrinter(title)) return "unknown";
+  // Whole-device and GPU evidence outranks embedded component specs. Keep the
+  // compact high-precision patterns first, but do not let the broad component
+  // regex fire until the grammatical resolver has had a chance to see the
+  // actual product noun.
+  for (const [cat, re] of CATEGORY_PATTERNS) {
+    if (cat !== "component" && re.test(title)) return cat;
+  }
+
+  // The product grammar knows model families and head nouns that the compact
+  // signal regexes do not (OptiPlex, EliteDesk, a bare "desktop", and more).
+  // Without this agreement, whole PCs fell through as unknown and matchSku
+  // priced them as the Intel CPU named in their spec line.
+  const resolved = resolveCategory(title);
+  if (resolved && resolved !== "monitor") return resolved as Category;
+
+  const component = CATEGORY_PATTERNS.find(([cat]) => cat === "component");
+  if (component?.[1].test(title)) return "component";
+
   if (!description) return "unknown";
   for (const [cat, re] of CATEGORY_PATTERNS) if (re.test(`${title}\n${description}`)) return cat;
   return "unknown";

@@ -62,7 +62,7 @@ export function storageOf(title: string): number | null {
   const t = title.toLowerCase();
   const tb = t.match(/\b(\d(?:\.\d)?)\s?tb\b/);
   if (tb) return Math.round(Number(tb[1]) * 1024);
-  const gb = [...t.matchAll(/\b(\d{2,4})\s?gb\b/g)]
+  const gb = [...t.matchAll(/\b(\d{2,4})\s?g(?:b)?\b/g)]
     .map((m) => Number(m[1]))
     .filter((n) => n >= 64);
   return gb.length ? Math.max(...gb) : null;

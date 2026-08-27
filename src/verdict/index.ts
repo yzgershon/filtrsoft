@@ -15,7 +15,7 @@ import type { Match } from "../catalog/match.ts";
 import { buildQuestions } from "./questions.ts";
 import { valueSku, valueByParts, valueWholeBuild, netByChannel, requiredProfitCents, getEconomics, type UserEconomics, type ChannelResult, type PriceBasis } from "../valuation/index.ts";
 import { normalizeCondition, type Condition } from "../valuation/condition.ts";
-import { resolveProductType, isAppleWholeUnit } from "../signals/product-type.ts";
+import { resolveProductType, isAppleWholeUnit, isUnsupportedPrinter } from "../signals/product-type.ts";
 import { evaluateRisk, riskGate, type RiskCheck, type RiskGate } from "./risk-gates.ts";
 import { latestRetail, retailMeaning, type RetailPrice } from "../sources/retail.ts";
 import { boardTier } from "../signals/board-tier.ts";
@@ -65,7 +65,7 @@ const NEVER_OUR_MARKET =
  * it against one machine's comps is meaningless.
  */
 const BULK_LISTING =
-  /\b(\d{2,}\s+(computers|laptops|monitors|printers|phones)|lot of \d|wholesale|bulk|liquidation|starting at (just )?\$|do you need a)\b|\b(laptops|computers|desktops|phones|monitors|tablets)\b[^.]{0,20}\bfor sale\b|\bmultiple\s+(laptops|computers|phones)\b/i;
+  /\b(\d{2,}\s+(computers|laptops|monitors|printers|phones)|lot of \d|wholesale|bulk|liquidation|starting at (just )?\$|do you need a|second one|another one)\b|\b(laptops|computers|desktops|phones|monitors|tablets)\b[^.]{0,20}\bfor sale\b|\bmultiple\s+(laptops|computers|phones)\b/i;
 
 /**
  * A RESELLER'S INVENTORY AD — a bulk listing wearing a model number.
@@ -290,11 +290,21 @@ export function buildVerdict(input: {
   }
 
   // --- 1. Out of scope -------------------------------------------------
-  if (OUT_OF_SCOPE.test(`${input.title} ${input.description}`)) {
+  // The title says what is being sold. Descriptions routinely mention trade
+  // interests ("looking for a Nikon scanner") that are not the listed item.
+  if (OUT_OF_SCOPE.test(input.title)) {
     return {
       ...base, call: "OUT_OF_SCOPE", confidence: "high",
       headline: "Not a category Assyze judges.",
       reasoning: "Camera and photo gear is deliberately out of scope — valuation is fine there, but the risk layer (fungus, element separation, focus motor wear, mount play) needs domain knowledge we don't have, and a category we can't audit is one we could be wrong about indefinitely.",
+    };
+  }
+
+  if (isUnsupportedPrinter(input.title)) {
+    return {
+      ...base, call: "OUT_OF_SCOPE", confidence: "high",
+      headline: "Not a category Assyze covers.",
+      reasoning: "That is printer gear. Assyze does not have the failure-mode expertise or resale market depth to judge it reliably.",
     };
   }
 
