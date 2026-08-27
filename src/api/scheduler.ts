@@ -38,6 +38,7 @@ import { prunePhotos } from "../photos/index.ts";
 import { runAlerts } from "./alerts.ts";
 import { checkStored, ENGINE_VERSION } from "../engine/index.ts";
 import { db, now } from "../db/index.ts";
+import { storeVerdict } from "../db/verdicts.ts";
 
 /** Gap between ticks. A tick is 5 requests when nothing is new. */
 const INTERVAL_MS = Number(process.env.ASSYZE_CRAWL_INTERVAL_MS ?? 3 * 60 * 1000);
@@ -146,16 +147,28 @@ async function runOnce(reason: string) {
   if (running) { console.log("tick: previous run still going, skipping"); return; }
   running = true;
   const t0 = Date.now();
+  const startedAt = now();
   const p = pace();
+  const metrics = { discovered: 0, analysed: 0, vision: 0, failed: 0 };
   try {
     // Engine changes reach the FEED only through this. Cheap when nothing is
     // stale, which is every run after the one following a deploy.
     const rescored = reverdictAll();
     if (rescored) console.log(`re-scored ${rescored} listings on engine ${ENGINE_VERSION}`);
 
-    // New comps do not bump the engine version, so nothing above notices them.
-    const repriced = reverdictUnpriced();
-    if (repriced) console.log(`priced ${repriced} previously-unpriceable listings`);
+    /**
+     * New comps, SKUs, aliases and retail quotes do not bump ENGINE_VERSION,
+     * but they can change an answer just as much as code. Re-score once when
+     * that data signature moves, not 200 unchanged rows on every 3-minute tick.
+     * If stale engine rows were just drained, they already saw current data.
+     */
+    if (rescored) markPricingDataCurrent();
+    else {
+      const repriced = reverdictWhenPricingDataChanges();
+      if (repriced.changed) {
+        console.log(`pricing data changed: checked ${repriced.checked}, ${repriced.changed} verdict(s) moved`);
+      }
+    }
 
     /**
      * DISCOVER, THEN DRAIN. See `crawler/queue.ts` for why these are separate.
@@ -170,6 +183,9 @@ async function runOnce(reason: string) {
       concurrency: 3,
       onProgress: (m) => console.log(`  drain: ${m}`),
     });
+    metrics.discovered = d.seen;
+    metrics.analysed = dr.analysed;
+    metrics.failed = d.failedPages + dr.failed + dr.dropped;
 
     /**
      * Alerts fire immediately after the drain, against listings analysed in
@@ -198,6 +214,7 @@ async function runOnce(reason: string) {
         console.error("vision pass failed:", (e as Error).message);
       }
     }
+    metrics.vision = vision;
 
     const quiet = d.queued === 0 && dr.analysed === 0 && !vision;
     if (!quiet) {
@@ -212,7 +229,9 @@ async function runOnce(reason: string) {
     // Never throw out of the loop: an unhandled rejection here takes down the
     // whole server, and a failed tick is not a reason to stop serving.
     console.error(`tick (${reason}) failed:`, (e as Error).message);
+    metrics.failed++;
   } finally {
+    recordTick(startedAt, metrics);
     running = false;
   }
 }
@@ -236,15 +255,13 @@ async function runOnce(reason: string) {
 /**
  * DRAIN THE BACKLOG, do not nibble at it.
  *
- * The first version re-scored 400 per crawl tick. That is fine during backfill
- * (a tick every 3 minutes) and useless afterwards: once the feed passes 400
- * listings the loop drops to steady mode at 45-minute ticks, so a 945-listing
- * backlog took over two hours to clear. An engine fix that reaches users in
- * two hours has not really shipped.
+ * The first version re-scored 400 per crawl tick. That left a multi-tick window
+ * where the live feed mixed old and new engine answers after every deploy.
  *
  * Draining is cheap — `checkStored` is a database read plus pure engine work,
- * around a millisecond each, so the whole backlog is about a second. The outer
- * cap exists only so a pathological database cannot spin the boot path forever.
+ * about two milliseconds each after the condition-multiplier cache, so 936
+ * listings take 1.87 seconds. The outer cap exists only so a pathological
+ * database cannot spin the boot path forever.
  */
 function reverdictAll(max = 5000): number {
   let total = 0;
@@ -257,7 +274,7 @@ function reverdictAll(max = 5000): number {
 }
 
 /**
- * Re-score listings that could not be priced.
+ * Re-score when valuation data changes without a code change.
  *
  * **`reverdictStale` only reacts to a CODE change** — it selects on
  * `engine_version IS NOT $v`. New DATA moves nothing. So an archive import can
@@ -269,43 +286,57 @@ function reverdictAll(max = 5000): number {
  * and "GAMING PC: I7 10700 / RTX 2080" still read "not enough component comps
  * to price it" against an archive that now had both parts.
  *
- * Runs every crawl rather than being wired to the import, so it self-heals no
- * matter how comps arrive — archive import, a local push, a manual pull.
- * Cheap: these are pure recomputation with no network, and it is bounded.
- *
- * Only INSUFFICIENT_DATA. A listing that already has a real price does not
- * need re-deriving on a schedule, and re-scoring everything every 45 minutes
- * would burn the box for nothing.
+ * The old fix ran every crawl and only retried INSUFFICIENT_DATA. That burned
+ * CPU on unchanged rows while leaving a BUY/PASS based on an old comp median
+ * untouched forever. The data signature below makes this event-driven and
+ * re-checks every stored answer exactly once per pricing-data revision.
  */
-function reverdictUnpriced(limit = 200): number {
-  const d = db();
-  const rows = d.query(
-    `SELECT l.id FROM listings l
-       JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
-      WHERE v.call = 'INSUFFICIENT_DATA' AND l.delisted_at IS NULL
-      ORDER BY l.id DESC LIMIT $lim`,
-  ).all({ $lim: limit }) as Array<{ id: number }>;
-  if (!rows.length) return 0;
+interface DataReverdictStats { checked: number; changed: number }
 
-  const ins = d.query(
-    `INSERT INTO verdicts (listing_id, engine_version, call, confidence, payload, created_at)
-     VALUES ($lid,$v,$call,$conf,$p,$now)`,
-  );
+let lastPricingDataSignature: string | null = null;
+
+/** A compact revision for every table that can change valuation without code. */
+function pricingDataSignature(): string {
+  const r = db().query(`
+    SELECT
+      (SELECT COALESCE(MAX(id),0) FROM comps) comps,
+      (SELECT COALESCE(MAX(id),0) FROM skus) skus,
+      (SELECT COALESCE(MAX(id),0) FROM sku_aliases) aliases,
+      (SELECT COALESCE(MAX(id),0) FROM retail_prices) retail
+  `).get() as { comps: number; skus: number; aliases: number; retail: number };
+  return `${r.comps}|${r.skus}|${r.aliases}|${r.retail}`;
+}
+
+function markPricingDataCurrent() {
+  lastPricingDataSignature = pricingDataSignature();
+}
+
+/**
+ * Re-score every stored listing once when pricing inputs move.
+ *
+ * The old query retried the newest 200 INSUFFICIENT_DATA rows every tick. That
+ * was both wasteful and incomplete: 268 rows existed, so the oldest 68 could
+ * never be revisited, and already-priced listings never saw a changed comp
+ * median or retail ceiling at all.
+ */
+export function reverdictWhenPricingDataChanges(): DataReverdictStats {
+  const before = pricingDataSignature();
+  if (before === lastPricingDataSignature) return { checked: 0, changed: 0 };
+
+  const d = db();
+  const rows = d.query("SELECT id FROM listings ORDER BY id").all() as Array<{ id: number }>;
   let changed = 0;
   for (const r of rows) {
     try {
       const { verdict } = checkStored(r.id, {});
-      // Only write when the answer actually moved. A no-op insert per listing
-      // per crawl would grow the verdicts table without adding information.
-      if (verdict.call === "INSUFFICIENT_DATA") continue;
-      ins.run({
-        $lid: r.id, $v: ENGINE_VERSION, $call: verdict.call,
-        $conf: verdict.confidence, $p: JSON.stringify(verdict), $now: now(),
-      });
-      changed++;
+      const stored = storeVerdict(r.id, ENGINE_VERSION, verdict);
+      if (stored.inserted) changed++;
     } catch { /* one bad listing must not stop the pass */ }
   }
-  return changed;
+  // Generative matching may mint SKUs during the pass. Record the final state
+  // so that expected side effect does not trigger another full pass next tick.
+  lastPricingDataSignature = pricingDataSignature();
+  return { checked: rows.length, changed };
 }
 
 function reverdictStale(limit = 400): number {
@@ -318,24 +349,47 @@ function reverdictStale(limit = 400): number {
   ).all({ $v: ENGINE_VERSION, $lim: limit }) as Array<{ id: number }>;
   if (!rows.length) return 0;
 
-  const ins = d.query(
-    `INSERT INTO verdicts (listing_id, engine_version, call, confidence, payload, created_at)
-     VALUES ($lid,$v,$call,$conf,$p,$now)`,
-  );
   let n = 0;
   for (const r of rows) {
     try {
       const { verdict } = checkStored(r.id, {});
-      ins.run({
-        $lid: r.id, $v: ENGINE_VERSION, $call: verdict.call,
-        $conf: verdict.confidence, $p: JSON.stringify(verdict), $now: now(),
-      });
+      storeVerdict(r.id, ENGINE_VERSION, verdict);
       n++;
     } catch {
       // One unparseable listing must not stop the sweep.
     }
   }
   return n;
+}
+
+/**
+ * Keep crawl observability bounded. The split scheduler originally stopped
+ * writing `crawls`, so the API's lastCrawl froze on the final pre-split run.
+ * Ten thousand 3-minute samples is about three weeks of history and prevents a
+ * health table from becoming another unbounded archive.
+ */
+function recordTick(
+  startedAt: string,
+  metrics: { discovered: number; analysed: number; vision: number; failed: number },
+) {
+  try {
+    const d = db();
+    d.query(
+      `INSERT INTO crawls (started_at, discovered, analysed, vision_run, failed, created_at)
+       VALUES ($s,$d,$a,$v,$f,$now)`,
+    ).run({
+      $s: startedAt,
+      $d: metrics.discovered,
+      $a: metrics.analysed,
+      $v: metrics.vision,
+      $f: metrics.failed,
+      $now: now(),
+    });
+    d.exec(`DELETE FROM crawls
+             WHERE id < (SELECT id FROM crawls ORDER BY id DESC LIMIT 1 OFFSET 9999)`);
+  } catch (e) {
+    console.error("could not record crawl tick:", (e as Error).message);
+  }
 }
 
 export function startCrawlLoop() {

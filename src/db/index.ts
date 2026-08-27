@@ -95,6 +95,45 @@ function migrate(d: Database) {
   addColumns(d, "retail_prices", RETAIL_COLUMNS);
   d.exec("CREATE INDEX IF NOT EXISTS idx_vision_fingerprint ON vision_results(photo_fingerprint)");
   d.exec("CREATE INDEX IF NOT EXISTS idx_vision_created ON vision_results(created_at)");
+
+  /**
+   * Named, one-shot data migrations. CREATE TABLE IF NOT EXISTS handles shape;
+   * this handles bounded cleanup that must run exactly once on an existing
+   * production volume.
+   */
+  d.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
+    name TEXT PRIMARY KEY,
+    applied_at TEXT NOT NULL
+  )`);
+  const applied = d.query("SELECT 1 FROM schema_migrations WHERE name=?");
+  const mark = d.query("INSERT INTO schema_migrations (name, applied_at) VALUES (?,?)");
+  const name = "2026-08-27-prune-consecutive-verdict-duplicates";
+  if (!applied.get(name)) {
+    d.transaction(() => {
+      /**
+       * Keep the LAST row in every run of identical answers. That preserves the
+       * engine version production was actually serving while removing repeats.
+       * A-B-A remains three rows because each transition carries information.
+       */
+      d.exec(`
+        WITH ordered AS (
+          SELECT id, call, confidence, payload,
+                 LEAD(call) OVER (PARTITION BY listing_id ORDER BY id) next_call,
+                 LEAD(confidence) OVER (PARTITION BY listing_id ORDER BY id) next_confidence,
+                 LEAD(payload) OVER (PARTITION BY listing_id ORDER BY id) next_payload
+            FROM verdicts
+        )
+        DELETE FROM verdicts
+         WHERE id IN (
+           SELECT id FROM ordered
+            WHERE call = next_call
+              AND confidence IS next_confidence
+              AND payload = next_payload
+         )
+      `);
+      mark.run(name, now());
+    })();
+  }
 }
 
 export const now = () => new Date().toISOString();

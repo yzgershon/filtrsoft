@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { Database } from "bun:sqlite";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -17,6 +18,42 @@ import { parseCards } from "../src/sources/marketplace.ts";
 import { parseBestBuy, parseMicroCenter, parseNewegg } from "../src/sources/retail.ts";
 import { normalizeCondition } from "../src/valuation/condition.ts";
 import { storageOf } from "../src/valuation/index.ts";
+import { storeVerdictWithDb } from "../src/db/verdicts.ts";
+
+describe("verdict retention", () => {
+  test("refreshes an unchanged answer and appends only a real transition", () => {
+    const db = new Database(":memory:");
+    db.run(`CREATE TABLE verdicts (
+      id INTEGER PRIMARY KEY,
+      listing_id INTEGER NOT NULL,
+      engine_version TEXT NOT NULL,
+      call TEXT NOT NULL,
+      confidence TEXT,
+      payload TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )`);
+
+    const first = { call: "PASS", confidence: "high", headline: "Overpriced." };
+    expect(storeVerdictWithDb(db, 1, "0.1.0", first, "2026-08-27T00:00:00.000Z")).toMatchObject({
+      inserted: true,
+      refreshed: false,
+    });
+    expect(storeVerdictWithDb(db, 1, "0.1.1", first, "2026-08-27T01:00:00.000Z")).toMatchObject({
+      inserted: false,
+      refreshed: true,
+    });
+    expect(db.query("SELECT COUNT(*) n FROM verdicts").get()).toEqual({ n: 1 });
+    expect(db.query("SELECT engine_version FROM verdicts").get()).toEqual({ engine_version: "0.1.1" });
+
+    const changed = { ...first, headline: "Price dropped, but still overpriced." };
+    expect(storeVerdictWithDb(db, 1, "0.1.1", changed, "2026-08-27T02:00:00.000Z")).toMatchObject({
+      inserted: true,
+      refreshed: false,
+    });
+    expect(db.query("SELECT COUNT(*) n FROM verdicts").get()).toEqual({ n: 2 });
+    db.close();
+  });
+});
 
 describe("product grammar", () => {
   test.each([

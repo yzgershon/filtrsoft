@@ -1443,10 +1443,45 @@ for both year-bearing and inferred-year dates.
 
 ### Regression suite started 2026-08-27
 
-`bun test`: **27 pure-function tests / 40 assertions** covering product grammar,
+`bun test`: **28 tests / 46 assertions** covering verdict retention, product grammar,
 generative model parsing, eBay money/date/condition/variant gates, storage
 extraction, OfferUp card boundaries, and all three committed retail fixtures.
 The suite spends nothing and opens no browser.
+
+### ⚠ VERDICT HISTORY WAS 75% IDENTICAL REPEATS
+
+The table held **12,291 rows for 936 listings**. Comparing each row to the one
+immediately before it found **9,212 byte-identical consecutive answers**. Every
+reader selects only the latest row, so those repeats carried no product value.
+
+A one-shot migration keeps the LAST row in each identical run and preserves
+every real transition (A → B → A remains three rows). Local result:
+**12,291 → 3,079 rows**, with 2,266 SQLite pages (~9.3 MB) returned to the
+freelist for reuse. The file is deliberately not VACUUMed on boot; reuse stops
+future growth without blocking production to rewrite the file.
+
+`storeVerdict()` now appends only when call, confidence or payload changes. If
+an engine bump produces the same answer, it refreshes the latest row's engine
+version in place so stale-verdict detection still works.
+
+### ⚠ DATA CHANGES CAN STALE A VERDICT AS COMPLETELY AS CODE CHANGES
+
+The scheduler retried the newest 200 INSUFFICIENT_DATA listings every 3 minutes.
+There were 268, so the oldest **68 were permanently starved**. It also meant an
+existing BUY/PASS never saw a changed comp median or retail ceiling because its
+engine version was already current.
+
+At the measured 21.5s/936-listing rate before the cache fix, the old loop did
+~96,000 redundant checks or about **37 minutes of CPU per day**. It now hashes
+the max ids of comps, SKUs, aliases and retail quotes, then re-scores every
+listing exactly once when that signature moves. Verification: first pass checked
+936 in 2.32s and stored the 54 real 0.3.15 → 0.3.16 changes; an immediate second
+pass checked **zero** and stored zero.
+
+The split 3-minute scheduler also had stopped writing `crawls`, which froze the
+API's `lastCrawl` at the final pre-split run. Every tick is recorded again and
+the table is capped at 10,000 rows (about three weeks) so observability itself
+does not become unbounded storage.
 
 ### ⚠⚠ THE HEAD NOUN DECIDES **WHEN THERE IS ONE** — otherwise use the title
 

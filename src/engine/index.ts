@@ -21,6 +21,7 @@ import { releasePhotos, KEEP_PHOTOS } from "../photos/index.ts";
 import { downloadPhoto, dhash } from "../photos/index.ts";
 import { getEconomics, type UserEconomics } from "../valuation/index.ts";
 import { db, now } from "../db/index.ts";
+import { storeVerdict } from "../db/verdicts.ts";
 import type { RawListing, Signal, SignalReport } from "../types.ts";
 
 export type StageName = "fetched" | "signals" | "valued" | "vision_start" | "vision" | "done";
@@ -304,13 +305,7 @@ export async function checkFetched(listing: RawListing, opts: CheckOptions = {})
   }
 
   if (listingId) {
-    db().query(
-      `INSERT INTO verdicts (listing_id, engine_version, call, confidence, payload, created_at)
-       VALUES ($lid,$v,$call,$conf,$p,$now)`,
-    ).run({
-      $lid: listingId, $v: ENGINE_VERSION, $call: out.verdict.call,
-      $conf: out.verdict.confidence, $p: JSON.stringify(out.verdict), $now: now(),
-    });
+    storeVerdict(listingId, ENGINE_VERSION, out.verdict);
   }
 
   const result: CheckResult = {

@@ -24,6 +24,7 @@
  */
 import type { Context } from "hono";
 import { db, now } from "../db/index.ts";
+import { storeVerdict } from "../db/verdicts.ts";
 import { checkStored, ENGINE_VERSION } from "../engine/index.ts";
 
 export interface PushListing {
@@ -75,11 +76,6 @@ export function ingestPushed(listings: PushListing[]): PushResult {
     `INSERT INTO listing_photos (listing_id, url, position, captured_at)
      VALUES ($lid,$url,$pos,$now)`,
   );
-  const insVerdict = d.query(
-    `INSERT INTO verdicts (listing_id, engine_version, call, confidence, payload, created_at)
-     VALUES ($lid,$v,$call,$conf,$p,$now)`,
-  );
-
   const ids: number[] = [];
   d.transaction(() => {
     for (const l of listings) {
@@ -116,10 +112,7 @@ export function ingestPushed(listings: PushListing[]): PushResult {
   for (const id of ids) {
     try {
       const { verdict } = checkStored(id, {});
-      insVerdict.run({
-        $lid: id, $v: ENGINE_VERSION, $call: verdict.call,
-        $conf: verdict.confidence, $p: JSON.stringify(verdict), $now: now(),
-      });
+      storeVerdict(id, ENGINE_VERSION, verdict);
       res.scored++;
       res.calls[verdict.call] = (res.calls[verdict.call] ?? 0) + 1;
     } catch {
