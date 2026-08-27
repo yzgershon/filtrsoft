@@ -26,6 +26,32 @@ import {
   spentVisionMicrosWithDb,
   visionReservationMicros,
 } from "../src/vision/budget.ts";
+import { evaluateRisk, riskGate } from "../src/verdict/risk-gates.ts";
+
+describe("hard-blocker gate", () => {
+  test("keeps an unverified in-person GPU check out of BUY", () => {
+    const gate = riskGate(evaluateRisk("gpu", "NVIDIA RTX 4090 Founders Edition", null));
+    expect(gate.ceiling).toBe("VERIFY");
+    expect(gate.unresolved.map((c) => c.code)).toContain("DISPLAY_OUTPUTS");
+  });
+
+  test("allows BUY only when the GPU blocker is visibly resolved", () => {
+    const gate = riskGate(evaluateRisk("gpu", "RTX 4090 with HDMI and DisplayPort outputs", null));
+    expect(gate.ceiling).toBe("BUY");
+  });
+
+  test("applies Apple lock and MDM checks to desktops as well as laptops", () => {
+    const checks = evaluateRisk("prebuilt", "2019 5K A2115 27 Inch iMac", null);
+    expect(checks.map((c) => c.code)).toEqual(["ACTIVATION_LOCK", "EFI_MDM"]);
+    expect(riskGate(checks).ceiling).toBe("VERIFY");
+  });
+
+  test("a disclosed category blocker forces RISK", () => {
+    const gate = riskGate(evaluateRisk("phone", "iPhone is iCloud locked for parts", null));
+    expect(gate.ceiling).toBe("RISK");
+    expect(gate.failed.map((c) => c.code)).toContain("ACTIVATION_LOCK");
+  });
+});
 
 describe("vision budget ledger", () => {
   function budgetDb() {

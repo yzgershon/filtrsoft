@@ -52,22 +52,9 @@ interface Rule {
   /** Listing says it is NOT fine. Checked FIRST — disclosure beats reassurance. */
   bad: RegExp;
   /**
-   * Can this be settled from the couch, before driving anywhere?
-   *
-   * THIS DISTINCTION IS WHAT KEEPS THE GATE FROM KILLING THE FEED. Requiring
-   * every check resolved before BUY sounds safe and is actually useless:
-   * sellers never write "clean IMEI, paid off, signed out of iCloud", so no
-   * phone would ever be BUY and the most valuable category goes dark.
-   *
-   * `BUY` means "worth leaving the house for" — Yish's floor is a $100 profit
-   * to make a trip, not a promise the money is safe to hand over. So:
-   *
-   *   remote   unresolved -> caps at VERIFY. Asking costs one message and is
-   *            free, so there is no excuse for driving without the answer.
-   *   inPerson unresolved -> does NOT block BUY. It becomes a MANDATORY
-   *            condition attached to the verdict. Activation lock genuinely
-   *            cannot be settled remotely; the rule is that you never hand over
-   *            cash without seeing the home screen, not that you never go look.
+   * Can this be settled from the couch, before driving anywhere? This changes
+   * the question and evidence shown to the buyer, not the verdict ceiling. The
+   * risk model is explicit that ANY unresolved hard blocker forbids BUY.
    */
   remote: boolean;
 }
@@ -210,9 +197,13 @@ export function evaluateRisk(
   if (!category) return [];
 
   let rules = BY_CATEGORY[category] ?? [];
-  if (category === "laptop" && APPLE.test(text)) rules = LAPTOP_APPLE;
+  if ((category === "laptop" || category === "prebuilt") && APPLE.test(text)) {
+    // Apple desktops carry the same Activation Lock, firmware-password and MDM
+    // failure modes as MacBooks.
+    rules = LAPTOP_APPLE;
+  }
   // A desktop only carries the firmware-password risk if it came from a company.
-  if (category === "prebuilt" && BUSINESS_OEM.test(text)) {
+  else if (category === "prebuilt" && BUSINESS_OEM.test(text)) {
     rules = LAPTOP_WINDOWS.filter((r) => r.code === "BIOS_PASSWORD");
   }
 
@@ -296,7 +287,7 @@ export interface RiskGate {
   ceiling: "BUY" | "VERIFY" | "RISK";
   failed: RiskCheck[];
   unresolved: RiskCheck[];
-  /** Unresolved and only settleable in person. Conditions ON a BUY, not a veto. */
+  /** Unresolved checks whose evidence has to be seen in person. */
   inPerson: RiskCheck[];
   reason: string | null;
 }
@@ -311,7 +302,7 @@ export interface RiskGate {
 export function riskGate(checks: RiskCheck[]): RiskGate {
   const failed = checks.filter((c) => c.state === "failed");
   const open = checks.filter((c) => c.state === "unresolved");
-  const unresolved = open.filter((c) => c.remote);
+  const unresolved = open;
   const inPerson = open.filter((c) => !c.remote);
 
   if (failed.length) {
@@ -321,18 +312,11 @@ export function riskGate(checks: RiskCheck[]): RiskGate {
     };
   }
 
-  /**
-   * Only REMOTE-resolvable checks veto a BUY.
-   *
-   * Asking "is it paid off?" costs one message, so there is no excuse for
-   * driving without the answer. Whether the phone boots to the home screen
-   * genuinely cannot be settled from here — that becomes a condition ON the
-   * BUY, carried in `inPerson`, not a reason to refuse to look.
-   */
+  /** Every unresolved hard blocker vetoes BUY, including an in-person check. */
   if (unresolved.length) {
     return {
       ceiling: "VERIFY", failed, unresolved, inPerson,
-      reason: `${unresolved.map((u) => u.label).join(" and ")} ${unresolved.length === 1 ? "is" : "are"} unanswered, and each one is a single message away. An unresolved hard blocker outranks any discount — the downside is the whole value of the item, not a percentage of it.`,
+      reason: `${unresolved.map((u) => u.label).join(" and ")} ${unresolved.length === 1 ? "is" : "are"} unverified. An unresolved hard blocker outranks any discount — the downside is the whole value of the item, not a percentage of it.`,
     };
   }
   return { ceiling: "BUY", failed, unresolved, inPerson, reason: null };

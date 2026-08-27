@@ -16,7 +16,7 @@ import { buildQuestions } from "./questions.ts";
 import { valueSku, valueByParts, valueWholeBuild, netByChannel, requiredProfitCents, getEconomics, type UserEconomics, type ChannelResult, type PriceBasis } from "../valuation/index.ts";
 import { normalizeCondition, type Condition } from "../valuation/condition.ts";
 import { resolveProductType, isAppleWholeUnit } from "../signals/product-type.ts";
-import { evaluateRisk, riskGate, inPersonConditions, type RiskCheck, type RiskGate } from "./risk-gates.ts";
+import { evaluateRisk, riskGate, type RiskCheck, type RiskGate } from "./risk-gates.ts";
 import { latestRetail, retailMeaning, type RetailPrice } from "../sources/retail.ts";
 import { boardTier } from "../signals/board-tier.ts";
 import type { VisionResult } from "../vision/index.ts";
@@ -135,9 +135,6 @@ function gateQuestions(gate: RiskGate, existing: string[]): string[] {
 
 /** Named on a BUY, so a clean verdict shows its work rather than staying silent. */
 function riskCleared(gate: RiskGate): string {
-  if (gate.inPerson.length) {
-    return ` Everything answerable in advance checks out. ${gate.inPerson.length === 1 ? "One thing" : `${gate.inPerson.length} things`} can only be settled in person and ${gate.inPerson.length === 1 ? "it is" : "they are"} non-negotiable: ${gate.inPerson.map((c) => c.label.toLowerCase()).join(", ")}. Do not hand over money until you have seen ${gate.inPerson.length === 1 ? "it" : "them"}.`;
-  }
   return " Every hard blocker for this category is resolved in the listing.";
 }
 
@@ -259,7 +256,16 @@ export function buildVerdict(input: {
   );
   const retail = retailRow && !retailRow.stale ? retailRow : null;
 
-  const base = { valuation, blockers, questions, riskChecks, retail };
+  const categoryBlockers = gate.failed.map(
+    (c) => `${c.label}: ${c.evidence ?? "disclosed in the listing"}`,
+  );
+  const base = {
+    valuation,
+    blockers: [...blockers, ...categoryBlockers],
+    questions,
+    riskChecks,
+    retail,
+  };
 
   /**
    * --- 0. Counterfeit. Checked FIRST, before anything can price it. ------
@@ -398,12 +404,13 @@ export function buildVerdict(input: {
   }
 
   // --- 2. Hard blockers override any price gap -------------------------
-  if (blockers.length) {
+  if (base.blockers.length) {
     return {
       ...base, call: "RISK", confidence: "high",
       headline: "Hard blocker — do not proceed on price alone.",
-      reasoning: blockers.join(" "),
+      reasoning: base.blockers.join(" "),
       decidingUnknown: "resolve the blocker before considering the price",
+      questions: gateQuestions(gate, questions),
     };
   }
 
@@ -618,9 +625,7 @@ export function buildVerdict(input: {
       ...money, call: "BUY",
       headline: `${$(net)} net on ${best.channel} — clears your ${$(required)} floor.`,
       reasoning: `Median ${$(valuation.medianCents)} across ${valuation.compCount} comps. ${best.channel === "ebay" ? `After ${$(best.feesCents)} fees and ${$(best.shippingCents)} shipping` : "No fees, no shipping, local sale"}, net is ${$(net)} against ${$(required)} required for a ${drive}-minute drive.${riskCleared(gate)}`,
-      // In-person checks lead the question list even on a BUY — they are the
-      // conditions of the purchase, not optional extras.
-      questions: [...new Set([...inPersonConditions(gate), ...questions])],
+      questions,
     };
   }
 

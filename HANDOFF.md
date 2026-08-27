@@ -1443,7 +1443,8 @@ for both year-bearing and inferred-year dates.
 
 ### Regression suite started 2026-08-27
 
-`bun test`: **28 tests / 46 assertions** covering verdict retention, product grammar,
+`bun test`: **36 tests / 65 assertions** covering hard-blocker gates, vision budget,
+listing facts, verdict retention, product grammar,
 generative model parsing, eBay money/date/condition/variant gates, storage
 extraction, OfferUp card boundaries, and all three committed retail fixtures.
 The suite spends nothing and opens no browser.
@@ -2102,6 +2103,28 @@ On the 976-listing local database, two legacy results became eligible again
 (66 eligible with no result versus 68 with no current result, before the strict
 tech/accessory filters).
 
+### ⚠ A hard blocker does not become safe because it is checked in person
+The code invented an exception that is not in `RISK-MODEL.md`: remote unknowns
+capped a verdict at VERIFY, while an in-person unknown was allowed through to
+BUY with a warning attached. The model's governing rule says **any unresolved
+hard blocker overrides any price gap**. A warning on a BUY is still a BUY.
+
+That exception created both BUYs in the 976-listing database:
+
+- the $295 **2019 iMac** had $192 margin but received no Apple risk checks at
+  all, because Apple desktops route through `prebuilt`; Activation Lock and
+  EFI/MDM were silently treated as laptop-only;
+- the $1,500 **RTX 4090** had $653 margin while display outputs were explicitly
+  unresolved. The risk model says a GPU without a clear I/O-bracket photo is
+  incomplete.
+
+Engine **0.3.19** applies Apple lock/firmware/MDM checks to Apple desktops,
+lets every unresolved hard blocker cap at VERIFY, and promotes a disclosed
+category blocker to RISK before missing-data or price logic can hide it. Full
+re-score changed exactly those two calls: BUY **2 → 0**, VERIFY **6 → 8**;
+the other 974 calls were unchanged. That is commercially uglier and correct.
+The way back to BUY is evidence, not weakening the gate.
+
 ---
 
 ## 13. Decisions the maintainer made — do not re-litigate
@@ -2124,16 +2147,14 @@ tech/accessory filters).
 `docs/AUDIT-FINDINGS-2026-08-24.md` (technical) and
 `docs/ECOSYSTEM-EXPANSION-2026-08-24.md` (product ideas).
 
-**Fixed:** P0-1 (unauthenticated paid vision), P1-6 (dead sum-of-parts),
+**Fixed:** P0-1 (unauthenticated paid vision), P0-2 (category hard-blocker gate),
+P1-6 (dead sum-of-parts),
 P1-5 (asking price -> 0), P1-1 (stale vision cache).
 
 **Confirmed and still open:**
-- **P0-2 the risk model is documented but NOT enforced.** A device can reach BUY
-  without activation-lock / IMEI / MDM / ban evidence. **This is the biggest
-  remaining correctness gap and it contradicts the product's core promise.**
 - **P0-6/P0-7** production DB is disconnected from the local archive, has no
   volume backup, and the local backup excludes ~117 MB of photos.
-- **A first backend suite now exists:** 32 tests / 58 assertions over catalog,
+- **A first backend suite now exists:** 36 tests / 65 assertions over catalog,
   product grammar, sold/retail parsers, listing facts, verdict retention and the
   atomic vision ledger. Coverage is still narrow, but "zero tests" is no longer
   true.
