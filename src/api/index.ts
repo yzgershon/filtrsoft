@@ -19,7 +19,7 @@ import { handlePush } from "./push.ts";
 import { handleDeletionChallenge, handleDeletionNotice, deletionEndpoint, deletionConfigured } from "./ebay-deletion.ts";
 import {
   handleVapid, handleSubscribe, handleListSearches, handleCreateSearch,
-  handleDeleteSearch, handleTestPush, pushConfigured, ensureAlertTables,
+  handleDeleteSearch, handleTestPush, pushConfigured, ensureAlertTables, pushStatus,
 } from "./alerts.ts";
 import {
   handleBillingStatus, handleCheckout, handlePortal, handleWebhook, billingEnabled,
@@ -144,7 +144,7 @@ app.get("/v1/health", (c) => {
      * fail the challenge, which disables the keyset again.
      */
     ebay: { deletionEndpoint: deletionEndpoint(), deletionConfigured: deletionConfigured() },
-    push: { configured: pushConfigured() },
+    push: pushStatus(),
     /**
      * What the SHIPPED archive holds, vs what the database holds. If
      * `archive.comps` exceeds `comps`, the file arrived and the import did not

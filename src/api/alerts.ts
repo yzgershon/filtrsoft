@@ -36,15 +36,65 @@ export const pushConfigured = () =>
 export const vapidPublicKey = () => process.env.VAPID_PUBLIC_KEY ?? null;
 
 let ready = false;
-function configure() {
-  if (ready || !pushConfigured()) return pushConfigured();
-  webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT ?? "mailto:hello@assyze.com",
-    process.env.VAPID_PUBLIC_KEY!,
-    process.env.VAPID_PRIVATE_KEY!,
-  );
-  ready = true;
-  return true;
+/** Why push is unusable, if it is. Surfaced on /v1/health. */
+let configError: string | null = null;
+
+/**
+ * ⚠ `setVapidDetails` THROWS, and it used to throw straight out of an HTTP
+ * handler as a bare 500.
+ *
+ * It validates hard: the subject must be a `mailto:` or `https:` URL, the
+ * public key must decode to exactly 65 bytes and the private key to 32. A key
+ * pasted into a hosting dashboard with a trailing newline, a quote, or one
+ * character clipped fails all of those — and the failure surfaced as
+ * `POST /v1/push/test -> 500 Internal Server Error` with no body, which says
+ * nothing about which of the three is wrong.
+ *
+ * It also broke `runAlerts` on every crawl for the same reason, because that
+ * calls this too.
+ *
+ * Values are TRIMMED before use. Copy-paste through a browser into an env var
+ * picks up whitespace far more often than it should, and a trailing newline in
+ * a base64url key is invisible in every UI that displays it.
+ */
+function configure(): boolean {
+  if (ready) return true;
+  if (!pushConfigured()) { configError = "VAPID keys are not set"; return false; }
+  try {
+    const subject = (process.env.VAPID_SUBJECT ?? "mailto:hello@assyze.com").trim();
+    const pub = (process.env.VAPID_PUBLIC_KEY ?? "").trim();
+    const priv = (process.env.VAPID_PRIVATE_KEY ?? "").trim();
+    webpush.setVapidDetails(subject, pub, priv);
+    ready = true;
+    configError = null;
+    return true;
+  } catch (e) {
+    // Cache the reason rather than re-throwing per request: this is a config
+    // fault, it will not fix itself between calls, and every caller needs to
+    // degrade rather than 500.
+    configError = (e as Error).message;
+    console.error(`push disabled — VAPID config rejected: ${configError}`);
+    return false;
+  }
+}
+
+/**
+ * Diagnostics for /v1/health. Reports key LENGTHS, never key values — a
+ * truncated or whitespace-padded key is visible as a wrong length, and that is
+ * the whole failure mode, so there is no reason to expose the secret itself.
+ */
+export function pushStatus() {
+  const pub = (process.env.VAPID_PUBLIC_KEY ?? "").trim();
+  const priv = (process.env.VAPID_PRIVATE_KEY ?? "").trim();
+  const ok = configure();
+  return {
+    configured: pushConfigured(),
+    usable: ok,
+    error: configError,
+    subject: (process.env.VAPID_SUBJECT ?? "mailto:hello@assyze.com").trim(),
+    publicKeyChars: pub.length,   // expect 87
+    privateKeyChars: priv.length, // expect 43
+  };
 }
 
 export function ensureAlertTables() {
@@ -213,7 +263,14 @@ async function send(s: SearchRow, payload: { title: string; body: string; url: s
 // ------------------------------------------------------------------ routes
 
 export function handleVapid(c: Context) {
-  return c.json({ publicKey: vapidPublicKey(), configured: pushConfigured() });
+  /**
+   * `configured` reports whether push can actually WORK, not merely whether
+   * two env vars are present. The browser gates its subscribe button on this,
+   * and offering to subscribe against a keypair the server cannot load
+   * produces a subscription that can never receive anything.
+   */
+  const st = pushStatus();
+  return c.json({ publicKey: st.usable ? vapidPublicKey() : null, configured: st.usable, error: st.error });
 }
 
 export async function handleSubscribe(c: Context) {
@@ -288,7 +345,9 @@ export function handleDeleteSearch(c: Context) {
 
 /** Send one notification to this device so "it works" is provable. */
 export async function handleTestPush(c: Context) {
-  if (!configure()) return c.json({ error: "push is not configured on the server" }, 503);
+  if (!configure()) {
+    return c.json({ error: `push is not usable on the server: ${configError ?? "unknown"}` }, 503);
+  }
   const subId = Number(c.req.query("subId"));
   const row = db().query("SELECT id sub_id, endpoint, p256dh, auth FROM push_subs WHERE id=?").get(subId) as SearchRow | null;
   if (!row) return c.json({ error: "unknown subscription" }, 404);

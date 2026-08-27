@@ -1419,6 +1419,30 @@ you can buy at.
 
 ## 12. Live traps
 
+### ⚠ `setVapidDetails` THROWS — never call it outside a try/catch
+
+`web-push` validates hard: the subject must be `mailto:` or `https:`, the public
+key must decode to 65 bytes, the private key to 32. A key pasted into a hosting
+dashboard with a trailing newline fails all of that, and the failure surfaced as
+
+    POST /v1/push/test  ->  500 Internal Server Error   (no body)
+
+which names none of the three. It also killed `runAlerts` on every crawl,
+silently, because that calls the same function.
+
+`configure()` catches, caches the reason, and returns false. Env values are
+TRIMMED — copy-paste through a browser picks up whitespace constantly and a
+trailing newline in a base64url key is invisible in every UI that shows it.
+
+`/v1/health.push` now reports `usable`, `error`, and the key LENGTHS (expect
+**87** public, **43** private). Lengths, never values: a truncated or padded key
+IS the failure mode, so the number is the whole diagnosis.
+
+`/v1/push/vapid` returns `configured: false` and a null key when the server
+cannot load the pair, so the app never offers to subscribe against a keypair
+that can never deliver.
+
+
 ### ⚠⚠ COMP THE WHOLE MACHINE — and make sure the SKU EXISTS
 
 This rule was already written down and was still unreachable in practice:
