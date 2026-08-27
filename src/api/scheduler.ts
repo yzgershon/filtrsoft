@@ -129,6 +129,10 @@ async function runOnce(reason: string) {
     const rescored = reverdictAll();
     if (rescored) console.log(`re-scored ${rescored} listings on engine ${ENGINE_VERSION}`);
 
+    // New comps do not bump the engine version, so nothing above notices them.
+    const repriced = reverdictUnpriced();
+    if (repriced) console.log(`priced ${repriced} previously-unpriceable listings`);
+
     const st = await crawl({
       limit: p.limit,
       pages: 1,
@@ -207,6 +211,58 @@ function reverdictAll(max = 5000): number {
     total += n;
   }
   return total;
+}
+
+/**
+ * Re-score listings that could not be priced.
+ *
+ * **`reverdictStale` only reacts to a CODE change** — it selects on
+ * `engine_version IS NOT $v`. New DATA moves nothing. So an archive import can
+ * add 1,313 comps and 47 SKUs to production and every INSUFFICIENT_DATA
+ * verdict keeps its old answer forever, because the engine version it was
+ * computed under is still current.
+ *
+ * That is exactly what happened after the volume was resized: the comps landed,
+ * and "GAMING PC: I7 10700 / RTX 2080" still read "not enough component comps
+ * to price it" against an archive that now had both parts.
+ *
+ * Runs every crawl rather than being wired to the import, so it self-heals no
+ * matter how comps arrive — archive import, a local push, a manual pull.
+ * Cheap: these are pure recomputation with no network, and it is bounded.
+ *
+ * Only INSUFFICIENT_DATA. A listing that already has a real price does not
+ * need re-deriving on a schedule, and re-scoring everything every 45 minutes
+ * would burn the box for nothing.
+ */
+function reverdictUnpriced(limit = 200): number {
+  const d = db();
+  const rows = d.query(
+    `SELECT l.id FROM listings l
+       JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
+      WHERE v.call = 'INSUFFICIENT_DATA' AND l.delisted_at IS NULL
+      ORDER BY l.id DESC LIMIT $lim`,
+  ).all({ $lim: limit }) as Array<{ id: number }>;
+  if (!rows.length) return 0;
+
+  const ins = d.query(
+    `INSERT INTO verdicts (listing_id, engine_version, call, confidence, payload, created_at)
+     VALUES ($lid,$v,$call,$conf,$p,$now)`,
+  );
+  let changed = 0;
+  for (const r of rows) {
+    try {
+      const { verdict } = checkStored(r.id, {});
+      // Only write when the answer actually moved. A no-op insert per listing
+      // per crawl would grow the verdicts table without adding information.
+      if (verdict.call === "INSUFFICIENT_DATA") continue;
+      ins.run({
+        $lid: r.id, $v: ENGINE_VERSION, $call: verdict.call,
+        $conf: verdict.confidence, $p: JSON.stringify(verdict), $now: now(),
+      });
+      changed++;
+    } catch { /* one bad listing must not stop the pass */ }
+  }
+  return changed;
 }
 
 function reverdictStale(limit = 400): number {
