@@ -34,14 +34,19 @@ ignored an earlier entry.
   are deliberately dumb — they emit raw text lines and **all parsing happens in
   TypeScript**, so a site layout change is a pure-function fix with a fixture
   rather than another browser session.
-- **SQLite** (`bun:sqlite`) on a Railway volume at `/data`. 31 MB locally,
-  18,603 comps, 395 SKUs.
+- **SQLite** (`bun:sqlite`) on a Railway volume at `/data`. 32 MB locally,
+  936 listings, 18,603 comps, 405 SKUs, 12,291 verdict rows, 55 vision results.
+  The volume is 5 GB and filled once already — see below.
 - The comps archive travels to production as a **committed gzipped file**
   (`data/archive.json.gz`, 1.2 MB) which the container imports on boot. That is
   deliberate: every other route to the volume needs a credential.
-- One Hono API (`src/api/index.ts`), one crawl loop, one daily sweep, all inside
-  the same container.
-- 60 TypeScript files under `src/`. **Zero tests.** That is not an oversight you
+- One Hono API (`src/api/index.ts`) and, inside the same container: a **3-minute
+  tick** (discover -> drain -> alerts -> vision), a **daily sweep** that detects
+  delisting and price moves, and a photo prune. Engine is at **0.3.16**.
+- The crawl is SPLIT: `discover()` queues new listing ids (5 requests, ~0.8s for
+  the whole Boston feed), `drain(limit)` analyses from a queue TABLE. Read
+  `src/crawler/queue.ts` before changing any of it.
+- 63 TypeScript files under `src/`. **Zero tests.** That is not an oversight you
   need to point out; it is a known gap and fixing it is in scope.
 
 ## What to audit
@@ -51,10 +56,14 @@ that as a checklist — anything that makes this system cheaper, faster, more
 correct or more maintainable is in scope.
 
 ### Money
-- **Anthropic vision** is the only per-unit cost. Haiku, capped at $2/day, spent
-  ~$0.22 today. `src/vision/`, `src/api/guard.ts`. Is the cap enforced on every
-  path? Is the photo-fingerprint cache actually preventing re-reads? Is
-  `deservesVision` spending on the right listings?
+- **Anthropic vision** is the only per-unit cost. Haiku, capped at $2/day, and
+  **measured at $0.0031 per listing** (~6k tokens, ~10s for 10 photos). It runs
+  as its own pass (`src/crawler/vision-pass.ts`), 3 per tick, last in the tick
+  so it never delays an alert. Is the cap enforced on EVERY path? Is the
+  photo-fingerprint cache actually preventing re-reads? Is the candidate
+  selector spending on the right listings? **Note the arithmetic trap**:
+  per-tick limits must be re-derived whenever the tick interval changes —
+  8/tick at 3 minutes would be ~$12/day against a $2 budget.
 - **eBay Browse API** — 5,000 calls/day, currently barely used.
 - **Railway** — one container, one 5 GB volume.
 - Anything that re-fetches, re-computes or re-stores something it already had.
@@ -64,29 +73,43 @@ correct or more maintainable is in scope.
   working, writes failed, and one generic catch reported it as a database
   fault). See HANDOFF. Photos are now released after hashing — verify that
   actually holds on every path, including failure paths.
-- `comps`, `listing_photos`, `verdicts`, `vision_results` all grow without
-  bound. `verdicts` gains a row per re-score. Is any of that unnecessary?
+- **`verdicts` holds 12,291 rows for 936 listings — 13 per listing.** It gains a
+  row on every re-score, and re-scores happen on every engine bump and every
+  tick that finds newly-priceable listings. Only the MAX(id) per listing is ever
+  read. That is a concrete, quantified waste; decide whether history has value
+  and prune or cap accordingly.
+- `comps`, `listing_photos`, `crawl_queue` and `vision_results` also grow
+  without bound.
 - The archive is committed to git, so every export adds ~1 MB to repo history
   forever. Is there a better shape?
 
 ### Time
-- Crawl loop is every 45 minutes, sweep daily. A *discovery-only* pass over all
-  five Craigslist categories is **5 requests and 1.35 seconds** for 1,357
-  listing ids — measured. There is a designed-but-unbuilt plan to split
-  discovery from analysis so alert latency drops from ~22 min average to ~90
-  seconds. Assess it, and build it if you agree.
+- The split loop is **built and live** as of 2026-08-27: 3-minute ticks,
+  detection latency ~90 seconds. Verify it behaves under load — the queue had
+  **711 entries** when last measured, draining 40 per tick. Is that the right
+  rate? Does a burst starve the sweep or the vision pass?
+- `drain` runs `checkListing` at concurrency 3. Is that the right politeness
+  ceiling against Craigslist, and is it the bottleneck?
 - `checkStored` is called in loops in several places. Profile before assuming.
 - SQLite indexes: several hot queries scan.
 
 ### Functionality and correctness
-- **267 of ~900 analysed listings still cannot be priced.** Current composition:
-  ~113 "couldn't identify the model", 41 "no recent sold comps", 62 "a required
-  field was not stated", the rest build/parts gaps.
+- Current verdict distribution over 936 listings: **OUT_OF_SCOPE 541,
+  INSUFFICIENT_DATA 280, PASS 95, FAIR 11, VERIFY 6, BUY 2, RISK 1.**
+  Two BUYs out of 936 is the number that matters commercially. Is the engine
+  too conservative, is the inventory genuinely that thin, or is something
+  upstream discarding good listings? **OUT_OF_SCOPE at 58% deserves its own
+  scrutiny** — several filters were widened quickly and one of them ate 13
+  previously-priced listings (judged correct at the time, but check).
+- Inside INSUFFICIENT_DATA: ~120 "couldn't identify the model", ~49 "no recent
+  sold comps", ~69 "a required field was not stated", the rest build/parts gaps.
 - The generative matcher (`src/catalog/derive.ts`) parses a model out of a title
-  and mints the SKU. It covers Dell/HP/Lenovo laptop lines and GPUs. Extending
-  it to Apple desktops, servers, and the remaining brands is open work.
-- The 62 "not stated" cases cannot be fixed by the catalog — the seller did not
-  write the spec and it is usually in a photo. Vision is the lever.
+  and mints the SKU — 20 minted so far. It covers Dell/HP/Lenovo laptop lines,
+  GPUs, and Apple desktops (via A-number). Remaining brands are open work, and
+  so is whether minting from untrusted titles needs more guards than it has.
+- The "not stated" cases cannot be fixed by the catalog — the seller did not
+  write the spec and it is usually in a photo. Vision is the lever, and the
+  vision pass now revisits them, which it never used to.
 - Look hard for **silent wrongness**: numbers that are plausible but wrong.
   This codebase's worst bugs have all been that shape — a zero read as a price,
   a CPU comp set containing whole computers, an alias matching as a substring
