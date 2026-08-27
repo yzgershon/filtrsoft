@@ -46,7 +46,7 @@ ignored an earlier entry.
 - The crawl is SPLIT: `discover()` queues new listing ids (5 requests, ~0.8s for
   the whole Boston feed), `drain(limit)` analyses from a queue TABLE. Read
   `src/crawler/queue.ts` before changing any of it.
-- 63 TypeScript files under `src/`. **Zero tests.** That is not an oversight you
+- 62 TypeScript files under `src/`. **Zero tests.** That is not an oversight you
   need to point out; it is a known gap and fixing it is in scope.
 
 ## What to audit
