@@ -1448,10 +1448,35 @@ EliteBook, XPS are the bulk of the off-lease market. 39 added on 2026-08-26.
 The genuine tail needs a GENERATIVE matcher (brand + line + model number
 parsed from the title, SKU created on demand), not more catalog rows.
 
-**Matching is not pricing.** These now resolve to a SKU and still return
-INSUFFICIENT_DATA until comps exist — which is the honest intermediate state,
-and it changes the headline from "couldn't identify the model" to "no recent
-sold comps". Pull comps after adding SKUs or nothing visible changes.
+**Matching is not pricing.** These resolve to a SKU and still return
+INSUFFICIENT_DATA until comps exist. Pull comps after adding SKUs or nothing
+visible changes.
+
+#### The 2026-08-26 result — hand-adding SKUs UNDERDELIVERED, measured
+
+39 laptop SKUs added, comps pulled to 18,603 across 284/383 SKUs. Effect on
+"couldn't identify the exact model": **125 -> 132.** It did not move. The 19
+that left INSUFFICIENT_DATA were 18 reseller ads correctly reclassified plus
+**6 genuinely newly priced**.
+
+That is the long tail proving itself. Do not respond to this by adding another
+40 rows — the next 40 listings are 40 different models. **The fix is a
+GENERATIVE matcher**: parse brand + line + model number out of the title
+(`Latitude 5480`, `EliteBook 840 G7`, `ThinkPad T14s`), create the SKU on
+demand, then pull comps for it. The parsing already exists in pieces —
+`resolveProductType` finds the line and `matchSku` already treats a
+digit-bearing token as a discriminator.
+
+Current composition of the 267 unpriceable:
+
+    132  couldn't identify the model    <- generative matcher
+     45  no recent sold comps           <- comps queue
+     78  a required field not stated    <- VISION, capped at 8/crawl
+     12  build/parts gaps
+
+The 78 "cpu not stated" / "ram not stated" are a DIFFERENT problem and vision
+is the lever, not the catalog: the listing genuinely does not say, and the
+spec is usually in a photo.
 
 
 ### ⚠ `setVapidDetails` THROWS — never call it outside a try/catch
