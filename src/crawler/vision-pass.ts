@@ -39,6 +39,7 @@ import { db } from "../db/index.ts";
 import { checkListing } from "../engine/index.ts";
 import { budgetAvailable, visionKilled } from "../api/guard.ts";
 import { resolveProductType } from "../signals/product-type.ts";
+import { PROMPT_VERSION, VISION_MODEL } from "../vision/index.ts";
 
 interface Candidate { id: number; url: string; title: string; call: string; headline: string }
 
@@ -74,9 +75,9 @@ export function isAccessoryFor(title: string): boolean {
  * re-running the engine over every listing just to build a shortlist costs more
  * than the pass itself.
  *
- * `NOT EXISTS (vision_results)` is the whole no-double-spend guarantee. The
- * engine also caches by photo fingerprint, but that only helps AFTER the
- * photos have been downloaded and hashed; this stops the fetch as well.
+ * A current model+prompt result is the no-double-spend guarantee. Results from
+ * an older prompt do not suppress a revisit forever; otherwise bumping the
+ * prompt version fixes new listings while every old listing stays stale.
  */
 export function visionCandidates(limit: number): Candidate[] {
   const rows = db().query(`
@@ -84,7 +85,10 @@ export function visionCandidates(limit: number): Candidate[] {
     FROM listings l
     JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
     WHERE l.delisted_at IS NULL
-      AND NOT EXISTS (SELECT 1 FROM vision_results r WHERE r.listing_id = l.id)
+      AND NOT EXISTS (
+        SELECT 1 FROM vision_results r
+         WHERE r.listing_id = l.id AND r.model = $model AND r.prompt_version = $prompt
+      )
       AND (
         v.call IN ('BUY','VERIFY','RISK')
         OR (v.call = 'INSUFFICIENT_DATA' AND json_extract(v.payload, '$.headline') LIKE '%not stated%')
@@ -93,7 +97,7 @@ export function visionCandidates(limit: number): Candidate[] {
       CASE v.call WHEN 'BUY' THEN 0 WHEN 'VERIFY' THEN 1 WHEN 'RISK' THEN 2 ELSE 3 END,
       l.id DESC
     LIMIT $lim
-  `).all({ $lim: limit * 3 }) as Candidate[];
+  `).all({ $lim: limit * 3, $model: VISION_MODEL, $prompt: PROMPT_VERSION }) as Candidate[];
 
   /**
    * Never pay to look at furniture. A "computers" category crawl surfaces

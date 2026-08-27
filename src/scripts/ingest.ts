@@ -6,8 +6,10 @@
 import { fetchListing } from "../sources/craigslist.ts";
 import { analyze } from "../signals/index.ts";
 import { db, now } from "../db/index.ts";
-import { downloadPhoto, dhash, distance } from "../photos/index.ts";
-import { analyzePhotos, VISION_MODEL } from "../vision/index.ts";
+import { upsertListingFacts } from "../db/listings.ts";
+import { downloadPhoto, dhash, distance, KEEP_PHOTOS, releasePhotos } from "../photos/index.ts";
+import { analyzePhotos, PROMPT_VERSION, VISION_MODEL } from "../vision/index.ts";
+import { photoFingerprint } from "../vision/merge.ts";
 
 const CL = "https://www.craigslist.org/view/d/";
 const TESTSET: Array<[string, string]> = [
@@ -34,15 +36,6 @@ if (!targets.length) {
 }
 
 const d = db();
-const ins = d.query(
-  `INSERT INTO listings (source, source_id, url, title, description, asking_price_cents,
-     location, posted_at, updated_at, captured_at, photo_count, raw_json)
-   VALUES ($src,$sid,$url,$title,$desc,$price,$loc,$posted,$updated,$cap,$photos,$raw)
-   ON CONFLICT(source, source_id) DO UPDATE SET
-     updated_at=excluded.updated_at, captured_at=excluded.captured_at,
-     asking_price_cents=excluded.asking_price_cents
-   RETURNING id`,
-);
 const insPhoto = d.query(
   `INSERT INTO listing_photos (listing_id, url, local_path, phash, position, captured_at)
    VALUES ($lid,$url,$path,$phash,$pos,$cap)`,
@@ -70,16 +63,25 @@ function findDuplicates(phash: string, listingId: number) {
 const SEV = { blocker: "!!", high: "!", medium: "~", low: ".", info: "+" } as const;
 
 for (const { url, note } of targets) {
+  let listingId: number | null = null;
   try {
     const l = await fetchListing(url);
     const r = analyze(l);
 
-    const row = ins.get({
-      $src: l.source, $sid: l.sourceId, $url: l.url, $title: l.title,
-      $desc: l.description, $price: l.askingPriceCents, $loc: l.location,
-      $posted: l.postedAt, $updated: l.updatedAt, $cap: now(),
-      $photos: l.photoUrls.length, $raw: JSON.stringify(l.raw),
-    }) as { id: number };
+    const row = upsertListingFacts(d, {
+      source: l.source,
+      sourceId: l.sourceId,
+      url: l.url,
+      title: l.title,
+      description: l.description,
+      askingPriceCents: l.askingPriceCents,
+      location: l.location,
+      postedAt: l.postedAt,
+      updatedAt: l.updatedAt,
+      photoCount: l.photoUrls.length,
+      raw: l.raw,
+    });
+    listingId = row.id;
 
     // Download EVERY photo and hash it. Never sample — the Phase 0 miss was a
     // skipped third photo that contained the entire spec sheet.
@@ -121,9 +123,21 @@ for (const { url, note } of targets) {
       const ms = Date.now() - t0;
       if (v) {
         d.query(
-          `INSERT INTO vision_results (listing_id, model, payload, duration_ms, created_at)
-           VALUES ($lid,$model,$p,$ms,$now)`,
-        ).run({ $lid: row.id, $model: v.model ?? VISION_MODEL, $p: JSON.stringify(v), $ms: ms, $now: now() });
+          `INSERT INTO vision_results (
+             listing_id, model, payload, duration_ms, created_at, cost_micros,
+             photo_fingerprint, prompt_version, budget_reservation_id
+           ) VALUES ($lid,$model,$p,$ms,$now,$cost,$fp,$prompt,$reservation)`,
+        ).run({
+          $lid: row.id,
+          $model: v.model ?? VISION_MODEL,
+          $p: JSON.stringify(v),
+          $ms: ms,
+          $now: now(),
+          $cost: Math.round((v.usage?.costUsd ?? 0) * 1e6),
+          $fp: photoFingerprint(row.id),
+          $prompt: PROMPT_VERSION,
+          $reservation: v.budgetReservationId ?? null,
+        });
 
         const found = Object.entries(v.components).filter(([, x]) => x);
         console.log(`  \x1b[36m→ vision (${(ms / 1000).toFixed(0)}s)\x1b[0m ${found.map(([k, x]) => `${k}=${x}`).join(" · ") || "nothing legible"}`);
@@ -143,6 +157,12 @@ for (const { url, note } of targets) {
     }
   } catch (e) {
     console.error(`\n✗ ${url}\n  ${(e as Error).message}`);
+  } finally {
+    if (listingId !== null && !KEEP_PHOTOS) {
+      releasePhotos(listingId);
+      d.query("UPDATE listing_photos SET local_path=NULL WHERE listing_id=$id")
+        .run({ $id: listingId });
+    }
   }
 }
 

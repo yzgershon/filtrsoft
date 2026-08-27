@@ -2062,6 +2062,46 @@ rule is every photo, every time. It also retained yesterday's photos when the
 new set was empty. Push now de-duplicates exact URLs, stores all of them, and
 replaces the old set even with an empty set.
 
+### ⚠ A caller-side budget check is not a spending cap
+The API, crawler and vision pass each checked the same daily total before a
+call, but `analyzePhotos()` itself did not. `bun run ingest --vision` bypassed
+the cap entirely, and concurrent requests for different URLs could all observe
+the same remaining balance before any of them wrote a result. Failed/refused
+calls also wrote no result, so their billed usage was invisible to the guard.
+
+Engine **0.3.18** moves the authoritative gate to the paid boundary. Every call
+first creates a worst-case reservation in `vision_spend` inside a SQLite
+`BEGIN IMMEDIATE` transaction. A response settles it down to actual token cost;
+a crash, connection error or unwritable volume leaves the maximum reserved for
+the UTC day. Old unlinked `vision_results.cost_micros` plus the new ledger are
+counted without double-counting linked results. The API/crawler checks remain
+only as cheap early refusals. A budget of `0` now really disables spend.
+
+### ⚠ `bun run api` is not a harmless local preview
+It uses Bun hot reload and starts the real crawl, alerts, sweep and paid vision
+timers unless explicitly disabled. An API process orphaned by an interrupted
+audit kept running on port 3177 and, over 52 minutes, made **15 paid calls for
+$0.085278**, added **40 listings**, and moved the database underneath the audit.
+Before any local API smoke test set all three:
+
+```
+ASSYZE_CRAWL=off
+ASSYZE_SWEEP=off
+ASSYZE_VISION_ENABLED=0
+```
+
+Then verify the port closes when the test ends. Do not trust a clean git tree to
+mean no local runtime was left behind.
+
+### ⚠ Vision eligibility must include model and prompt version
+The candidate selector excluded a listing if *any* vision row existed. A prompt
+fix therefore helped new listings but permanently skipped every listing read by
+the old prompt. The selector now suppresses only the current model+prompt pair;
+the fingerprint cache still prevents paying twice for unchanged current work.
+On the 976-listing local database, two legacy results became eligible again
+(66 eligible with no result versus 68 with no current result, before the strict
+tech/accessory filters).
+
 ---
 
 ## 13. Decisions the maintainer made — do not re-litigate
@@ -2093,7 +2133,10 @@ P1-5 (asking price -> 0), P1-1 (stale vision cache).
   remaining correctness gap and it contradicts the product's core promise.**
 - **P0-6/P0-7** production DB is disconnected from the local archive, has no
   volume backup, and the local backup excludes ~117 MB of photos.
-- **No tests exist.** Everything verified this session was by hand.
+- **A first backend suite now exists:** 32 tests / 58 assertions over catalog,
+  product grammar, sold/retail parsers, listing facts, verdict retention and the
+  atomic vision ledger. Coverage is still narrow, but "zero tests" is no longer
+  true.
 - P0-4 Craigslist ToU — decided, see §13.
 - P0-5 eBay API — see "The eBay production keyset" below. **Codex was right:**
   a keyset does NOT unlock sold comps.

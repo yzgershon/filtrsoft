@@ -20,6 +20,61 @@ import { normalizeCondition } from "../src/valuation/condition.ts";
 import { storageOf } from "../src/valuation/index.ts";
 import { upsertListingFacts } from "../src/db/listings.ts";
 import { storeVerdictWithDb } from "../src/db/verdicts.ts";
+import {
+  reserveVisionBudgetWithDb,
+  settleVisionBudgetWithDb,
+  spentVisionMicrosWithDb,
+  visionReservationMicros,
+} from "../src/vision/budget.ts";
+
+describe("vision budget ledger", () => {
+  function budgetDb() {
+    const d = new Database(":memory:");
+    d.run(`CREATE TABLE vision_spend (
+      id INTEGER PRIMARY KEY, reserved_micros INTEGER NOT NULL,
+      actual_micros INTEGER, created_at TEXT NOT NULL, settled_at TEXT
+    )`);
+    d.run(`CREATE TABLE vision_results (
+      id INTEGER PRIMARY KEY, cost_micros INTEGER NOT NULL DEFAULT 0,
+      budget_reservation_id INTEGER, created_at TEXT NOT NULL
+    )`);
+    return d;
+  }
+
+  test("atomically refuses reservations beyond the daily cap", () => {
+    const d = budgetDb();
+    const at = "2026-08-27T12:00:00.000Z";
+    d.run(
+      `INSERT INTO vision_results (cost_micros, created_at) VALUES (?,?)`,
+      [100_000, at],
+    );
+
+    const first = reserveVisionBudgetWithDb(d, 300_000, 500_000, at);
+    expect(first).toBeNumber();
+    expect(reserveVisionBudgetWithDb(d, 300_000, 500_000, at)).toBeNull();
+    expect(spentVisionMicrosWithDb(d, at)).toBe(400_000);
+
+    // Settling releases the unused maximum, so useful work can continue.
+    settleVisionBudgetWithDb(d, first!, 10_000, at);
+    expect(spentVisionMicrosWithDb(d, at)).toBe(110_000);
+    expect(reserveVisionBudgetWithDb(d, 300_000, 500_000, at)).toBeNumber();
+    d.close();
+  });
+
+  test("does not count a linked result and its ledger row twice", () => {
+    const d = budgetDb();
+    const at = "2026-08-27T12:00:00.000Z";
+    const id = reserveVisionBudgetWithDb(d, visionReservationMicros(10), 2_000_000, at)!;
+    settleVisionBudgetWithDb(d, id, 3_100, at);
+    d.run(
+      `INSERT INTO vision_results (cost_micros, budget_reservation_id, created_at)
+       VALUES (?,?,?)`,
+      [3_100, id, at],
+    );
+    expect(spentVisionMicrosWithDb(d, at)).toBe(3_100);
+    d.close();
+  });
+});
 
 describe("listing fact persistence", () => {
   test("preserves first capture and records a pushed price drop once", () => {

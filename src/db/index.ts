@@ -54,6 +54,7 @@ const VISION_COLUMNS: Array<[string, string]> = [
   ["cost_micros", "INTEGER NOT NULL DEFAULT 0"],
   ["photo_fingerprint", "TEXT"],  // cache key: content, not listing id
   ["prompt_version", "TEXT"],
+  ["budget_reservation_id", "INTEGER"],
 ];
 
 function addColumns(d: Database, table: string, cols: Array<[string, string]>) {
@@ -95,6 +96,7 @@ function migrate(d: Database) {
   addColumns(d, "retail_prices", RETAIL_COLUMNS);
   d.exec("CREATE INDEX IF NOT EXISTS idx_vision_fingerprint ON vision_results(photo_fingerprint)");
   d.exec("CREATE INDEX IF NOT EXISTS idx_vision_created ON vision_results(created_at)");
+  d.exec("CREATE INDEX IF NOT EXISTS idx_vision_spend_created ON vision_spend(created_at)");
 
   /**
    * Named, one-shot data migrations. CREATE TABLE IF NOT EXISTS handles shape;

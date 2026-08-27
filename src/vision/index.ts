@@ -25,6 +25,12 @@ import sharp from "sharp";
 import { readdirSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PHOTO_DIR } from "../photos/index.ts";
+import {
+  reserveVisionBudget,
+  settleVisionBudget,
+  visionKilled,
+  visionReservationMicros,
+} from "./budget.ts";
 
 /**
  * PINNED to Haiku 4.5. Not an env var, not a default that something else can
@@ -124,6 +130,8 @@ export interface VisionResult extends z.infer<typeof VisionSchema> {
   /** Which model produced this. Stored so a re-run can be compared against it. */
   model?: string;
   usage?: { inputTokens: number; outputTokens: number; costUsd: number; ms: number };
+  /** Links this result to the atomic daily-budget reservation that paid for it. */
+  budgetReservationId?: number;
 }
 
 /**
@@ -223,6 +231,10 @@ async function prepare(path: string): Promise<{ data: string; media: string; not
 }
 
 export async function analyzePhotos(listingId: number): Promise<VisionResult | null> {
+  if (visionKilled()) {
+    console.error("vision: switched off by ASSYZE_VISION_ENABLED");
+    return null;
+  }
   const c = client();
   if (!c) {
     console.error("vision: ANTHROPIC_API_KEY is not set — vision is off");
@@ -288,6 +300,14 @@ export async function analyzePhotos(listingId: number): Promise<VisionResult | n
     text: `That is all ${sent} images from this listing. Inspect every one and extract the fields.`,
   });
 
+  // This is the authoritative spend gate. API and scheduler checks are only a
+  // quick refusal; every direct caller reaches this atomic reservation too.
+  const budgetReservationId = reserveVisionBudget(visionReservationMicros(sent));
+  if (budgetReservationId === null) {
+    console.error(`vision: daily budget cannot reserve a ${sent}-photo request`);
+    return null;
+  }
+
   try {
     const res = await c.messages.parse({
       model: VISION_MODEL,
@@ -296,6 +316,24 @@ export async function analyzePhotos(listingId: number): Promise<VisionResult | n
       messages: [{ role: "user", content }],
       output_config: { format: zodOutputFormat(VisionSchema) },
     });
+
+    const price = PRICING;
+    const usage = {
+      inputTokens: res.usage.input_tokens,
+      outputTokens: res.usage.output_tokens,
+      costUsd: (res.usage.input_tokens * price.in + res.usage.output_tokens * price.out) / 1e6,
+      ms: Date.now() - t0,
+    };
+
+    // A refusal or unparseable HTTP-200 response is still billed. Settle before
+    // inspecting the content so every response is charged to the hard ledger.
+    try {
+      settleVisionBudget(budgetReservationId, Math.round(usage.costUsd * 1e6));
+    } catch (e) {
+      // Leaving the reservation at its theoretical maximum is conservative and
+      // keeps the cap safe if the volume becomes unwritable after the call.
+      console.error(`vision: could not settle budget reservation: ${(e as Error).message}`);
+    }
 
     // Safety classifiers can decline (HTTP 200, no content). Vanishingly
     // unlikely for photos of a graphics card, but reading .content without
@@ -311,16 +349,14 @@ export async function analyzePhotos(listingId: number): Promise<VisionResult | n
       return null;
     }
 
-    const price = PRICING;
-    const usage = {
-      inputTokens: res.usage.input_tokens,
-      outputTokens: res.usage.output_tokens,
-      costUsd: (res.usage.input_tokens * price.in + res.usage.output_tokens * price.out) / 1e6,
-      ms: Date.now() - t0,
-    };
-
     console.log(`vision: listing ${listingId} — ${sent} photos [${notes.join(" ")}] ${usage.inputTokens} tok $${usage.costUsd.toFixed(4)} ${(usage.ms / 1000).toFixed(1)}s`);
-    return { ...parsed, model: VISION_MODEL, usage, raw: JSON.stringify(parsed) };
+    return {
+      ...parsed,
+      model: VISION_MODEL,
+      usage,
+      budgetReservationId,
+      raw: JSON.stringify(parsed),
+    };
   } catch (e) {
     // Most specific first — a 429 is worth retrying later, a 400 is a bug in
     // this file and retrying it forever is how you burn an afternoon.

@@ -19,14 +19,17 @@
  *   3. daily ceiling  — a hard cap even for authorised callers
  *   4. rate + single-flight — bounds free work and de-duplicates paid work
  */
-import { db } from "../db/index.ts";
+import {
+  DAILY_BUDGET_USD,
+  budgetAvailable,
+  budgetLeftUsd,
+  spentTodayUsd,
+  visionKilled,
+} from "../vision/budget.ts";
+
+export { DAILY_BUDGET_USD, budgetAvailable, budgetLeftUsd, spentTodayUsd, visionKilled };
 
 // ---------------------------------------------------------------- 1. switch
-
-/** `ASSYZE_VISION_ENABLED=0` stops all paid work immediately, no redeploy. */
-export function visionKilled(): boolean {
-  return process.env.ASSYZE_VISION_ENABLED === "0";
-}
 
 // ----------------------------------------------------------------- 2. token
 
@@ -58,35 +61,6 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 // --------------------------------------------------------------- 3. ceiling
-
-/** Dollars of Anthropic spend allowed per UTC day across the whole service. */
-export const DAILY_BUDGET_USD = Number(process.env.ASSYZE_DAILY_BUDGET_USD) || 2;
-
-export function spentTodayUsd(): number {
-  const r = db()
-    .query(
-      `SELECT COALESCE(SUM(cost_micros),0) m FROM vision_results
-       WHERE created_at >= date('now') || 'T00:00:00.000Z'`,
-    )
-    .get() as { m: number };
-  return r.m / 1e6;
-}
-
-export function budgetLeftUsd(): number {
-  return Math.max(0, DAILY_BUDGET_USD - spentTodayUsd());
-}
-
-/**
- * Is there budget for one more call?
- *
- * Checked BEFORE the call, using the largest plausible single-listing cost
- * rather than an average. A listing with 17 photos cost $0.02 measured; an
- * average-based check would let a run of expensive listings walk past the cap.
- */
-const WORST_CASE_CALL_USD = 0.05;
-export function budgetAvailable(): boolean {
-  return budgetLeftUsd() >= WORST_CASE_CALL_USD;
-}
 
 // ------------------------------------------------------- 4. rate + coalesce
 

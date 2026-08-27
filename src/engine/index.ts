@@ -289,8 +289,8 @@ export async function checkFetched(listing: RawListing, opts: CheckOptions = {})
         vision = await analyzePhotos(listingId);
         if (vision) {
           db().query(
-            `INSERT INTO vision_results (listing_id, model, payload, duration_ms, created_at, cost_micros, photo_fingerprint, prompt_version)
-             VALUES ($lid,$model,$p,$ms,$now,$cost,$fp,$pv)`,
+            `INSERT INTO vision_results (listing_id, model, payload, duration_ms, created_at, cost_micros, photo_fingerprint, prompt_version, budget_reservation_id)
+             VALUES ($lid,$model,$p,$ms,$now,$cost,$fp,$pv,$reservation)`,
           ).run({
             $lid: listingId, $model: vision.model ?? VISION_MODEL, $p: JSON.stringify(vision),
             $ms: vision.usage?.ms ?? since(), $now: now(),
@@ -298,6 +298,7 @@ export async function checkFetched(listing: RawListing, opts: CheckOptions = {})
             // a money guard is how a cap stops matching reality.
             $cost: Math.round((vision.usage?.costUsd ?? 0) * 1e6),
             $fp: fp, $pv: PROMPT_VERSION,
+            $reservation: vision.budgetReservationId ?? null,
           });
           out = runPipeline(listing, vision, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster });
           emit("vision", { vision, verdict: out.verdict, cached: false });
@@ -372,6 +373,7 @@ export function checkStored(
  * 0.3.7 — counterfeit detection: a clone is a blocker, not a discount.
  * 0.3.8 — bulk-listing pattern catches plural "laptops for sale".
  * 0.3.17 — refreshed facts preserve first capture and paid vision is opt-in.
+ * 0.3.18 — every paid path uses one atomic daily-budget ledger.
  *
  * 0.3.6 is also the reminder that this list is not a changelog. The storage
  * fix shipped WITHOUT a bump and production kept serving the old verdicts,
@@ -379,4 +381,4 @@ export function checkStored(
  * the current version. Exactly the failure this constant was made load-bearing
  * to prevent, two days after writing that down.
  */
-export const ENGINE_VERSION = "0.3.17";
+export const ENGINE_VERSION = "0.3.18";

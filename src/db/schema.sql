@@ -171,12 +171,25 @@ CREATE TABLE IF NOT EXISTS user_economics (
 -- ----------------------------------------------------------------- vision
 -- Structured facts extracted from photos. Kept separate from verdicts because
 -- vision is expensive and re-runnable independently of valuation logic.
+CREATE TABLE IF NOT EXISTS vision_spend (
+  id              INTEGER PRIMARY KEY,
+  reserved_micros INTEGER NOT NULL,
+  actual_micros   INTEGER,
+  created_at      TEXT NOT NULL,
+  settled_at      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_vision_spend_created ON vision_spend(created_at);
+
 CREATE TABLE IF NOT EXISTS vision_results (
   id          INTEGER PRIMARY KEY,
   listing_id  INTEGER NOT NULL REFERENCES listings(id),
   model       TEXT NOT NULL,          -- which model produced it
   payload     TEXT NOT NULL,          -- full VisionResult JSON
   duration_ms INTEGER,
+  cost_micros INTEGER NOT NULL DEFAULT 0,
+  photo_fingerprint TEXT,
+  prompt_version TEXT,
+  budget_reservation_id INTEGER,
   created_at  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_vision_listing ON vision_results(listing_id);
