@@ -287,15 +287,38 @@ export function netByChannel(
    * the machine was valued at 51% of its parts and read PASS against an asking
    * price Yish judged a clear BUY.
    */
-  const fbGross = basis === "local"
-    ? grossEbayCents
-    : Math.round(grossEbayCents * FACEBOOK_GROSS_RATIO);
+  /**
+   * ⚠ NO LOCAL DISCOUNT ON SOMETHING THAT CANNOT SHIP. Same double-count as
+   * above, one level out — and Yish caught it on a gaming PC.
+   *
+   * The 15% is a BUYER-POOL penalty: eBay reaches the country, Facebook reaches
+   * your metro, so the gross clears lower. That is a real effect for a phone or
+   * a graphics card, where eBay genuinely is the bigger market.
+   *
+   * It is NOT a real effect for a tower. `ship === null` means we have already
+   * decided eBay is not an available channel for this item, and the eBay comps
+   * we hold for it are overwhelmingly local-pickup sales — they ALREADY have
+   * the small-pool constraint priced in, because that constraint is why the
+   * item cannot ship in the first place. Charging it again values every gaming
+   * PC 15% under its own observed sales, forever, on the ONLY channel it has.
+   *
+   * Concretely: 18 sold RTX 2080 builds median $549, and the engine reported
+   * the machine as worth $467.
+   *
+   * The fee argument does not rescue the 0.85 either — Facebook takes no fee,
+   * so the discount has to be justified purely by pool size, and here it is not.
+   */
+  const localOnly = ship === null;
+  const fbRatio = basis === "local" || localOnly ? 1 : FACEBOOK_GROSS_RATIO;
+  const fbGross = Math.round(grossEbayCents * fbRatio);
   out.push({
     channel: "facebook", grossCents: fbGross, feesCents: 0, shippingCents: 0,
     netCents: fbGross, available: true,
     note: basis === "local"
       ? "no fees, no shipping — and this value is already a local price"
-      : "local pool only, but no fees and no shipping",
+      : localOnly
+        ? "local sale is the only channel, so these comps are already local prices"
+        : "local pool only, but no fees and no shipping",
   });
 
   return out;

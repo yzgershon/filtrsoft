@@ -1419,6 +1419,55 @@ you can buy at.
 
 ## 12. Live traps
 
+### ⚠⚠ COMP THE WHOLE MACHINE — and make sure the SKU EXISTS
+
+This rule was already written down and was still unreachable in practice:
+exactly ONE build SKU existed (`Gaming PC RTX 5070`), so every other build fell
+through to the parts sum **by default rather than by judgement**. Yish rejected
+a $467 valuation on an i7-10700/RTX 2080 build and was right.
+
+The parts path prices components at eBay SOLD prices and then takes 25% off via
+`WHOLE_UNIT_RATIO`. That is a PART-OUT valuation. An assembled, tested,
+Windows-installed machine sold to a gamer is not a bag of parts.
+
+    parts sum      $467, 22 comps, LOW confidence
+    whole machine  $549, 18 comps, HIGH confidence
+
+14 `Gaming PC <GPU>` SKUs now exist (5090 down to GTX 1660).
+**When you add a GPU tier, add the matching build SKU and pull its comps**, or
+that tier silently reverts to the parts sum.
+
+### ⚠⚠ A COMP MUST BE THE PRODUCT, NOT A MACHINE CONTAINING IT
+
+Sold listings for `i7-10700` return bare CPUs AND every Dell OptiPlex, XPS,
+Precision and G5 built around one. Measured: **26 bare chips at $140, 38 whole
+computers at $275, combined median $199** — the CPU was valued 40% high.
+
+Filtered in `valueSku` for `component` and `gpu` only, by HEAD NOUN via
+`resolveProductType`. Prebuilt SKUs are exempt: whole machines are the point
+there. A substring match on "desktop" is WRONG — it throws away
+"i7-10700 Desktop Processor" along with "Dell G5 Desktop i7-10700".
+
+### ⚠⚠ NO LOCAL DISCOUNT ON SOMETHING THAT CANNOT SHIP
+
+`FACEBOOK_GROSS_RATIO = 0.85` is a BUYER-POOL penalty — eBay reaches the
+country, Facebook reaches your metro. Real for a phone or a GPU.
+
+**Not real for a tower.** `ship === null` already means eBay is not an
+available channel, and the eBay comps we hold for it are overwhelmingly
+local-pickup sales — the small-pool constraint is ALREADY priced in, because it
+is why the thing cannot ship. Charging it twice valued every gaming PC 15%
+under its own observed sales, on the only channel it has: 18 sold RTX 2080
+builds at a $549 median reported as $467.
+
+Facebook charges no fee, so the discount can only be justified by pool size,
+and for local-only categories it cannot be. `fbRatio` is 1 when
+`basis === "local"` OR the item cannot ship.
+
+**The 0.85 that remains is still an assumption, never measured.** The outcome
+loop replaces it. Do not treat it as fact.
+
+
 ### ⚠⚠ NEVER pool a category to measure a ratio — Simpson's paradox
 `measuredMultiplier` pooled all component comps and computed new/used = **6.07x**.
 That is not a condition premium; 59 of the "new" rows were an expensive current-gen
