@@ -121,6 +121,39 @@ export const CATALOG: SeedSku[] = [
   { category: "gpu", brand: "AMD", model: "RX 6600", attributes: { vram: 8, miningEra: true }, liquidity: "slow" },
   { category: "gpu", brand: "AMD", model: "RX 5700 XT", attributes: { vram: 8, miningEra: true }, liquidity: "slow" },
 
+  /**
+   * ---- WHOLE GAMING BUILDS ----
+   *
+   * **`COMP THE WHOLE MACHINE. A parts sum is the FALLBACK, not the method.`**
+   * is already a rule in HANDOFF, and the catalog quietly made it unreachable:
+   * exactly ONE build SKU existed (`Gaming PC RTX 5070`). Every other build
+   * fell through to the parts sum by default rather than by judgement.
+   *
+   * That is what produced the $467 estimate Yish rejected on
+   * "GAMING PC: I7 10700 / RTX 2080". The parts path values components at eBay
+   * SOLD prices and then takes 25% off for `WHOLE_UNIT_RATIO`, which is a
+   * part-out valuation — but an assembled, tested, Windows-installed machine
+   * sold locally to a gamer is not a bag of parts, and he has flipped enough of
+   * them to know the difference.
+   *
+   * `valueWholeUnit` looks these up as `Gaming PC <GPU>`, so the model string
+   * has to match that shape exactly.
+   */
+  { category: "prebuilt", brand: "Custom", model: "Gaming PC RTX 5090", liquidity: "hot" },
+  { category: "prebuilt", brand: "Custom", model: "Gaming PC RTX 5080", liquidity: "hot" },
+  { category: "prebuilt", brand: "Custom", model: "Gaming PC RTX 4090", liquidity: "hot" },
+  { category: "prebuilt", brand: "Custom", model: "Gaming PC RTX 4080", liquidity: "hot" },
+  { category: "prebuilt", brand: "Custom", model: "Gaming PC RTX 4070", liquidity: "hot" },
+  { category: "prebuilt", brand: "Custom", model: "Gaming PC RTX 4060", liquidity: "normal" },
+  { category: "prebuilt", brand: "Custom", model: "Gaming PC RTX 3090", liquidity: "normal" },
+  { category: "prebuilt", brand: "Custom", model: "Gaming PC RTX 3080", liquidity: "normal" },
+  { category: "prebuilt", brand: "Custom", model: "Gaming PC RTX 3070", liquidity: "normal" },
+  { category: "prebuilt", brand: "Custom", model: "Gaming PC RTX 3060", liquidity: "normal" },
+  { category: "prebuilt", brand: "Custom", model: "Gaming PC RTX 2080", liquidity: "normal" },
+  { category: "prebuilt", brand: "Custom", model: "Gaming PC RTX 2070", liquidity: "slow" },
+  { category: "prebuilt", brand: "Custom", model: "Gaming PC RTX 2060", liquidity: "slow" },
+  { category: "prebuilt", brand: "Custom", model: "Gaming PC GTX 1660", liquidity: "slow" },
+
   // ---- desktop CPUs ----
   /**
    * Every CPU in the catalog before this arrived by `catalog:derive` mining

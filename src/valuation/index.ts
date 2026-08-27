@@ -9,6 +9,7 @@
  * 2. BUY is not "below market." It's "clears MY floor after fees, drive time
  *    and risk." That floor is a per-user setting. See CALIBRATION finding 1.
  */
+import { resolveProductType } from "../signals/product-type.ts";
 import { db } from "../db/index.ts";
 import { adjustPrice, normalizeCondition, comparable, type Condition } from "./condition.ts";
 import { boardTier, tierComparable, type BoardTier } from "../signals/board-tier.ts";
@@ -157,7 +158,38 @@ export function valueSku(
   const BROKEN_TITLE =
     /\b(for parts|parts\/repair|parts only|not working|no boot|won'?t (boot|turn on|power)|does ?n'?t (boot|work|turn on)|dead|cracked|shattered|water damage|salvage|as[- ]is|broken|damaged|repair)\b/i;
 
+  /**
+   * ⚠ A COMP MUST BE THE PRODUCT, NOT A MACHINE CONTAINING IT.
+   *
+   * Searching sold listings for "i7-10700" returns bare CPUs AND every Dell
+   * OptiPlex, XPS, Precision and G5 built around one. Measured on the live
+   * archive: 26 bare chips at a $140 median, 38 whole computers at $275, and
+   * the combined median the engine was using came out at $199 — a CPU valued
+   * 40% high because complete PCs were sitting in its comp set.
+   *
+   * That is the same family as the salvage rule below: a price is only a comp
+   * for the thing it was actually paid for. It matters most for CPUs, where
+   * the part is cheap and the machines around it are not.
+   *
+   * `resolveProductType` decides by HEAD NOUN, so "i7-10700 Desktop Processor"
+   * is kept (head: "desktop processor") while "Dell G5 5000 Desktop i7-10700"
+   * is dropped (head: "desktop"). A substring match on "desktop" would throw
+   * away both — which is exactly the mistake I made reaching for a regex first.
+   *
+   * ONLY for component-shaped categories. A prebuilt SKU WANTS whole machines;
+   * they are the entire point of `Gaming PC RTX 2080`.
+   */
+  const partLike = opts?.category === "component" || opts?.category === "gpu";
+  const MACHINE_HEAD = /^(desktop|tower|pc|computer|laptop|notebook|optiplex|precision|thinkcentre|thinkpad|prodesk|elitedesk|workstation|all-in-one|aio|imac|macbook|server)$/i;
+
   const rows = raw
+    .filter((r) => {
+      if (!partLike) return true;
+      try {
+        const head = resolveProductType(r.raw_title, "");
+        return !MACHINE_HEAD.test(String(head.head ?? ""));
+      } catch { return true; }
+    })
     .map((r) => {
       const stated = normalizeCondition(r.condition_norm);
       // Title evidence downgrades, never upgrades. A seller calling a cracked
