@@ -28,13 +28,32 @@ import {
   spentVisionMicrosWithDb,
   visionReservationMicros,
 } from "../src/vision/budget.ts";
-import { evaluateRisk, riskGate } from "../src/verdict/risk-gates.ts";
+import { evaluateRisk, riskGate, inPersonConditions } from "../src/verdict/risk-gates.ts";
 
 describe("hard-blocker gate", () => {
-  test("keeps an unverified in-person GPU check out of BUY", () => {
+  /**
+   * An IN-PERSON check rides along as a condition; it does not veto BUY.
+   *
+   * The opposite was briefly true and measured BUY = 0 across all 976 listings,
+   * with every VERIFY blocked by this exact check and none by a remote one.
+   * DISPLAY_OUTPUTS is the anti-mining test — you cannot answer it from a
+   * listing — so vetoing on it means no graphics card is ever a BUY at any
+   * price, and activation lock does the same to every phone.
+   */
+  test("an in-person GPU check conditions a BUY rather than vetoing it", () => {
     const gate = riskGate(evaluateRisk("gpu", "NVIDIA RTX 4090 Founders Edition", null));
+    expect(gate.ceiling).toBe("BUY");
+    expect(gate.inPerson.map((c) => c.code)).toContain("DISPLAY_OUTPUTS");
+    // ...and it must still be surfaced, or the condition is silently dropped.
+    expect(inPersonConditions(gate).length).toBeGreaterThan(0);
+  });
+
+  test("a REMOTE unresolved blocker does veto BUY", () => {
+    // IMEI/financing/carrier lock are all answerable by asking, so there is no
+    // excuse for driving without the answer.
+    const gate = riskGate(evaluateRisk("phone", "iPhone 15 128GB, great condition", null));
     expect(gate.ceiling).toBe("VERIFY");
-    expect(gate.unresolved.map((c) => c.code)).toContain("DISPLAY_OUTPUTS");
+    expect(gate.unresolved.every((c) => c.remote)).toBe(true);
   });
 
   test("allows BUY only when the GPU blocker is visibly resolved", () => {
@@ -45,6 +64,7 @@ describe("hard-blocker gate", () => {
   test("applies Apple lock and MDM checks to desktops as well as laptops", () => {
     const checks = evaluateRisk("prebuilt", "2019 5K A2115 27 Inch iMac", null);
     expect(checks.map((c) => c.code)).toEqual(["ACTIVATION_LOCK", "EFI_MDM"]);
+    // EFI_MDM is REMOTE, so this one legitimately caps at VERIFY.
     expect(riskGate(checks).ceiling).toBe("VERIFY");
   });
 

@@ -1419,6 +1419,45 @@ you can buy at.
 
 ## 12. Live traps
 
+### ⚠⚠ ONLY A **REMOTE** UNRESOLVED BLOCKER VETOES BUY
+
+Removed on 2026-08-27 during the Codex audit, on the reading that
+`RISK-MODEL.md` says "an unresolved hard blocker overrides any price gap...
+never a BUY". **That IS what the document says**, and applying it to IN-PERSON
+checks empties the product.
+
+Measured immediately: **BUY = 0 across all 976 listings.** Every VERIFY was
+blocked by one in-person check, `DISPLAY_OUTPUTS`, and none by a remote one.
+
+That check is the anti-mining-card test — you cannot answer it from a listing,
+you have to look at the card. So vetoing on in-person checks means **no
+graphics card is ever a BUY at any price, forever**, and activation lock does
+the same to every phone, which is the most valuable category.
+
+The reconciliation, which is what the document intends:
+
+> **BUY means "worth leaving the house for", not "safe to hand over money."**
+
+    remote   unresolved -> caps at VERIFY. Asking costs one message.
+    inPerson unresolved -> rides along as a MANDATORY condition printed on the
+             verdict: "Do not hand over money until you have seen them."
+
+Never getting scammed is preserved. Never going to look is a different rule.
+A gate that fires on every listing carries no information.
+
+Restored, `ENGINE_VERSION` 0.3.21, and `test/backend-pure.test.ts` now asserts
+BOTH directions — an in-person check conditions a BUY, a remote one vetoes it.
+
+#### A measurement error worth not repeating
+
+Diagnosing this I reported four listings as "BUY before the change". **Only one
+was.** The RTX 5090 and the two RTX 3090s are VERIFY from the PRICE-RATIO
+branch — "priced at 59% of market" — which fires before the risk gate and is a
+deliberate rule (a gap that large is simultaneously the strongest deal signal
+and the strongest scam signal). Reading `riskChecks` alone does not tell you
+which branch produced a verdict; read the headline too.
+
+
 ### ⚠ ARCHIVE-LEVEL STATISTICS DO NOT BELONG INSIDE A PER-COMP LOOP
 
 `valueSku()` adjusts every surviving comp into the target condition. Each

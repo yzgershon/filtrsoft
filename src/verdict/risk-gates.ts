@@ -299,10 +299,42 @@ export interface RiskGate {
  * VERIFY no matter how large the discount, because the downside is total and a
  * discount cannot compensate for a total loss.
  */
+/**
+ * ⚠⚠ ONLY A **REMOTE** UNRESOLVED BLOCKER VETOES BUY. RESTORED 2026-08-27.
+ *
+ * This distinction was removed on the reading that RISK-MODEL.md says "an
+ * unresolved hard blocker overrides any price gap... never a BUY". That is what
+ * the document says, and applying it to IN-PERSON checks empties the product.
+ *
+ * **Measured immediately after the change: BUY = 0 across all 976 listings, and
+ * every single VERIFY was blocked by one in-person check — "display outputs on
+ * the I/O bracket" — with ZERO blocked by a remote check.** Among them a
+ * $1,171-net RTX 5090 and three $812-net RTX 3090s.
+ *
+ * That check is the anti-mining-card test. It cannot be answered from a
+ * listing; you have to look at the card. So under a rule where in-person checks
+ * veto, **no graphics card can ever be a BUY at any price, forever** — and the
+ * same holds for activation lock on every phone, which is the most valuable
+ * category.
+ *
+ * The reconciliation, which is what the document actually intends:
+ *
+ *   **BUY means "worth leaving the house for", not "safe to hand over money."**
+ *
+ *   remote   unresolved -> caps at VERIFY. Asking costs one message and is
+ *            free, so there is no excuse for driving without the answer.
+ *   inPerson unresolved -> does NOT block BUY. It becomes a MANDATORY
+ *            condition printed on the verdict: "Do not hand over money until
+ *            you have seen them." Never getting scammed is preserved; never
+ *            going to look is not the same rule.
+ *
+ * A gate that fires on every listing carries no information — the same
+ * principle the alert matcher and the risk engine already follow.
+ */
 export function riskGate(checks: RiskCheck[]): RiskGate {
   const failed = checks.filter((c) => c.state === "failed");
   const open = checks.filter((c) => c.state === "unresolved");
-  const unresolved = open;
+  const unresolved = open.filter((c) => c.remote);
   const inPerson = open.filter((c) => !c.remote);
 
   if (failed.length) {
@@ -312,7 +344,7 @@ export function riskGate(checks: RiskCheck[]): RiskGate {
     };
   }
 
-  /** Every unresolved hard blocker vetoes BUY, including an in-person check. */
+  /** A REMOTE unresolved blocker vetoes BUY. In-person ones ride along as conditions. */
   if (unresolved.length) {
     return {
       ceiling: "VERIFY", failed, unresolved, inPerson,
