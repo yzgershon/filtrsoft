@@ -1,376 +1,210 @@
 /**
- * Derive the catalog from what is actually observed, instead of guessing a list.
+ * The generative matcher — parse a model out of the title instead of
+ * enumerating every model in the catalog.
  *
- * MASTER-PLAN engine gap #1, and the reason it is P0: the hand-seeded catalog is
- * 62 SKUs — 28 phones, 12 laptops, 12 GPUs, 10 consoles, and **zero CPUs**. So
- * the NZXT build whose spec screen clearly reads "Ryzen 5 9600X" has nothing to
- * match the CPU against, sum-of-parts can only price the GPU, and the coverage
- * guard correctly refuses to price the machine. The pipeline is right and the
- * pantry is empty.
+ * **WHY THIS EXISTS, measured rather than assumed.** "Couldn't identify the
+ * exact model" is the largest single reason a listing cannot be priced: 132 of
+ * 267 on 2026-08-26. On 2026-08-26 I added 39 hand-written laptop SKUs for the
+ * lines that recur most, pulled comps to 18,603, and the number went
+ * **125 -> 132**. It did not move.
  *
- * Seeding a list and hoping comps match it is backwards. The models worth having
- * are the ones that keep appearing in real listings and real sales, and both of
- * those are already in the database.
+ * That is what a long tail looks like. 44 unmatched laptops spanned ~17
+ * distinct models, almost all appearing once or twice, so enumerating fixes the
+ * seventeen you saw and never the seventeen you get next week. The catalog
+ * cannot be written fast enough by hand; it has to grow from what walks past.
  *
- * DRY RUN BY DEFAULT. This writes to the catalog every other part of the system
- * trusts, so it prints what it would add and changes nothing until asked. A
- * silent auto-inserting catalog builder is how you end up with 400 SKUs, half of
- * them typos, and no idea which are real.
+ * ── WHY THIS IS NOT `catalog:derive --apply` ───────────────────────────────
+ *
+ * That script mines SKUs from COMPS, and its top suggestions are parts: "Dell
+ * Inspiron 14 5420 LCD Display", cooling fans, motherboards. Applying it
+ * creates SKUs priced off salvage, which is the trap RISK-MODEL already warns
+ * about. This reads LISTINGS — the thing we are actually trying to price — and
+ * refuses anything that does not look like a whole machine.
+ *
+ * ── THE SAFETY RULES, AND EACH ONE IS LOAD-BEARING ─────────────────────────
+ *
+ * Creating catalog rows from untrusted seller text is how a catalog fills with
+ * garbage that then prices real listings wrongly. So this is deliberately
+ * strict and refuses far more than it accepts:
+ *
+ *   1. **A known LINE token is required.** "Latitude", "ThinkPad", "EliteBook".
+ *      No line, no SKU — a bare "Dell laptop" is a family, not a product.
+ *   2. **A DIGIT-BEARING model token is required**, adjacent to the line. This
+ *      is the same rule `matchSku` already enforces, and it is what makes an
+ *      auto-created "Latitude 5480" safe against a 5490: every digit token must
+ *      appear in a listing for it to match later.
+ *   3. **Spec numbers are never model numbers.** "15.6", "16GB", "512GB",
+ *      "i7-1165G7", "2020" are all digits next to a line name and none of them
+ *      identify a product. Rejected explicitly rather than hoped against.
+ *   4. **Reseller ads and multi-unit listings are refused**, because "Dell 5540
+ *      Mobile Workstations, up to 64GB" is a shop's stock and would mint a SKU
+ *      from an advert.
+ *
+ * The output is a SKU with NO comps, which changes the verdict from "couldn't
+ * identify the exact model" to "no recent sold comps for this model". That is
+ * a strictly more honest answer AND it puts the model in the queue the comps
+ * puller already drains worst-first.
  */
-import { resolveCategory } from "../signals/product-type.ts";
 import { db, now } from "../db/index.ts";
 
-export interface Candidate {
-  category: string;
+export interface DerivedSku {
   brand: string;
+  line: string;
   model: string;
-  /** How many distinct listings/comps mentioned it. */
-  seen: number;
-  examples: string[];
-  existing: boolean;
-}
-
-/**
- * One extractor per family. Each returns a CANONICAL model string — the same
- * spelling the matcher will look for — not whatever the seller typed.
- *
- * Canonicalisation is the entire point. "RTX3060ti", "rtx 3060 Ti" and
- * "GeForce RTX 3060TI" have to collapse to one SKU or the catalog fills with
- * near-duplicates that each hold a third of the comps.
- */
-/** Product line -> maker, so a derived laptop SKU carries the right brand. */
-/**
- * Which extractors may run for a listing of each category.
- *
- * `prebuilt` deliberately allows components: the GPU and CPU inside a desktop
- * DO trade separately and sum-of-parts needs them. `laptop` deliberately does
- * not — its CPU is soldered and its "GPU" is usually integrated.
- */
-const ALLOWED_EXTRACTORS: Record<string, string[]> = {
-  laptop: ["laptop"],
-  prebuilt: ["gpu", "component", "prebuilt"],
-  gpu: ["gpu"],
-  component: ["component", "gpu"],
-  phone: ["phone"],
-  tablet: ["phone", "tablet"],
-  console: ["console"],
-  monitor: ["monitor"],
-};
-
-/** Product line -> maker, so a derived laptop SKU carries the right brand. */
-const LAPTOP_BRAND: Record<string, string> = {
-  latitude: "Dell", inspiron: "Dell", precision: "Dell", xps: "Dell",
-  elitebook: "HP", probook: "HP", zbook: "HP", spectre: "HP", pavilion: "HP",
-  envy: "HP", omen: "HP",
-  thinkpad: "Lenovo", thinkbook: "Lenovo", ideapad: "Lenovo", yoga: "Lenovo",
-  legion: "Lenovo",
-  aspire: "Acer", nitro: "Acer", predator: "Acer",
-  zenbook: "ASUS", vivobook: "ASUS",
-  "macbook pro": "Apple", "macbook air": "Apple",
-  "surface pro": "Microsoft", "surface laptop": "Microsoft", "surface book": "Microsoft",
-};
-
-/**
- * Is this a SOLDERED mobile CPU?
- *
- * Intel U/H/HQ/HK/Y/G-series and AMD U/H/HS/HX parts are soldered to the board.
- * They are not items anyone buys or sells on their own, which is exactly why an
- * eBay search for one returns laptops. Creating SKUs for them produced eight
- * unpriceable entries and 898 junk comps.
- *
- * Desktop parts — K, KF, F, T, X, or no suffix at all — genuinely do trade
- * standalone, and those SKUs are worth having.
- */
-export function isMobileCpu(model: string): boolean {
-  const m = model.toUpperCase();
-  if (/\bI[3579]-\d{4,5}(U|H|HQ|HK|Y|G\d|P)\b/.test(m)) return true;
-  if (/RYZEN\s*[3579]\s*\d{4}(U|H|HS|HX|E)\b/.test(m)) return true;
-  return false;
-}
-
-const EXTRACTORS: Array<{
   category: string;
-  brand: (m: RegExpMatchArray) => string;
-  re: RegExp;
-  model: (m: RegExpMatchArray) => string;
-}> = [
-  /**
-   * LAPTOP MODELS. This extractor is the reason the whole file was restructured.
-   *
-   * Without it, "Dell Latitude 5530 15.6 FHD Laptop Intel i5-1235U" produced a
-   * SKU for the **CPU**, because the CPU was the only pattern that matched. Then
-   * pulling comps for that CPU returned laptops, and 898 laptop prices were
-   * stored as the price of a chip — implying an i5-1235U is worth $250.
-   *
-   * The market's view is the correct one: what sells is the LAPTOP. So a laptop
-   * listing must yield a laptop SKU.
-   */
-  {
-    category: "laptop",
-    brand: (m) => LAPTOP_BRAND[m[1].toLowerCase()] ?? "",
-    re: new RegExp(
-      String.raw`\b(latitude|inspiron|precision|xps|elitebook|probook|zbook|spectre|pavilion|envy|omen|thinkpad|thinkbook|ideapad|yoga|legion|aspire|nitro|predator|zenbook|vivobook|macbook\s+(?:pro|air)|surface\s+(?:pro|laptop|book))\s+((?:[a-z]?\d{1,5}[a-z]?\b\s*){1,2}(?:g\d{1,2}\b)?)`,
-      "gi",
-    ),
-    model: (m) => {
-      const line = m[1].replace(/\s+/g, " ").trim();
-      // Stop at a decimal — "Latitude 5530 15.6" is a model then a SCREEN SIZE.
-      const tok = m[2].trim().split(/\s+/).filter((t) => !/\./.test(t));
-      if (!tok.length) return "";
+}
 
-      /**
-       * ONE model token, not two — except for the two real two-token forms.
-       *
-       * Greedily taking two produced "Dell XPS 9310 2", "Dell Latitude 5300 2"
-       * and "Dell XPS 9520 14": a screen size or a stray "2" from "2-in-1"
-       * fused onto the model, creating near-duplicate SKUs that each hold a
-       * fraction of the comps.
-       */
-      const out = [tok[0]];
-      if (tok[1]) {
-        // "EliteBook 840 G6" — the generation marker is part of the name.
-        if (/^g\d{1,2}$/i.test(tok[1])) out.push(tok[1]);
-        // "XPS 13 9310" — size first, THEN the model number.
-        else if (/^\d{2}$/.test(tok[0]) && /^\d{4}$/.test(tok[1])) out.push(tok[1]);
-      }
-      // "XPS" is an acronym; title-casing it to "Xps" makes the catalog look
-      // like it was generated by something that had never seen a Dell.
-      const ACRONYM: Record<string, string> = { xps: "XPS", rog: "ROG" };
-      const name = ACRONYM[line.toLowerCase()] ?? title(line);
-      return name + " " + out.map((t) => t.toUpperCase()).join(" ");
-    },
-  },
-  {
-    category: "gpu", brand: (m) => (/^rx/i.test(m[1]) ? "AMD" : "NVIDIA"),
-    re: /\b(rtx|gtx|rx)\s?(\d{3,4})\s?(ti|super|xt)?\b/gi,
-    model: (m) => `${m[1].toUpperCase()} ${m[2]}${m[3] ? " " + m[3].replace(/^./, (c) => c.toUpperCase()) : ""}`,
-  },
-  {
-    // The gap that matters most. Intel part numbers carry letter suffixes
-    // ("i7-1185G7"), so no trailing \b — it can never match after one.
-    category: "component", brand: () => "Intel",
-    re: /\b(i[3579])([- ])(\d{4,5}[a-z]{0,2}\d?)/gi,
-    model: (m) => (looksLikeYear(m[2], m[3]) ? "" : `${m[1].toLowerCase()}-${m[3].toUpperCase()}`),
-  },
-  {
-    category: "component", brand: () => "AMD",
-    re: /\bryzen\s?([3579])\s?(\d{4}[a-z0-9]{0,3})\b/gi,
-    model: (m) => `Ryzen ${m[1]} ${m[2].toUpperCase()}`,
-  },
-  {
-    category: "phone", brand: () => "Apple",
-    re: /\biphone\s?(\d{1,2})\s?(pro max|pro|plus|mini|se)?\b/gi,
-    model: (m) => `iPhone ${m[1]}${m[2] ? " " + title(m[2]) : ""}`,
-  },
-  {
-    category: "phone", brand: () => "Samsung",
-    re: /\bgalaxy\s?(s\d{2}\s?(?:ultra|plus|\+)?|z\s?(?:fold|flip)\s?\d|a\d{2})\b/gi,
-    model: (m) => `Galaxy ${title(m[1].replace(/\s+/g, " ").replace(/\+/, "Plus"))}`,
-  },
-  {
-    category: "laptop", brand: () => "Apple",
-    re: /\bmacbook\s?(pro|air)\s?(m[1-9](?:\s?(?:pro|max|ultra))?)?\b/gi,
-    model: (m) => `MacBook ${title(m[1])}${m[2] ? " " + m[2].toUpperCase().replace(/\s+/g, " ") : ""}`,
-  },
-  /**
-   * Apple DESKTOPS, keyed on screen size and year — the way they are actually
-   * bought and sold. Yish: "its an apple imac... you just have to compare it
-   * with the same model imac comps." A 2019 27-inch 5K iMac is ONE product, not
-   * a GPU plus a CPU, and the listing will never name either.
-   */
-  {
-    category: "prebuilt", brand: () => "Apple",
-    re: /\b(imac|mac\s?mini|mac\s?studio|mac\s?pro)\b/gi,
-    model: (m) => {
-      const line = m[1].replace(/\s+/g, " ").toLowerCase();
-      const name = line === "imac"
-        ? "iMac"
-        : line.replace(/mac\s?/, "Mac ").replace(/\b\w/g, (c) => c.toUpperCase());
-      const whole = m.input ?? "";
-      const size = whole.match(/\b(21\.5|24|27|20)\s?(?:inch|in\b|")/i)?.[1];
-      const year = whole.match(/\b(20[0-2]\d)\b/)?.[1];
-      // Must carry a digit, or it is a product LINE and matchSku's
-      // discriminating-token rule would match every iMac ever made.
-      if (!size && !year) return "";
-      return [name, size, year].filter(Boolean).join(" ");
-    },
-  },
-  {
-    category: "console", brand: () => "Sony",
-    re: /\b(playstation\s?5|ps5|playstation\s?4|ps4)\s?(pro|slim|digital)?\b/gi,
-    model: (m) => `PlayStation ${/5/.test(m[1]) ? "5" : "4"}${m[2] ? " " + title(m[2]) : ""}`,
-  },
-  {
-    category: "console", brand: () => "Microsoft",
-    re: /\bxbox\s?(series\s?[xs]|one\s?[xs]?)\b/gi,
-    model: (m) => `Xbox ${title(m[1].replace(/\s+/g, " "))}`,
-  },
-  {
-    category: "console", brand: () => "Nintendo",
-    // NEVER a bare "switch" — it matched a joystick listing 18 times. Either the
-    // brand is named, or a Switch-specific variant is.
-    re: /\b(?:nintendo\s?switch|switch\s?(oled|lite))\s?(oled|lite|2)?\b/gi,
-    model: (m) => `Switch${m[1] || m[2] ? " " + title(m[1] || m[2]) : ""}`,
-  },
+/**
+ * Line names that carry a model number, by brand.
+ *
+ * Only families whose numbering is REGULAR enough to parse safely. HP's
+ * consumer lines ("17-cn2775st") and Acer's are deliberately absent — their
+ * model strings are long alphanumeric SKUs that are easy to mangle and rare
+ * enough not to be worth the risk of minting wrong rows.
+ */
+const LINES: Array<{ brand: string; line: RegExp; model: RegExp; label: string }> = [
+  // Dell business/consumer: a bare 4-digit model, optionally E-prefixed.
+  { brand: "Dell", label: "Latitude", line: /\blatitude\b/i, model: /\b(e?\d{4})\b/i },
+  { brand: "Dell", label: "Precision", line: /\bprecision\b/i, model: /\b(\d{4})\b/ },
+  { brand: "Dell", label: "Vostro", line: /\bvostro\b/i, model: /\b(\d{4})\b/ },
+  { brand: "Dell", label: "OptiPlex", line: /\boptiplex\b/i, model: /\b(\d{3,4})\b/ },
+  { brand: "Dell", label: "Inspiron", line: /\binspiron\b/i, model: /\b(\d{4})\b/ },
+  { brand: "Dell", label: "XPS", line: /\bxps\b/i, model: /\b(\d{4})\b/ },
+  // HP business: "840 G7" — the generation suffix is part of the identity and
+  // a 840 G5 is worth materially less than a G8, so both halves are required.
+  { brand: "HP", label: "EliteBook", line: /\belitebook\b/i, model: /\b(\d{3,4}\s?g\d{1,2})\b/i },
+  { brand: "HP", label: "ProBook", line: /\bprobook\b/i, model: /\b(\d{3,4}\s?g\d{1,2})\b/i },
+  // Lenovo ThinkPad: letter-prefixed (T480, X1, P52, E14, L14, T14s).
+  { brand: "Lenovo", label: "ThinkPad", line: /\bthinkpad\b/i, model: /\b([txpels]\d{1,3}[a-z]?)\b/i },
 ];
 
-/** Lowercase FIRST, then capitalise — otherwise "MACBOOK AIR" stays "AIR". */
-const title = (s: string) =>
-  s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()).trim();
-
 /**
- * Listings for ACCESSORIES name the device they fit, and that is not evidence
- * the device itself trades here. "Samsung Galaxy S10 Ultra Magnetic Case"
- * created a phone SKU on the first run, and a joystick listing created
- * "Nintendo Switch" eighteen times. Checked against the TITLE only — a genuine
- * phone listing that mentions an included case in its description still counts.
- */
-const ACCESSORY = /\b(case|cover|screen protector|tempered glass|charger|cable|adapter|stand|mount|skin|sleeve|dock|holster|joystick|bracket)\b/i;
-
-/**
- * A bare four-digit number after a CPU family is very often a YEAR rather than a
- * part number: `iMac 21" i5 2013` produced the SKU "Intel i5-2013". Hyphenated
- * forms ("i5-2500K") are unambiguous and always allowed.
- */
-function looksLikeYear(sep: string, digits: string): boolean {
-  if (sep !== " ") return false;
-  const n = Number(digits);
-  return digits.length === 4 && n >= 1995 && n <= 2030;
-}
-
-/**
- * Scan every text source we have: listing titles, listing descriptions, the
- * component strings vision read off spec screens, and comp titles.
+ * Numbers that sit next to a line name and are NOT model numbers.
  *
- * Vision output is included deliberately — a spec screen is where the exact CPU
- * appears, and it is precisely the model the title never mentions.
+ * Checked against the captured token itself, not the whole title, because the
+ * title legitimately contains all of these alongside a real model.
  */
-export function deriveCandidates(opts: { minSeen?: number } = {}): Candidate[] {
-  const minSeen = opts.minSeen ?? 2;
-  const d = db();
+const NOT_A_MODEL = [
+  /^(19|20)\d{2}$/,          // a year: "Latitude 2019"
+  /^\d{1,2}(\.\d)?$/,        // a screen size: 14, 15.6
+  /^\d{1,4}(gb|tb|mb)$/i,    // capacity
+  /^g\d$/i,                  // a bare generation with no base number
+];
 
-  const sources: Array<{ text: string; label: string }> = [];
-  for (const r of d.query(`SELECT title, description FROM listings`).all() as Array<{ title: string; description: string }>) {
-    if (ACCESSORY.test(r.title ?? "")) continue;
+/** Shop inventory, not a unit. Minting a SKU from an advert is worse than none. */
+const NOT_A_UNIT =
+  /\bup to \d+\s?(gb|tb)\b|\b(blowout|clearance|wholesale|liquidation|bulk)\b|\blot of \d|\b(laptops|desktops|workstations|computers)\b|\bstarting at\b/i;
+
+/**
+ * Parse a whole-machine model out of a listing title.
+ *
+ * Returns null far more often than not, and that is the intended behaviour: a
+ * missed parse costs one unpriced listing, a wrong parse mints a catalog row
+ * that misprices every future listing that matches it.
+ */
+/**
+ * Graphics cards, which are far MORE regular than laptops and worth a
+ * dedicated parser.
+ *
+ * Every consumer card in the last decade is `<family> <number> <variant?>`:
+ * RTX 4070 Ti, GTX 1660 Super, RX 6750 XT, RX 9060 XT. That is a grammar, not
+ * a list, so enumerating them was always the wrong shape — the catalog held 42
+ * and the feed still had cards it had never heard of.
+ *
+ * **THE VARIANT IS PART OF THE IDENTITY, NEVER AN OPTIONAL SUFFIX.** A 4070 Ti
+ * is hundreds of dollars from a 4070, and this file already documents an alias
+ * bug where exactly that confusion priced a Ti as a base card and turned a good
+ * listing into a PASS. Captured into the model so a derived SKU can never be
+ * the wrong tier.
+ *
+ * Workstation cards (Quadro, Tesla, CMP) are deliberately EXCLUDED — they are
+ * a different market with different buyers, and the catalog already marks the
+ * compute ones dead on purpose.
+ */
+const GPU_MODEL =
+  /\b(rtx|gtx|rx)\s?(\d{3,4})\s?(ti\s?super|ti|super|xt|xtx)?\b/i;
+
+const GPU_BRAND: Record<string, string> = { rtx: "NVIDIA", gtx: "NVIDIA", rx: "AMD" };
+
+function parseGpu(title: string): DerivedSku | null {
+  // A laptop containing a 4090 is not a 4090. The category hint has already
+  // decided this is a card; this only guards the obvious mislabels.
+  if (/\b(laptop|notebook|quadro|tesla|\bcmp\b|mobile)\b/i.test(title)) return null;
+  const m = GPU_MODEL.exec(title);
+  if (!m) return null;
+  const family = m[1].toUpperCase();
+  const num = m[2];
+  const variant = m[3] ? ` ${m[3].replace(/\s+/g, " ").toUpperCase()}` : "";
+  return {
+    brand: GPU_BRAND[m[1].toLowerCase()] ?? "NVIDIA",
+    line: family,
+    model: `${family} ${num}${variant}`,
+    category: "gpu",
+  };
+}
+
+export function parseModel(title: string, category: string | null): DerivedSku | null {
+  if (NOT_A_UNIT.test(title)) return null;
+  if (category === "gpu") return parseGpu(title);
+  if (category !== "laptop" && category !== "prebuilt") return null;
+
+  for (const spec of LINES) {
+    const lineHit = spec.line.exec(title);
+    if (!lineHit) continue;
+
     /**
-     * TITLE ONLY, not the description.
+     * Search only the text AFTER the line name.
      *
-     * Dealer listings ("Spring Laptop Blowout Sale!") name forty models in
-     * their body copy. Including descriptions created a SKU for every one and
-     * inflated the counts — 17 sightings of "Dell XPS 9310" that were all the
-     * same shop's catalogue, not seventeen laptops for sale. The title names
-     * the thing actually being sold.
+     * A model number precedes its line name essentially never, while spec
+     * numbers precede it constantly — "15.6 inch Dell Latitude", "16GB Dell
+     * Precision". Anchoring here removes a whole class of false parse before
+     * `NOT_A_MODEL` has to catch it.
      */
-    sources.push({ text: r.title ?? "", label: r.title ?? "" });
+    const after = title.slice(lineHit.index + lineHit[0].length);
+    const modelHit = spec.model.exec(after);
+    if (!modelHit) continue;
+
+    const raw = modelHit[1].trim();
+    if (NOT_A_MODEL.some((re) => re.test(raw))) continue;
+
+    // Normalise "840g7" and "840 G7" to one spelling so two listings of the
+    // same machine cannot mint two SKUs.
+    const model = `${spec.label} ${raw.replace(/\s+/g, " ").toUpperCase()}`
+      .replace(/\b([A-Z])(\d)/g, "$1$2");
+
+    return { brand: spec.brand, line: spec.label, model, category };
   }
-  for (const r of d.query(`SELECT raw_title FROM comps`).all() as Array<{ raw_title: string }>) {
-    if (ACCESSORY.test(r.raw_title ?? "")) continue;
-    sources.push({ text: r.raw_title ?? "", label: r.raw_title ?? "" });
-  }
-  for (const r of d.query(`SELECT payload FROM vision_results`).all() as Array<{ payload: string }>) {
-    try {
-      const v = JSON.parse(r.payload);
-      const parts = Object.values(v.components ?? {}).filter(Boolean).join(" ");
-      if (parts) sources.push({ text: parts, label: `[vision] ${parts.slice(0, 60)}` });
-    } catch { /* a corrupt payload must not stop the scan */ }
-  }
-
-  const found = new Map<string, Candidate>();
-  for (const src of sources) {
-    /**
-     * DECIDE WHAT THE LISTING IS, THEN EXTRACT THE MATCHING MODEL.
-     *
-     * Previously every extractor ran against every listing, so a laptop
-     * produced a CPU SKU — the CPU pattern matched and nothing checked whether
-     * a CPU was what was for sale. That single omission is what put 898 laptop
-     * prices into the archive as CPU comps.
-     *
-     * A prebuilt is the one case where component extraction is still right: the
-     * GPU and CPU inside a desktop genuinely do trade separately, and
-     * sum-of-parts needs them.
-     */
-    const listingCategory = resolveCategory(src.label || src.text);
-    const allowed = ALLOWED_EXTRACTORS[listingCategory ?? ""] ?? null;
-
-    for (const ex of EXTRACTORS) {
-      if (allowed && !allowed.includes(ex.category)) continue;
-
-      // Fresh lastIndex per source: a shared /g regex silently skips matches.
-      ex.re.lastIndex = 0;
-      for (const m of src.text.matchAll(ex.re)) {
-        const model = ex.model(m);
-        if (!model) continue;   // extractor rejected it (e.g. a year, not a part number)
-
-        /**
-         * A soldered mobile CPU is not a product. Skip it wherever it appears —
-         * including inside a laptop listing, where it is a SPEC, not the item.
-         */
-        if (ex.category === "component" && isMobileCpu(model)) continue;
-
-        const key = `${ex.category}|${model.toLowerCase()}`;
-        const c = found.get(key) ?? {
-          category: ex.category, brand: ex.brand(m), model,
-          seen: 0, examples: [], existing: false,
-        };
-        c.seen++;
-        if (c.examples.length < 3 && src.label && !c.examples.includes(src.label)) {
-          c.examples.push(src.label.slice(0, 70));
-        }
-        found.set(key, c);
-      }
-    }
-  }
-
-  const have = new Set(
-    (d.query(`SELECT LOWER(model) m FROM skus`).all() as Array<{ m: string }>).map((r) => r.m),
-  );
-  for (const c of found.values()) c.existing = have.has(c.model.toLowerCase());
-
-  return [...found.values()]
-    .filter((c) => c.seen >= minSeen)
-    /**
-     * REFUSE FAMILY NAMES. A model with no digit in it — bare "MacBook Pro",
-     * bare "Galaxy" — is a product LINE, not a thing with a price. `matchSku`
-     * treats a digit-bearing token as the discriminator that must be present,
-     * so a SKU with no digits has nothing to discriminate on and would match a
-     * 2012 and a 2024 MacBook Pro equally well.
-     *
-     * That is precisely the bug that matched a 2019 Intel machine to an M3.
-     * Creating such a SKU would reintroduce it through the catalog rather than
-     * through the matcher, where the guard could not see it.
-     */
-    .filter((c) => /\d/.test(c.model))
-    .sort((a, b) => b.seen - a.seen);
+  return null;
 }
 
 /**
- * Insert the new ones. Liquidity is left NULL rather than guessed — it vetoes
- * BUY, and a wrong guess there either hides real deals or waves through dead
- * inventory. It gets set from measured days-to-sell once the tracker has data.
+ * Find the SKU for a parsed model, creating it if it does not exist.
+ *
+ * Separator-insensitive on lookup for the same reason `valueByParts` is:
+ * "840 G7" and "840G7" are one product, and minting both would split its comps
+ * across two rows and halve every sample.
  */
-export function applyCandidates(cands: Candidate[]): number {
-  const ins = db().prepare(
-    `INSERT INTO skus (category, brand, model, attributes, liquidity, created_at)
-     VALUES ($cat,$brand,$model,'{}',NULL,$now)`,
+export function findOrCreateSku(d: DerivedSku): { id: number; created: boolean } {
+  const flat = d.model.toLowerCase().replace(/[\s-]/g, "");
+  const existing = db().query(
+    `SELECT id FROM skus
+      WHERE category = $cat
+        AND REPLACE(REPLACE(LOWER(model), ' ', ''), '-', '') = $flat
+      LIMIT 1`,
+  ).get({ $cat: d.category, $flat: flat }) as { id: number } | null;
+  if (existing) return { id: existing.id, created: false };
+
+  const r = db().run(
+    `INSERT INTO skus (category, brand, model, attributes, liquidity, created_at, source)
+     VALUES (?,?,?,'{}',NULL,?,'derived')`,
+    [d.category, d.brand, d.model, now()],
   );
-  const alias = db().prepare(
-    `INSERT INTO sku_aliases (sku_id, alias, source, confidence, created_at)
-     VALUES ($sku,$alias,'derived','high',$now) ON CONFLICT(alias) DO NOTHING`,
-  );
-  let n = 0;
-  for (const c of cands) {
-    if (c.existing) continue;
-    const r = db()
-      .query(
-        `INSERT INTO skus (category, brand, model, attributes, liquidity, created_at)
-         VALUES ($cat,$brand,$model,'{}',NULL,$now) RETURNING id`,
-      )
-      .get({ $cat: c.category, $brand: c.brand, $model: c.model, $now: now() }) as { id: number };
-    // The canonical spelling is itself the first alias, so the fast exact path
-    // works immediately instead of falling through to token matching.
-    alias.run({ $sku: r.id, $alias: c.model.toLowerCase(), $now: now() });
-    n++;
-  }
-  void ins;
-  return n;
+  return { id: Number(r.lastInsertRowid), created: true };
+}
+
+/** How many SKUs this mechanism has minted. Reported on /v1/health. */
+export function derivedSkuCount(): number {
+  try {
+    return (db().query("SELECT COUNT(*) n FROM skus WHERE source='derived'").get() as { n: number }).n;
+  } catch { return 0; }
 }

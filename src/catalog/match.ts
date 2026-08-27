@@ -8,6 +8,7 @@
  * Every successful resolution writes an ALIAS back, so the catalog learns. A
  * title that took fuzzy matching this time is an exact hit next time.
  */
+import { parseModel, findOrCreateSku } from "./derive.ts";
 import { db, now } from "../db/index.ts";
 import { DEAD_PATTERNS } from "../reference/catalog.ts";
 import { variantPattern } from "../signals/variants.ts";
@@ -19,7 +20,7 @@ export interface Match {
   category: string | null;
   liquidity: string | null;
   confidence: "high" | "medium" | "low";
-  method: "alias" | "token" | "none";
+  method: "alias" | "token" | "derived" | "none";
   deadReason?: string;
   /** Extracted regardless of whether a SKU matched — these drive valuation. */
   attributes: Record<string, string | number>;
@@ -148,9 +149,29 @@ export function matchSku(title: string, description = "", categoryHint?: string)
     aliasRows = same.length ? same : aliasRows.filter((r) => WHOLE.has(r.category));
   }
 
-  // Longest alias wins — "iphone 15 pro max" must beat "iphone 15".
+  /**
+   * ⚠ AN ALIAS MUST MATCH ON WORD BOUNDARIES, NOT AS A BARE SUBSTRING.
+   *
+   * `n.includes("thinkpad x1")` is TRUE for "Lenovo ThinkPad **X13** Gen 2",
+   * so an X13 resolved to the X1 Carbon SKU and got priced against a
+   * different, more expensive machine. Caught 2026-08-26 while testing the
+   * generative matcher; it had been live the whole time.
+   *
+   * Same family as the RTX-variant trap below, and the reason both exist is
+   * that model numbers are PREFIXES of each other constantly: x1/x13,
+   * 840/8400, t14/t14s, 5480/54801.
+   *
+   * `n` is already normalised to lowercase alphanumerics and single spaces, so
+   * padding both sides with a space turns `includes` into a whole-token test
+   * with no regex and no escaping. It stays permissive where it should:
+   * " iphone 15 pro max " still contains " iphone 15 ", so a longer title
+   * matching a shorter alias is unaffected.
+   *
+   * Longest alias still wins — "iphone 15 pro max" must beat "iphone 15".
+   */
+  const padded = ` ${n} `;
   const hits = aliasRows
-    .filter((r) => n.includes(r.alias))
+    .filter((r) => padded.includes(` ${r.alias} `))
     .sort((a, b) => b.alias.length - a.alias.length);
 
   /**
@@ -277,6 +298,46 @@ export function matchSku(title: string, description = "", categoryHint?: string)
       // medium; below 0.85 overlap it stays low and valuation refuses it.
       confidence: best.score >= 0.85 ? "medium" : "low", method: "token",
     };
+  }
+
+  /**
+   * --- 3. GENERATIVE FALLBACK. Parse a model rather than look one up.
+   *
+   * "Couldn't identify the exact model" is the single largest reason a listing
+   * cannot be priced — 132 of 267 on 2026-08-26 — and it does not respond to
+   * hand-written catalog rows. 39 laptop SKUs were added for the lines that
+   * recur most and the count went 125 -> 132. Used laptops are a long tail: 44
+   * unmatched titles spanned ~17 models, almost all seen once.
+   *
+   * So the catalog grows from what walks past instead. `parseModel` is
+   * deliberately strict and refuses far more than it accepts — see the safety
+   * rules in `derive.ts`, all four of which exist to stop untrusted seller text
+   * minting rows that then misprice real listings.
+   *
+   * **Confidence is MEDIUM, never high.** A derived SKU is a name parsed out of
+   * a title, not a product anyone has confirmed exists, and `valueSku` already
+   * refuses `low` — medium lets it price while keeping it below an alias hit if
+   * one ever appears for the same machine.
+   *
+   * The immediate effect is honesty even before comps exist: the verdict goes
+   * from "couldn't identify the exact model" to "no recent sold comps for this
+   * model", which is a true statement and puts the model in the queue the comps
+   * puller drains worst-first.
+   */
+  const derived = parseModel(title, categoryHint ?? null);
+  if (derived) {
+    try {
+      const { id } = findOrCreateSku(derived);
+      return {
+        ...base, skuId: id, brand: derived.brand, model: derived.model,
+        category: derived.category, liquidity: null,
+        confidence: "medium", method: "derived",
+      };
+    } catch (e) {
+      // A catalog write must never break a check. Falling through returns the
+      // same "no match" the engine handled before this existed.
+      console.error(`derive: could not create ${derived.model}: ${(e as Error).message}`);
+    }
   }
 
   return { ...base, skuId: null, brand: null, model: null, category: null, liquidity: null, confidence: "low", method: "none" };

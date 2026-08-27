@@ -72,7 +72,7 @@ const BULK_LISTING =
  * private listing reads the same way, and using it would delete real inventory.
  */
 const RESELLER_AD =
-  /\bup to \d+\s?(gb|tb)\b|\b(blowout|clearance)\b|\b(spring|summer|fall|winter|holiday|back to school)\b[^.]{0,24}\b(sale|deals?|special)\b|\b(laptop|computer|desktop|pc)\s+(deals?|blowout|sale)\b|\b(mobile workstations|business class laptops|touchscreens)\b/i;
+  /\bup to \d+\s?(gb|tb)\b|\b(blowout|clearance)\b|\b(spring|summer|fall|winter|holiday|back to school)\b[^.]{0,24}\b(sale|deals?|special)\b|\b(laptop|computer|desktop|pc)\s+(deals?|blowout|sale)\b|\b(laptops|desktops|workstations|tablets|ultrabooks|chromebooks|touchscreens)\b|\b\d+\s+units?\b/i;
 
 /** Reader-facing retailer names. "microcenter" is not how anyone says it. */
 const RETAILER_NAME: Record<string, string> = {

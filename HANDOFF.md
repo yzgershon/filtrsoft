@@ -1419,6 +1419,57 @@ you can buy at.
 
 ## 12. Live traps
 
+### The generative matcher — the catalog grows from what walks past
+
+`src/catalog/derive.ts`. Parses a model OUT of a listing title and mints the
+SKU, instead of a human enumerating models. Built after hand-adding 39 laptop
+SKUs moved "couldn't identify" by **125 -> 132**, i.e. not at all.
+
+Covers **laptops** (Dell Latitude/Precision/Vostro/OptiPlex/Inspiron/XPS, HP
+EliteBook/ProBook, Lenovo ThinkPad) and **GPUs**. GPUs are the better fit by
+far: every consumer card is `<family> <number> <variant?>`, which is a grammar
+rather than a list.
+
+Four safety rules, all load-bearing, because this writes catalog rows from
+untrusted seller text:
+
+1. A known LINE token is required — "Dell laptop" is a family, not a product.
+2. A DIGIT-BEARING model token is required, and only text AFTER the line name
+   is searched. Model numbers essentially never precede their line; spec
+   numbers do constantly ("15.6 inch Dell Latitude").
+3. Spec numbers are explicitly rejected as models: years, screen sizes,
+   capacities, bare generations.
+4. Reseller ads and multi-unit listings are refused outright.
+
+**Confidence is MEDIUM, never high.** A derived SKU is a name parsed from a
+title, not a product anyone confirmed. `source='derived'` on the row marks them
+for audit and for comps prioritisation.
+
+**The GPU variant is part of the model, never a suffix.** `RTX 4070 TI` is its
+own SKU — see the alias trap below for what happens otherwise.
+
+### ⚠⚠ AN ALIAS MUST MATCH ON WORD BOUNDARIES
+
+`n.includes("thinkpad x1")` is TRUE for "ThinkPad **X13** Gen 2", so an X13
+resolved to the X1 Carbon SKU and was priced as a different, more expensive
+machine. Live the whole time; found 2026-08-26 while testing the generative
+matcher.
+
+Model numbers are PREFIXES of each other constantly — x1/x13, 840/8400,
+t14/t14s. `n` is already normalised to lowercase alphanumerics and single
+spaces, so padding both sides with a space makes `includes` a whole-token test
+with no regex. Still permissive where it should be: " iphone 15 pro max "
+contains " iphone 15 ".
+
+### ⚠ The catalog had SKUs that were not products
+
+"Lenovo Thinkpad I5", "Dell XPS I5", "Apple Macbook Pro I7" — a line name plus
+a CPU, minted by `catalog:derive` from bad titles, all with zero comps. They
+actively caused wrong matches (ThinkPad X13 hit "Thinkpad I5" via token
+overlap). Deleted. **A model whose only distinguishing token is a spec is not a
+product** — check for this shape after any bulk catalog import.
+
+
 ### ⚠⚠ A RESELLER'S INVENTORY AD IS NOT A LISTING
 
 The largest single group inside "couldn't identify the model" was shops, not

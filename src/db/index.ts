@@ -76,7 +76,20 @@ const RETAIL_COLUMNS: Array<[string, string]> = [
   ["board_tier", "TEXT"],
 ];
 
+/**
+ * Where a SKU came from. `derived` means the generative matcher minted it from
+ * a listing title rather than a human writing it into `reference/catalog.ts`.
+ *
+ * Worth distinguishing: derived rows are the ones to audit if the catalog ever
+ * starts producing odd prices, and they are the ones a comps queue should
+ * prioritise, since a SKU nobody has pulled comps for cannot price anything.
+ */
+const SKU_COLUMNS: Array<[string, string]> = [
+  ["source", "TEXT"],
+];
+
 function migrate(d: Database) {
+  addColumns(d, "skus", SKU_COLUMNS);
   addColumns(d, "listings", LISTING_COLUMNS);
   addColumns(d, "vision_results", VISION_COLUMNS);
   addColumns(d, "retail_prices", RETAIL_COLUMNS);
