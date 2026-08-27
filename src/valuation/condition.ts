@@ -96,6 +96,43 @@ const PRIOR_BY_CATEGORY: Partial<Record<string, Partial<Record<Condition, number
   prebuilt: { new: 1.2, for_parts: 0.4 },    // a dead build is still a bag of working parts
 };
 
+/**
+ * Condition multipliers are archive-level statistics, not listing-level work.
+ *
+ * `valueSku()` adjusts every surviving comp into the listing's condition. Before
+ * this cache, each adjustment called `measuredMultiplier()`, which scanned the
+ * condition rows for all 18,603 comps again. A single RTX 5070 valuation could
+ * therefore run the same category aggregation hundreds of times, and re-scoring
+ * 936 stored listings took 21.5 seconds.
+ *
+ * Cache by category + condition and invalidate when the comp table gains a new
+ * row. Production imports comps before serving checks, and the browser comp
+ * collector is a separate process, so MAX(id) is the relevant live revision.
+ * The one-second revision throttle keeps the hot per-comp loop entirely in
+ * memory while still noticing an archive change promptly in a long-lived API.
+ */
+const measuredCache = new Map<string, number | null>();
+let measuredCacheRevision = -1;
+let measuredCacheCheckedAt = 0;
+
+function refreshMeasuredCache() {
+  const at = Date.now();
+  if (at - measuredCacheCheckedAt < 1000) return;
+  measuredCacheCheckedAt = at;
+  const revision = (db().query("SELECT COALESCE(MAX(id),0) n FROM comps").get() as { n: number }).n;
+  if (revision !== measuredCacheRevision) {
+    measuredCacheRevision = revision;
+    measuredCache.clear();
+  }
+}
+
+/** Explicit invalidation for maintenance code that edits existing comp rows. */
+export function clearMeasuredMultiplierCache() {
+  measuredCache.clear();
+  measuredCacheRevision = -1;
+  measuredCacheCheckedAt = 0;
+}
+
 export function priorMultiplier(category: string | null, c: Condition): number {
   return PRIOR_BY_CATEGORY[category ?? ""]?.[c] ?? PRIOR[c];
 }
@@ -111,6 +148,10 @@ export function priorMultiplier(category: string | null, c: Condition): number {
  */
 export function measuredMultiplier(category: string | null, c: Condition): number | null {
   if (c === "used") return 1;
+
+  refreshMeasuredCache();
+  const cacheKey = `${category ?? "*"}|${c}`;
+  if (measuredCache.has(cacheKey)) return measuredCache.get(cacheKey)!;
 
   /**
    * MEASURE WITHIN EACH SKU, THEN AGGREGATE. Never pool a category and divide.
@@ -160,8 +201,9 @@ export function measuredMultiplier(category: string | null, c: Condition): numbe
   }
 
   // Three SKUs minimum, so one model's odd spread cannot set a category's rate.
-  if (ratios.length < 3) return null;
-  return med(ratios);
+  const result = ratios.length < 3 ? null : med(ratios);
+  measuredCache.set(cacheKey, result);
+  return result;
 }
 
 /** Measured if the archive can support it, prior otherwise. */

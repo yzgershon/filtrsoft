@@ -1,0 +1,159 @@
+import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { parseModel } from "../src/catalog/derive.ts";
+import { resolveCategory, resolveProductType } from "../src/signals/product-type.ts";
+import { variantPattern } from "../src/signals/variants.ts";
+import {
+  compMatchesQuery,
+  findCondition,
+  parseMoney,
+  parseSoldDate,
+  parseSoldRow,
+  parseShipping,
+} from "../src/sources/ebay.ts";
+import { parseCards } from "../src/sources/marketplace.ts";
+import { parseBestBuy, parseMicroCenter, parseNewegg } from "../src/sources/retail.ts";
+import { normalizeCondition } from "../src/valuation/condition.ts";
+import { storageOf } from "../src/valuation/index.ts";
+
+describe("product grammar", () => {
+  test.each([
+    ["Dell Precision 5760 + Charger", "tech", "laptop"],
+    ["HP XL 17 Laptop Bag", "accessory", "laptop"],
+    ["Lenovo P50 Mobile Workstation Laptop", "tech", "laptop"],
+    ["Apple iMac A1312 with keyboard and mouse", "tech", "prebuilt"],
+    ["Glass and Metal Computer Table", "furniture", null],
+  ])("classifies %s", (title, kind, category) => {
+    expect(resolveProductType(title).kind).toBe(kind);
+    expect(resolveCategory(title)).toBe(category);
+  });
+
+  test("does not let a trailing component retype a whole laptop", () => {
+    expect(resolveCategory("HP EliteBook 840 Laptop i5 8GB RAM 256GB SSD")).toBe("laptop");
+  });
+});
+
+describe("generative catalog parser", () => {
+  test.each([
+    ["Dell Latitude 7420 i7 32GB", "laptop", "Dell", "Latitude 7420"],
+    ["HP EliteBook 840 G6 Laptop", "laptop", "HP", "EliteBook 840 G6"],
+    ["Lenovo ThinkPad T14s Gen 2", "laptop", "Lenovo", "ThinkPad T14S"],
+    ["ASUS RTX 4070 Ti GPU", "gpu", "NVIDIA", "RTX 4070 TI"],
+    ["Apple iMac A1312 27 inch", "prebuilt", "Apple", "iMac A1312"],
+  ])("derives %s", (title, category, brand, model) => {
+    expect(parseModel(title, category)).toMatchObject({ category, brand, model });
+  });
+
+  test.each([
+    "Dell laptop 15.6 inch 2024",
+    "Spring Laptop Blowout Sale!",
+    "24 laptops for sale starting at $30",
+  ])("refuses an unsafe catalog row from %s", (title) => {
+    expect(parseModel(title, resolveCategory(title))).toBeNull();
+  });
+});
+
+describe("eBay sold parser", () => {
+  test("parses money and keeps free shipping distinct from unknown shipping", () => {
+    expect(parseMoney("US $1,234.56 to $1,400.00")).toBe(123456);
+    expect(parseShipping(["Free shipping"])).toBe(0);
+    expect(parseShipping(["No delivery details"])).toBeNull();
+  });
+
+  test("assigns the current year to a sold date that omits it", () => {
+    const now = Date.parse("2026-08-27T12:00:00Z");
+    expect(parseSoldDate(["Sold Aug 20"], now)).toBe("2026-08-20T00:00:00.000Z");
+    expect(parseSoldDate(["Sold Dec 20"], now)).toBe("2025-12-20T00:00:00.000Z");
+  });
+
+  test("does not read NEW LISTING as the item's condition", () => {
+    expect(findCondition(["NEW LISTINGApple iPhone 15", "Used · Apple iPhone 15"])).toBe("Used");
+    expect(normalizeCondition("for_parts")).toBe("for_parts");
+  });
+
+  test("prefers the anchor title over seller feedback", () => {
+    expect(parseSoldRow({
+      href: "https://www.ebay.com/itm/123456789012",
+      title: "Apple iPhone 15 128GB Unlocked",
+      text: ["tspence007 100% positive (41)", "$499.00", "Free shipping", "Used", "Sold Aug 20"],
+      img: null,
+    }, Date.parse("2026-08-27T12:00:00Z"))).toMatchObject({
+      sourceItemId: "123456789012",
+      title: "Apple iPhone 15 128GB Unlocked",
+      soldPriceCents: 49900,
+      shippingCents: 0,
+      conditionNorm: "used",
+    });
+  });
+
+  test("rejects a materially different variant", () => {
+    expect(compMatchesQuery("ASUS RTX 3080 Ti Graphics Card", "NVIDIA RTX 3080 graphics card", "gpu")).toEqual({
+      ok: false,
+      why: 'title is the "ti" variant, which the query did not ask for',
+    });
+    expect("RTX 4070 Super".match(variantPattern("gpu"))).toContain("Super");
+  });
+});
+
+describe("attribute parsing", () => {
+  test.each([
+    ["Dell XPS 16GB RAM 512GB SSD", 512],
+    ["MacBook Air M3 8GB 256GB SSD", 256],
+    ["Gaming PC 32GB DDR5 1TB NVMe", 1024],
+    ["Laptop with 32GB RAM", null],
+  ])("extracts storage from %s", (title, storage) => {
+    expect(storageOf(title)).toBe(storage);
+  });
+});
+
+describe("marketplace card parser", () => {
+  test("uses the final OfferUp path segment and pipe-delimited fields", () => {
+    expect(parseCards("offerup", [{
+      href: "/item/detail/4dd3eb84-ef77-41e5-a210-123456789abc",
+      text: "White Custom Gaming PC Build | $1,400 | Salem, MA | Local pickup",
+    }])).toEqual([expect.objectContaining({
+      sourceId: "4dd3eb84-ef77-41e5-a210-123456789abc",
+      title: "White Custom Gaming PC Build",
+      priceCents: 140000,
+      location: "Salem, MA",
+      shipped: false,
+    })]);
+  });
+});
+
+describe("captured retail fixtures", () => {
+  const fixture = (name: string): string[] => {
+    const data = JSON.parse(
+      readFileSync(join(import.meta.dir, "..", "docs", "testset", `${name}-lines.json`), "utf8"),
+    ) as string[] | Record<string, string[]>;
+    return Array.isArray(data) ? data : Object.values(data).flat();
+  };
+
+  test("Best Buy fixture keeps financing-only phones at zero and unavailable", () => {
+    const offers = parseBestBuy(fixture("bestbuy"));
+    expect(offers).toHaveLength(194);
+    expect(offers.find((o) => o.title.includes("iPhone 15 128GB - Blue (Verizon)"))).toMatchObject({
+      priceCents: 0,
+      financedOnly: true,
+      available: false,
+    });
+  });
+
+  test("Newegg fixture takes the current card price", () => {
+    const offers = parseNewegg(fixture("newegg"));
+    expect(offers).toHaveLength(188);
+    expect(offers.find((o) => o.title.includes("GV-N5070WF3OC-12GD"))?.priceCents).toBe(79999);
+  });
+
+  test("Micro Center fixture keeps Cambridge stock and current price", () => {
+    const offers = parseMicroCenter(fixture("microcenter"));
+    expect(offers).toHaveLength(117);
+    expect(offers.find((o) => o.title.includes("RTX 5090 Gaming OC"))).toMatchObject({
+      priceCents: 439999,
+      stockCount: 9,
+      available: true,
+    });
+  });
+});

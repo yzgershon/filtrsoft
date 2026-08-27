@@ -3,7 +3,7 @@
 **Master plan AND current state. Update before you stop working.** A stale line
 here is worse than a missing one, because a fresh session will believe it.
 
-Last updated **2026-08-26**.
+Last updated **2026-08-27**.
 
 ---
 
@@ -1418,6 +1418,35 @@ you can buy at.
 ---
 
 ## 12. Live traps
+
+### ⚠ ARCHIVE-LEVEL STATISTICS DO NOT BELONG INSIDE A PER-COMP LOOP
+
+`valueSku()` adjusts every surviving comp into the target condition. Each
+adjustment called `measuredMultiplier()`, and that function scanned condition
+rows across the full **18,603-comp archive**. An RTX 5070 valuation could repeat
+the same category aggregation once per comp; 100 valuations did not finish in
+30 seconds.
+
+The multiplier is now cached by category + condition and invalidated when the
+comp table's max id changes. Re-scoring all **936 listings fell from 21.5s to
+1.87s (11.5x faster)** with the exact same distribution:
+553 OUT_OF_SCOPE · 268 INSUFFICIENT_DATA · 95 PASS · 11 FAIR · 6 VERIFY ·
+2 BUY · 1 RISK.
+
+### ⚠ A SOLD DATE IS A UTC CALENDAR DATE, NOT THE SERVER'S LOCAL MIDNIGHT
+
+`Date.parse("Aug 20, 2026")` produced `04:00Z` on Yish's Windows/Eastern box
+and `00:00Z` in the Railway Linux/UTC container. The day stayed the same, so it
+looked harmless, but a parser fixture did not have one stable answer across the
+two runtimes. eBay exposes a sold DATE, not a local time; append `UTC` explicitly
+for both year-bearing and inferred-year dates.
+
+### Regression suite started 2026-08-27
+
+`bun test`: **27 pure-function tests / 40 assertions** covering product grammar,
+generative model parsing, eBay money/date/condition/variant gates, storage
+extraction, OfferUp card boundaries, and all three committed retail fixtures.
+The suite spends nothing and opens no browser.
 
 ### ⚠⚠ THE HEAD NOUN DECIDES **WHEN THERE IS ONE** — otherwise use the title
 

@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Tells you what a used tech listing is really worth and what's wrong with it, before you drive.",
   "scripts": {
+    "test": "bun test",
     "seed": "bun run src/scripts/seed.ts",
     "stats": "bun run src/scripts/stats.ts",
     "ingest": "bun run src/scripts/ingest.ts",

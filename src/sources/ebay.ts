@@ -80,7 +80,10 @@ export function parseSoldDate(lines: string[], nowMs = Date.now()): string | nul
    * this would have quietly discarded the freshest and most valuable comps.
    */
   if (/\b(19|20)\d{2}\b/.test(cleaned)) {
-    const t = Date.parse(cleaned);
+    // eBay gives a calendar date, not a local time. Parse it at UTC midnight so
+    // the same captured line does not become 00:00 in production (Linux/UTC)
+    // and 04:00 locally (Windows/Eastern).
+    const t = Date.parse(`${cleaned} UTC`);
     if (!Number.isNaN(t)) return new Date(t).toISOString();
   }
 
@@ -88,10 +91,10 @@ export function parseSoldDate(lines: string[], nowMs = Date.now()): string | nul
   const md = cleaned.match(/^([A-Za-z]{3,9})\.?\s+(\d{1,2})$/);
   if (md) {
     const year = new Date(nowMs).getUTCFullYear();
-    const p = Date.parse(`${md[1]} ${md[2]}, ${year}`);
+    const p = Date.parse(`${md[1]} ${md[2]}, ${year} UTC`);
     if (!Number.isNaN(p)) {
       // A date in the future means eBay meant last year.
-      const d = p > nowMs ? Date.parse(`${md[1]} ${md[2]}, ${year - 1}`) : p;
+      const d = p > nowMs ? Date.parse(`${md[1]} ${md[2]}, ${year - 1} UTC`) : p;
       return new Date(d).toISOString();
     }
   }
