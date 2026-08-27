@@ -24,6 +24,7 @@
  */
 import type { Context } from "hono";
 import { db, now } from "../db/index.ts";
+import { upsertListingFacts } from "../db/listings.ts";
 import { storeVerdict } from "../db/verdicts.ts";
 import { checkStored, ENGINE_VERSION } from "../engine/index.ts";
 
@@ -53,24 +54,6 @@ export function ingestPushed(listings: PushListing[]): PushResult {
   const d = db();
   const res: PushResult = { received: listings.length, inserted: 0, updated: 0, scored: 0, calls: {} };
 
-  const findId = d.query(`SELECT id FROM listings WHERE source=$s AND source_id=$sid`);
-  const ins = d.query(
-    `INSERT INTO listings (source, source_id, url, title, description, asking_price_cents,
-        location, posted_at, updated_at, captured_at, photo_count, seller_ref, raw_json, last_seen)
-     VALUES ($s,$sid,$url,$t,$desc,$price,$loc,$posted,$now,$now,$pc,$seller,$raw,$now)`,
-  );
-  /**
-   * An existing listing is UPDATED, not skipped. A re-push is how a price drop
-   * arrives — and a price drop is the single most actionable event in this
-   * whole system, so treating a known id as "nothing to do" would throw away
-   * the best signal the crawler produces.
-   */
-  const upd = d.query(
-    `UPDATE listings SET title=$t, description=$desc, asking_price_cents=$price,
-        location=$loc, updated_at=$now, last_seen=$now, photo_count=$pc,
-        last_price_cents=asking_price_cents, delisted_at=NULL, delist_reason=NULL
-      WHERE id=$id`,
-  );
   const delPhotos = d.query(`DELETE FROM listing_photos WHERE listing_id=$id`);
   const insPhoto = d.query(
     `INSERT INTO listing_photos (listing_id, url, position, captured_at)
@@ -80,30 +63,31 @@ export function ingestPushed(listings: PushListing[]): PushResult {
   d.transaction(() => {
     for (const l of listings) {
       if (!l.sourceId || !l.url || !l.title) continue;
-      const p = {
-        $s: l.source, $sid: l.sourceId, $url: l.url, $t: l.title,
-        $desc: l.description ?? "", $price: l.askingPriceCents,
-        $loc: l.location, $posted: l.postedAt, $now: now(),
-        $pc: l.photoUrls?.length ?? 0, $seller: l.sellerRef,
-        $raw: JSON.stringify(l.raw ?? {}),
-      };
-      const existing = findId.get({ $s: l.source, $sid: l.sourceId }) as { id: number } | null;
-      let id: number;
-      if (existing) {
-        upd.run({ ...p, $id: existing.id });
-        id = existing.id;
-        res.updated++;
-      } else {
-        ins.run(p);
-        id = (findId.get({ $s: l.source, $sid: l.sourceId }) as { id: number }).id;
-        res.inserted++;
-      }
-      if (l.photoUrls?.length) {
-        delPhotos.run({ $id: id });
-        l.photoUrls.slice(0, 24).forEach((u, i) =>
-          insPhoto.run({ $lid: id, $url: u, $pos: i, $now: now() }));
-      }
-      ids.push(id);
+      const photoUrls = [...new Set(l.photoUrls ?? [])];
+      const at = now();
+      const stored = upsertListingFacts(d, {
+        source: l.source,
+        sourceId: l.sourceId,
+        url: l.url,
+        title: l.title,
+        description: l.description ?? "",
+        askingPriceCents: l.askingPriceCents,
+        location: l.location,
+        postedAt: l.postedAt,
+        updatedAt: null,
+        photoCount: photoUrls.length,
+        sellerRef: l.sellerRef,
+        raw: l.raw,
+      }, at);
+      if (stored.inserted) res.inserted++;
+      else res.updated++;
+
+      // Replace even when the new set is empty. Keeping yesterday's thumbnails
+      // after a seller removes every photo is stale evidence, not a cache.
+      delPhotos.run({ $id: stored.id });
+      photoUrls.forEach((u, i) =>
+        insPhoto.run({ $lid: stored.id, $url: u, $pos: i, $now: at }));
+      ids.push(stored.id);
     }
   })();
 

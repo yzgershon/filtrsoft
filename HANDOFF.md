@@ -2027,6 +2027,41 @@ components are actually worth (GPU 42%, CPU 22%).
 - **Verdicts are RELATIVE TO THE USER.**
 - **Never ask a user for Facebook or eBay credentials.**
 
+### ⚠ A refresh is an observation, not a new capture
+The engine and authenticated push endpoint used different listing upserts. The
+engine reset `captured_at` every time vision revisited a listing, while the push
+endpoint changed only three fields. That destroyed the first-observed baseline,
+left titles/descriptions/photo sets stale, and never wrote pushed price moves to
+`listing_prices`. A shared `upsertListingFacts` now preserves `captured_at`,
+updates every current fact, normalises zero prices to NULL, and writes one price
+event only when a positive price actually changes.
+
+### ⚠ Background photo cleanup can race the download that creates the file
+Text-only checks launched `persistPhotos()` without awaiting it, then immediately
+called `releasePhotos()` and nulled `local_path`. The async download could create
+the directory *after* cleanup; its `.then()` removed bytes eventually but left
+the database path behind. Measured locally: the photo directory was empty while
+**666 `listing_photos.local_path` values still claimed files existed**.
+
+Text-only hashing now fetches bytes in memory and never writes the volume. Jobs
+for the same listing are serialised so a later paid pass cannot replace rows
+while an old hash job is finishing. The paid path owns its files inside a
+`try/finally`, so API, parser and database failures all release them and clear
+the paths. The daily prune remains a crash backstop, not normal cleanup.
+
+### ⚠ A missing `vision` option must mean free
+`checkFetched()` treated `undefined` as vision ON. `marketplace-crawl` omitted
+the option, so a supposedly text-only card crawl could call Anthropic for every
+persisted listing. Paid vision is now strict opt-in (`vision === true`); only the
+guarded API and dedicated candidate pass request it. Engine **0.3.17** carries
+this behavioural change.
+
+### ⚠ Never truncate an authenticated push's photo set
+The push endpoint kept only the first 24 URLs even though the risk model's core
+rule is every photo, every time. It also retained yesterday's photos when the
+new set was empty. Push now de-duplicates exact URLs, stores all of them, and
+replaces the old set even with an empty set.
+
 ---
 
 ## 13. Decisions the maintainer made — do not re-litigate

@@ -18,7 +18,109 @@ import { parseCards } from "../src/sources/marketplace.ts";
 import { parseBestBuy, parseMicroCenter, parseNewegg } from "../src/sources/retail.ts";
 import { normalizeCondition } from "../src/valuation/condition.ts";
 import { storageOf } from "../src/valuation/index.ts";
+import { upsertListingFacts } from "../src/db/listings.ts";
 import { storeVerdictWithDb } from "../src/db/verdicts.ts";
+
+describe("listing fact persistence", () => {
+  test("preserves first capture and records a pushed price drop once", () => {
+    const db = new Database(":memory:");
+    db.run(`CREATE TABLE listings (
+      id INTEGER PRIMARY KEY,
+      source TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      url TEXT NOT NULL,
+      title TEXT,
+      description TEXT,
+      asking_price_cents INTEGER,
+      location TEXT,
+      posted_at TEXT,
+      updated_at TEXT,
+      captured_at TEXT NOT NULL,
+      photo_count INTEGER,
+      seller_ref TEXT,
+      raw_json TEXT,
+      last_seen TEXT,
+      last_price_cents INTEGER,
+      delisted_at TEXT,
+      delist_reason TEXT,
+      UNIQUE(source, source_id)
+    )`);
+    db.run(`CREATE TABLE listing_prices (
+      id INTEGER PRIMARY KEY,
+      listing_id INTEGER NOT NULL,
+      price_cents INTEGER NOT NULL,
+      observed_at TEXT NOT NULL
+    )`);
+    const base = {
+      source: "facebook",
+      sourceId: "abc",
+      url: "https://example.test/abc",
+      title: "RTX 4090",
+      description: "original",
+      askingPriceCents: 180000,
+      location: "Newton, MA",
+      postedAt: "2026-08-25T00:00:00.000Z",
+      photoCount: 2,
+      sellerRef: "seller-1",
+      raw: { pass: 1 },
+    };
+    const first = upsertListingFacts(db, base, "2026-08-26T00:00:00.000Z");
+    expect(first.inserted).toBe(true);
+
+    const updated = {
+      ...base,
+      title: "RTX 4090 Founders Edition",
+      description: "updated",
+      askingPriceCents: 150000,
+      photoCount: 3,
+      raw: { pass: 2 },
+    };
+    const second = upsertListingFacts(db, updated, "2026-08-27T00:00:00.000Z");
+    expect(second).toEqual({ id: first.id, inserted: false });
+    // A repeated observation at the same price is not another history event.
+    upsertListingFacts(db, updated, "2026-08-27T01:00:00.000Z");
+
+    expect(db.query(`SELECT title, description, asking_price_cents, captured_at,
+      photo_count, last_price_cents FROM listings`).get()).toEqual({
+      title: "RTX 4090 Founders Edition",
+      description: "updated",
+      asking_price_cents: 150000,
+      captured_at: "2026-08-26T00:00:00.000Z",
+      photo_count: 3,
+      last_price_cents: 150000,
+    });
+    expect(db.query("SELECT price_cents FROM listing_prices ORDER BY id").all()).toEqual([
+      { price_cents: 180000 },
+      { price_cents: 150000 },
+    ]);
+    db.close();
+  });
+
+  test("normalises a parsed zero to no price", () => {
+    const db = new Database(":memory:");
+    db.run(`CREATE TABLE listings (
+      id INTEGER PRIMARY KEY, source TEXT, source_id TEXT, url TEXT, title TEXT,
+      description TEXT, asking_price_cents INTEGER, location TEXT, posted_at TEXT,
+      updated_at TEXT, captured_at TEXT, photo_count INTEGER, seller_ref TEXT,
+      raw_json TEXT, last_seen TEXT, last_price_cents INTEGER, delisted_at TEXT,
+      delist_reason TEXT, UNIQUE(source, source_id)
+    )`);
+    db.run(`CREATE TABLE listing_prices (
+      id INTEGER PRIMARY KEY, listing_id INTEGER, price_cents INTEGER, observed_at TEXT
+    )`);
+    upsertListingFacts(db, {
+      source: "craigslist", sourceId: "zero", url: "https://example.test/zero",
+      title: "No price", description: "", askingPriceCents: 0, location: null,
+      postedAt: null, photoCount: 0,
+    }, "2026-08-27T00:00:00.000Z");
+    expect(db.query("SELECT asking_price_cents,last_price_cents FROM listings").get()).toEqual({
+      asking_price_cents: null,
+      last_price_cents: null,
+    });
+    expect(db.query("SELECT COUNT(*) n FROM listing_prices").get()).toEqual({ n: 0 });
+    db.close();
+  });
+});
 
 describe("verdict retention", () => {
   test("refreshes an unchanged answer and appends only a real transition", () => {

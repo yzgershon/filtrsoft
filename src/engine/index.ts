@@ -18,9 +18,10 @@ import { buildVerdict, type VerdictResult } from "../verdict/index.ts";
 import { loadVision, loadVisionByFingerprint, photoFingerprint, photosUnchanged, visionToText, visionSignals } from "../vision/merge.ts";
 import { analyzePhotos, VISION_MODEL, PROMPT_VERSION, type VisionResult } from "../vision/index.ts";
 import { releasePhotos, KEEP_PHOTOS } from "../photos/index.ts";
-import { downloadPhoto, dhash } from "../photos/index.ts";
+import { downloadPhoto, fetchPhoto, dhash } from "../photos/index.ts";
 import { getEconomics, type UserEconomics } from "../valuation/index.ts";
 import { db, now } from "../db/index.ts";
+import { upsertListingFacts } from "../db/listings.ts";
 import { storeVerdict } from "../db/verdicts.ts";
 import type { RawListing, Signal, SignalReport } from "../types.ts";
 
@@ -46,9 +47,9 @@ export interface CheckOptions {
   econ?: UserEconomics;
   driveMinutes?: number;
   /**
-   * Read the photos. ON by default — reading the photos IS the product. Sellers
-   * routinely put the entire spec sheet in an image and never type it, which is
-   * exactly the case that separates this from a price lookup.
+   * Read the photos with the paid model. OFF by default: callers must opt in.
+   * The dedicated vision pass does that only for candidates where photos can
+   * change an answer.
    *
    * It's slow on a cold listing, which is why the pipeline streams: the text
    * verdict lands in ~200ms and vision refines it when it arrives.
@@ -115,26 +116,22 @@ function clusterSize(seller: string | null | undefined): number | undefined {
 }
 
 function persistListing(l: RawListing): number {
-  const row = db()
-    .query(
-      `INSERT INTO listings (source, source_id, url, title, description, asking_price_cents,
-         location, posted_at, updated_at, captured_at, photo_count, seller_ref, raw_json)
-       VALUES ($src,$sid,$url,$title,$desc,$price,$loc,$posted,$updated,$cap,$photos,$seller,$raw)
-       ON CONFLICT(source, source_id) DO UPDATE SET
-         updated_at=excluded.updated_at, captured_at=excluded.captured_at,
-         asking_price_cents=excluded.asking_price_cents
-       RETURNING id`,
-    )
-    .get({
-      $src: l.source, $sid: l.sourceId, $url: l.url, $title: l.title,
-      $desc: l.description, $price: l.askingPriceCents, $loc: l.location,
-      $posted: l.postedAt, $updated: l.updatedAt, $cap: now(),
-      $photos: l.photoUrls.length, $seller: null, $raw: JSON.stringify(l.raw),
-    }) as { id: number };
-  return row.id;
+  return upsertListingFacts(db(), {
+    source: l.source,
+    sourceId: l.sourceId,
+    url: l.url,
+    title: l.title,
+    description: l.description,
+    askingPriceCents: l.askingPriceCents,
+    location: l.location,
+    postedAt: l.postedAt,
+    updatedAt: l.updatedAt,
+    photoCount: l.photoUrls.length,
+    raw: l.raw,
+  }).id;
 }
 
-async function persistPhotos(listingId: number, urls: string[]) {
+async function persistPhotos(listingId: number, urls: string[], keepFiles: boolean) {
   const d = db();
   d.query("DELETE FROM listing_photos WHERE listing_id=$id").run({ $id: listingId });
   const ins = d.query(
@@ -144,12 +141,43 @@ async function persistPhotos(listingId: number, urls: string[]) {
   for (const [i, u] of urls.entries()) {
     let path: string | null = null, phash: string | null = null;
     try {
-      const got = await downloadPhoto(u, listingId, i);
+      const got = keepFiles
+        ? await downloadPhoto(u, listingId, i)
+        : { path: null, buf: await fetchPhoto(u) };
       path = got.path;
       phash = await dhash(got.buf);
     } catch { /* a dead image URL must not kill the check */ }
     ins.run({ $lid: listingId, $url: u, $path: path, $phash: phash, $pos: i, $cap: now() });
   }
+}
+
+/**
+ * Text-only checks hash in the background without writing a byte to the volume.
+ * Serialise jobs per listing so a paid vision revisit cannot race a stale hash
+ * job that deletes and replaces the same `listing_photos` rows.
+ */
+const photoHashJobs = new Map<number, Promise<void>>();
+
+function queuePhotoHashes(listingId: number, urls: string[]): Promise<void> {
+  const prior = photoHashJobs.get(listingId) ?? Promise.resolve();
+  const task = prior
+    .catch(() => {})
+    .then(() => persistPhotos(listingId, urls, false))
+    .finally(() => {
+      if (photoHashJobs.get(listingId) === task) photoHashJobs.delete(listingId);
+    });
+  photoHashJobs.set(listingId, task);
+  return task;
+}
+
+async function waitForPhotoHashes(listingId: number) {
+  await photoHashJobs.get(listingId)?.catch(() => {});
+}
+
+function clearLocalPhotoPaths(listingId: number) {
+  releasePhotos(listingId);
+  db().query("UPDATE listing_photos SET local_path=NULL WHERE listing_id=$id")
+    .run({ $id: listingId });
 }
 
 /**
@@ -203,7 +231,8 @@ export async function checkFetched(listing: RawListing, opts: CheckOptions = {})
   // Cache first. A listing analysed before is instant, and popular listings get
   // checked repeatedly by different people. Without this, every check re-pays
   // the full cost and the full wait for photos that haven't changed.
-  const wantVision = opts.vision !== false;
+  // Paid work is opt-in at every caller. A missing option must never spend.
+  const wantVision = opts.vision === true;
   let vision: VisionResult | null = null;
 
   /**
@@ -227,81 +256,63 @@ export async function checkFetched(listing: RawListing, opts: CheckOptions = {})
 
   if (wantVision && listingId && !vision) {
     emit("vision_start", { photoCount: listing.photoUrls.length });
-    await persistPhotos(listingId, listing.photoUrls);
+    // A text-only drain may still be hashing these URLs in memory. Let it finish
+    // before this pass replaces the same rows with file-backed copies.
+    await waitForPhotoHashes(listingId);
+    try {
+      await persistPhotos(listingId, listing.photoUrls, true);
 
-    /**
-     * TIER 2 — these exact PHOTOS have been analysed before, on any listing.
-     *
-     * Catches the two cases the listing-id key cannot: a seller reposting the
-     * same item next week, and two different sellers using the same stock or
-     * stolen photos. Both pay full price under the old key.
-     */
-    const fp = photoFingerprint(listingId);
-    if (fp) {
-      const hit = loadVisionByFingerprint(fp, VISION_MODEL, PROMPT_VERSION);
-      if (hit) {
-        vision = hit;
-        // Record the reuse against THIS listing at zero cost, so the cache hit
-        // is visible in the archive rather than looking like it never ran.
-        db().query(
-          `INSERT INTO vision_results (listing_id, model, payload, duration_ms, created_at, cost_micros, photo_fingerprint, prompt_version)
-           VALUES ($lid,$model,$p,0,$now,0,$fp,$pv)`,
-        ).run({ $lid: listingId, $model: VISION_MODEL, $p: JSON.stringify(hit), $now: now(), $fp: fp, $pv: PROMPT_VERSION });
-        out = runPipeline(listing, vision, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster });
-        emit("vision", { vision, verdict: out.verdict, cached: "photos" });
+      /**
+       * TIER 2 — these exact PHOTOS have been analysed before, on any listing.
+       *
+       * Catches the two cases the listing-id key cannot: a seller reposting the
+       * same item next week, and two different sellers using the same stock or
+       * stolen photos. Both pay full price under the old key.
+       */
+      const fp = photoFingerprint(listingId);
+      if (fp) {
+        const hit = loadVisionByFingerprint(fp, VISION_MODEL, PROMPT_VERSION);
+        if (hit) {
+          vision = hit;
+          // Record the reuse against THIS listing at zero cost, so the cache hit
+          // is visible in the archive rather than looking like it never ran.
+          db().query(
+            `INSERT INTO vision_results (listing_id, model, payload, duration_ms, created_at, cost_micros, photo_fingerprint, prompt_version)
+             VALUES ($lid,$model,$p,0,$now,0,$fp,$pv)`,
+          ).run({ $lid: listingId, $model: VISION_MODEL, $p: JSON.stringify(hit), $now: now(), $fp: fp, $pv: PROMPT_VERSION });
+          out = runPipeline(listing, vision, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster });
+          emit("vision", { vision, verdict: out.verdict, cached: "photos" });
+        }
       }
-    }
 
-    if (!vision) {
-      vision = await analyzePhotos(listingId);
-      if (vision) {
-        db().query(
-          `INSERT INTO vision_results (listing_id, model, payload, duration_ms, created_at, cost_micros, photo_fingerprint, prompt_version)
-           VALUES ($lid,$model,$p,$ms,$now,$cost,$fp,$pv)`,
-        ).run({
-          $lid: listingId, $model: vision.model ?? VISION_MODEL, $p: JSON.stringify(vision),
-          $ms: vision.usage?.ms ?? since(), $now: now(),
-          // Micros, integer. The daily spend guard sums these and float drift in
-          // a money guard is how a cap stops matching reality.
-          $cost: Math.round((vision.usage?.costUsd ?? 0) * 1e6),
-          $fp: fp, $pv: PROMPT_VERSION,
-        });
-        out = runPipeline(listing, vision, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster });
-        emit("vision", { vision, verdict: out.verdict, cached: false });
+      if (!vision) {
+        vision = await analyzePhotos(listingId);
+        if (vision) {
+          db().query(
+            `INSERT INTO vision_results (listing_id, model, payload, duration_ms, created_at, cost_micros, photo_fingerprint, prompt_version)
+             VALUES ($lid,$model,$p,$ms,$now,$cost,$fp,$pv)`,
+          ).run({
+            $lid: listingId, $model: vision.model ?? VISION_MODEL, $p: JSON.stringify(vision),
+            $ms: vision.usage?.ms ?? since(), $now: now(),
+            // Micros, integer. The daily spend guard sums these and float drift in
+            // a money guard is how a cap stops matching reality.
+            $cost: Math.round((vision.usage?.costUsd ?? 0) * 1e6),
+            $fp: fp, $pv: PROMPT_VERSION,
+          });
+          out = runPipeline(listing, vision, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster });
+          emit("vision", { vision, verdict: out.verdict, cached: false });
+        }
       }
+    } finally {
+      // This runs on API errors, parser errors and database errors alike. The
+      // daily prune is a crash backstop, not the normal retention policy.
+      if (!KEEP_PHOTOS) clearLocalPhotoPaths(listingId);
     }
   } else if (opts.persist && listingId && !wantVision) {
     // Photos are wanted for the phash index and any later vision run, but they
     // are NOT on the critical path when vision is off. Blocking on them added
     // ~1.1s to a response that was otherwise complete at 163ms.
-    const id = listingId;
-    void persistPhotos(id, listing.photoUrls)
-      // The hash is the durable artefact; the file is scratch. Release as soon
-      // as the hash exists, not on some later schedule.
-      .then(() => { releasePhotos(id); })
-      .catch(() => {});
-  }
-
-  /**
-   * RELEASE THE DOWNLOADED PHOTOS. See `photos/index.ts` retention notes.
-   *
-   * By here the bytes have done both jobs they exist for — the perceptual hash
-   * is stored and vision has read the files — and nothing in the codebase ever
-   * opens them again. `local_path` is written to `listing_photos` and never
-   * read back; the feed thumbnail and every link use the SOURCE url.
-   *
-   * Keeping them cost 316 MB per ~650 listings on the same volume as the
-   * database, and when it filled, WRITES failed while reads kept working: the
-   * site served normally for 13 hours with a dead crawler, no sweep and an
-   * archive that could not import.
-   *
-   * `local_path` is nulled in the same breath so the column never points at a
-   * file that is gone.
-   */
-  if (listingId && !KEEP_PHOTOS) {
-    releasePhotos(listingId);
-    db().query("UPDATE listing_photos SET local_path=NULL WHERE listing_id=$id")
-      .run({ $id: listingId });
+    void queuePhotoHashes(listingId, listing.photoUrls).catch(() => {});
   }
 
   if (listingId) {
@@ -360,6 +371,7 @@ export function checkStored(
  * 0.3.6 — storage extraction no longer reads RAM as the drive capacity.
  * 0.3.7 — counterfeit detection: a clone is a blocker, not a discount.
  * 0.3.8 — bulk-listing pattern catches plural "laptops for sale".
+ * 0.3.17 — refreshed facts preserve first capture and paid vision is opt-in.
  *
  * 0.3.6 is also the reminder that this list is not a changelog. The storage
  * fix shipped WITHOUT a bump and production kept serving the old verdicts,
@@ -367,4 +379,4 @@ export function checkStored(
  * the current version. Exactly the failure this constant was made load-bearing
  * to prevent, two days after writing that down.
  */
-export const ENGINE_VERSION = "0.3.16";
+export const ENGINE_VERSION = "0.3.17";

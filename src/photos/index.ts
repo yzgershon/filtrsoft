@@ -78,11 +78,16 @@ export async function downloadPhoto(url: string, listingId: number, pos: number)
   const dir = join(PHOTO_DIR, String(listingId));
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   const path = join(dir, `p${pos}.jpg`);
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`photo ${res.status}`);
-  const buf = Buffer.from(await res.arrayBuffer());
+  const buf = await fetchPhoto(url);
   await Bun.write(path, buf);
   return { path, buf };
+}
+
+/** Download bytes without touching the volume. Used by the text-only hash pass. */
+export async function fetchPhoto(url: string): Promise<Buffer> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`photo ${res.status}`);
+  return Buffer.from(await res.arrayBuffer());
 }
 
 /**
