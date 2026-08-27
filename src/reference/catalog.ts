@@ -74,6 +74,64 @@ export const CATALOG: SeedSku[] = [
   { category: "laptop", brand: "Dell", model: "XPS 15 9520", liquidity: "normal" },
   { category: "laptop", brand: "Lenovo", model: "ThinkPad X1 Carbon", liquidity: "slow" },
 
+  /**
+   * ---- USED BUSINESS LAPTOPS ----
+   *
+   * The largest single bucket in "couldn't identify the model", and the shape
+   * of the problem is different from GPUs: measured over the live feed, 44
+   * unmatched laptops spanned ~17 distinct models, **almost all appearing once
+   * or twice.** Used laptops are a LONG TAIL, so enumerating SKUs fixes the
+   * seventeen you saw and not the seventeen you get next week.
+   *
+   * What is worth enumerating is the LINES that recur — Latitude, ThinkPad,
+   * EliteBook, XPS are the bulk of the off-lease market and the same model
+   * numbers come back repeatedly. The genuine tail needs a generative matcher,
+   * not more rows here; see next actions.
+   *
+   * `matchSku` requires every DIGIT-BEARING token to appear in the listing, so
+   * "Latitude 5480" cannot match a 5490 — which is the property that makes
+   * enumerating them safe at all.
+   */
+  { category: "laptop", brand: "Dell", model: "Latitude 5480", liquidity: "slow" },
+  { category: "laptop", brand: "Dell", model: "Latitude 5490", liquidity: "slow" },
+  { category: "laptop", brand: "Dell", model: "Latitude 5520", liquidity: "normal" },
+  { category: "laptop", brand: "Dell", model: "Latitude 7320", liquidity: "normal" },
+  { category: "laptop", brand: "Dell", model: "Latitude 7420", liquidity: "normal" },
+  { category: "laptop", brand: "Dell", model: "Latitude 7480", liquidity: "slow" },
+  { category: "laptop", brand: "Dell", model: "Latitude 7490", liquidity: "slow" },
+  { category: "laptop", brand: "Dell", model: "Latitude E7250", liquidity: "dead" },
+  { category: "laptop", brand: "Dell", model: "Latitude E6420", liquidity: "dead" },
+  { category: "laptop", brand: "Dell", model: "Precision 5540", liquidity: "normal" },
+  { category: "laptop", brand: "Dell", model: "Precision 5760", liquidity: "normal" },
+  { category: "laptop", brand: "Dell", model: "Precision 7540", liquidity: "slow" },
+  { category: "laptop", brand: "Dell", model: "XPS 13 9310", liquidity: "normal" },
+  { category: "laptop", brand: "Dell", model: "XPS 15 9500", liquidity: "normal" },
+  { category: "laptop", brand: "Dell", model: "XPS 15 9520", liquidity: "normal" },
+  { category: "laptop", brand: "Dell", model: "XPS 13 9300", liquidity: "slow" },
+  { category: "laptop", brand: "Dell", model: "Vostro 5401", liquidity: "slow" },
+  { category: "laptop", brand: "Dell", model: "Inspiron 15 3520", liquidity: "slow" },
+  { category: "laptop", brand: "Dell", model: "Inspiron 14 5420", liquidity: "slow" },
+  { category: "laptop", brand: "Lenovo", model: "ThinkPad T470", liquidity: "slow" },
+  { category: "laptop", brand: "Lenovo", model: "ThinkPad T480", liquidity: "slow" },
+  { category: "laptop", brand: "Lenovo", model: "ThinkPad T490", liquidity: "normal" },
+  { category: "laptop", brand: "Lenovo", model: "ThinkPad T14", liquidity: "normal" },
+  { category: "laptop", brand: "Lenovo", model: "ThinkPad T14s", liquidity: "normal" },
+  { category: "laptop", brand: "Lenovo", model: "ThinkPad P52", liquidity: "slow" },
+  { category: "laptop", brand: "Lenovo", model: "ThinkPad X280", liquidity: "slow" },
+  { category: "laptop", brand: "Lenovo", model: "Legion 5", liquidity: "normal" },
+  { category: "laptop", brand: "Lenovo", model: "IdeaPad 5", liquidity: "slow" },
+  { category: "laptop", brand: "HP", model: "EliteBook 840 G5", liquidity: "slow" },
+  { category: "laptop", brand: "HP", model: "EliteBook 840 G6", liquidity: "slow" },
+  { category: "laptop", brand: "HP", model: "EliteBook 840 G7", liquidity: "normal" },
+  { category: "laptop", brand: "HP", model: "EliteBook 840 G8", liquidity: "normal" },
+  { category: "laptop", brand: "HP", model: "ProBook 450 G7", liquidity: "slow" },
+  { category: "laptop", brand: "HP", model: "Envy x360", liquidity: "slow" },
+  { category: "laptop", brand: "HP", model: "Spectre x360", liquidity: "normal" },
+  { category: "laptop", brand: "HP", model: "Omen 15", liquidity: "normal" },
+  { category: "laptop", brand: "ASUS", model: "ZenBook 14", liquidity: "slow" },
+  { category: "laptop", brand: "ASUS", model: "ROG Zephyrus G14", liquidity: "normal" },
+  { category: "laptop", brand: "Acer", model: "Nitro 5", liquidity: "slow" },
+
   // ---- GPUs ----
   { category: "gpu", brand: "NVIDIA", model: "RTX 5090", attributes: { vram: 32 }, liquidity: "hot" },
   { category: "gpu", brand: "NVIDIA", model: "RTX 5080", attributes: { vram: 16 }, liquidity: "hot" },

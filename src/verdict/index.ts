@@ -48,6 +48,32 @@ const NOT_OUR_MARKET =
 const BULK_LISTING =
   /\b(\d{2,}\s+(computers|laptops|monitors|printers|phones)|lot of \d|wholesale|bulk|liquidation|starting at (just )?\$|do you need a)\b|\b(laptops|computers|desktops|phones|monitors|tablets)\b[^.]{0,20}\bfor sale\b|\bmultiple\s+(laptops|computers|phones)\b/i;
 
+/**
+ * A RESELLER'S INVENTORY AD — a bulk listing wearing a model number.
+ *
+ * These were the largest single group inside "couldn't identify the model".
+ * The engine was trying to price a shop's whole stock as one machine and
+ * honestly reporting that it could not. "Can't tell" is the wrong answer:
+ * there is nothing to tell, because there is no unit.
+ *
+ * Three independent tells, any one of which is enough:
+ *
+ *   · **"up to"** — "8-Core i9, UP TO 64GB RAM" describes a RANGE of machines.
+ *     A single laptop has an amount of RAM, not a ceiling. Strongest signal,
+ *     and the one most of these share.
+ *   · **Retail-event language** — "Spring Laptop Blowout Sale!", "Holiday
+ *     Laptop Deals!", "Back To School!". Private sellers do not run seasonal
+ *     promotions on the one laptop they own.
+ *   · **A PLURAL product noun** — "Mobile Workstations", "Touchscreens".
+ *     `\blaptop\b` famously does not match "laptops" (already a trap in this
+ *     file); here the plural is exactly the thing worth matching on.
+ *
+ * Deliberately NOT matching on "i7, SSD, Windows 11" spec soup — a genuine
+ * private listing reads the same way, and using it would delete real inventory.
+ */
+const RESELLER_AD =
+  /\bup to \d+\s?(gb|tb)\b|\b(blowout|clearance)\b|\b(spring|summer|fall|winter|holiday|back to school)\b[^.]{0,24}\b(sale|deals?|special)\b|\b(laptop|computer|desktop|pc)\s+(deals?|blowout|sale)\b|\b(mobile workstations|business class laptops|touchscreens)\b/i;
+
 /** Reader-facing retailer names. "microcenter" is not how anyone says it. */
 const RETAILER_NAME: Record<string, string> = {
   bestbuy: "Best Buy",
@@ -315,7 +341,7 @@ export function buildVerdict(input: {
     };
   }
 
-  if (BULK_LISTING.test(input.title)) {
+  if (BULK_LISTING.test(input.title) || RESELLER_AD.test(input.title)) {
     return {
       ...base, call: "OUT_OF_SCOPE", confidence: "high",
       headline: "Bulk listing, not a single item.",

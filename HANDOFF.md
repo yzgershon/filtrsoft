@@ -1419,6 +1419,41 @@ you can buy at.
 
 ## 12. Live traps
 
+### ⚠⚠ A RESELLER'S INVENTORY AD IS NOT A LISTING
+
+The largest single group inside "couldn't identify the model" was shops, not
+products. The engine was trying to price a whole stock as one machine and
+honestly reporting that it could not — but "can't tell" is the wrong answer
+when there is no unit to tell about. `RESELLER_AD` in `verdict/index.ts`.
+
+Three tells, any one sufficient:
+
+- **"up to N GB"** — a RANGE of machines. A single laptop has an amount of RAM,
+  not a ceiling. Strongest signal and the one most of them share.
+- **Retail-event language** — "Spring Laptop Blowout Sale!", "Holiday Laptop
+  Deals!". Private sellers do not run seasonal promotions on one laptop.
+- **A PLURAL product noun** — "Mobile Workstations", "Touchscreens".
+
+**Do NOT extend this to spec soup** ("i7, SSD, Windows 11"). A genuine private
+listing reads identically and matching on it deletes real inventory.
+
+### ⚠ USED LAPTOPS ARE A LONG TAIL — enumerating SKUs does not scale
+
+Measured on the live feed: **44 unmatched laptops spanned ~17 distinct models,
+almost all appearing once or twice.** Adding rows fixes the seventeen you saw
+and not the seventeen next week.
+
+What IS worth enumerating is the recurring LINES — Latitude, ThinkPad,
+EliteBook, XPS are the bulk of the off-lease market. 39 added on 2026-08-26.
+The genuine tail needs a GENERATIVE matcher (brand + line + model number
+parsed from the title, SKU created on demand), not more catalog rows.
+
+**Matching is not pricing.** These now resolve to a SKU and still return
+INSUFFICIENT_DATA until comps exist — which is the honest intermediate state,
+and it changes the headline from "couldn't identify the model" to "no recent
+sold comps". Pull comps after adding SKUs or nothing visible changes.
+
+
 ### ⚠ `setVapidDetails` THROWS — never call it outside a try/catch
 
 `web-push` validates hard: the subject must be `mailto:` or `https:`, the public
