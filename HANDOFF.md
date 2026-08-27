@@ -1419,6 +1419,47 @@ you can buy at.
 
 ## 12. Live traps
 
+### ⚠⚠ THE HEAD NOUN DECIDES **WHEN THERE IS ONE** — otherwise use the title
+
+I introduced this regression myself fixing the iMac-plus-keyboard case.
+`resolveProductType` returns `head: null` for a title with no recognised
+product noun, so `NOT_OUR_MARKET.test(head.head)` ran the regex against the
+string `"null"` and **every router and switch stopped being rejected** — they
+went from correctly out of scope to looking like an engine failure.
+
+Both halves are needed:
+- a KNOWN head noun beats the title, so "iMac ... keyboard and mouse" stays a
+  computer rather than becoming keyboard gear;
+- a MISSING head noun means the title's own words are the only evidence there is.
+
+`head.head ?? input.title`. And the reasoning string must not call
+`.toLowerCase()` on a null head — it crashed for exactly the case the fallback
+was added to serve.
+
+### ⚠ SOME WORDS BEAT THE HEAD NOUN — `NEVER_OUR_MARKET`
+
+Head-noun gating let two shapes through even after the fix above:
+
+    "DELL Poweredge R900 SERVER computer PC"      head is "pc"
+    "Cisco SG220-26 26-Port Gigabit Smart Switch" no head noun at all
+
+**A rack server IS a computer**, which is exactly why the head noun cannot save
+us — it is a computer nobody in this market buys. `server`, `poweredge`,
+`proliant`, rackmount, and switch/port patterns are decisive on the raw title
+because they never appear as a bundled accessory on something we would price.
+
+### Apple desktops derive from their A-NUMBER
+
+An A-number (A1311, A1312, A2115) is Apple's own canonical model id and pins
+the exact machine including year and screen size — more precise than any prose
+a seller writes. Use it and stop when present.
+
+Otherwise line + size + generation, where generation is an Apple-silicon chip
+or a model year. **A bare "iMac" is refused**: it spans 2006 to today and
+fifteen price points, and the catalog already treats a digit-free model as a
+FAMILY rather than a product.
+
+
 ### The split loop — discovery is cheap, analysis is what costs
 
 `src/crawler/queue.ts`. **One discovery pass over all five Craigslist

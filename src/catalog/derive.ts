@@ -143,10 +143,65 @@ function parseGpu(title: string): DerivedSku | null {
   };
 }
 
+/**
+ * Apple desktops, which identify themselves better than anything else here.
+ *
+ * An **A-number** (A1311, A1312, A2115) is Apple's own canonical model id — it
+ * pins the exact machine including year and screen size, which is more precise
+ * than anything a seller writes in prose. When the title carries one, use it
+ * and stop.
+ *
+ * Otherwise fall back to line + size + the identifying generation, which for
+ * Apple is either an Apple-silicon chip (M1/M2/M3/M4, optionally Pro/Max) or a
+ * model year. "iMac 27 2019" and "Mac Mini M2 Pro" are both stable identities;
+ * a bare "iMac" is not, and is refused — the catalog already treats a
+ * digit-free model as a FAMILY rather than a product.
+ *
+ * These were 17 unpriceable listings on 2026-08-27 and Apple desktops are a
+ * genuinely liquid local market, so they are worth having.
+ */
+const APPLE_LINE = /\b(imac pro|imac|mac ?mini|mac ?pro|mac ?studio)\b/i;
+
+function parseAppleDesktop(title: string): DerivedSku | null {
+  const line = APPLE_LINE.exec(title);
+  if (!line) return null;
+  const label = line[1].toLowerCase().replace(/\s+/g, " ")
+    .replace("macmini", "mac mini").replace("macpro", "mac pro").replace("macstudio", "mac studio");
+  const pretty = label === "imac" ? "iMac"
+    : label === "imac pro" ? "iMac Pro"
+    : label.replace(/\b\w/g, (c) => c.toUpperCase());
+
+  // Apple's own model id wins outright when present.
+  const a = title.match(/\bA(1[0-9]{3}|2[0-9]{3})\b/);
+  if (a) return { brand: "Apple", line: pretty, model: `${pretty} A${a[1]}`, category: "prebuilt" };
+
+  const after = title.slice(line.index + line[0].length);
+  const size = after.match(/\b(21\.5|24|27|20|17)\b/)?.[1]
+    ?? title.match(/\b(21\.5|24|27|20|17)\s?(?:inch|in|")/i)?.[1];
+  const chip = title.match(/\bM([1-4])\s?(pro|max|ultra)?\b/i);
+  const year = title.match(/\b(20[0-2]\d)\b/)?.[1];
+
+  const gen = chip
+    ? `M${chip[1]}${chip[2] ? ` ${chip[2][0].toUpperCase()}${chip[2].slice(1).toLowerCase()}` : ""}`
+    : year ?? null;
+  // No generation means no product — an "iMac" spans 2006 to today and fifteen
+  // price points.
+  if (!gen) return null;
+
+  return {
+    brand: "Apple",
+    line: pretty,
+    model: [pretty, size, gen].filter(Boolean).join(" "),
+    category: "prebuilt",
+  };
+}
+
 export function parseModel(title: string, category: string | null): DerivedSku | null {
   if (NOT_A_UNIT.test(title)) return null;
   if (category === "gpu") return parseGpu(title);
   if (category !== "laptop" && category !== "prebuilt") return null;
+  const apple = parseAppleDesktop(title);
+  if (apple) return apple;
 
   for (const spec of LINES) {
     const lineHit = spec.line.exec(title);

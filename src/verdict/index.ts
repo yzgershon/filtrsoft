@@ -41,6 +41,25 @@ const NOT_OUR_MARKET =
   /\b(monitor|display|smart ?tv|television|\d{2}" ?(class )?(tv|led|lcd|oled)\b|router|modem|access point|network switch|ethernet switch|gigabit switch|printer|projector|scanner|hard drive|external drive|nas\b|keyboard|webcam|speakers?|soundbar|headphones?)\b/i;
 
 /**
+ * Words that settle it NO MATTER what the head noun is.
+ *
+ * `NOT_OUR_MARKET` above is head-noun-gated on purpose, so "iMac ... keyboard
+ * and mouse" is not thrown away as keyboard gear. But that gating also let two
+ * things through:
+ *
+ *   "DELL Poweredge R900 SERVER computer PC"   head is "pc", so the title was
+ *                                              never consulted
+ *   "Cisco SG220-26 26-Port Gigabit Smart Switch"  no head noun at all
+ *
+ * A rack server IS a computer, which is exactly why the head noun cannot save
+ * us here — it is a computer nobody in this market buys. These words never
+ * appear as a bundled accessory on something we would price, so they are
+ * decisive on the raw title.
+ */
+const NEVER_OUR_MARKET =
+  /\b(server|poweredge|proliant|rack ?mount(ed)?|blade server|kvm|(smart|network|ethernet|gigabit|managed|poe)[- ]?switch|switch[- ]?\d{1,2}[- ]?port|\d{1,2}[- ]port)\b/i;
+
+/**
  * Bulk and multi-item listings. "24 Computers, Printers, Monitors left starting
  * at just $30" is a shop's inventory dump, not a unit with a price, and pricing
  * it against one machine's comps is meaningless.
@@ -332,12 +351,33 @@ export function buildVerdict(input: {
    * is an accessory, which is the same lesson as the `\blaptop\b` vs "laptops"
    * bug already recorded in this file.
    */
+  /**
+   * ⚠ THE HEAD NOUN DECIDES **WHEN THERE IS ONE**. Otherwise fall back to the
+   * title.
+   *
+   * Testing `head.head` alone was a regression I introduced fixing the
+   * iMac-plus-keyboard case. `resolveProductType` returns `head: null` for a
+   * title with no recognised product noun — "AC1900 Wireless Dual Band Gigabit
+   * Router", "Cisco SG220-26 26-Port Gigabit Smart Switch" — so the regex was
+   * being run against the string "null" and every router and switch fell
+   * through to "couldn't identify the exact model". They went from being
+   * correctly out of scope to looking like an engine failure.
+   *
+   * Both halves are needed and neither alone is right:
+   *   · a KNOWN head noun beats the title, so "iMac ... keyboard and mouse"
+   *     stays a computer rather than becoming keyboard gear;
+   *   · a MISSING head noun means the title's own words are the only evidence
+   *     there is.
+   */
   const head = resolveProductType(input.title, input.description ?? "");
-  if (!match.skuId && NOT_OUR_MARKET.test(head.head)) {
+  if (!match.skuId && (NOT_OUR_MARKET.test(head.head ?? input.title) || NEVER_OUR_MARKET.test(input.title))) {
     return {
       ...base, call: "OUT_OF_SCOPE", confidence: "high",
       headline: "Not a category Assyze covers.",
-      reasoning: `That reads as ${head.head.toLowerCase()} gear. Assyze covers phones, laptops, GPUs, consoles, tablets and PC components — the things with deep enough sold-comp data to price confidently. There are no comps here because nobody has ever asked for any.`,
+      // `head.head` is null whenever the title carries no recognised product
+      // noun, which is exactly the router/switch case that reaches here via the
+      // title fallback above. Name the matched word instead of crashing.
+      reasoning: `That reads as ${(input.title.match(NEVER_OUR_MARKET)?.[0] ?? head.head ?? input.title.match(NOT_OUR_MARKET)?.[0] ?? "peripheral").toLowerCase()} gear. Assyze covers phones, laptops, GPUs, consoles, tablets and PC components — the things with deep enough sold-comp data to price confidently. There are no comps here because nobody has ever asked for any.`,
     };
   }
 
