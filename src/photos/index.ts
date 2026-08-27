@@ -11,7 +11,7 @@
  * skipped. Screens are the highest-value photo type and must never be dropped.
  */
 import sharp from "sharp";
-import { mkdirSync, existsSync } from "node:fs";
+import { mkdirSync, existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 // Ensure the photo root exists — same directory-vs-file trap as the database.
@@ -83,4 +83,79 @@ export async function downloadPhoto(url: string, listingId: number, pos: number)
   const buf = Buffer.from(await res.arrayBuffer());
   await Bun.write(path, buf);
   return { path, buf };
+}
+
+/**
+ * ---- RETENTION ------------------------------------------------------------
+ *
+ * **PHOTOS ARE A WORKING FILE, NOT AN ASSET, and treating them as an asset
+ * filled the production volume and took the site's crawler down for 13 hours.**
+ * Reads kept working the whole time, so the feed looked healthy while nothing
+ * refreshed, no sweep ran and the comps archive could not import.
+ *
+ * The bytes are needed exactly twice and both happen inside one check:
+ *
+ *   1. `dhash` — to compute the perceptual hash
+ *   2. `analyzePhotos` — vision reads the files from disk
+ *
+ * After that nothing ever opens them again. `local_path` is written to
+ * `listing_photos` and **never read back anywhere in the codebase** — the feed
+ * thumbnail and every link use the SOURCE url, not the local copy. So the file
+ * is pure cost: 316 MB for 654 listings locally, growing without bound, and on
+ * the same volume as the database.
+ *
+ * What survives is the 16-character `phash`, which is what the risk model
+ * actually needs for stolen-photo and repost detection. A few kilobytes
+ * instead of hundreds of megabytes.
+ *
+ * `ASSYZE_KEEP_PHOTOS=1` retains them, for eval work where the images are the
+ * point.
+ */
+export const KEEP_PHOTOS = process.env.ASSYZE_KEEP_PHOTOS === "1";
+
+/** Delete one listing's downloaded photos. The phash rows are left alone. */
+export function releasePhotos(listingId: number): number {
+  if (KEEP_PHOTOS) return 0;
+  const dir = join(PHOTO_DIR, String(listingId));
+  if (!existsSync(dir)) return 0;
+  let freed = 0;
+  try {
+    for (const f of readdirSync(dir)) {
+      try { freed += statSync(join(dir, f)).size; } catch { /* counting only */ }
+    }
+    rmSync(dir, { recursive: true, force: true });
+  } catch (e) {
+    // Never let cleanup break a check. Worst case the file lingers for the
+    // scheduled prune to collect.
+    console.error(`releasePhotos(${listingId}) failed: ${(e as Error).message}`);
+  }
+  return freed;
+}
+
+/**
+ * Sweep the whole photo directory.
+ *
+ * Exists for the backlog that accumulated before retention was added, and as a
+ * standing backstop: a check that crashes between download and release leaves a
+ * directory behind, and without this those orphans are permanent.
+ *
+ * Directory names are listing ids, so this needs no database read to decide
+ * what to delete — every directory is by definition finished work.
+ */
+export function prunePhotos(opts: { dryRun?: boolean } = {}): { dirs: number; bytes: number } {
+  if (!existsSync(PHOTO_DIR)) return { dirs: 0, bytes: 0 };
+  let dirs = 0, bytes = 0;
+  for (const name of readdirSync(PHOTO_DIR)) {
+    const dir = join(PHOTO_DIR, name);
+    try {
+      if (!statSync(dir).isDirectory()) continue;
+      let size = 0;
+      for (const f of readdirSync(dir)) {
+        try { size += statSync(join(dir, f)).size; } catch { /* counting only */ }
+      }
+      if (!opts.dryRun) rmSync(dir, { recursive: true, force: true });
+      dirs++; bytes += size;
+    } catch { /* a file we cannot stat is a file we cannot delete */ }
+  }
+  return { dirs, bytes };
 }

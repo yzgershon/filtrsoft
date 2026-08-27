@@ -33,6 +33,7 @@
  */
 import { crawl } from "../crawler/index.ts";
 import { sweep } from "../tracker/index.ts";
+import { prunePhotos } from "../photos/index.ts";
 import { runAlerts } from "./alerts.ts";
 import { checkStored, ENGINE_VERSION } from "../engine/index.ts";
 import { db, now } from "../db/index.ts";
@@ -299,6 +300,17 @@ function startSweepLoop() {
     const t0 = Date.now();
     try {
       const st = await sweep({ pages: 1, probeLimit: SWEEP_PROBE_LIMIT });
+
+      /**
+       * Collect orphaned photo folders. Checks release their own photos, but a
+       * check that dies between download and release leaves one behind, and
+       * without a backstop those are permanent — which is how the volume
+       * filled in the first place.
+       */
+      const pruned = prunePhotos();
+      if (pruned.dirs) {
+        console.log(`pruned ${pruned.dirs} orphaned photo folders (${(pruned.bytes / 1048576).toFixed(1)} MB)`);
+      }
       console.log(
         `sweep done in ${Math.round((Date.now() - t0) / 1000)}s — ` +
         `${st.stillUp} still up, ${st.delisted} delisted, ${st.priceMoves} price moves`,

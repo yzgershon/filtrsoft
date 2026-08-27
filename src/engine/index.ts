@@ -17,6 +17,7 @@ import { matchSku, type Match } from "../catalog/match.ts";
 import { buildVerdict, type VerdictResult } from "../verdict/index.ts";
 import { loadVision, loadVisionByFingerprint, photoFingerprint, photosUnchanged, visionToText, visionSignals } from "../vision/merge.ts";
 import { analyzePhotos, VISION_MODEL, PROMPT_VERSION, type VisionResult } from "../vision/index.ts";
+import { releasePhotos, KEEP_PHOTOS } from "../photos/index.ts";
 import { downloadPhoto, dhash } from "../photos/index.ts";
 import { getEconomics, type UserEconomics } from "../valuation/index.ts";
 import { db, now } from "../db/index.ts";
@@ -273,7 +274,33 @@ export async function checkFetched(listing: RawListing, opts: CheckOptions = {})
     // are NOT on the critical path when vision is off. Blocking on them added
     // ~1.1s to a response that was otherwise complete at 163ms.
     const id = listingId;
-    void persistPhotos(id, listing.photoUrls).catch(() => {});
+    void persistPhotos(id, listing.photoUrls)
+      // The hash is the durable artefact; the file is scratch. Release as soon
+      // as the hash exists, not on some later schedule.
+      .then(() => { releasePhotos(id); })
+      .catch(() => {});
+  }
+
+  /**
+   * RELEASE THE DOWNLOADED PHOTOS. See `photos/index.ts` retention notes.
+   *
+   * By here the bytes have done both jobs they exist for — the perceptual hash
+   * is stored and vision has read the files — and nothing in the codebase ever
+   * opens them again. `local_path` is written to `listing_photos` and never
+   * read back; the feed thumbnail and every link use the SOURCE url.
+   *
+   * Keeping them cost 316 MB per ~650 listings on the same volume as the
+   * database, and when it filled, WRITES failed while reads kept working: the
+   * site served normally for 13 hours with a dead crawler, no sweep and an
+   * archive that could not import.
+   *
+   * `local_path` is nulled in the same breath so the column never points at a
+   * file that is gone.
+   */
+  if (listingId && !KEEP_PHOTOS) {
+    releasePhotos(listingId);
+    db().query("UPDATE listing_photos SET local_path=NULL WHERE listing_id=$id")
+      .run({ $id: listingId });
   }
 
   if (listingId) {
