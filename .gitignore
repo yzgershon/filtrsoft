@@ -27,3 +27,9 @@ node_modules/
 
 # Archive snapshots — root only, never committed (they hold the comps archive)
 /backups/
+
+# scratch verification scripts
+/check.mjs
+/poll.mjs
+/v.mjs
+/shot.mjs
