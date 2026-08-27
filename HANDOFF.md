@@ -1530,6 +1530,38 @@ is the lever, not the catalog: the listing genuinely does not say, and the
 spec is usually in a photo.
 
 
+### The server OWNS its VAPID keypair — no env var required
+
+Push used to require two environment variables, which put an 87-character and a
+43-character base64url string through a human, a clipboard and a hosting
+dashboard. One arrived wrong: production ran with a **60-character** "private
+key" and every push failed. Nothing about push needs a human in that loop — the
+pair is generated, not chosen, and nobody has to know its value.
+
+Order of resolution (`resolveKeys` in `alerts.ts`):
+
+1. `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` **if they actually load.** An
+   existing deployment keeps its keys and therefore its subscriptions.
+2. Otherwise a pair stored in `app_config` on the volume.
+3. Otherwise generate one, store it, log it.
+
+**THE PAIR MUST BE STABLE ACROSS RESTARTS.** Regenerating per boot silently
+invalidates every subscription — a browser's subscription is bound to the
+public key it subscribed with, so a new pair means every device goes quiet with
+no error anywhere. Verified across three boots on one volume.
+
+A bad env var is now a WARNING, not an outage. `/v1/health.push.keySource`
+says `env` or `generated`.
+
+### ⚠ AN EMPTY ENV VAR IS UNSET, AND `??` DOES NOT AGREE
+
+`process.env.X ?? "default"` keeps the EMPTY STRING — nullish coalescing only
+catches null and undefined. A dashboard variable created with a blank value
+produces exactly that, and push died with "No subject set in
+vapidDetails.subject" for a variable that visibly exists. Use `envOr()`.
+
+Same shape as the `null ?? 1500` shipping trap in `valuation`.
+
 ### ⚠ `setVapidDetails` THROWS — never call it outside a try/catch
 
 `web-push` validates hard: the subject must be `mailto:` or `https:`, the public

@@ -30,14 +30,120 @@ import type { Context } from "hono";
 import webpush from "web-push";
 import { db, now } from "../db/index.ts";
 
-export const pushConfigured = () =>
-  Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
+/** Push works if a keypair resolves — env, stored, or freshly generated. */
+export const pushConfigured = () => configure();
 
-export const vapidPublicKey = () => process.env.VAPID_PUBLIC_KEY ?? null;
+export const vapidPublicKey = () => (configure() ? active!.publicKey : null);
 
 let ready = false;
 /** Why push is unusable, if it is. Surfaced on /v1/health. */
 let configError: string | null = null;
+/** Which keypair is in play, once resolved. */
+let active: { publicKey: string; privateKey: string; from: "env" | "generated" } | null = null;
+
+/**
+ * A tiny key/value table on the volume, for things the server must remember
+ * across restarts and must NOT depend on a human pasting correctly.
+ */
+function ensureConfigTable() {
+  db().run(`
+    CREATE TABLE IF NOT EXISTS app_config (
+      key        TEXT PRIMARY KEY,
+      value      TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )`);
+}
+
+const cfgGet = (k: string): string | null => {
+  ensureConfigTable();
+  return (db().query("SELECT value FROM app_config WHERE key=?").get(k) as { value: string } | null)?.value ?? null;
+};
+const cfgSet = (k: string, v: string) => {
+  ensureConfigTable();
+  db().run(
+    "INSERT INTO app_config (key, value, created_at) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+    [k, v, now()],
+  );
+};
+
+/**
+ * ⚠ AN EMPTY ENV VAR IS UNSET, AND `??` DOES NOT AGREE.
+ *
+ * `process.env.VAPID_SUBJECT ?? "mailto:..."` keeps the empty string, because
+ * nullish coalescing only catches null and undefined. A hosting dashboard
+ * where somebody created the variable and left the value blank produces
+ * exactly that, and push then died with "No subject set in
+ * vapidDetails.subject" — a confusing error for a variable that visibly
+ * exists.
+ *
+ * Same shape as the `null ?? 1500` shipping trap already in `valuation`.
+ */
+const envOr = (name: string, fallback: string) => {
+  const v = (process.env[name] ?? "").trim();
+  return v || fallback;
+};
+
+/** Does this pair actually load? The only test that means anything. */
+function pairWorks(subject: string, pub: string, priv: string): string | null {
+  try { webpush.setVapidDetails(subject, pub, priv); return null; }
+  catch (e) { return (e as Error).message; }
+}
+
+/**
+ * THE SERVER OWNS ITS OWN VAPID KEYPAIR.
+ *
+ * It used to require two environment variables, and that put a 87-character
+ * and a 43-character base64url string through a human, a clipboard and a
+ * hosting dashboard. Predictably one arrived wrong: production ran with a
+ * 60-character "private key" and every push failed. Nothing about push needs a
+ * human in that loop — the pair is generated, not chosen, and nobody has to
+ * know its value.
+ *
+ * So: if the env vars are present AND load, they win (an existing deployment
+ * keeps its keys and its subscriptions). Otherwise the server generates a pair
+ * once, stores it beside the database on the same volume, and reuses it
+ * forever. Same trust level as the database, which already holds every
+ * subscription endpoint.
+ *
+ * **The pair must be stable across restarts.** Regenerating on each boot would
+ * silently invalidate every existing subscription — the browser holds a
+ * subscription bound to the public key it subscribed with, so a new pair means
+ * every device goes quiet with no error anywhere.
+ */
+function resolveKeys(): { publicKey: string; privateKey: string; from: "env" | "generated" } | null {
+  if (active) return active;
+  const subject = envOr("VAPID_SUBJECT", "mailto:hello@assyze.com");
+
+  const envPub = (process.env.VAPID_PUBLIC_KEY ?? "").trim();
+  const envPriv = (process.env.VAPID_PRIVATE_KEY ?? "").trim();
+  if (envPub && envPriv) {
+    const err = pairWorks(subject, envPub, envPriv);
+    if (!err) { active = { publicKey: envPub, privateKey: envPriv, from: "env" }; return active; }
+    // Do not fail here. A bad env var is now a warning, not an outage.
+    console.error(`VAPID env keys rejected (${err}) — falling back to a server-generated pair`);
+  }
+
+  try {
+    const pub = cfgGet("vapid_public"), priv = cfgGet("vapid_private");
+    if (pub && priv && !pairWorks(subject, pub, priv)) {
+      active = { publicKey: pub, privateKey: priv, from: "generated" };
+      return active;
+    }
+    const gen = webpush.generateVAPIDKeys();
+    const err = pairWorks(subject, gen.publicKey, gen.privateKey);
+    if (err) { configError = `generated pair rejected: ${err}`; return null; }
+    cfgSet("vapid_public", gen.publicKey);
+    cfgSet("vapid_private", gen.privateKey);
+    console.log("generated a VAPID keypair and stored it on the volume");
+    active = { publicKey: gen.publicKey, privateKey: gen.privateKey, from: "generated" };
+    return active;
+  } catch (e) {
+    // A read-only or full volume lands here. Push is unavailable; nothing else
+    // should break because of it.
+    configError = `could not store a generated VAPID pair: ${(e as Error).message}`;
+    return null;
+  }
+}
 
 /**
  * ⚠ `setVapidDetails` THROWS, and it used to throw straight out of an HTTP
@@ -59,23 +165,14 @@ let configError: string | null = null;
  */
 function configure(): boolean {
   if (ready) return true;
-  if (!pushConfigured()) { configError = "VAPID keys are not set"; return false; }
-  try {
-    const subject = (process.env.VAPID_SUBJECT ?? "mailto:hello@assyze.com").trim();
-    const pub = (process.env.VAPID_PUBLIC_KEY ?? "").trim();
-    const priv = (process.env.VAPID_PRIVATE_KEY ?? "").trim();
-    webpush.setVapidDetails(subject, pub, priv);
-    ready = true;
-    configError = null;
-    return true;
-  } catch (e) {
-    // Cache the reason rather than re-throwing per request: this is a config
-    // fault, it will not fix itself between calls, and every caller needs to
-    // degrade rather than 500.
-    configError = (e as Error).message;
-    console.error(`push disabled — VAPID config rejected: ${configError}`);
-    return false;
-  }
+  const keys = resolveKeys();
+  if (!keys) { configError ??= "no usable VAPID keypair"; return false; }
+  const subject = envOr("VAPID_SUBJECT", "mailto:hello@assyze.com");
+  const err = pairWorks(subject, keys.publicKey, keys.privateKey);
+  if (err) { configError = err; console.error(`push disabled — VAPID rejected: ${err}`); return false; }
+  ready = true;
+  configError = null;
+  return true;
 }
 
 /**
@@ -84,16 +181,15 @@ function configure(): boolean {
  * the whole failure mode, so there is no reason to expose the secret itself.
  */
 export function pushStatus() {
-  const pub = (process.env.VAPID_PUBLIC_KEY ?? "").trim();
-  const priv = (process.env.VAPID_PRIVATE_KEY ?? "").trim();
   const ok = configure();
   return {
-    configured: pushConfigured(),
     usable: ok,
     error: configError,
-    subject: (process.env.VAPID_SUBJECT ?? "mailto:hello@assyze.com").trim(),
-    publicKeyChars: pub.length,   // expect 87
-    privateKeyChars: priv.length, // expect 43
+    /** env = you supplied a pair; generated = the server made its own. */
+    keySource: active?.from ?? null,
+    subject: envOr("VAPID_SUBJECT", "mailto:hello@assyze.com"),
+    publicKeyChars: active?.publicKey.length ?? 0,   // 87 when healthy
+    privateKeyChars: active?.privateKey.length ?? 0, // 43 when healthy
   };
 }
 
