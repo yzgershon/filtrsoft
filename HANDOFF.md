@@ -1419,6 +1419,63 @@ you can buy at.
 
 ## 12. Live traps
 
+### The split loop — discovery is cheap, analysis is what costs
+
+`src/crawler/queue.ts`. **One discovery pass over all five Craigslist
+categories is 5 requests and ~0.8-1.4s for ~1,372 listing ids.** Measured, twice.
+Finding out WHETHER something new exists is nearly free; deciding what it is
+worth is not.
+
+The old loop did both every 45 minutes, which is fatal for alerts: average
+detection delay 22 minutes, worst case 45, before analysis even starts. Ticks
+are now **3 minutes** and detection is ~90 seconds.
+
+- `discover()` fetches search pages and queues anything unknown.
+- `drain(limit)` analyses from the queue, bounded, so a 711-listing backlog
+  spreads over ticks instead of blocking one for an hour.
+- **The queue is a TABLE, not an array.** The container restarts on every
+  deploy; an in-memory queue loses the backlog and the same listings get
+  rediscovered forever.
+- **Saved-search matches jump the queue.** `fetchSearchResults` returns the
+  TITLE in the same request, so priority is decided before any detail page is
+  fetched. The alert path must be the fastest path, not the slowest.
+- Three failed attempts and a queued url is dropped — a listing deleted between
+  discovery and analysis otherwise retries forever.
+
+### Vision is its own pass now, and runs LAST
+
+`src/crawler/vision-pass.ts`. It used to run inside the crawl on listings
+discovered in that same run, so a listing analysed yesterday could NEVER get
+its photos read however obviously it needed them. That left 62 listings sitting
+at "cpu not stated" — exactly the case a photo resolves — permanently
+unrevisited.
+
+Running last also protects alert latency: the text verdict is what fires an
+alert, and making somebody wait on a photo read to hear about a 4090 spends the
+latency the split loop exists to recover.
+
+**Measured cost: $0.0031 per listing**, ~6k tokens, ~10s for 10 photos.
+
+#### ⚠⚠ VISION_PER_RUN MUST SCALE WITH THE TICK RATE
+
+8 per 45-minute crawl is ~256 attempts/day. The same 8 at a 3-minute tick is
+**3,840/day, about $12 against a $2 budget** — the guard stops it, but only
+after burning the whole allowance in four hours every morning. Now 3.
+**If you change the tick interval, redo this arithmetic.**
+
+#### ⚠ AN ACCESSORY *FOR* A DEVICE READS AS THE DEVICE
+
+`resolveProductType` returned `kind: "tech"` for "HP XL 17" Laptop **Bag**"
+(head: "laptop") and "Logitech Rugged **Folio** with Keyboard - iPad" (head:
+"ipad"). Both reached the vision shortlist, where they would have cost real
+money to photograph a bag.
+
+The general classifier is used in a dozen places, so **the money-spending path
+carries its own stricter filter** (`isAccessoryFor`) rather than changing
+head-noun rules everywhere. Refusing costs one skipped read; being wrong costs
+cash on every pass forever.
+
+
 ### Tapping a listing OPENS it — do not rebuild the hero-promotion morph
 
 The feed briefly promoted a tapped card into the hero slot with a

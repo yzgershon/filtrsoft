@@ -31,29 +31,38 @@
  *   · the $2/day budget, checked before EVERY call inside `crawl()`
  *   · `ASSYZE_VISION=off` kills it outright
  */
-import { crawl } from "../crawler/index.ts";
+import { discover, drain, queueDepth } from "../crawler/queue.ts";
+import { visionPass } from "../crawler/vision-pass.ts";
 import { sweep } from "../tracker/index.ts";
 import { prunePhotos } from "../photos/index.ts";
 import { runAlerts } from "./alerts.ts";
 import { checkStored, ENGINE_VERSION } from "../engine/index.ts";
 import { db, now } from "../db/index.ts";
 
-/** Wall-clock gap between crawls. Craigslist does not turn over faster. */
-const INTERVAL_MS = Number(process.env.ASSYZE_CRAWL_INTERVAL_MS ?? 45 * 60 * 1000);
+/** Gap between ticks. A tick is 5 requests when nothing is new. */
+const INTERVAL_MS = Number(process.env.ASSYZE_CRAWL_INTERVAL_MS ?? 3 * 60 * 1000);
 
 /** Listings analysed per run. Bounded so one pass cannot run away. */
 const LIMIT = Number(process.env.ASSYZE_CRAWL_LIMIT ?? 40);
 
 /**
- * Listings whose photos get read per crawl run.
+ * Listings whose photos get read per TICK.
  *
- * Deliberately small. At Haiku rates a listing runs well under a cent, so 8 per
- * run against a 45-minute steady cadence is a few dollars a month — but the
- * $2/day guard inside `crawl()` is what actually enforces the ceiling, and it
- * is checked before every single call. This number only decides how fast the
- * budget could be reached, never whether it can be exceeded.
+ * **THIS HAD TO SHRINK WHEN THE TICK GOT 15x FASTER.** It was 8 per 45-minute
+ * crawl, about 256 attempts a day. At the new 3-minute cadence the same 8 would
+ * be 3,840 a day — measured at $0.0031 a listing, roughly $12/day against a $2
+ * budget. The guard would have stopped it, but only after burning the whole
+ * day's allowance in about four hours every morning.
+ *
+ * 3 per tick is ~1,440 attempts a day, and the pool is usually empty anyway
+ * because a listing is only a candidate until its photos have been read once.
+ *
+ * **The $2/day budget is the real bound and it is checked before EVERY
+ * listing**, not once per pass — a pass that checks once and then reads three
+ * can overshoot by two, and a money guard that can be exceeded is not a guard.
+ * This number only decides how fast the budget could be reached.
  */
-const VISION_PER_RUN = Number(process.env.ASSYZE_CRAWL_VISION ?? 8);
+const VISION_PER_RUN = Number(process.env.ASSYZE_CRAWL_VISION ?? 3);
 
 /** `ASSYZE_VISION=off` kills photo reading without stopping the crawl. */
 const VISION_ON = (process.env.ASSYZE_VISION ?? "on").toLowerCase() !== "off";
@@ -74,6 +83,22 @@ const ENABLED = (process.env.ASSYZE_CRAWL ?? "on").toLowerCase() !== "off";
 function pace(): { limit: number; nextMs: number; mode: string } {
   const n = (db().query("SELECT COUNT(*) n FROM listings").get() as { n: number }).n;
   if (n < 400) return { limit: LIMIT * 4, nextMs: 3 * 60_000, mode: "backfill" };
+  /**
+   * STEADY IS NOW 3 MINUTES, NOT 45, AND THAT IS THE POINT OF THE SPLIT LOOP.
+   *
+   * The old 45-minute interval existed because a tick did discovery AND
+   * analysis AND vision together, so running it often meant re-paying for all
+   * three. A tick now costs 5 requests and ~1.4s when nothing is new, which is
+   * roughly a person refreshing tabs, so it can run constantly.
+   *
+   * What that buys: detection latency drops from ~22 minutes average (half of
+   * 45) to ~90 seconds. Every deal in this market is won on latency — a 4090 at
+   * $1,100 is gone within the hour — so this is the difference between a feed
+   * you check and a feed that tells you.
+   *
+   * Analysis stays bounded by `limit`, so a burst of new listings drains over
+   * several ticks rather than making one tick run for an hour.
+   */
   return { limit: LIMIT, nextMs: INTERVAL_MS, mode: "steady" };
 }
 
@@ -114,18 +139,17 @@ let sweeping = false;
 
 async function runOnce(reason: string) {
   /**
-   * A single-flight guard, because the interval does not wait for the previous
-   * run. A slow crawl overlapping itself double-counts `discovered`, races on
-   * the `seen` set and doubles the request rate at the source — the one thing
-   * most likely to get the IP blocked.
+   * Single-flight. The interval does not wait for the previous run, and two
+   * overlapping passes double the request rate at the source — the single most
+   * likely way to get the IP blocked.
    */
-  if (running) { console.log("crawl: previous run still going, skipping"); return; }
+  if (running) { console.log("tick: previous run still going, skipping"); return; }
   running = true;
   const t0 = Date.now();
   const p = pace();
   try {
-    // Engine changes reach the FEED only through this. Cheap when there is
-    // nothing stale, which is every run after the one following a deploy.
+    // Engine changes reach the FEED only through this. Cheap when nothing is
+    // stale, which is every run after the one following a deploy.
     const rescored = reverdictAll();
     if (rescored) console.log(`re-scored ${rescored} listings on engine ${ENGINE_VERSION}`);
 
@@ -133,42 +157,61 @@ async function runOnce(reason: string) {
     const repriced = reverdictUnpriced();
     if (repriced) console.log(`priced ${repriced} previously-unpriceable listings`);
 
-    const st = await crawl({
-      limit: p.limit,
-      pages: 1,
-      /**
-       * Backfill mode reads NO photos. It exists to fill an empty feed fast,
-       * and a 1,376-listing backlog at even a cent each is real money spent
-       * before anyone has looked at the feed once. Vision starts when the
-       * crawl settles into keeping up with new posts.
-       */
-      maxVision: VISION_ON && p.mode === "steady" ? VISION_PER_RUN : 0,
-      concurrency: 3,
-      onProgress: (m) => console.log(`  crawl: ${m}`),
-    });
     /**
-     * Alerts fire AFTER the crawl, so a saved search is matched against
-     * listings that were analysed in this very run. Doing it on its own timer
-     * would add up to a whole interval of delay to the one feature whose
-     * entire value is latency.
+     * DISCOVER, THEN DRAIN. See `crawler/queue.ts` for why these are separate.
+     *
+     * Discovery is 5 requests and ~1.4s for the whole Boston feed, so it can
+     * run every few minutes. Analysis is bounded per tick, so a 1,300-listing
+     * backfill drains over several ticks instead of blocking one for an hour.
+     */
+    const d = await discover({ onProgress: (m) => console.log(`  discover: ${m}`) });
+    const dr = await drain({
+      limit: p.limit,
+      concurrency: 3,
+      onProgress: (m) => console.log(`  drain: ${m}`),
+    });
+
+    /**
+     * Alerts fire immediately after the drain, against listings analysed in
+     * this very tick. On its own timer they would carry up to a full interval
+     * of extra delay, on the one feature whose entire value is latency.
      */
     try {
       const n = await runAlerts();
       if (n) console.log(`alerts: sent ${n} notification(s)`);
     } catch (e) {
-      // Never let a push failure abort the crawl bookkeeping below.
       console.error("alerts failed:", (e as Error).message);
     }
 
-    console.log(
-      `crawl (${reason}, ${p.mode}) done in ${Math.round((Date.now() - t0) / 1000)}s — ` +
-      `${st.discovered} discovered · ${st.alreadySeen} seen · ${st.analysed} analysed · ` +
-      `${st.worthShowing} worth showing · ${st.failed} failed`,
-    );
+    /**
+     * Vision runs LAST and only in steady mode. The text verdict has already
+     * landed and already fired any alert, so photos refine a listing somebody
+     * can act on rather than delaying the news. Backfill reads no photos at
+     * all: a 1,300-listing backlog at even a cent each is real money spent
+     * before anyone has looked at the feed once.
+     */
+    let vision = 0;
+    if (VISION_ON && p.mode === "steady") {
+      try {
+        vision = await visionPass(VISION_PER_RUN, (m) => console.log(`  vision: ${m}`));
+      } catch (e) {
+        console.error("vision pass failed:", (e as Error).message);
+      }
+    }
+
+    const quiet = d.queued === 0 && dr.analysed === 0 && !vision;
+    if (!quiet) {
+      console.log(
+        `tick (${reason}, ${p.mode}) ${Math.round((Date.now() - t0) / 1000)}s — ` +
+        `seen ${d.seen} · new ${d.fresh} · queued ${d.queued}` +
+        `${d.prioritised ? ` (${d.prioritised} matched a saved search)` : ""} · ` +
+        `analysed ${dr.analysed} · queue ${dr.remaining} · vision ${vision}`,
+      );
+    }
   } catch (e) {
     // Never throw out of the loop: an unhandled rejection here takes down the
-    // whole server, and a failed crawl is not a reason to stop serving.
-    console.error(`crawl (${reason}) failed:`, (e as Error).message);
+    // whole server, and a failed tick is not a reason to stop serving.
+    console.error(`tick (${reason}) failed:`, (e as Error).message);
   } finally {
     running = false;
   }
