@@ -1419,6 +1419,20 @@ you can buy at.
 
 ## 12. Live traps
 
+### Tapping a listing OPENS it — do not rebuild the hero-promotion morph
+
+The feed briefly promoted a tapped card into the hero slot with a
+shared-element view transition. Yish asked for it, used it, and called it a bad
+decision on 2026-08-27 — correctly. Tap-to-open is the gesture every
+marketplace trains you on, and spending it on rearranging the page meant the
+only way to actually SEE a listing was to tap it twice.
+
+The hero is now simply the top-ranked listing: a highlight, not a slot you
+fill. `promote`, `heroId`, `flushSync` and the `::view-transition-*` rules are
+all deleted. **Do not reintroduce them** — the animation was genuinely nice and
+that is not the same as being right.
+
+
 ### The generative matcher — the catalog grows from what walks past
 
 `src/catalog/derive.ts`. Parses a model OUT of a listing title and mints the

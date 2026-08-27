@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 import { Scan, Clock, User, Alert, Check, Info, Link, Again, Eye, Shield, Tag, Ghost, Clip, Save, Grid, Gear, Cut, Bell, Card } from "./icons.tsx";
 
 // ---------------------------------------------------------------- types
@@ -220,7 +219,6 @@ function Feed({ onOpen, onWatchChange }: {
   const [total, setTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   /** Which listing currently occupies the hero slot. */
-  const [heroId, setHeroId] = useState<number | null>(null);
   const [watch, setWatch] = useState<number[]>(readWatch);
 
   const load = useCallback((offset: number) => {
@@ -251,59 +249,19 @@ function Feed({ onOpen, onWatchChange }: {
       : (i.askingPriceCents ?? Infinity) < 50000;
 
   const shown = items.filter(pass);
-  const hero = shown.find((i) => i.id === heroId) ?? shown[0] ?? null;
+  const hero = shown[0] ?? null;
   const rest = shown.filter((i) => i.id !== hero?.id);
 
   /**
-   * PROMOTE a row into the hero slot.
+   * Tapping a listing OPENS it. It used to promote the card into the hero slot
+   * with a shared-element view transition — Yish asked for that, used it, and
+   * called it a dumb decision, which it was: the gesture every marketplace
+   * trains you on is tap-to-open, and spending it on rearranging the page
+   * meant the only way to actually SEE a listing was to tap it twice.
    *
-   * The photo and title carry a `view-transition-name`, so the browser morphs
-   * the SAME element between its row position and the hero position instead of
-   * cross-fading two different ones. That is the difference between reading as
-   * "this thing moved" and "the screen changed".
-   *
-   * `flushSync` is required: `startViewTransition` snapshots the DOM the moment
-   * its callback returns, and React would otherwise still be batching the state
-   * update — so the browser would capture the OLD layout twice and animate
-   * nothing.
-   *
-   * Degrades to a plain state change where the API is missing, and skips the
-   * animation entirely under prefers-reduced-motion. The content is identical
-   * either way; only the motion is conditional.
+   * The hero stays as the top-ranked listing. It is a highlight, not a slot
+   * you fill.
    */
-  const promote = (id: number, el: HTMLElement) => {
-    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const startVT = (document as unknown as {
-      startViewTransition?: (cb: () => void) => { finished: Promise<void> };
-    }).startViewTransition;
-    if (!startVT || reduce) { setHeroId(id); return; }
-
-    /**
-     * CLEAR THE CURRENT HERO'S NAMES FIRST.
-     *
-     * A `view-transition-name` must be unique within a single snapshot. The
-     * hero carries `hero-img` from its JSX, so tagging the row as well put two
-     * elements with the same name in the OLD snapshot — the browser rejected
-     * it with "Unexpected duplicate view-transition-name" and aborted the whole
-     * transition, leaving a hard cut.
-     *
-     * Only the row needs the name going out; the incoming hero gets it back
-     * from its own JSX on the re-render, which is the NEW snapshot.
-     */
-    document.querySelectorAll<HTMLElement>(".hshot img, .hover b")
-      .forEach((n) => { n.style.viewTransitionName = ""; });
-
-    const img = el.querySelector("img") as HTMLElement | null;
-    const title = el.querySelector("b") as HTMLElement | null;
-    if (img) img.style.viewTransitionName = "hero-img";
-    if (title) title.style.viewTransitionName = "hero-title";
-
-    const t = startVT.call(document, () => { flushSync(() => setHeroId(id)); });
-    t.finished.finally(() => {
-      if (img) img.style.viewTransitionName = "";
-      if (title) title.style.viewTransitionName = "";
-    });
-  };
 
   const SEGS: Array<{ id: "ALL" | "DEAL" | "CHEAP"; label: string; n: number }> = [
     { id: "ALL", label: "All", n: total },
@@ -333,15 +291,15 @@ function Feed({ onOpen, onWatchChange }: {
             <>
               <SectionHead
                 tone={hero.call === "BUY" ? "buy" : hero.call === "VERIFY" ? "verify" : "mute"}
-                label="Best right now" note="tap any listing to swap it in" />
+                label="Best right now" />
               <button className={`dealhero v-${hero.call}`} onClick={() => onOpen(hero.id)}>
                 <span className="hshot">
                   {hero.thumb
-                    ? <img src={hero.thumb} alt="" style={{ viewTransitionName: "hero-img" }} />
+                    ? <img src={hero.thumb} alt="" />
                     : <span className="noimg"><Ghost size={28} /></span>}
                   <span className="hover">
                     <span className={`dcall b-${hero.call}`}>{LABEL[hero.call]}</span>
-                    <b style={{ viewTransitionName: "hero-title" }}>{hero.title}</b>
+                    <b>{hero.title}</b>
                   </span>
                 </span>
                 <span className="hnums">
@@ -376,7 +334,7 @@ function Feed({ onOpen, onWatchChange }: {
                   {list.map((i) => (
                     <Gcard key={i.id} i={i} saved={watch.includes(i.id)}
                       onSave={() => { const n = toggleWatch(i.id); setWatch(n); onWatchChange(n.length); }}
-                      onOpen={(el) => promote(i.id, el)} />
+                      onOpen={() => onOpen(i.id)} />
                   ))}
                 </div>
               </div>

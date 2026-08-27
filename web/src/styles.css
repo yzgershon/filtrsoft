@@ -564,15 +564,6 @@ a { color: inherit; }
 }
 .dnet.z { color: var(--ink-3); }
 
-/* The promotion morph. Both halves share one duration so the photo and the
-   title arrive together instead of racing. */
-::view-transition-old(hero-img), ::view-transition-new(hero-img),
-::view-transition-old(hero-title), ::view-transition-new(hero-title),
-::view-transition-group(hero-img), ::view-transition-group(hero-title) {
-  animation-duration: 420ms;
-  animation-timing-function: cubic-bezier(.22,.61,.36,1);
-}
-
 /* ==========================================================================
    DETAIL — gallery, blockers, retail ceiling, outcomes.
    ========================================================================== */
