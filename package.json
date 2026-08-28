@@ -33,7 +33,8 @@
     "mc:crawl": "bun run src/scripts/marketplace-crawl.ts --source mercari",
     "ebay:auth": "bun run src/scripts/ebay-auth.ts",
     "ebay:search": "bun run src/scripts/ebay-search.ts",
-    "photos:prune": "bun run src/scripts/photos-prune.ts"
+    "photos:prune": "bun run src/scripts/photos-prune.ts",
+    "daily": "bun run src/scripts/daily.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
