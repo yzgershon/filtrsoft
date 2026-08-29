@@ -497,11 +497,12 @@ function Numbers({ v, ask }: { v: Verdict; ask: number | null }) {
           </>
         )}
 
-        <div className="kv">
+        {/* The answer you opened the screen for. Sized like it. */}
+        <div className="kv anchor">
           <div className="k">Your profit at asking price</div>
           <div className={`v num ${net > 0 ? "pos" : "neg"}`}>{net > 0 ? "+" : ""}{money(net)}</div>
         </div>
-        <div className="kv">
+        <div className="kv quiet">
           <div className="k">You need at least<small>for the drive and the effort</small></div>
           <div className="v num">{money(v.requiredProfitCents)}</div>
         </div>
@@ -583,7 +584,7 @@ function Gallery({ urls, onOpen }: { urls: string[]; onOpen: (i: number) => void
   };
 
   return (
-    <div className="gal">
+    <div className="gal hero-shot">
       <div className="galstrip" ref={ref} onScroll={onScroll}>
         {urls.slice(0, 20).map((u, n) => (
           <button className="galshot" key={n} onClick={() => onOpen(n)}

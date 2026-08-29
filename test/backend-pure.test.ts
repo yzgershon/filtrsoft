@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { parseModel } from "../src/catalog/derive.ts";
 import { namedCatalogBrand } from "../src/catalog/match.ts";
 import { isUnsupportedPrinter, resolveCategory, resolveProductType } from "../src/signals/product-type.ts";
-import { detectCategory } from "../src/signals/index.ts";
+import { detectCategory, offPlatformDomain, randomSuffix } from "../src/signals/index.ts";
 import { variantPattern } from "../src/signals/variants.ts";
 import {
   compMatchesQuery,
@@ -433,5 +433,49 @@ describe("captured retail fixtures", () => {
       stockCount: 9,
       available: true,
     });
+  });
+});
+
+/**
+ * The off-platform redirect scam. Yish confirmed these live on 2026-08-28 by
+ * messaging two listings the feed was recommending and being sent to an outside
+ * "store" both times.
+ *
+ * Both directions are asserted. Precision matters more than recall here: a
+ * false scam label kills a real deal AND teaches the reader to ignore the badge
+ * on the day it is right.
+ */
+describe("scam: off-platform redirect", () => {
+  test("catches the obfuscated domain from the real listings", () => {
+    expect(offPlatformDomain("More photos here: www.ww5936.com Feel free to reach out")).toBe("ww5936.com");
+    expect(offPlatformDomain("details are available here: https://smuybfq.com/products/m55223229104")).toBe("smuybfq.com");
+  });
+
+  /**
+   * REGRESSION: a negative lookahead cannot express this. `(?:www\.)?` is
+   * optional, so when the lookahead rejects "craigslist" the engine backtracks,
+   * declines to consume `www.`, and re-tests against "www" — which is not on
+   * the exclusion list. Both of these matched as off-platform links.
+   */
+  test("a known domain behind www. is NOT off-platform", () => {
+    expect(offPlatformDomain("see https://www.craigslist.org/view/d/abc")).toBeNull();
+    expect(offPlatformDomain("www.amazon.com")).toBeNull();
+    expect(offPlatformDomain("https://www.ebay.com/itm/123")).toBeNull();
+  });
+
+  test("a helpful build list is not fraud", () => {
+    expect(offPlatformDomain("full specs at https://pcpartpicker.com/list/xyz")).toBeNull();
+    expect(offPlatformDomain("benchmarks: https://www.techpowerup.com/gpu")).toBeNull();
+  });
+
+  test("generated title suffix: letters convict, model numbers do not", () => {
+    expect(randomSuffix("MacBook Pro M1 Max 16in 32GB 1TB Space Gray UPZT")).toBe(true);
+    expect(randomSuffix("Apple MacBook Pro A2141 16in 1TB SSD G7FQ")).toBe(true);
+    // Real model numbers and real words must never trip it.
+    expect(randomSuffix("Asus motherboard dark hero X570")).toBe(false);
+    expect(randomSuffix("Dell Laptop Xps 13 9310")).toBe(false);
+    expect(randomSuffix("MacBook Pro M4 Pro 14” 2024")).toBe(false);
+    expect(randomSuffix("Gigabyte Nvidia GTX 1060 3GB DDR5")).toBe(false);
+    expect(randomSuffix("Gaming pc 3070 ti - NEED GONE ASAP LEAVING FOR COLLEGE THIS WEEK")).toBe(false);
   });
 });

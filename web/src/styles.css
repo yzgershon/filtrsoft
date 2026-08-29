@@ -1025,3 +1025,91 @@ a { color: inherit; }
   content: ""; position: absolute; left: 12px; top: 15px;
   width: 7px; height: 7px; border-radius: 2px; border: 1.5px solid var(--ink-3);
 }
+
+/* ══════════════════════════════════════════════════ detail-screen refinement
+ *
+ * The screen was CORRECT but flat: every section carried the same weight, so
+ * nothing told you where to look. Three changes, all hierarchy rather than
+ * decoration.
+ */
+
+/*
+ * 1. VERTICAL RHYTHM IN TIERS, not one uniform gap.
+ *
+ * `.sec { margin: var(--s5) 0 }` spaced a section from its neighbour exactly as
+ * far as a heading sat from its own panel, so the page read as one long list of
+ * equal things. Between sections is a bigger break than within one — that
+ * difference IS the grouping, and it costs nothing to express.
+ */
+.sec { margin: var(--s6) 0 0; }
+.sec h4 { margin-bottom: 10px; }
+.sec + .sec { margin-top: var(--s6); }
+
+/*
+ * 2. THE MONEY PANEL HAS AN ANCHOR NOW.
+ *
+ * "Your profit at asking price" IS the answer — it is the number you opened the
+ * screen for — and it was rendered at the same 15px/600 as "You need at least",
+ * a threshold you set once and rarely think about. Sizing them identically made
+ * the reader do the ranking themselves.
+ *
+ * Size and weight carry it, not colour: the green/red already means direction,
+ * and using colour for importance as well would leave a PASS's red profit
+ * looking louder than a BUY's green one.
+ */
+.kv.anchor { padding: var(--s4); }
+.kv.anchor .k { font-size: 14.5px; color: var(--ink-1); font-weight: 600; }
+.kv.anchor .v { font-size: 26px; font-weight: 800; letter-spacing: -.03em; }
+
+/* The floor is a reference value, not a headline. */
+.kv.quiet .k, .kv.quiet .v { color: var(--ink-2); }
+.kv.quiet .v { font-size: 14px; font-weight: 600; }
+
+/* The offer stays the closing line: accented, and last. */
+.kv.hi { background: rgba(255,138,61,.07); }
+.kv.hi .k { color: var(--ink-1); font-weight: 600; }
+.kv.hi .v { font-size: 18px; font-weight: 800; letter-spacing: -.02em; }
+
+/*
+ * 3. THE PHOTO ENDS, RATHER THAN STOPPING.
+ *
+ * A full-bleed image against a hard horizontal edge reads as a screenshot of
+ * two apps stacked. A short gradient into the page colour makes it one surface.
+ */
+.hero-shot { position: relative; }
+.hero-shot::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 72px;
+  background: linear-gradient(to bottom, transparent, var(--bg));
+  pointer-events: none;
+}
+
+/*
+ * 4. CONTRAST ON THE FEED CARD LABEL.
+ *
+ * `.gcall` was a translucent blur over an arbitrary photo, so "BUY IT" in green
+ * sat on whatever happened to be behind it — on a bright product shot it failed
+ * 4.5:1 outright. A near-opaque chip makes the label legible on every image
+ * instead of on most of them.
+ */
+.gcall {
+  background: rgba(8,7,10,.82);
+  border: 1px solid rgba(255,255,255,.1);
+  padding: 4px 7px;
+}
+
+/*
+ * The hero's call label sat directly on the photo as bare coloured text, so
+ * "BUY IT" in green landed on whatever the product shot happened to be — on a
+ * pale graphics card it failed 4.5:1 the same way `.gcall` did. Same fix, same
+ * reason: a chip guarantees the contrast instead of hoping the image cooperates.
+ *
+ * Scoped to the hero, where the label overlays an image. `.dcall` is also used
+ * on the history rows, which sit on a solid surface and need no chip.
+ */
+.dealhero .dcall {
+  display: inline-block; margin-bottom: 5px;
+  padding: 4px 8px; border-radius: 6px;
+  background: rgba(8,7,10,.82);
+  border: 1px solid rgba(255,255,255,.1);
+  backdrop-filter: blur(10px);
+}
