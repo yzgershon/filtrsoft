@@ -240,6 +240,35 @@ export function offPlatformDomain(text: string): string | null {
   return null;
 }
 
+/**
+ * ⚠⚠ AN OBFUSCATED PHONE NUMBER. The second scam Yish confirmed, and it needed
+ * a different signal from the first.
+ *
+ * *"Custom Built Gaming PC - i9-14900K + RTX 4070 Ti | 32GB RAM"* at **$240**,
+ * a build worth well over a thousand, with this in the description:
+ *
+ *     (414^^998^^9114)
+ *     "...it belonged to my late brother. Keeping it has been harder than i
+ *      expected. It holds so many memories"
+ *
+ * The number is the tell, not the sob story. `414^^998^^9114` is a phone
+ * number written to defeat the platform's contact-info filter — exactly the
+ * same evasion as `www . wzwote . com` and just as impossible to explain
+ * innocently. It moves the conversation off-platform, where there is no
+ * transaction record and no recourse.
+ *
+ * **Normal punctuation is deliberately NOT matched.** `(414) 998-9114` and
+ * `414-998-9114` are how people write their number, and flagging those would
+ * make the signal useless. Only separators nobody uses in a real phone number:
+ * `^ * # ~ = +` and repeated dots or underscores.
+ *
+ * The bereavement script is real and common, but it is NOT used as a signal:
+ * some sellers genuinely are clearing out a relative's things, and calling that
+ * fraud is both wrong and cruel.
+ */
+const OBFUSCATED_CONTACT =
+  /\d{3}\s*[\^*#~=+]{1,3}\s*\d{3}\s*[\^*#~=+]{1,3}\s*\d{4}|\d{3}\s*[._]{2,}\s*\d{3}\s*[._]{2,}\s*\d{4}/;
+
 const RANDOM_TITLE_SUFFIX = /\s([A-Z0-9]{4})\s*$/;
 
 /** Does the trailing token look generated rather than like a model number? */
@@ -434,10 +463,13 @@ export function analyze(l: RawListing, opts?: { clusterSize?: number; visionText
    */
   const spaced = SPACED_DOMAIN.test(text);
   const outside = LOCAL_MARKET.has(l.source) ? offPlatformDomain(text) : null;
-  if (spaced || outside) {
+  const contact = OBFUSCATED_CONTACT.exec(text)?.[0] ?? null;
+  if (spaced || outside || contact) {
     signals.push({
       code: "OFF_PLATFORM_REDIRECT", severity: "blocker", polarity: "negative",
-      evidence: spaced
+      evidence: contact
+        ? `The listing hides a phone number in the text — "${contact.trim()}". Written that way to get past the platform's contact filter, which is the same trick as spacing out a web address: it moves you somewhere with no transaction record and no recourse.`
+        : spaced
         ? `The listing writes a web address with spaces in it and asks you to remove them — "${(text.match(SPACED_DOMAIN)?.[0] ?? "").trim().slice(0, 60)}". That is deliberate evasion of the platform's link filter, and it is the redirect scam: the "seller" replies instantly, sends you to a site they control, and takes payment for an item that does not exist.`
         : `The listing points you to an outside website — "${outside}". A local seller with the item in their house has no reason to send you off-platform to see it.`,
     });

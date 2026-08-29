@@ -468,6 +468,30 @@ describe("scam: off-platform redirect", () => {
     expect(offPlatformDomain("benchmarks: https://www.techpowerup.com/gpu")).toBeNull();
   });
 
+  /**
+   * The SECOND scam Yish confirmed used a different trick: a phone number
+   * written to defeat the contact filter, in a $240 listing for an i9-14900K +
+   * RTX 4070 Ti build.
+   */
+  test("obfuscated phone numbers are caught, real ones are not", async () => {
+    const { analyze } = await import("../src/signals/index.ts");
+    const mk = (description: string) => ({
+      source: "facebook", sourceId: "x", url: "", title: "Custom Built Gaming PC",
+      description, askingPriceCents: 24000, location: null, postedAt: null,
+      updatedAt: null, photoUrls: [], attributes: {}, raw: null,
+    });
+    const fired = (d: string) =>
+      analyze(mk(d) as never).signals.some((x) => x.code === "OFF_PLATFORM_REDIRECT");
+
+    expect(fired("great condition (414^^998^^9114) text me")).toBe(true);
+    expect(fired("call 617__555__0134 anytime")).toBe(true);
+    // How people actually write a phone number. Flagging these makes the
+    // signal useless, so they must never fire.
+    expect(fired("text me at (617) 555-0134")).toBe(false);
+    expect(fired("call 617-555-0134")).toBe(false);
+    expect(fired("617.555.0134 is my cell")).toBe(false);
+  });
+
   test("generated title suffix: letters convict, model numbers do not", () => {
     expect(randomSuffix("MacBook Pro M1 Max 16in 32GB 1TB Space Gray UPZT")).toBe(true);
     expect(randomSuffix("Apple MacBook Pro A2141 16in 1TB SSD G7FQ")).toBe(true);

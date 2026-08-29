@@ -11,6 +11,27 @@ const strip = (s: string) =>
     .replace(/\s+/g, " ").trim();
 
 export async function fetchListing(url: string): Promise<RawListing> {
+  /**
+   * ⚠ THIS FUNCTION STAMPS `source: "craigslist"` UNCONDITIONALLY, so handing
+   * it any other URL silently mints a mislabelled row.
+   *
+   * Found on listing 936: an OfferUp item stored as Craigslist, with the
+   * OfferUp url and OfferUp id intact. It then failed to deduplicate against
+   * the SAME item already stored correctly as OfferUp — the key is
+   * `(source, source_id)`, and the source disagreed — so one graphics card
+   * appeared three times in the feed.
+   *
+   * The API's `badUrl` already rejects non-Craigslist links, but `bun run check`
+   * is a CLI and goes straight past it. Refusing here closes the hole for every
+   * caller rather than for one of them.
+   */
+  if (!/^https?:\/\/([a-z-]+\.)?craigslist\.org\//i.test(url)) {
+    throw new Error(
+      `fetchListing is the Craigslist fetcher and cannot read ${new URL(url).hostname} — ` +
+      "Facebook, OfferUp and Mercari need their own browser-backed crawlers.",
+    );
+  }
+
   const res = await fetch(url, {
     headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
   });
