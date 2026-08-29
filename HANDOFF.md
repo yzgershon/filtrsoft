@@ -1417,6 +1417,107 @@ you can buy at.
 
 ---
 
+## 11j. The 2026-08-28 pass — four things Yish caught in one sitting
+
+### ⚠⚠ THE OFF-PLATFORM REDIRECT SCAM — settled before pricing
+
+He messaged two listings the feed was RECOMMENDING, got an instant reply from
+each with a link to an outside "store", and Facebook's own banner said the
+seller was likely in another country. The $85 MacBook Air M2 had been reported
+as **VERIFY with $416 of net profit**.
+
+The evidence was already in the description we had captured:
+
+    "More photos and details are available here: www . wzwote . com
+     (Please remove the spaces when entering the website.)"
+
+`SPACED_DOMAIN` is dispositive on its own — writing a domain with spaces and
+asking the reader to remove them is deliberate evasion of the platform's link
+filter, and has no innocent explanation. `offPlatformDomain()` catches the plain
+version on LOCAL marketplaces only. `randomSuffix()` (UPZT, URVQ, KSDX, G7FQ) is
+the botted-inventory fingerprint and corroborates rather than convicts.
+
+Returns **RISK, not PASS**: PASS reads "priced too high", this needs to read
+"do not engage". 4/4 caught, 0 false positives across 1,129 listings.
+
+#### ⚠ A NEGATIVE LOOKAHEAD CANNOT EXPRESS "domain not in this list"
+
+The obvious form is
+`(?:https?:\/\/|www\.)(?:www\.)?(?!(?:craigslist|amazon|…)\.)`. It DOES NOT
+WORK and the failure is invisible until tested: `(?:www\.)?` is optional, so
+when the lookahead correctly rejects "craigslist" the engine **backtracks**,
+declines to consume `www.`, and re-tests against "www" — which is not on the
+list. `https://www.craigslist.org` and `www.amazon.com` both matched as
+off-platform links. Extract the domain and check it in code. Pinned by tests.
+
+#### ⚠ `\s*` ALLOWS ZERO SPACES
+
+The first `SPACED_DOMAIN` used `www\s*\.\s*`, which matched a plain
+`www.amazon.com` in an honest monitor listing and called it deliberate filter
+evasion. Whitespace must be REQUIRED adjacent to both dots or the pattern does
+not mean what its name says.
+
+Yish also observed both accounts were created in 2026. Strong signal, **not
+captured** — the crawler never reads the seller profile. Worth adding.
+
+### NO FEES ON A LOCAL SALE — `prefers_channel` is honoured now
+
+*"I don't like how it is adding cost of fees and shipping when I'm usually
+buying and selling locally."* He was looking at a $183 eBay fee and $15 of
+shipping on a machine he hands over in a parking lot.
+
+`SHIP_CENTS` now has `laptop`, `console` and `prebuilt` as **null** — eBay is
+not an available channel, so there are no fees to subtract. `phone`, `tablet`,
+`gpu` and `component` keep a number; for those the detail screen shows a
+**Local / eBay switch**, defaulting to local. `laptop` is the debatable one and
+it is local because he said so; give it a shipping number and the toggle appears
+automatically.
+
+**`prefers_channel` had been on `user_economics` from the beginning and was
+never read.** Without it the verdict prose described a sale he will never make —
+*"$653 net on ebay after $332 fees"* directly above a panel reading *"Selling
+locally, +$625"*. Two answers on one screen, and the louder one was for a
+channel he does not use.
+
+### A BLOCKER IS A DISCLOSED DEFECT, NOT AN UNKNOWN
+
+*"most of the time they aren't actually hard blockers... with graphics cards
+there's always this hard blocker about how it's unknown if the card has display
+ports."*
+
+DISPLAY_OUTPUTS is `unresolved` on essentially every graphics card — you cannot
+see an I/O bracket from a listing — so the panel shouted HARD BLOCKER at every
+card in the feed. **A check that fires on everything carries no information**,
+which this repo already says elsewhere.
+
+Only `failed` renders, under "What's wrong with it". Unresolved in-person checks
+became a quiet "Check when you get there" list; unresolved remote ones became
+questions. **The GATE is unchanged** — an activation-locked phone still cannot
+read as a deal. This is about what is worth SAYING, not what is enforced.
+
+### TWO QUESTIONS, CHOSEN FOR THE LISTING
+
+Was up to seven, ending in five fixed category questions, so every card asked
+for an I/O photo and whether it had been mined. Ranked by how much the answer
+moves given what this listing already says: signal fired > remote blocker >
+missing field > one category fallback. **In-person checks are excluded** — a
+text message cannot settle them, so asking wastes one of two slots.
+
+`buildQuestions` is called AFTER `riskChecks` now. Built before, it could not
+see them and `gateQuestions` had to prepend its own on top, which is how the
+list reached seven.
+
+### ⚠ AN OLD API SERVER FIGHTS `bun run verdict`
+
+Running the re-score while a server on an OLDER engine is up gets it silently
+undone: the server's crawl loop runs `reverdictStale`, sees verdicts at a
+version that is not its own, and re-scores them BACKWARDS. Measured — 0.3.23
+rows replaced by 0.3.21 ones **13 seconds later**, and the feed kept serving the
+old headline while the database appeared to hold the new one. **Stop the server
+before a manual re-score**, or run it with `ASSYZE_CRAWL=off`.
+
+---
+
 ## 12. Live traps
 
 ### ⚠⚠ ONLY A **REMOTE** UNRESOLVED BLOCKER VETOES BUY
