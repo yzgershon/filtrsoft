@@ -137,6 +137,122 @@ const SHIPS_ON_LOCAL_MARKET =
 const COUNTERFEIT =
   /\b(clone|replica|counterfeit|knock ?off|fake|goophone|1:1 (copy|version)|master copy|aaa\+? (quality|grade)|not (a )?(genuine|original|real) (apple|samsung|iphone)|mirror (copy|grade))\b/i;
 
+/**
+ * ⚠⚠ THE OFF-PLATFORM REDIRECT SCAM. Confirmed live by Yish, 2026-08-28.
+ *
+ * He messaged two listings the feed was recommending — a $240 gaming PC and an
+ * $85 MacBook Air M2 — got an instant reply from both, and each sent him a link
+ * to an outside "store". Facebook's own banner on the thread read *"This seller
+ * may be in a different country than what the listing says."*
+ *
+ * **The evidence was already in the description we had captured:**
+ *
+ *   "More photos and details are available here: www . wzwote . com
+ *    (Please remove the spaces when entering the website.)"
+ *
+ *   "...works perfectly. Selling because it's no longer needed. www.ww5936.com
+ *    Feel free to reach out for more details or photos. I'll respond quickly."
+ *
+ * Assyze read those, priced them against real comps, and reported the MacBook
+ * as **VERIFY with $416 of net profit** — the single worst thing this product
+ * can do. A listing that sends you off-platform is not a deal to verify.
+ *
+ * Three signals, in descending order of how conclusive they are:
+ *
+ * `SPACED_DOMAIN` is DISPOSITIVE. Writing "www . wzwote . com" and then asking
+ * the reader to remove the spaces is deliberate evasion of the platform's own
+ * link filter. There is no innocent reason to do it, so it does not need to be
+ * corroborated by anything.
+ *
+ * `OFF_PLATFORM_LINK` catches the unobfuscated version. Scoped to LOCAL
+ * marketplaces on purpose: a Craigslist listing may legitimately link to a
+ * manufacturer spec page, but a Facebook or OfferUp seller directing you to a
+ * random `.com` to "see more photos" is the entire scam in one sentence.
+ * Platform and manufacturer domains are excluded so a link to the real Apple or
+ * Newegg page is not treated as fraud.
+ *
+ * `RANDOM_TITLE_SUFFIX` is the botted-inventory fingerprint — "MacBook Pro M1
+ * Max 16in 32GB 1TB Space Gray **UPZT**". Four characters, at least three of
+ * them letters, at the very end of the title. It is deliberately NOT enough on
+ * its own: real titles end in model codes, and requiring 3+ letters keeps
+ * "X570", "9310" and "2024" out, but "DDR5" and "ONLY" still slip through. It
+ * corroborates, it does not convict.
+ *
+ * Yish also observed both accounts were created in 2026. That is a strong
+ * signal and we do not capture it — the crawler never reads the seller profile.
+ * Worth adding; not needed for these, because the text alone is conclusive.
+ */
+/** Marketplaces where an outside link has no innocent explanation. */
+const LOCAL_MARKET = new Set(["facebook", "offerup", "mercari"]);
+
+/**
+ * ⚠ THE SPACES MUST BE REAL. `\s*` allows ZERO of them, so the first version of
+ * this matched a plain "www.amazon.com" in an honest monitor listing and called
+ * it deliberate filter evasion. Whitespace is now required adjacent to BOTH
+ * dots, which is what makes the pattern mean what its name says.
+ */
+const SPACED_DOMAIN =
+  /\bwww(?:\s+\.\s*|\s*\.\s+)[a-z0-9-]{2,}(?:\s+\.\s*|\s*\.\s+)(?:com|net|shop|store|online|site|xyz)\b|\bremove\s+the\s+spaces\b/i;
+
+/**
+ * ⚠ DO NOT EXPRESS THIS AS ONE REGEX WITH A NEGATIVE LOOKAHEAD.
+ *
+ * The obvious form is `(?:https?:\/\/|www\.)(?:www\.)?(?!(?:craigslist|…)\.)`,
+ * and it DOES NOT WORK, for a reason that is invisible until you test it:
+ * `(?:www\.)?` is optional, so when the lookahead correctly rejects
+ * "craigslist", the engine simply BACKTRACKS, declines to consume `www.`, and
+ * re-tests the lookahead against "www" — which is not on the exclusion list.
+ * "https://www.craigslist.org" matched as an off-platform link, and so did
+ * "https://www.amazon.com".
+ *
+ * Find the URLs, strip the prefix, and check the domain in code. No
+ * backtracking, and the allow-list is a Set you can read.
+ *
+ * The allow-list is deliberately generous. A gaming-PC seller linking their
+ * pcpartpicker build is being HELPFUL, and this is the expensive direction of
+ * the error: a false scam label kills a real deal AND teaches the reader to
+ * ignore the label on the day it matters.
+ */
+const URL_LIKE = /(?:https?:\/\/|www\.)[a-z0-9.-]+\.[a-z]{2,}/gi;
+
+const KNOWN_DOMAINS = new Set([
+  "facebook", "fb", "messenger", "offerup", "mercari", "craigslist", "ebay",
+  "apple", "icloud", "dell", "hp", "lenovo", "asus", "msi", "gigabyte", "evga",
+  "corsair", "nzxt", "intel", "amd", "nvidia",
+  "newegg", "bestbuy", "amazon", "walmart", "microcenter", "target",
+  "google", "youtube", "youtu", "imgur", "reddit", "dropbox", "photos",
+  "pcpartpicker", "userbenchmark", "techpowerup", "gpucheck",
+]);
+
+/** The first outside domain in the text, or null if every link is a known one. */
+export function offPlatformDomain(text: string): string | null {
+  for (const m of text.matchAll(URL_LIKE)) {
+    const host = m[0]
+      .replace(/^https?:\/\//i, "")
+      .replace(/^www\./i, "")
+      .toLowerCase();
+    // Registrable label: "shop.wzwote.co.uk" -> "wzwote". Good enough here,
+    // because the question is only "is this a name we recognise".
+    const parts = host.split(".").filter(Boolean);
+    const label = parts.length > 2 ? parts[parts.length - 3] : parts[0];
+    if (label && !KNOWN_DOMAINS.has(label)) return host;
+  }
+  return null;
+}
+
+const RANDOM_TITLE_SUFFIX = /\s([A-Z0-9]{4})\s*$/;
+
+/** Does the trailing token look generated rather than like a model number? */
+export function randomSuffix(title: string): boolean {
+  const m = title.match(RANDOM_TITLE_SUFFIX);
+  if (!m) return false;
+  const tok = m[1];
+  const letters = (tok.match(/[A-Z]/g) ?? []).length;
+  if (letters < 3) return false;                       // X570, 9310, 2024
+  // Real words that happen to be four capitals: DDR5, ONLY, READ, ASAP, WEEK.
+  return !/^(DDR[2-5]|ONLY|READ|ASAP|WEEK|MINT|OBO|NEW|USED|FREE|SALE|WIFI|IPAQ|SYNK|GB|TB|OEM|LOT)$/.test(tok);
+}
+
 const SPEC_SHEET_LANGUAGE =
   /\b(designed for professionals|features include|is a high-performance|delivers (up to|exceptional)|engineered (for|to)|ideal for (creators|professionals))\b/i;
 
@@ -304,6 +420,38 @@ export function analyze(l: RawListing, opts?: { clusterSize?: number; visionText
     signals.push({
       code: "COUNTERFEIT", severity: "blocker", polarity: "negative",
       evidence: `The listing says "${l.title.match(COUNTERFEIT)?.[0]}". That is a counterfeit, not a cheap genuine unit — it has no resale value at any price, and reselling one is fraud. There is no asking price that makes this a deal.`,
+    });
+  }
+
+  /**
+   * THE OFF-PLATFORM REDIRECT. A blocker, not a flag — same reasoning as
+   * COUNTERFEIT: there is no asking price at which the answer changes, because
+   * there is no item.
+   *
+   * Checked against the LISTING TEXT only. We never see the reply where the
+   * link usually arrives, which is why the ones that put it in the description
+   * are worth catching precisely.
+   */
+  const spaced = SPACED_DOMAIN.test(text);
+  const outside = LOCAL_MARKET.has(l.source) ? offPlatformDomain(text) : null;
+  if (spaced || outside) {
+    signals.push({
+      code: "OFF_PLATFORM_REDIRECT", severity: "blocker", polarity: "negative",
+      evidence: spaced
+        ? `The listing writes a web address with spaces in it and asks you to remove them — "${(text.match(SPACED_DOMAIN)?.[0] ?? "").trim().slice(0, 60)}". That is deliberate evasion of the platform's link filter, and it is the redirect scam: the "seller" replies instantly, sends you to a site they control, and takes payment for an item that does not exist.`
+        : `The listing points you to an outside website — "${outside}". A local seller with the item in their house has no reason to send you off-platform to see it.`,
+    });
+  }
+
+  /**
+   * The botted-inventory fingerprint. NOT a blocker on its own — real titles do
+   * end in short codes — but it is a strong corroborator, and the whole cluster
+   * Yish found carried one: UPZT, URVQ, KSDX, G7FQ.
+   */
+  if (randomSuffix(l.title)) {
+    signals.push({
+      code: "GENERATED_TITLE", severity: "medium", polarity: "negative",
+      evidence: `The title ends in "${l.title.match(/\s([A-Z0-9]{4})\s*$/)?.[1]}", a random code that means nothing. Bulk-generated scam listings add one so each posting looks unique to the platform's duplicate detection.`,
     });
   }
 

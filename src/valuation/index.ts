@@ -29,11 +29,40 @@ export interface UserEconomics {
 const EBAY_FVF = 0.1325;
 const EBAY_FIXED_CENTS = 40;
 
-/** Shipping by category. `null` = not practically shippable, so Facebook-only. */
+/**
+ * Shipping by category. `null` = eBay is not an available channel, so the item
+ * is priced LOCALLY with no fees and no shipping.
+ *
+ * ── YISH'S RULE, 2026-08-28 ────────────────────────────────────────────────
+ *
+ * *"I don't like how it is adding cost of fees and shipping when I'm usually
+ * buying and selling locally... for everything other than phones and like small
+ * pc parts like cpus gpus or nvme storage or ram sticks get rid of the shipping
+ * and fees altogether."*
+ *
+ * He is the one who sells these, and he sells them locally. Charging a $183
+ * eBay fee and $15 of shipping against a machine he will hand to someone in a
+ * parking lot is not conservative, it is wrong — it understates every verdict
+ * by the cost of a channel he does not use.
+ *
+ * **SHIPPABLE = small, high value per pound, genuinely posted.** Phones,
+ * tablets, GPUs and bare components. For these eBay is a real alternative, so
+ * BOTH sets of economics are computed and the UI offers a switch.
+ *
+ * **LOCAL-ONLY = laptops, consoles, prebuilts.** `laptop` moved here
+ * deliberately and it is the one I would flag as debatable: laptops are a large
+ * eBay category and ship for about $20. It is local because Yish said so and he
+ * is the domain authority on his own channel — flip it back by giving it a
+ * number, and the toggle appears for laptops automatically.
+ */
 const SHIP_CENTS: Record<string, number | null> = {
   phone: 1000, tablet: 1200, component: 1000, gpu: 1500,
-  laptop: 2000, console: 2500, prebuilt: null,
+  laptop: null, console: null, prebuilt: null,
 };
+
+/** Can this category be sold on eBay at all? Drives the UI's fees toggle. */
+export const isShippable = (category: string) =>
+  (category in SHIP_CENTS ? SHIP_CENTS[category] : 1500) !== null;
 
 /**
  * Facebook gross runs below eBay: local buyer pool, no buyer protection.

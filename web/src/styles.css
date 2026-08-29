@@ -988,3 +988,40 @@ a { color: inherit; }
 .newsearch input:nth-of-type(2) { width: 74px; flex: none; }
 .newsearch input:focus { outline: none; border-color: var(--brand); }
 .alertnote { color: var(--ink-1); }
+
+/* ===================================================== channel switch (Numbers) */
+.nhead { display: flex; align-items: center; gap: var(--s3); margin-bottom: 8px; }
+.nhead h4 { margin: 0; flex: 1; }
+/*
+ * A segmented switch, not a toggle: both states are named, so you can see what
+ * the other one is before you press it. Local leads because that is what Yish
+ * actually does — the default is the answer, not a neutral starting point.
+ */
+.chsw {
+  display: inline-flex; padding: 2px; gap: 2px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px;
+}
+.chsw button {
+  padding: 5px 13px; border: 0; border-radius: 999px; background: none;
+  color: var(--ink-3); font-size: 12px; font-weight: 650; letter-spacing: -.01em;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.chsw button.on { background: var(--surface-3); color: var(--ink-1); }
+.chnote { margin: 8px 2px 0; color: var(--ink-3); font-size: 12px; line-height: 1.5; }
+
+/* ===================================================== check-on-pickup list */
+/*
+ * Deliberately quiet. These are things to look at when you get there, not
+ * reasons to stay home — rendering them as alert boxes is what made every
+ * graphics card look like it had a hard blocker.
+ */
+.pickup { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.pickup li {
+  position: relative; padding: 9px 12px 9px 30px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 11px;
+  color: var(--ink-2); font-size: 13.5px; line-height: 1.45;
+}
+.pickup li::before {
+  content: ""; position: absolute; left: 12px; top: 15px;
+  width: 7px; height: 7px; border-radius: 2px; border: 1.5px solid var(--ink-3);
+}

@@ -3,9 +3,9 @@ import { Scan, Clock, User, Alert, Check, Info, Link, Again, Eye, Shield, Tag, G
 
 // ---------------------------------------------------------------- types
 type Call = "BUY" | "FAIR" | "PASS" | "VERIFY" | "RISK" | "INSUFFICIENT_DATA" | "OUT_OF_SCOPE";
-interface Channel { channel: string; grossCents: number; feesCents: number; shippingCents: number; netCents: number }
+interface Channel { channel: string; grossCents: number; feesCents: number; shippingCents: number; netCents: number; available?: boolean; note?: string }
 /** A category hard-blocker and whether the listing resolved it. */
-interface RiskCheck { code: string; label: string; state: string; question: string; evidence?: string }
+interface RiskCheck { code: string; label: string; state: string; question: string; evidence?: string; remote?: boolean }
 /** New-retail price for the same SKU. The only number not derived from comps. */
 interface Retail {
   priceCents: number; title: string; source: string; observedAt: string;
@@ -16,7 +16,8 @@ interface Verdict {
   call: Call; confidence: string; headline: string; reasoning: string;
   decidingUnknown?: string; targetOfferCents?: number;
   netProfitCents?: number; requiredProfitCents?: number;
-  bestChannel?: Channel; questions: string[];
+  bestChannel?: Channel; channels?: Channel[];
+  questions: string[];
   blockers?: string[]; riskChecks?: RiskCheck[]; retail?: Retail | null;
   valuation: { medianCents: number | null; lowCents: number | null; highCents: number | null; compCount: number; confidence: string };
 }
@@ -427,30 +428,75 @@ function Flags({ signals }: { signals: Signal[] }) {
   );
 }
 
-function Numbers({ v }: { v: Verdict }) {
+/**
+ * The money, on the channel YOU would actually use.
+ *
+ * Yish, 2026-08-28: *"I don't like how it is adding cost of fees and shipping
+ * when I'm usually buying and selling locally."* He was looking at a gaming PC
+ * showing a $183 eBay fee and $15 of shipping on a machine he hands over in a
+ * parking lot.
+ *
+ * Two changes, one in the engine and one here. The engine now treats laptops,
+ * consoles and prebuilts as LOCAL-ONLY, so there are no fees to show. And where
+ * eBay genuinely is an option — phones, tablets, GPUs, bare components — this
+ * screen defaults to **local** and offers a switch, rather than silently
+ * picking whichever channel nets more.
+ *
+ * The switch only renders when there is a real choice. A control that appears
+ * with one option is a control that teaches you not to look at it.
+ */
+function Numbers({ v, ask }: { v: Verdict; ask: number | null }) {
   const val = v.valuation;
+  const usable = (v.channels ?? []).filter((c) => c.available);
+  const local = usable.find((c) => c.channel === "facebook");
+  const shipped = usable.find((c) => c.channel === "ebay");
+  const canSwitch = Boolean(local && shipped);
+  const [mode, setMode] = useState<"local" | "shipped">("local");
   if (val.medianCents == null) return null;
-  const ch = v.bestChannel;
-  const net = v.netProfitCents ?? 0;
+
+  const ch = canSwitch ? (mode === "local" ? local! : shipped!) : (v.bestChannel ?? local ?? shipped);
+  /**
+   * Recompute against the SELECTED channel. Reading `v.netProfitCents` would
+   * print the engine's best-channel figure next to the other channel's gross,
+   * which is a number that belongs to neither.
+   */
+  const net = ch && ask != null ? ch.netCents - ask : (v.netProfitCents ?? 0);
+  const target = ch ? Math.max(0, ch.netCents - (v.requiredProfitCents ?? 0)) : v.targetOfferCents ?? 0;
+
   return (
     <section className="sec rise">
-      <h4>The numbers</h4>
+      <div className="nhead">
+        <h4>The numbers</h4>
+        {canSwitch && (
+          <div className="chsw" role="tablist" aria-label="Resale channel">
+            <button role="tab" aria-selected={mode === "local"}
+              className={mode === "local" ? "on" : ""} onClick={() => setMode("local")}>Local</button>
+            <button role="tab" aria-selected={mode === "shipped"}
+              className={mode === "shipped" ? "on" : ""} onClick={() => setMode("shipped")}>eBay</button>
+          </div>
+        )}
+      </div>
+
       <div className="panel">
         <div className="kv">
           <div className="k">Market value<small>{val.compCount} sold comps · {val.confidence} confidence</small></div>
           <div className="v num">{money(val.lowCents)}–{money(val.highCents)}</div>
         </div>
+
         {ch && (
           <>
             <div className="kv">
-              <div className="k">Best place to resell</div>
-              <div className="v" style={{ textTransform: "capitalize" }}>{ch.channel}</div>
+              <div className="k">
+                {ch.channel === "facebook" ? "Selling locally" : "Selling on eBay"}
+                <small>{ch.channel === "facebook" ? "cash, no fees, no shipping" : "after fees and postage"}</small>
+              </div>
+              <div className="v num">{money(ch.grossCents)}</div>
             </div>
-            <div className="kv sub"><div className="k">gross</div><div className="v num">{money(ch.grossCents)}</div></div>
             {ch.feesCents > 0 && <div className="kv sub"><div className="k">fees</div><div className="v num">−{money(ch.feesCents)}</div></div>}
             {ch.shippingCents > 0 && <div className="kv sub"><div className="k">shipping</div><div className="v num">−{money(ch.shippingCents)}</div></div>}
           </>
         )}
+
         <div className="kv">
           <div className="k">Your profit at asking price</div>
           <div className={`v num ${net > 0 ? "pos" : "neg"}`}>{net > 0 ? "+" : ""}{money(net)}</div>
@@ -459,13 +505,17 @@ function Numbers({ v }: { v: Verdict }) {
           <div className="k">You need at least<small>for the drive and the effort</small></div>
           <div className="v num">{money(v.requiredProfitCents)}</div>
         </div>
-        {v.targetOfferCents ? (
+        {target > 0 ? (
           <div className="kv hi">
             <div className="k">Offer this or less</div>
-            <div className="v num">{money(v.targetOfferCents)}</div>
+            <div className="v num">{money(target)}</div>
           </div>
         ) : null}
       </div>
+
+      {!canSwitch && ch?.channel === "facebook" && (
+        <p className="chnote">Too bulky to post — local sale only, so there are no fees to take out.</p>
+      )}
     </section>
   );
 }
@@ -585,29 +635,66 @@ function Lightbox({ urls, start, onClose }: { urls: string[]; start: number; onC
  */
 function Blockers({ checks }: { checks: RiskCheck[] }) {
   if (!checks?.length) return null;
-  const order = { failed: 0, unresolved: 1, inPerson: 2, cleared: 3 } as Record<string, number>;
-  const sorted = [...checks].sort((a, b) => (order[a.state] ?? 9) - (order[b.state] ?? 9));
-  const open = sorted.filter((c) => c.state === "failed" || c.state === "unresolved").length;
+
+  /**
+   * ⚠ A BLOCKER IS A DISCLOSED DEFECT. AN UNKNOWN IS NOT A BLOCKER.
+   *
+   * Yish, 2026-08-28: *"I don't like how there are so many hard blockers and
+   * most of the time they aren't actually hard blockers... with graphics cards
+   * there's always this hard blocker about how it's unknown if the card has
+   * display ports... maybe if it mentions that 1 of the HDMI ports is damaged
+   * that would be a good example."*
+   *
+   * He is right, and the codebase already contains the principle: **a check
+   * that fires on everything carries no information.** DISPLAY_OUTPUTS was
+   * `unresolved` on essentially every graphics card, because you cannot see an
+   * I/O bracket from a listing — so the panel screamed HARD BLOCKER at every
+   * card in the feed and the label stopped meaning anything.
+   *
+   * `failed` is the only state that belongs here: the listing SAID something is
+   * wrong. Everything else moves:
+   *
+   *   unresolved + remote    -> a question. Asking costs one message.
+   *   unresolved + in person -> a quiet "look at this on pickup" line.
+   *   cleared                -> not shown at all. A resolved check is noise.
+   *
+   * The engine is unchanged — `riskGate` still caps BUY on a remote unknown,
+   * which is what stops an activation-locked phone reading as a deal. This is
+   * about what is worth SAYING, not about what is enforced.
+   */
+  const disclosed = checks.filter((c) => c.state === "failed");
+  const onPickup = checks.filter((c) => c.state === "unresolved" && !c.remote).slice(0, 2);
+
+  if (!disclosed.length && !onPickup.length) return null;
 
   return (
-    <section className="sec rise">
-      <h4>Hard blockers {open > 0 ? <em>({open} unresolved)</em> : <em>(all clear)</em>}</h4>
-      <ul className="risks">
-        {sorted.map((c) => (
-          <li key={c.code} className={`risk r-${c.state}`}>
-            <span className="rstate">{
-              c.state === "cleared" ? "clear"
-                : c.state === "inPerson" ? "in person"
-                : c.state === "failed" ? "disclosed" : "unknown"
-            }</span>
-            <div>
-              <b>{c.label}</b>
-              {c.state !== "cleared" && <p>{c.question}</p>}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </section>
+    <>
+      {disclosed.length > 0 && (
+        <section className="sec rise">
+          <h4>What's wrong with it <em>({disclosed.length} disclosed)</em></h4>
+          <ul className="risks">
+            {disclosed.map((c) => (
+              <li key={c.code} className="risk r-failed">
+                <span className="rstate">stated</span>
+                <div>
+                  <b>{c.label}</b>
+                  {c.evidence && <p>{c.evidence}</p>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {onPickup.length > 0 && (
+        <section className="sec rise">
+          <h4>Check when you get there</h4>
+          <ul className="pickup">
+            {onPickup.map((c) => <li key={c.code}>{c.label}</li>)}
+          </ul>
+        </section>
+      )}
+    </>
   );
 }
 
@@ -755,7 +842,7 @@ function Report({ listing, verdict, signals, meta, stage, reading, checkId }: {
         </div>
       )}
 
-      {verdict && <Numbers v={verdict} />}
+      {verdict && <Numbers v={verdict} ask={listing?.askingPriceCents ?? null} />}
       {verdict?.retail && <Ceiling r={verdict.retail} />}
       {verdict?.riskChecks?.length ? <Blockers checks={verdict.riskChecks} /> : null}
       <Flags signals={signals} />

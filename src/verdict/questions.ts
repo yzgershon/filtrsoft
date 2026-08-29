@@ -1,113 +1,128 @@
 /**
- * "Ask the seller" — generated per listing.
+ * "Ask the seller" — TWO questions, chosen for THIS listing.
  *
  * From the Phase 0 research: no competitor ships this. It is also the cheapest
  * high-value thing in the product — pure rules over what we already know, no
  * model call, no comps.
  *
- * Ordering is deliberate: questions that could make the item WORTHLESS come
- * first, then value-determining unknowns, then condition. A buyer reading top to
- * bottom stops at the first "no" that matters.
+ * ── WHY TWO, AND WHY NOT THE OLD LIST ──────────────────────────────────────
+ *
+ * Yish, 2026-08-28: *"the ask the seller section has too many questions and
+ * also they are too general. Limit it to 2 questions and make them genuinely
+ * tailored to the listing itself so they're not all just the same dumb
+ * question."*
+ *
+ * The old version emitted up to SEVEN and finished with five fixed
+ * category-standard questions, so every graphics card on the site asked for a
+ * photo of the I/O bracket and whether it had been mined. Identical text on
+ * every listing is not advice, it is wallpaper — and a seller who receives a
+ * seven-question interrogation from a stranger usually just stops replying,
+ * which costs the deal the questions were meant to protect.
+ *
+ * ── HOW THE TWO ARE CHOSEN ─────────────────────────────────────────────────
+ *
+ * Strictly by how much the ANSWER moves, given what this listing already says.
+ * A question whose answer is already in the text is worthless no matter how
+ * important the topic is in general.
+ *
+ *   1. A signal fired      — something is off about THIS listing.
+ *   2. A remote blocker    — could make it worthless, and one message settles
+ *                            it. In-person checks are deliberately NOT here:
+ *                            you cannot answer them by text, so asking wastes
+ *                            one of the two slots.
+ *   3. A missing field     — names the exact spec the seller omitted, so it
+ *                            reads as though a human read the post.
+ *   4. Category fallback   — ONE, and only if nothing above filled both slots.
+ *
+ * Every question is phrased to be sendable as-is, because it is going into a
+ * message box.
  */
 import type { SignalReport, Category } from "../types.ts";
 import type { Match } from "../catalog/match.ts";
+import type { RiskCheck } from "./risk-gates.ts";
 
-/** The one test per category that separates a working item from a paperweight. */
-const KILLER: Partial<Record<Category, string[]>> = {
-  phone: [
-    "Is it fully paid off with no carrier balance? (An unpaid balance gets the IMEI blacklisted later, even after I buy it.)",
-    "Can you send a screenshot of Settings → General → About so I can see the IMEI and exact model?",
-    "Is it carrier locked or unlocked, and which carrier was it on originally?",
-    "Screenshot of Settings → Battery → Battery Health?",
-    "Can I see it powered on at the home screen when we meet? (Not the lock screen.)",
-  ],
-  tablet: [
-    "Is it signed out of iCloud / the Google account, and will you sign out in front of me?",
-    "Is it the Wi-Fi or cellular model?",
-    "Can I see it at the home screen when we meet?",
-  ],
-  laptop: [
-    "Can you boot it to the desktop and send a photo of the About / System screen?",
-    "Any BIOS or firmware password set on it?",
-    "Is it enrolled in any company device management? (Off-lease machines sometimes re-lock after a wipe.)",
-    "What's the battery health or cycle count?",
-    "Can you open and close the lid — any play or cracking in the hinges?",
-  ],
-  gpu: [
-    "Can you send a photo of the I/O bracket showing the display outputs?",
-    "Was it ever used for mining or any 24/7 workload?",
-    "Can you send a photo of it running with GPU-Z open?",
-    "Do you still have the original box?",
-    "How long have you owned it, and why are you selling?",
-  ],
-  prebuilt: [
-    "Can you send a screenshot of Task Manager on the Performance tab? (Shows CPU, GPU and RAM in one image.)",
-    "What's the exact GPU model and how much VRAM?",
-    "What brand and wattage is the power supply?",
-    "Will you boot it and run something while I'm there?",
-    "Why are you selling it?",
-  ],
-  console: [
-    "Is the console banned from online play, or is the account in good standing?",
-    "Which exact revision is it, and how much storage?",
-    "Any drift on the controllers?",
-    "Does the disc drive read reliably?",
-  ],
-  component: [
-    "Do you have the original box and accessories?",
-    "How long was it in use, and in what system?",
-    "Can I test it before paying?",
-  ],
+/**
+ * Signal-driven questions. These reference something the listing actually did,
+ * which is what makes them read as specific.
+ */
+const BY_SIGNAL: Record<string, string> = {
+  ZERO_PHOTOS:
+    "Could you send a few photos of the actual item, including the ports and any model or serial label?",
+  SCREENSHOT_ARTIFACTS:
+    "Could you send a couple of photos you've taken yourself, with today's date on a piece of paper next to it?",
+  BOOT_SCREEN_ONLY:
+    "Could you send a photo of it at the home screen rather than the startup logo?",
+  IRREVERSIBLE_PAYMENT:
+    "I'd like to pay cash in person when I collect it — does that work for you?",
+  SHIPS_ON_LOCAL_MARKET:
+    "I'd rather collect in person than have it shipped — where would we meet?",
+  IMPOSSIBLE_CONNECTOR:
+    "Which exact model is it? The cable you mentioned doesn't match that generation.",
+  IMPOSSIBLE_SPEC_CLAIM:
+    "Could you double-check that spec? It doesn't look compatible with the rest of the hardware listed.",
+  CONDITION_CONTRADICTION:
+    "Could you send close-ups of the damage you mentioned so I can see how bad it is?",
+  PORT_DAMAGE: "Could you send close-ups of the ports?",
+  GEOGRAPHIC_CONTRADICTION: "Where exactly are you, and where would we meet?",
+  NO_DISPLAY_OUTPUT:
+    "This card looks like it has no video outputs — can it actually drive a monitor?",
+  LONG_ON_MARKET: "Is this still available, and are you flexible on the price?",
 };
 
-/** Questions triggered by a specific signal firing. */
-const BY_SIGNAL: Record<string, string> = {
-  BOOT_SCREEN_ONLY:
-    "Can you send a photo of it at the home screen rather than the startup logo? The boot screen only shows it powers on.",
-  SCREENSHOT_ARTIFACTS:
-    "Could you send a few photos you've taken yourself of the actual item, ideally with today's date written on paper next to it?",
-  ZERO_PHOTOS:
-    "Could you send photos of the actual item, including the ports and any serial or model label?",
-  LONG_ON_MARKET: "Is this still available?",
-  IRREVERSIBLE_PAYMENT: "I'd like to pay cash in person — does that work?",
-  IMPOSSIBLE_CONNECTOR:
-    "Just to confirm, which exact model is it? The cable you mentioned doesn't match that generation.",
-  IMPOSSIBLE_SPEC_CLAIM:
-    "Can you double-check that spec? It doesn't look compatible with the rest of the hardware listed.",
-  CONDITION_CONTRADICTION:
-    "Can you send close-up photos of the damage you mentioned, so I can see how bad it is?",
-  PORT_DAMAGE: "Can you send close-ups of the ports and hinges?",
-  GEOGRAPHIC_CONTRADICTION: "Where are you located, and where would we meet?",
-  NO_DISPLAY_OUTPUT:
-    "This card has no video outputs — were you aware? It can't drive a monitor.",
+/**
+ * Missing-field questions. They NAME the field, so the seller can see you read
+ * the listing and noticed what was not in it.
+ */
+const BY_FIELD: Record<string, string> = {
+  storage: "How much storage does it have exactly?",
+  gpu: "Which exact graphics card is in it, and how much VRAM?",
+  cpu: "Which exact processor is it? (The full model number, e.g. i7-10700.)",
+  ram: "How much RAM does it have, and is it upgradeable?",
+  model: "Which exact model is it? The listing doesn't say.",
+};
+
+/**
+ * ONE fallback per category — the single highest-value question when the
+ * listing gave us nothing to be specific about. Not a list: a list is how the
+ * old version ended up printing five identical questions on every card.
+ */
+const FALLBACK: Partial<Record<Category, string>> = {
+  phone: "Is it fully paid off and unlocked, with a clean IMEI?",
+  tablet: "Is it signed out of iCloud, and will you sign out in front of me?",
+  laptop: "Can you boot it to the desktop and send a photo of the About screen?",
+  gpu: "How long have you owned it, and was it ever used for mining?",
+  prebuilt: "Could you send a screenshot of Task Manager on the Performance tab? It shows the CPU, GPU and RAM in one image.",
+  console: "Is the console banned from online play, and will you sign out of your account?",
+  component: "How long have you had it, and has it been working fine?",
 };
 
 export function buildQuestions(
   signals: SignalReport,
   match: Match,
-  opts: { missingFields?: string[] } = {},
+  opts: { missingFields?: string[]; riskChecks?: RiskCheck[] } = {},
 ): string[] {
   const out: string[] = [];
-  const push = (q: string) => { if (q && !out.includes(q)) out.push(q); };
+  const push = (q?: string | null) => {
+    if (q && !out.includes(q) && out.length < 2) out.push(q);
+  };
 
-  // 1. Signal-driven first — these are why we're suspicious.
-  for (const s of signals.signals) {
-    const q = BY_SIGNAL[s.code];
-    if (q) push(q);
+  // 1. Something is off about THIS listing. Highest information, always first.
+  for (const s of signals.signals) push(BY_SIGNAL[s.code]);
+
+  /**
+   * 2. Remote blockers only. An in-person check ("show me the I/O bracket")
+   * cannot be settled over text, so spending one of two slots on it buys
+   * nothing — that is exactly the question Yish called out as useless.
+   */
+  for (const c of opts.riskChecks ?? []) {
+    if (c.state === "unresolved" && c.remote) push(c.question);
   }
 
-  // 2. The specific unknowns that block a valuation.
-  for (const f of opts.missingFields ?? signals.missingValueFields) {
-    if (f === "storage") push("What's the exact storage size?");
-    if (f === "gpu") push("What's the exact graphics card model and VRAM?");
-    if (f === "cpu") push("What's the exact processor model?");
-    if (f === "ram") push("How much RAM, and what speed?");
-    if (f === "model") push("What's the exact model?");
-  }
+  // 3. The exact spec this seller left out.
+  for (const f of opts.missingFields ?? signals.missingValueFields) push(BY_FIELD[f]);
 
-  // 3. Category standards.
-  const cat = (match.category ?? signals.category) as Category;
-  for (const q of KILLER[cat] ?? []) push(q);
+  // 4. Only if the listing was complete and clean enough to say nothing else.
+  push(FALLBACK[(match.category ?? signals.category) as Category]);
 
-  return out.slice(0, 7);
+  return out;
 }

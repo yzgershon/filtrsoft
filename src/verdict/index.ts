@@ -109,6 +109,16 @@ export interface VerdictResult {
   targetOfferCents?: number;
   valuation: ReturnType<typeof valueSku>;
   bestChannel?: ChannelResult;
+  /**
+   * BOTH channels, so the detail screen can offer a local/eBay switch instead
+   * of quietly picking one. Yish sells locally and the eBay breakdown was being
+   * presented as though it were the only arithmetic — a $183 fee and $15 of
+   * shipping on a machine he hands over in a parking lot.
+   *
+   * For a local-only category there is exactly one usable channel and the UI
+   * shows no switch at all.
+   */
+  channels?: ChannelResult[];
   netProfitCents?: number;
   requiredProfitCents?: number;
   blockers: string[];
@@ -127,10 +137,18 @@ export interface VerdictResult {
   retail?: RetailPrice | null;
 }
 
-/** Unresolved checks become the FIRST questions — they are what blocks a BUY. */
+/**
+ * Unresolved checks lead, because they are what blocks a BUY.
+ *
+ * **CAPPED AT TWO, like everything else on this screen.** This used to return
+ * the full union, so a verdict that already had two well-chosen questions came
+ * out with six — the exact pile Yish asked to be cut. `gate.unresolved` is
+ * remote-only by construction, so nothing here can ask for something that can
+ * only be seen in person.
+ */
 function gateQuestions(gate: RiskGate, existing: string[]): string[] {
   const first = [...gate.failed, ...gate.unresolved].map((c) => c.question);
-  return [...new Set([...first, ...existing])];
+  return [...new Set([...first, ...existing])].slice(0, 2);
 }
 
 /** Named on a BUY, so a clean verdict shows its work rather than staying silent. */
@@ -221,7 +239,6 @@ export function buildVerdict(input: {
     (partsVal && (skuVal.status === "no_comps" || partsVal.compCount > skuVal.compCount)
       ? partsVal
       : skuVal);
-  const questions = buildQuestions(signals, match);
 
   /**
    * Category risk state, computed from the listing text AND the photos.
@@ -236,6 +253,14 @@ export function buildVerdict(input: {
     input.vision ?? null,
   );
   const gate = riskGate(riskChecks);
+
+  /**
+   * Questions are built AFTER the risk checks, not before, so the two we pick
+   * can include a remote blocker — the highest-value thing a single message can
+   * settle. Built before, `buildQuestions` could not see them and the gate had
+   * to prepend its own on top, which is how the list reached seven.
+   */
+  const questions = buildQuestions(signals, match, { riskChecks });
 
   /**
    * New retail for the same SKU — the only number in this function that is not
@@ -286,6 +311,30 @@ export function buildVerdict(input: {
       ...base, call: "PASS", confidence: "high",
       headline: "Counterfeit — not a deal at any price.",
       reasoning: counterfeit.evidence,
+    };
+  }
+
+  /**
+   * ⚠⚠ THE OFF-PLATFORM REDIRECT, SETTLED BEFORE PRICING — same position and
+   * same reasoning as counterfeit, because there is no item to price.
+   *
+   * Confirmed live by Yish, 2026-08-28: he messaged two listings this feed was
+   * RECOMMENDING, both replied instantly with a link to an outside "store", and
+   * Facebook's own banner said the seller was likely in another country. The
+   * $85 MacBook Air M2 had been reported as **VERIFY with $416 of net profit**.
+   *
+   * Surfacing a scam as an opportunity is the worst thing this product can do —
+   * worse than missing a deal, because it spends the user's trust and their
+   * money. It returns RISK rather than PASS: PASS reads "priced too high", and
+   * this needs to read "do not engage".
+   */
+  const redirect = signals.signals.find((s) => s.code === "OFF_PLATFORM_REDIRECT");
+  if (redirect) {
+    return {
+      ...base, call: "RISK", confidence: "high",
+      headline: "Scam — the listing sends you off-platform.",
+      reasoning: redirect.evidence,
+      questions: [],
     };
   }
 
@@ -534,7 +583,24 @@ export function buildVerdict(input: {
   const basis = (valuation as { basis?: PriceBasis }).basis ?? "ebay";
   const channels = netByChannel(valuation.medianCents, match.category ?? signals.category, basis);
   const usable = channels.filter((c) => c.available);
-  const best = usable.reduce((a, b) => (b.netCents > a.netCents ? b : a));
+  /**
+   * ⚠ THE USER'S CHANNEL DECIDES, NOT THE HIGHEST NUMBER.
+   *
+   * This used to pick whichever channel netted most, which meant the verdict
+   * prose could describe a sale Yish will never make: the RTX 4090 read
+   * *"$653 net on ebay — after $332 fees and $15 shipping"* while the panel
+   * underneath it said *"Selling locally, +$625"*. Two different answers on one
+   * screen, and the louder one was for a channel he does not use.
+   *
+   * `prefers_channel` has been on `user_economics` from the beginning and was
+   * never consulted. It is `facebook`, because he sells locally.
+   *
+   * Falls back to the best available when the preferred channel is not an
+   * option — which for a phone or a GPU it always is, and for a tower eBay
+   * never is.
+   */
+  const preferred = usable.find((c) => c.channel === econ.prefers_channel);
+  const best = preferred ?? usable.reduce((a, b) => (b.netCents > a.netCents ? b : a));
   const ask = input.askingPriceCents;
   const net = best.netCents - ask;
   const required = requiredProfitCents(econ, drive);
@@ -544,7 +610,7 @@ export function buildVerdict(input: {
   const targetOfferCents = Math.max(0, best.netCents - required);
 
   const money = {
-    ...base, bestChannel: best, netProfitCents: net,
+    ...base, bestChannel: best, channels, netProfitCents: net,
     requiredProfitCents: required, targetOfferCents,
     confidence: valuation.confidence,
   };
@@ -647,9 +713,15 @@ export function buildVerdict(input: {
     };
   }
 
+  /**
+   * "after fees" is only true when there ARE fees. On a local sale there are
+   * none, and saying so anyway is the same class of error as charging them.
+   */
+  const hasFees = best.feesCents > 0 || best.shippingCents > 0;
+  const where = best.channel === "facebook" ? "selling it locally" : "selling it on eBay";
   return {
     ...money, call: "PASS",
-    headline: `Overpriced — ${$(Math.abs(net))} underwater after fees.`,
-    reasoning: `Asking ${$(ask)} against a ${$(valuation.medianCents)} median. Best channel is ${best.channel} and it still doesn't clear.`,
+    headline: `Overpriced — ${$(Math.abs(net))} underwater${hasFees ? " after fees" : ""}.`,
+    reasoning: `Asking ${$(ask)} against a ${$(valuation.medianCents)} median. Even ${where} it doesn't clear.`,
   };
 }
