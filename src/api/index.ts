@@ -445,7 +445,17 @@ app.get("/v1/feed", (c) => {
   `).all() as any[];
 
   // Rank in JS — the score needs fields that live inside the verdict JSON.
-  const RANK: Record<string, number> = { BUY: 0, VERIFY: 1, FAIR: 2, INSUFFICIENT_DATA: 3, RISK: 4, PASS: 5 };
+  /**
+   * Yish's order, 2026-08-28: **BUY, VERIFY, RISK, FAIR, PASS, and CAN'T TELL
+   * LAST.**
+   *
+   * `INSUFFICIENT_DATA` used to rank 3rd, above RISK and PASS, so the largest
+   * and least useful bucket on the site sat in the middle of the feed and
+   * pushed real verdicts below the fold. "We could not price this" is the one
+   * answer that can never be acted on — it belongs at the bottom, behind even
+   * the listings we priced and rejected.
+   */
+  const RANK: Record<string, number> = { BUY: 0, VERIFY: 1, RISK: 2, FAIR: 3, PASS: 4, INSUFFICIENT_DATA: 5 };
   const ranked = rows.map((r) => {
     const v = r.payload ? JSON.parse(r.payload) : null;
     const net = v?.netProfitCents ?? 0;

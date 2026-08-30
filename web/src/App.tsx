@@ -293,7 +293,17 @@ function Feed({ onOpen, onWatchChange }: {
   const GROUPS: Array<{ label: string; note: string; tone: string; calls: Call[] }> = [
     { label: "Verified deals", note: "ready to act on", tone: "buy", calls: ["BUY"] },
     { label: "Needs one answer", note: "blocked on a question", tone: "verify", calls: ["VERIFY", "RISK"] },
-    { label: "Recently checked", note: "priced, not deals", tone: "mute", calls: ["FAIR", "PASS", "INSUFFICIENT_DATA"] },
+    { label: "Priced, not deals", note: "above what they're worth", tone: "mute", calls: ["FAIR", "PASS"] },
+    /**
+     * CAN'T TELL IS LAST, and it is its own group rather than being mixed in
+     * with the priced-and-rejected ones.
+     *
+     * Yish, 2026-08-28: *"I don't want cant tell listings."* Until the catalog
+     * covers them they exist, but a bucket the engine could not price must not
+     * sit above verdicts it could — it was ranked 3rd of 6 and pushed real
+     * answers below the fold.
+     */
+    { label: "Couldn't price these", note: "not enough to go on", tone: "mute", calls: ["INSUFFICIENT_DATA"] },
   ];
 
   return (
@@ -868,7 +878,19 @@ function Report({ listing, verdict, signals, meta, stage, reading, checkId }: {
       {verdict?.riskChecks?.length ? <Blockers checks={verdict.riskChecks} /> : null}
       <Flags signals={signals} />
       {verdict && <Questions qs={verdict.questions} />}
-      {checkId ? <Outcome id={checkId} /> : null}
+      {/**
+        * "What happened?" was REMOVED from the listing view, 2026-08-28.
+        *
+        * Yish: *"when clicking into a listing I don't want the what happened
+        * section at all."* He is right about the placement. You open a listing
+        * to decide whether to drive there — being asked what you did about it
+        * in the same breath is asking about a trip that has not happened, and
+        * it sat between him and the questions he came for.
+        *
+        * The outcome loop is NOT gone: `OutcomePrompt` still asks on the feed a
+        * DAY later, which is when there is something true to answer. That is
+        * where the data actually comes from.
+        */}
 
       {/**
         * What the engine THOUGHT this was, shown last.
@@ -1287,12 +1309,6 @@ export default function App() {
                   * the task, the clipboard button IS the task, and the pitch is
                   * demoted to a compact "what you get" list.
                   */}
-                {fresh && !error && (
-                  <div className="checkhead">
-                    <h1>Check a listing</h1>
-                    <p>Paste a link and get a real number before you drive.</p>
-                  </div>
-                )}
 
                 {/**
                   * The paste box belongs to the CHECK flow, not to a listing.
@@ -1324,6 +1340,30 @@ export default function App() {
                         {busy ? "…" : "Check"}
                       </button>
                     </form>
+
+                    {/**
+                      * RECENTLY CHECKED LIVES HERE NOW.
+                      *
+                      * It was a section in the deals feed, where it competed
+                      * with actual deals and broke the BUY-first ordering —
+                      * Yish: *"the recently checked listings don't really fit
+                      * that well in the main listings page because it messes up
+                      * the order."* This screen is the link checker, so the
+                      * things you have checked belong under it.
+                      */}
+                    {hist.length > 0 && (
+                      <div className="recent">
+                        <h4>Recently checked</h4>
+                        <div className="histlist">
+                          {hist.slice(0, 8).map((h) => (
+                            <button key={h.id} className="hrow" onClick={() => go(`/c/${h.id}`)}>
+                              <span className={`dcall b-${h.call}`}>{LABEL[h.call]}</span>
+                              <span className="htitle">{h.title}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
 
@@ -1337,32 +1377,7 @@ export default function App() {
                   * you spend a paste on it — and the greyed chips are also the
                   * roadmap, which is honest about what is coming.
                   */}
-                {fresh && !error && (
-                  <div className="srcs">
-                    <span className="lbl">Works with</span>
-                    <span className="chip on">Craigslist</span>
-                    <span className="chip">Facebook<i>soon</i></span>
-                    <span className="chip">OfferUp<i>soon</i></span>
-                    <span className="chip">Mercari<i>soon</i></span>
-                  </div>
-                )}
 
-                {fresh && !error && (
-                  <div className="pitch">
-                    <div className="row">
-                      <span className="ic"><Tag /></span>
-                      <div><b>What it's actually worth</b><span>Real sold prices, minus fees and shipping, against your own profit floor.</span></div>
-                    </div>
-                    <div className="row">
-                      <span className="ic"><Shield /></span>
-                      <div><b>What's wrong with it</b><span>Locked phones, mining cards, stolen photos, impossible specs, listings that died months ago.</span></div>
-                    </div>
-                    <div className="row">
-                      <span className="ic"><Eye /></span>
-                      <div><b>When we don't know</b><span>A confident wrong answer is worse than none, so we say so.</span></div>
-                    </div>
-                  </div>
-                )}
 
                 <Report listing={listing} verdict={verdict} signals={signals}
                   meta={meta} stage={stage} reading={reading} checkId={checkId} />
