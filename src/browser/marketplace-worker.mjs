@@ -39,18 +39,72 @@ const SOURCES = {
   },
 };
 
+/**
+ * Facebook is PROBE-ONLY here. Crawling it has its own worker with its own
+ * scroll and card logic; this entry exists so the delisting pass can reuse one
+ * probe implementation across all three browser sources instead of three.
+ */
+SOURCES.facebook = { url: () => { throw new Error("facebook search runs in fb-worker, not here"); } };
+
 const source = SOURCES[command];
 if (!source) { emit({ type: "error", msg: `unknown source ${command}` }); process.exit(1); }
 
 const ctx = await openContext({
   // One profile per site, same rule as every other worker here.
-  profile: `mkt-${command}`,
+  // Facebook's signed-in session lives in the shared `browser` profile that
+  // `fb:login` writes; the marketplaces get one profile each.
+  profile: command === "facebook" ? "browser" : `mkt-${command}`,
   chromePath: opts.chromePath,
   headless: opts.headless ?? false,
 });
 
 try {
   const page = await ctx.newPage();
+
+  /**
+   * PROBE MODE — is this listing still up?
+   *
+   * The Craigslist sweep diffs search results, which works because Craigslist
+   * is a plain fetch and one request returns 300+ ids. Facebook and OfferUp
+   * need a logged-in browser and their search pages do not enumerate our whole
+   * inventory, so absence from a query proves nothing.
+   *
+   * So each url is visited. **The worker stays dumb**: it emits the page text
+   * and the final url, and TypeScript decides what "gone" means — the same
+   * split as every other worker here, so a wording change is a pure-function
+   * fix with a fixture rather than another browser session.
+   */
+  for (const probe of opts.probe ?? []) {
+    try {
+      await page.goto(probe.url, { waitUntil: "domcontentloaded", timeout: 45_000 });
+      /**
+       * Facebook's item page is a SPA and renders the listing well after
+       * domcontentloaded — a 2.5s pause captured only nav chrome, so a SOLD
+       * listing looked identical to a live one. Wait for a price to appear,
+       * and fall through on timeout rather than failing: a page with no price
+       * is exactly what the classifier needs to see to say "no opinion".
+       */
+      await page.waitForFunction(
+        () => /\$\s?\d/.test(document.body.innerText || ""),
+        { timeout: 12_000 },
+      ).catch(() => {});
+      await pause(2000, 3200);
+      const text = await page.evaluate(() => (document.body.innerText || "").slice(0, 2500));
+      /**
+       * `document.title` is the reliable one on a SPA. Facebook names the tab
+       * after the listing while it exists and falls back to a generic title
+       * once it does not, and the body text cannot distinguish those two — a
+       * dead item page still carries the sidebar's prices and category list.
+       */
+      const title = await page.title().catch(() => "");
+      emit({ type: "probe", id: probe.id, url: probe.url, finalUrl: page.url(), text, title });
+    } catch (e) {
+      // A timeout is NOT evidence the listing is gone — it is evidence the
+      // network or the site had a bad moment. Reported as an error so the
+      // caller leaves the listing alone.
+      emit({ type: "probe", id: probe.id, url: probe.url, finalUrl: "", text: "", error: String(e && e.message ? e.message : e) });
+    }
+  }
 
   for (const query of opts.queries ?? []) {
     log(`${command}: ${query}`);

@@ -34,7 +34,8 @@
     "ebay:auth": "bun run src/scripts/ebay-auth.ts",
     "ebay:search": "bun run src/scripts/ebay-search.ts",
     "photos:prune": "bun run src/scripts/photos-prune.ts",
-    "daily": "bun run src/scripts/daily.ts"
+    "daily": "bun run src/scripts/daily.ts",
+    "probe": "bun run src/scripts/probe.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

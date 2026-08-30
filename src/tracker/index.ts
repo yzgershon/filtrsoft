@@ -70,10 +70,25 @@ export async function sweep(opts: {
   const log = opts.onProgress ?? (() => {});
   const t = now();
 
+  /**
+   * ⚠ CRAIGSLIST ONLY. This sweep diffs against CRAIGSLIST search results, so
+   * every Facebook, OfferUp and Mercari listing it loaded was guaranteed to be
+   * "missing" and went into the individual-probe queue — where `probeListing`,
+   * a Craigslist fetcher, was asked to read a facebook.com url.
+   *
+   * Nothing was corrupted, and only because two guards happened to hold: a
+   * failed probe is treated as "keep it live" rather than "it is gone", and
+   * `fetchListing` now refuses a non-Craigslist host outright. But the work was
+   * pointless and one relaxed guard away from mass-delisting three sources.
+   *
+   * The browser-backed sources get their own delisting pass — see
+   * `bun run probe`. They cannot be checked from a plain fetch, which is the
+   * same reason they cannot be crawled from the container.
+   */
   const live = db()
     .query(
       `SELECT id, source_id, url, asking_price_cents, last_price_cents
-       FROM listings WHERE delisted_at IS NULL`,
+       FROM listings WHERE delisted_at IS NULL AND source = 'craigslist'`,
     )
     .all() as LiveRow[];
 

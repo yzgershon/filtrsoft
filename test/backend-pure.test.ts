@@ -16,7 +16,7 @@ import {
   parseSoldRow,
   parseShipping,
 } from "../src/sources/ebay.ts";
-import { cardToListing, parseCards } from "../src/sources/marketplace.ts";
+import { cardToListing, parseCards, probeVerdict } from "../src/sources/marketplace.ts";
 import { parseBestBuy, parseMicroCenter, parseNewegg } from "../src/sources/retail.ts";
 import { normalizeCondition } from "../src/valuation/condition.ts";
 import { storageOf } from "../src/valuation/index.ts";
@@ -528,5 +528,55 @@ describe("marketplace card photos", () => {
       text: "Custom Gaming PC Build | $500 | Salem, MA",
     }]);
     expect(cardToListing(card).photoUrls).toEqual([]);
+  });
+});
+
+/**
+ * The delisting probe for browser-backed sources.
+ *
+ * ⚠ THE ASYMMETRY IS THE POINT. A false "gone" deletes a real deal from the
+ * feed permanently and silently; a false "still up" costs one wasted tap. So
+ * "gone" needs explicit evidence and "still up" needs POSITIVE evidence, and
+ * everything else is `null` — no opinion, leave the row alone.
+ */
+describe("probeVerdict", () => {
+  const FB_CHROME = " Number of unread notifications 20+ Marketplace Edit Marketplace Settings "
+    + "Browse all Notifications Inbox Buying Selling Create new listing Location Newton, "
+    + "Massachusetts Categories Vehicles Property Rentals Apparel Classifieds Electronics";
+
+  test("explicit removal text is gone", () => {
+    expect(probeVerdict({ text: "This listing isn't available " + FB_CHROME, finalUrl: "https://www.facebook.com/marketplace/item/1" })?.gone).toBe(true);
+    expect(probeVerdict({ text: "We can't find that item. It may have been sold.", finalUrl: "https://offerup.com/item/detail/x" })?.gone).toBe(true);
+  });
+
+  test("a bounce to the site root is gone", () => {
+    expect(probeVerdict({ text: "OfferUp Buy and sell locally near you today with great deals", finalUrl: "https://offerup.com/" })?.gone).toBe(true);
+  });
+
+  /**
+   * REGRESSION: Facebook's item page is a SPA. Probing a listing returned only
+   * nav chrome — no title, no price, no removal notice — and the first version
+   * reported it STILL UP because nothing said otherwise. Confidently wrong.
+   */
+  test("a page we could not actually read gets no opinion", () => {
+    expect(probeVerdict({ text: FB_CHROME, finalUrl: "https://www.facebook.com/marketplace/item/1" })).toBeNull();
+    expect(probeVerdict({ text: "", finalUrl: "", error: "Timeout 45000ms exceeded" })).toBeNull();
+    expect(probeVerdict({ text: "   ", finalUrl: "https://offerup.com/item/detail/x" })).toBeNull();
+  });
+
+  test("still up needs a price or a for-sale line", () => {
+    expect(probeVerdict({ text: FB_CHROME + " MacBook Pro 14 M1 Pro $630 Listed 5 days ago in Acton, MA", finalUrl: "https://www.facebook.com/marketplace/item/1" })?.gone).toBe(false);
+    expect(probeVerdict({ text: "EVGA RTX 3090 for Sale in Boston, MA - OfferUp", finalUrl: "https://offerup.com/item/detail/x" })?.gone).toBe(false);
+  });
+
+  /**
+   * REGRESSION: testing /log in|sign up/ against the WHOLE body matched every
+   * OfferUp listing, because that text is in the site header on every page.
+   * Six live listings came back "no opinion" and the probe could conclude
+   * nothing. A real login wall says so at the top, or in the url.
+   */
+  test("a login link in the nav is not a login wall", () => {
+    expect(probeVerdict({ text: "EVGA RTX 3090 for Sale in Boston, MA - OfferUp $365 Log in Sign up", finalUrl: "https://offerup.com/item/detail/x" })?.gone).toBe(false);
+    expect(probeVerdict({ text: "Log in to continue to Facebook. Email or phone.", finalUrl: "https://www.facebook.com/login" })).toBeNull();
   });
 });

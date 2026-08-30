@@ -196,3 +196,91 @@ export async function* runMarketWorker(
     yield { type: "error", msg: `worker exited ${code}${err ? `: ${err.slice(0, 200)}` : ""}` };
   }
 }
+
+/**
+ * Is this listing gone?
+ *
+ * **The worker sends page text; this decides.** Same split as every other
+ * parser here, so a wording change on either site is a one-line fix with a
+ * fixture rather than a browser session.
+ *
+ * ⚠ THE DEFAULT IS "STILL UP", AND THAT DIRECTION IS DELIBERATE. A false
+ * "gone" deletes a real deal from the feed permanently and silently; a false
+ * "still up" costs one wasted tap. Anything ambiguous — a timeout, a login
+ * wall, an empty body, a bot challenge — returns `null` for "no opinion", and
+ * the caller leaves the row alone.
+ */
+export type ProbeVerdict = { gone: boolean; reason: string } | null;
+
+const GONE_TEXT = [
+  // Facebook
+  /this (listing|item|content) isn'?t available/i,
+  /listing (is )?(no longer|not) available/i,
+  /this page isn'?t available/i,
+  /content not found/i,
+  // OfferUp
+  /item (is )?(no longer available|not found|has been removed)/i,
+  /we can'?t find (that|this) item/i,
+  /this item is unavailable/i,
+  // Mercari
+  /(item|page) (was|has been) (deleted|removed)/i,
+  /sold out/i,
+  /404/,
+];
+
+/**
+ * A page that proves nothing: we are logged out, blocked, or it never loaded.
+ *
+ * ⚠ THESE MUST NOT MATCH THE SITE'S OWN NAVIGATION. The first version tested
+ * `/log in|sign up/` against the whole page, and EVERY OfferUp listing has
+ * "Log in" and "Sign up" in its header — so six live listings came back "no
+ * opinion" and the probe could never conclude anything. The pages were fine.
+ *
+ * A real login wall says so at the TOP and usually in the url. Both are checked
+ * against the first 200 characters or the final url, never the whole body.
+ */
+const NO_OPINION_HEAD = /^[\s\S]{0,200}?\b(log in to (continue|see)|sign up to (continue|see)|you must log in|please log in|confirm you'?re (a )?human|security check|unusual activity|access denied)\b/i;
+const NO_OPINION_URL = /\/(login|signin|sign-in|checkpoint|challenge)\b/i;
+
+export function probeVerdict(p: { text: string; finalUrl: string; error?: string }): ProbeVerdict {
+  if (p.error) return null;
+  const text = (p.text ?? "").trim();
+  // An empty body is a page that did not render, not a deleted listing.
+  if (text.length < 40) return null;
+  if (NO_OPINION_URL.test(p.finalUrl)) return null;
+  if (NO_OPINION_HEAD.test(text)) return null;
+
+  for (const r of GONE_TEXT) {
+    const m = text.match(r);
+    if (m) return { gone: true, reason: m[0].slice(0, 60).toLowerCase() };
+  }
+  /**
+   * A redirect to the site's home or search page is how OfferUp answers a dead
+   * item — it does not 404, it bounces you. Checked AFTER the text patterns so
+   * a page that says why keeps its own words.
+   */
+  if (/^https?:\/\/[^/]+\/?$/.test(p.finalUrl) || /\/(search|home)\/?(\?|$)/.test(p.finalUrl)) {
+    return { gone: true, reason: "redirected away from the listing" };
+  }
+
+  /**
+   * ⚠ "STILL UP" NEEDS POSITIVE EVIDENCE. Returning it as the fallback is what
+   * made this dangerous.
+   *
+   * Facebook's marketplace item page is a SPA: probing a listing Yish had
+   * confirmed SOLD returned only chrome — "Number of unread notifications 20+
+   * Marketplace Edit Marketplace Settings Browse all… Categories Vehicles
+   * Property Rentals" — with no title, no price and no removal notice. The
+   * classifier read "nothing says it is gone" and reported it live, which is
+   * the exact wrong answer to give confidently.
+   *
+   * A live listing page shows a PRICE, or says "for Sale in". If neither is
+   * there we did not see the listing, and the honest answer is that we do not
+   * know — the caller then leaves the row alone rather than acting on a page it
+   * never actually read.
+   */
+  const looksLikeAListing = /\$\s?\d/.test(text) || /\bfor sale in\b/i.test(text);
+  if (!looksLikeAListing) return null;
+
+  return { gone: false, reason: "still up" };
+}

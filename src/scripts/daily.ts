@@ -120,6 +120,22 @@ await push("facebook");
 await crawlSource("offerup", "ou:crawl", OU_QUERIES, FAST ? 12 : 25);
 await push("offerup");
 
+/**
+ * The delisting pass, LAST. Craigslist is swept in the container; these three
+ * cannot be, because checking them needs the same logged-in browser that
+ * crawling them does.
+ *
+ * Bounded to 40 per source per run and ordered by how stale our information
+ * is, so it drains the backlog over several days rather than making 250
+ * browser visits in one sitting.
+ */
+if (!DRY) {
+  log("probing for delisted listings");
+  const r = await run(["probe", "--limit", FAST ? "15" : "40"], 25 * 60_000);
+  const line = r.out.trim().split(String.fromCharCode(10)).filter(Boolean).pop() ?? "";
+  steps.push({ label: "probe delisted", ok: r.ok, added: 0, note: line.replace(/\[[0-9;]*m/g, "").slice(0, 90) });
+}
+
 console.log("");
 console.log("\x1b[1mdaily routine\x1b[0m");
 for (const s of steps) {
