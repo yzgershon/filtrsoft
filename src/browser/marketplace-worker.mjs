@@ -80,7 +80,35 @@ try {
         ? main.innerText
         : (document.body.innerText || "");
       const hrefs = [...document.querySelectorAll("a[href]")]
-        .map((a) => ({ href: a.getAttribute("href") || "", text: (a.innerText || "").trim().slice(0, 220) }))
+        .map((a) => {
+          /**
+           * THE CARD'S PHOTO, which was never collected — so every OfferUp and
+           * Mercari listing arrived with `photoUrls: []` and the engine
+           * correctly but wrongly flagged ZERO_PHOTOS on all 97 of them.
+           *
+           * Both sites lazy-load, so `src` is often a placeholder while the
+           * real URL sits in `srcset` or `data-src`. Take the LAST srcset
+           * candidate because that list is ordered smallest-first and this
+           * project's rule is highest resolution always.
+           */
+          const img = a.querySelector("img");
+          let photo = "";
+          if (img) {
+            const set = img.getAttribute("srcset") || "";
+            if (set) {
+              const last = set.split(",").pop() || "";
+              photo = last.trim().split(/\s+/)[0] || "";
+            }
+            if (!photo) photo = img.getAttribute("src") || img.getAttribute("data-src") || "";
+            // A base64 placeholder is not a photo.
+            if (photo.startsWith("data:")) photo = "";
+          }
+          return {
+            href: a.getAttribute("href") || "",
+            text: (a.innerText || "").trim().slice(0, 220),
+            photo,
+          };
+        })
         .filter((l) => /\/(item|p)\//.test(l.href) && l.text.length > 4);
       return { lines: text.split("\n").map((s) => s.trim()).filter(Boolean), hrefs };
     }).then((r) => ({ lines: r.lines, links: r.hrefs }));

@@ -16,7 +16,7 @@ import {
   parseSoldRow,
   parseShipping,
 } from "../src/sources/ebay.ts";
-import { parseCards } from "../src/sources/marketplace.ts";
+import { cardToListing, parseCards } from "../src/sources/marketplace.ts";
 import { parseBestBuy, parseMicroCenter, parseNewegg } from "../src/sources/retail.ts";
 import { normalizeCondition } from "../src/valuation/condition.ts";
 import { storageOf } from "../src/valuation/index.ts";
@@ -501,5 +501,32 @@ describe("scam: off-platform redirect", () => {
     expect(randomSuffix("MacBook Pro M4 Pro 14” 2024")).toBe(false);
     expect(randomSuffix("Gigabyte Nvidia GTX 1060 3GB DDR5")).toBe(false);
     expect(randomSuffix("Gaming pc 3070 ti - NEED GONE ASAP LEAVING FOR COLLEGE THIS WEEK")).toBe(false);
+  });
+});
+
+/**
+ * ZERO_PHOTOS fired on ALL 87 OfferUp and ALL 10 Mercari listings, because
+ * `cardToListing` hardcoded `photoUrls: []` and the worker never read the
+ * `<img>` inside each card anchor. The flag's own text calls itself "close to
+ * dispositive on its own", so the engine was condemning listings that had
+ * pictures. Yish found it on "RTX 3060 12GB Graphics Card - Tested and Working".
+ */
+describe("marketplace card photos", () => {
+  test("a card thumbnail reaches the listing", () => {
+    const [card] = parseCards("offerup", [{
+      href: "/item/detail/a2e9980a-c1b5-35fe-9b55-ae0840ce2e53",
+      text: "RTX 3060 12GB Graphics Card- Tested and Working | $210 | Boston, MA",
+      photo: "https://pics.offerup.com/x/abc_400x400.jpg",
+    }]);
+    expect(card.photoUrl).toBe("https://pics.offerup.com/x/abc_400x400.jpg");
+    expect(cardToListing(card).photoUrls).toEqual(["https://pics.offerup.com/x/abc_400x400.jpg"]);
+  });
+
+  test("a card with no image yields no photos, not a fake one", () => {
+    const [card] = parseCards("offerup", [{
+      href: "/item/detail/b1234567-c1b5-35fe-9b55-ae0840ce2e53",
+      text: "Custom Gaming PC Build | $500 | Salem, MA",
+    }]);
+    expect(cardToListing(card).photoUrls).toEqual([]);
   });
 });

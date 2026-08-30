@@ -41,6 +41,8 @@ export interface MarketCard {
   location: string | null;
   /** Mercari is always shipped; OfferUp says so per listing. */
   shipped: boolean;
+  /** The card thumbnail. Empty when the site lazy-loaded a placeholder. */
+  photoUrl?: string;
 }
 
 const PRICE = /\$\s?([\d,]+(?:\.\d{2})?)/;
@@ -65,7 +67,7 @@ const BASE: Record<Marketplace, string> = {
  */
 export function parseCards(
   source: Marketplace,
-  links: Array<{ href: string; text: string }>,
+  links: Array<{ href: string; text: string; photo?: string }>,
 ): MarketCard[] {
   const out: MarketCard[] = [];
   const seen = new Set<string>();
@@ -115,6 +117,7 @@ export function parseCards(
       location: lines.find((s) => /,\s?[A-Z]{2}$/.test(s)) ?? null,
       // Mercari is shipped by definition; OfferUp states it on the card.
       shipped: source === "mercari" || /\bshipping\b/i.test(l.text),
+      photoUrl: l.photo || undefined,
     });
   }
   return out;
@@ -131,7 +134,28 @@ export function cardToListing(c: MarketCard): RawListing {
     location: c.location,
     postedAt: null,
     updatedAt: null,
-    photoUrls: [],
+    /**
+     * ⚠ THIS WAS HARDCODED `[]` and it made the engine lie.
+     *
+     * Every OfferUp and Mercari listing arrived with no photos, so ZERO_PHOTOS
+     * fired on all 97 of them — a flag whose own text says it is "close to
+     * dispositive on its own" — while the actual listing had pictures. Yish
+     * found it on "RTX 3060 12GB Graphics Card - Tested and Working".
+     *
+     * The worker collects the card thumbnail now. A card with a genuinely
+     * missing image still yields none, which is the honest empty case.
+     *
+     * ⚠ THESE ARE 250x250 THUMBNAILS AND CANNOT BE UPGRADED. OfferUp signs the
+     * URL per size — `eXrG1Dbi9mDtyjGLyzFEVdj6V1U=/250x250/...` — so rewriting
+     * the dimensions returns 400, not a bigger image. Measured: 250x250 -> 200
+     * at 12 KB, 640/1024/1600 -> 400.
+     *
+     * Enough to show a card and to stop ZERO_PHOTOS lying. NOT enough for
+     * vision to read a spec label off a screen. Full-resolution photos would
+     * mean opening each detail page, which is a browser visit per listing —
+     * worth it only if these listings start converting.
+     */
+    photoUrls: c.photoUrl ? [c.photoUrl] : [],
     attributes: c.shipped ? { shipping: "yes" } : {},
     raw: c,
   } as RawListing;
@@ -139,7 +163,7 @@ export function cardToListing(c: MarketCard): RawListing {
 
 export type MarketEvent =
   | { type: "log"; msg: string }
-  | { type: "cards"; source: Marketplace; query: string; lines: string[]; links: Array<{ href: string; text: string }> }
+  | { type: "cards"; source: Marketplace; query: string; lines: string[]; links: Array<{ href: string; text: string; photo?: string }> }
   | { type: "error"; msg: string }
   | { type: "done"; stats: Record<string, unknown> };
 
