@@ -1113,3 +1113,155 @@ a { color: inherit; }
   border: 1px solid rgba(255,255,255,.1);
   backdrop-filter: blur(10px);
 }
+
+/* ══════════════════════════════════════════════════════════ visual refresh
+ *
+ * The reference screens Yish sent (UXDA banking, a tide app, a photo cleaner)
+ * share four things this app did not have. None of them is "be purple" — the
+ * orange brand and the verdict palette stay exactly as they are, because the
+ * colour here CARRIES MEANING and a redesign that repaints it would be a
+ * downgrade dressed as an upgrade.
+ *
+ *   1. a ground that is lit, not flat black
+ *   2. generous corner radius
+ *   3. surfaces tinted by their meaning, with a matching glow
+ *   4. numbers treated as the subject, not as labels
+ */
+
+/*
+ * 1. A LIT GROUND.
+ *
+ * `--bg: #08070a` flat across the whole viewport is why the app read as a
+ * spreadsheet: with no light source, every card sat at the same depth. Two very
+ * wide, very low-opacity radials — warm at the top where the brand lives, cool
+ * at the bottom — give the page a direction without touching legibility. Fixed
+ * attachment so it does not slide under the content while scrolling.
+ *
+ * Deliberately under 5% opacity. On OLED this reads as depth; go louder and it
+ * becomes a gradient wallpaper competing with the listing photos.
+ */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(120% 60% at 50% -10%, rgba(255,138,61,.10), transparent 60%),
+    radial-gradient(100% 50% at 10% 100%, rgba(96,165,250,.06), transparent 60%),
+    var(--bg);
+}
+
+/* 2. ROUNDER. 12px on a 390px screen reads as a table cell; 18-20 reads as a card. */
+:root { --r-md: 16px; --r-lg: 20px; --r-xl: 26px; }
+
+/*
+ * 3. THE VERDICT CARD CARRIES ITS OWN LIGHT.
+ *
+ * It was a flat surface with a coloured border. Giving it a tint that fades out
+ * and a shadow in the SAME hue makes the call feel like the source of the light
+ * on the screen — which is right, because it is the answer.
+ *
+ * `color-mix` against the verdict variable, so one rule covers all six calls
+ * and a new call needs no new CSS.
+ */
+.v-BUY, .v-FAIR, .v-PASS, .v-VERIFY, .v-RISK,
+.v-INSUFFICIENT_DATA, .v-OUT_OF_SCOPE { border-radius: var(--r-xl); }
+
+.verdictcard {
+  position: relative; overflow: hidden;
+  border-radius: var(--r-xl);
+  padding: var(--s4) var(--s4) var(--s5);
+}
+.verdictcard::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: radial-gradient(90% 70% at 0% 0%, var(--tint, transparent), transparent 70%);
+  opacity: .5;
+}
+.verdictcard > * { position: relative; z-index: 1; }
+
+.v-BUY    { --tint: rgba(52,211,153,.22);  box-shadow: 0 10px 34px -18px rgba(52,211,153,.55); }
+.v-VERIFY { --tint: rgba(255,138,61,.20);  box-shadow: 0 10px 34px -18px rgba(255,138,61,.5); }
+.v-FAIR   { --tint: rgba(96,165,250,.18);  box-shadow: 0 10px 34px -18px rgba(96,165,250,.45); }
+.v-PASS   { --tint: rgba(251,191,36,.14);  box-shadow: 0 10px 34px -18px rgba(251,191,36,.35); }
+.v-RISK   { --tint: rgba(248,113,113,.20); box-shadow: 0 10px 34px -18px rgba(248,113,113,.5); }
+
+/*
+ * 4. THE PANEL LIFTS OFF THE GROUND.
+ *
+ * A 1px border was the only thing separating a card from the page. A soft
+ * shadow does the same job the way a physical card would, and it is what makes
+ * the reference screens read as layered rather than drawn.
+ */
+.panel, .scard, .gcard, .dealhero {
+  box-shadow: 0 2px 10px -4px rgba(0,0,0,.6), 0 12px 32px -20px rgba(0,0,0,.9);
+}
+
+/*
+ * 5. NUMBERS ARE THE SUBJECT.
+ *
+ * Every reference screen leads with one enormous figure. The market-value range
+ * and the listing price were set at body size next to their own labels, so the
+ * eye had to hunt for the number it came for.
+ */
+.lh .price { font-size: 30px; font-weight: 800; letter-spacing: -.035em; }
+.kv .v.num { font-size: 16px; }
+.kv.anchor .v { font-size: 30px; }
+
+/* The section label sits closer to what it labels than to what precedes it. */
+.sec h4 { font-size: 10.5px; letter-spacing: .14em; opacity: .8; }
+
+/* ═══════════════════════════════════════════════ second pass: the top of the screen
+ *
+ * Every reference screen treats the top ~40% as a lit zone the content emerges
+ * from. On the detail screen the listing photo already does that job. On the
+ * feed it did not: a solid black bar sat on a solid black page, and the first
+ * 320px were a headline and a paragraph before anything you could act on.
+ */
+
+/*
+ * THE HEADER STOPS BEING A SLAB.
+ *
+ * `rgba(8,7,10,.86)` over a page that is now lit means the bar is the one
+ * remaining piece of flat black, and it cuts a hard line across the warm glow
+ * behind it. Dropping the fill and keeping only the blur lets the ground run
+ * under it — the bar reads as glass over the page rather than a lid on it.
+ *
+ * The border only appears once you have scrolled something under it, which is
+ * the only moment it is doing any work.
+ */
+.topbar {
+  background: linear-gradient(to bottom, rgba(8,7,10,.72), rgba(8,7,10,.32));
+  border-bottom-color: transparent;
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+}
+
+/*
+ * THE FEED GETS TO THE DEALS FASTER.
+ *
+ * 26px headline plus a two-line paragraph plus a filter row is 320px of chrome
+ * before the first listing on a 390px screen — most of the first view spent
+ * explaining the page rather than being it. The subtitle earns its place on a
+ * first visit and nowhere after, so it is smaller and the block is tighter.
+ */
+.feedhead { padding: var(--s4) 0 var(--s3); }
+.feedhead h1 { font-size: 30px; letter-spacing: -.035em; margin-bottom: 4px; }
+.feedhead p { font-size: 13px; color: var(--ink-3); max-width: 34ch; }
+
+/*
+ * THE LISTING PRICE AND THE VERDICT BELONG TOGETHER.
+ *
+ * The price sat above an "Open on…" button with the call three elements
+ * further down, so the two numbers that decide everything — what they want and
+ * what we think — were separated by a link.
+ */
+.lh { margin-top: var(--s5); }
+.lh h2 { font-size: 20px; line-height: 1.28; }
+
+/*
+ * ROW RHYTHM IN THE MONEY PANEL.
+ *
+ * Six identical rows with hairline dividers read as a spreadsheet. Tinting the
+ * sub-rows (the fee breakdown) recedes them behind the four that are actually
+ * conclusions, so the panel has a shape instead of a uniform stripe pattern.
+ */
+.kv.sub { background: rgba(255,255,255,.015); padding-top: 9px; padding-bottom: 9px; }
+.panel > *:first-child { padding-top: var(--s4); }
+.panel > *:last-child { padding-bottom: var(--s4); }

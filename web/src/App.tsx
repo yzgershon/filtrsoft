@@ -810,7 +810,7 @@ function Report({ listing, verdict, signals, meta, stage, reading, checkId }: {
       </div>
 
       {verdict ? (
-        <div className={`verdict v-${verdict.call} rise`} role="status" aria-live="polite">
+        <div className={`verdict verdictcard v-${verdict.call} rise`} role="status" aria-live="polite">
           <span className="vbadge">
             {verdict.call === "BUY" ? <Check size={13} /> : verdict.call === "RISK" ? <Alert size={13} /> : <Info size={13} />}
             {LABEL[verdict.call]}
