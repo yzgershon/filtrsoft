@@ -400,6 +400,23 @@ app.get("/v1/feed", (c) => {
   const limit = Math.min(Number(c.req.query("limit")) || 60, 200);
   const offset = Math.max(0, Number(c.req.query("offset")) || 0);
   const showGone = c.req.query("gone") === "1";
+  /**
+   * ⚠ FILTERING MOVED TO THE SERVER, AND THE COUNTS COME FROM THE SAME PLACE.
+   *
+   * The frontend used to fetch 60 rows, filter THOSE in the browser, and hide
+   * "Show more" outside the All segment. Measured on the live feed: the Deals
+   * control promised 20 and the view dead-ended at 13, with seven listings
+   * unreachable by any interaction. A label that says 20 while the page can
+   * only ever show 13 is the interface lying about its own data.
+   *
+   * The counts were a second, independent lie: they were `COUNT(*) GROUP BY
+   * call` over EVERY verdict in the database, including 597 OUT_OF_SCOPE rows
+   * and everything older than 28 days — a population the feed itself excludes.
+   * They are computed from the ranked, filtered set now, so a segment number
+   * and its reachable rows cannot disagree.
+   */
+  const quality = (c.req.query("quality") ?? "all").toLowerCase();
+  const maxPrice = Number(c.req.query("maxPrice")) || null;
 
   const rows = db().query(`
     SELECT l.id, l.title, l.url, l.asking_price_cents, l.location, l.posted_at, l.source,
@@ -506,25 +523,69 @@ app.get("/v1/feed", (c) => {
 
   // Rank globally, then page. Paging before ranking would make page 2 a
   // second-best bucket rather than the continuation of one ordered list.
-  const items = ranked.slice(offset, offset + limit);
+  /**
+   * The segment vocabulary. Audit §4: **RISK is never a deal**, and a listing
+   * that needs an answer is not ready to act on.
+   *
+   *   ready   BUY only            — go now
+   *   verify  VERIFY              — one message settles it
+   *   risky   RISK                — its own state, never counted as a deal
+   *   browse  FAIR + PASS         — priced, and not worth it
+   *   all     everything the feed already allows
+   *
+   * `INSUFFICIENT_DATA` is deliberately reachable ONLY under `all`. It is the
+   * largest bucket and the one that can never be acted on.
+   */
+  const QUALITY: Record<string, string[] | null> = {
+    all: null,
+    ready: ["BUY"],
+    verify: ["VERIFY"],
+    risky: ["RISK"],
+    browse: ["FAIR", "PASS"],
+  };
+  const wanted = QUALITY[quality] ?? null;
 
-  const counts = db().query(`
-    SELECT v.call, COUNT(*) n FROM verdicts v
-    WHERE v.id IN (SELECT MAX(id) FROM verdicts GROUP BY listing_id)
-    GROUP BY v.call`).all() as Array<{ call: string; n: number }>;
+  const filtered = ranked.filter((i) =>
+    (wanted ? wanted.includes(i.call) : true) &&
+    (maxPrice ? (i.askingPriceCents ?? Infinity) <= maxPrice : true));
+
+  const items = filtered.slice(offset, offset + limit);
+
+  /**
+   * Segment counts over the SAME ranked set the feed serves, after the price
+   * filter but before the quality filter — so switching segments never changes
+   * the numbers on the other segments.
+   */
+  const priceScoped = ranked.filter((i) => (maxPrice ? (i.askingPriceCents ?? Infinity) <= maxPrice : true));
+  const segments = {
+    all: priceScoped.length,
+    ready: priceScoped.filter((i) => i.call === "BUY").length,
+    verify: priceScoped.filter((i) => i.call === "VERIFY").length,
+    risky: priceScoped.filter((i) => i.call === "RISK").length,
+    browse: priceScoped.filter((i) => i.call === "FAIR" || i.call === "PASS").length,
+  };
 
   const lastCrawl = db().query("SELECT started_at, analysed FROM crawls ORDER BY id DESC LIMIT 1").get() as any;
 
   return c.json({
     items,
-    // `total` is the count AFTER filters, so the UI can page honestly instead
-    // of implying the page is everything.
-    total: ranked.length,
+    /**
+     * `total` is the count for THIS query — same filters, same population as
+     * `items`. The UI pages until `items.length === total`, so every number it
+     * prints is reachable.
+     */
+    total: filtered.length,
     offset,
     limit,
-    counts: Object.fromEntries(counts.map((x) => [x.call, x.n])),
+    quality,
+    segments,
+    // Raw call counts over the same ranked set, for anything that still wants
+    // them. NOT the global verdict table, which counts rows the feed hides.
+    counts: Object.fromEntries(
+      ["BUY", "VERIFY", "RISK", "FAIR", "PASS", "INSUFFICIENT_DATA"]
+        .map((k) => [k, ranked.filter((i) => i.call === k).length]),
+    ),
     lastCrawl: lastCrawl ?? null,
-    void: cat,
   });
 });
 

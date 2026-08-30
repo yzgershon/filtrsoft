@@ -43,7 +43,7 @@
       "name": "Check a listing",
       "short_name": "Check",
       "description": "Paste a listing link and get a verdict",
-      "url": "/?tab=check"
+      "url": "/check"
     }
   ],
   "share_target": {

@@ -580,3 +580,51 @@ describe("probeVerdict", () => {
     expect(probeVerdict({ text: "Log in to continue to Facebook. Email or phone.", finalUrl: "https://www.facebook.com/login" })).toBeNull();
   });
 });
+
+/**
+ * Routing. Audit P0-2: primary tabs lived in React state while the URL was
+ * tracked separately, so Back from `/c/:id` changed the URL and left the detail
+ * on screen, a refresh of Check/Saved/Settings returned to Deals, and the PWA
+ * shortcut `/?tab=check` opened Deals because nothing read that parameter.
+ *
+ * `screenOf` is the single derivation both `popstate` and the first render use.
+ */
+describe("screenOf / tabOf", () => {
+  test("every primary screen has a real route", async () => {
+    const { screenOf } = await import("../web/src/App.tsx");
+    expect(screenOf("/").name).toBe("deals");
+    expect(screenOf("/check").name).toBe("check");
+    expect(screenOf("/saved").name).toBe("saved");
+    expect(screenOf("/settings").name).toBe("settings");
+  });
+
+  test("a trailing slash is the same screen", async () => {
+    const { screenOf } = await import("../web/src/App.tsx");
+    expect(screenOf("/check/").name).toBe("check");
+    expect(screenOf("/saved/").name).toBe("saved");
+  });
+
+  test("a detail route carries its id", async () => {
+    const { screenOf } = await import("../web/src/App.tsx");
+    const s = screenOf("/c/3918");
+    expect(s.name).toBe("detail");
+    expect(s.name === "detail" && s.id).toBe(3918);
+  });
+
+  test("an unknown path falls back to deals, never to a blank screen", async () => {
+    const { screenOf } = await import("../web/src/App.tsx");
+    expect(screenOf("/nope").name).toBe("deals");
+    expect(screenOf("/c/notanumber").name).toBe("deals");
+    expect(screenOf("/?tab=check").name).toBe("deals");
+  });
+
+  test("detail belongs to no bottom tab", async () => {
+    const { screenOf, tabOf } = await import("../web/src/App.tsx");
+    expect(tabOf(screenOf("/c/1"))).toBeNull();
+    expect(tabOf(screenOf("/"))).toBe("deals");
+    expect(tabOf(screenOf("/check"))).toBe("check");
+    expect(tabOf(screenOf("/saved"))).toBe("saved");
+    // Settings is reachable but is not a bottom-bar destination.
+    expect(tabOf(screenOf("/settings"))).toBeNull();
+  });
+});

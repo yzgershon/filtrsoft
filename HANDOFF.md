@@ -2453,3 +2453,26 @@ until after that.
 | `docs/AUDIT-FINDINGS-2026-08-24.md` | Codex's technical audit |
 | `docs/ECOSYSTEM-EXPANSION-2026-08-24.md` | Product/ecosystem ideas |
 | `docs/sessions/` | Session logs with rejected directions and why |
+
+---
+
+## 17. Frontend deep-dive audit (2026-08-30)
+
+The implementation-ready report is
+`docs/FRONTEND-UI-UX-MASTER-AUDIT-2026-08-30.md`. This was a report-only pass;
+no production UI behavior changed.
+
+The highest-severity live findings are:
+
+1. **The Deals segment says 21 but reaches only 13.** It filters the first 60
+   client-side and hides Show more outside All.
+2. **Browser Back from `/c/:id` changes the URL but leaves the detail visible.**
+   Primary tabs are not routes, and the PWA `/?tab=check` shortcut opens Deals.
+3. **Willing to drive, Hide gone, and Reduce motion do not control the behavior
+   their settings copy promises.** Reduce motion was enabled during the audit
+   while detail entry animation still computed to 0.32 seconds.
+4. **“Deals” includes VERIFY and RISK.** Fix the information promise before a
+   cosmetic redesign.
+
+The production frontend build passed. The existing verdict palette, numeric
+hierarchy, two-up mobile cards, and inline icon family should be preserved.

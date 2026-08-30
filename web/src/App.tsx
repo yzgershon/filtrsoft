@@ -133,6 +133,46 @@ const readSettings = (): Settings => {
 const writeSettings = (s: Settings) => localStorage.setItem(SKEY, JSON.stringify(s));
 
 // --------------------------------------------------------------- router
+/**
+ * ⚠ THE URL IS THE SCREEN. It used to be a hint, and the two disagreed.
+ *
+ * Primary tabs lived only in React state while `useRoute` tracked `path`
+ * separately, which produced three separate live bugs:
+ *
+ *   · Back from `/c/3918` changed the URL to `/` and left the DETAIL VISIBLE,
+ *     with the bottom bar highlighting Check.
+ *   · Refreshing Check, Saved or Settings returned to Deals.
+ *   · The PWA manifest shortcut pointed at `/?tab=check` and opened Deals,
+ *     because nothing ever read that parameter.
+ *
+ * `screenOf` derives the COMPLETE screen from the path, so `popstate`, a
+ * refresh, a deep link and a tab press all go through one function and cannot
+ * produce different answers.
+ */
+export type Screen =
+  | { name: "deals" }
+  | { name: "check" }
+  | { name: "saved" }
+  | { name: "settings" }
+  | { name: "detail"; id: number };
+
+export function screenOf(pathname: string): Screen {
+  const m = pathname.match(/^\/c\/(\d+)\/?$/);
+  if (m) return { name: "detail", id: Number(m[1]) };
+  if (/^\/check\/?$/.test(pathname)) return { name: "check" };
+  if (/^\/saved\/?$/.test(pathname)) return { name: "saved" };
+  if (/^\/settings\/?$/.test(pathname)) return { name: "settings" };
+  return { name: "deals" };
+}
+
+/** Which bottom-bar item is lit for a screen. Detail belongs to no tab. */
+export function tabOf(s: Screen): "deals" | "check" | "saved" | null {
+  if (s.name === "deals") return "deals";
+  if (s.name === "check") return "check";
+  if (s.name === "saved") return "saved";
+  return null;
+}
+
 function useRoute() {
   const [path, setPath] = useState(location.pathname);
   useEffect(() => {
@@ -142,9 +182,20 @@ function useRoute() {
   }, []);
   return {
     path,
-    go: useCallback((p: string) => { history.pushState({}, "", p); setPath(p); }, []),
+    screen: screenOf(path),
+    go: useCallback((p: string) => {
+      if (p === location.pathname) return;
+      history.pushState({}, "", p);
+      setPath(p);
+    }, []),
+    replace: useCallback((p: string) => {
+      history.replaceState({}, "", p);
+      setPath(p);
+    }, []),
   };
 }
+
+type Quality = "all" | "ready" | "verify" | "risky" | "browse";
 
 const PAGE = 60;
 
@@ -235,27 +286,47 @@ function Feed({ onOpen, onWatchChange }: {
   onWatchChange: (n: number) => void;
 }) {
   const [items, setItems] = useState<FeedItem[] | null>(null);
-  const [filter, setFilter] = useState<"ALL" | "DEAL" | "CHEAP">("ALL");
-  const [counts, setCounts] = useState<Record<string, number>>({});
+  /**
+   * ⚠ THE SEGMENT IS A SERVER QUERY NOW, NOT A CLIENT-SIDE `.filter()`.
+   *
+   * It used to fetch 60 rows, filter those in the browser, and render "Show
+   * more" only under All. Measured live: the Deals control said 20 and the view
+   * dead-ended at 13 — seven listings unreachable by any interaction, because
+   * the other 341 rows were never fetched and the control that would have
+   * fetched them was hidden.
+   *
+   * Server-side means the count, the page and the pagination all come from one
+   * filter model, so they cannot disagree.
+   */
+  const [quality, setQuality] = useState<Quality>("all");
+  const [segments, setSegments] = useState<Record<string, number>>({});
   const [total, setTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
-  /** Which listing currently occupies the hero slot. */
+  const [failed, setFailed] = useState(false);
   const [watch, setWatch] = useState<number[]>(readWatch);
 
-  const load = useCallback((offset: number) => {
+  const load = useCallback((offset: number, q: Quality) => {
     setLoadingMore(offset > 0);
-    return fetch(`/v1/feed?limit=${PAGE}&offset=${offset}`)
-      .then((r) => r.json())
+    if (offset === 0) setFailed(false);
+    return fetch(`/v1/feed?limit=${PAGE}&offset=${offset}&quality=${q}`)
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
       .then((d) => {
         setItems((prev) => (offset === 0 ? (d.items ?? []) : [...(prev ?? []), ...(d.items ?? [])]));
-        setCounts(d.counts ?? {});
+        setSegments(d.segments ?? {});
         setTotal(d.total ?? 0);
       })
-      .catch(() => setItems((prev) => prev ?? []))
+      /**
+       * A failed fetch is NOT an empty feed. Rendering "Nothing here yet" for a
+       * network error tells the user the product has no deals when what
+       * actually happened is that the request did not complete.
+       */
+      .catch(() => { if (offset === 0) { setItems([]); setFailed(true); } })
       .finally(() => setLoadingMore(false));
   }, []);
 
-  useEffect(() => { void load(0); }, [load]);
+  // Reset rows AND offset whenever the segment changes, or page 2 of the old
+  // segment would append onto page 1 of the new one.
+  useEffect(() => { setItems(null); void load(0, quality); }, [load, quality]);
 
   if (!items) return (
     <div className="sec">
@@ -264,12 +335,9 @@ function Feed({ onOpen, onWatchChange }: {
     </div>
   );
 
-  const pass = (i: FeedItem) =>
-    filter === "ALL" ? true
-      : filter === "DEAL" ? ["BUY", "VERIFY", "RISK"].includes(i.call)
-      : (i.askingPriceCents ?? Infinity) < 50000;
-
-  const shown = items.filter(pass);
+  // The server already applied the segment. Filtering again here is what made
+  // the counts lie in the first place.
+  const shown = items;
   const hero = shown[0] ?? null;
   const rest = shown.filter((i) => i.id !== hero?.id);
 
@@ -284,10 +352,20 @@ function Feed({ onOpen, onWatchChange }: {
    * you fill.
    */
 
-  const SEGS: Array<{ id: "ALL" | "DEAL" | "CHEAP"; label: string; n: number }> = [
-    { id: "ALL", label: "All", n: total },
-    { id: "DEAL", label: "Deals", n: (counts.BUY ?? 0) + (counts.VERIFY ?? 0) + (counts.RISK ?? 0) },
-    { id: "CHEAP", label: "Under $500", n: items.filter((i) => (i.askingPriceCents ?? Infinity) < 50000).length },
+  /**
+   * ⚠ "DEALS" USED TO MEAN `BUY + VERIFY + RISK`. Audit §4: a risky listing is
+   * not a deal and a listing needing verification is not ready to act on, while
+   * the page promised "Worth driving for" and "only listings the engine
+   * actually verified". The label and the contents disagreed.
+   *
+   * Each segment now names exactly one thing. RISK is its own state and is
+   * never counted as a deal.
+   */
+  const SEGS: Array<{ id: Quality; label: string; n: number }> = [
+    { id: "ready", label: "Ready", n: segments.ready ?? 0 },
+    { id: "verify", label: "Verify", n: segments.verify ?? 0 },
+    { id: "risky", label: "Risky", n: segments.risky ?? 0 },
+    { id: "all", label: "All", n: segments.all ?? 0 },
   ];
 
   const GROUPS: Array<{ label: string; note: string; tone: string; calls: Call[] }> = [
@@ -308,7 +386,7 @@ function Feed({ onOpen, onWatchChange }: {
 
   return (
     <>
-      <Segmented value={filter} onChange={setFilter} options={SEGS} />
+      <Segmented value={quality} onChange={setQuality} options={SEGS} />
 
       {shown.length === 0 ? (
         <div className="empty">
@@ -374,8 +452,16 @@ function Feed({ onOpen, onWatchChange }: {
         </>
       )}
 
-      {filter === "ALL" && items.length < total ? (
-        <button className="more" disabled={loadingMore} onClick={() => void load(items.length)}>
+      {/**
+        * ⚠ `filter === "ALL"` HERE WAS THE ACTUAL CAUSE OF THE 20-vs-13 BUG.
+        *
+        * Pagination was hidden on every segment except All, so a filtered view
+        * could never fetch past its first 60 rows and seven promised deals had
+        * no interaction that could reach them. Show more is available for every
+        * segment now, until `items.length === total` for THAT segment.
+        */}
+      {items.length < total ? (
+        <button className="more" disabled={loadingMore} onClick={() => void load(items.length, quality)}>
           {loadingMore ? "Loading…" : `Show more — ${items.length} of ${total}`}
         </button>
       ) : null}
@@ -1010,12 +1096,24 @@ type Tab = "deals" | "check" | "saved" | "you" | "settings";
  * it is somewhere you go twice a year, and spending a quarter of the toolbar on
  * it would cost the same room the watchlist needs. It lives in the top bar.
  */
-function Tabbar({ tab, go, savedCount }: { tab: Tab; go: (t: Tab) => void; savedCount: number }) {
-  const items: Array<[Tab, string, React.ReactNode]> = [
+function Tabbar({ tab, go, savedCount }: {
+  tab: "deals" | "check" | "saved" | null;
+  go: (t: "deals" | "check" | "saved" | "settings") => void;
+  savedCount: number;
+}) {
+  /**
+   * THREE DESTINATIONS. "You" was a primary tab holding four read-only server
+   * defaults and the words "Editing these is coming" — audit §13. Its one
+   * real number lives under Settings -> Your numbers, so the tab was spending
+   * a quarter of the bar on a screen with nothing to do.
+   *
+   * Three items also give each one more room, which is what the 44px target
+   * work in the accessibility pass needs.
+   */
+  const items: Array<["deals" | "check" | "saved", string, React.ReactNode]> = [
     ["deals", "Deals", <Grid size={21} />],
     ["check", "Check", <Scan size={21} />],
     ["saved", "Saved", <Save size={21} filled={tab === "saved"} />],
-    ["you", "You", <User size={21} />],
   ];
   return (
     <nav className="tabbar" aria-label="Main">
@@ -1090,8 +1188,12 @@ function OutcomePrompt({ h, onDone }: { h: Hist; onDone: () => void }) {
 }
 
 export default function App() {
-  const { path, go } = useRoute();
-  const [tab, setTab] = useState<Tab>("deals");
+  const { path, screen, go, replace } = useRoute();
+  /**
+   * DERIVED, never stored. A second copy of "which screen am I on" is what let
+   * the URL say `/` while a listing detail was still on screen.
+   */
+  const tab = tabOf(screen);
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1111,16 +1213,15 @@ export default function App() {
   const field = useRef<HTMLInputElement | null>(null);
 
   /**
-   * Switching tabs always clears the open listing and returns to `/`.
-   *
-   * Without the reset, tapping Deals while a verdict was open left the detail
-   * view mounted under the feed's own state and the tab bar highlighted a
-   * screen you were not looking at.
+   * A tab press is now just navigation. The screen follows the URL, so there is
+   * nothing to keep in sync by hand.
    */
-  const goTab = useCallback((t: Tab) => {
-    reset(); setUrl(""); setTab(t);
+  const PATH_FOR: Record<"deals" | "check" | "saved" | "settings", string> = {
+    deals: "/", check: "/check", saved: "/saved", settings: "/settings",
+  };
+  const goTab = useCallback((t: "deals" | "check" | "saved" | "settings") => {
     setSavedCount(readWatch().length);
-    if (location.pathname !== "/") go("/");
+    go(PATH_FOR[t]);
   }, [go]);
 
   const saveSettings = (patch: Partial<Settings>) => {
@@ -1154,14 +1255,27 @@ export default function App() {
     const found = blob.match(/https?:\/\/[^\s]+/)?.[0];
     history.replaceState({}, "", "/");
     if (found) runUrl(found);
-    else { setTab("check"); setError("That share didn't contain a link. Copy the listing URL and paste it instead."); }
+    else { replace("/check"); setError("That share didn't contain a link. Copy the listing URL and paste it instead."); }
     // Fires once per delivery; `runUrl` is stable enough for this one-shot.
   }, [path]);
 
   useEffect(() => {
+    /**
+     * ⚠ CLEARING ON THE WAY OUT IS THE FIX FOR BACK.
+     *
+     * This effect used to `return` early when the path stopped matching
+     * `/c/:id`, which left `listing` and `verdict` populated — so pressing Back
+     * changed the URL to `/` and the detail stayed on screen over the feed.
+     * The state has to be torn down when the route leaves the detail, not only
+     * built up when it arrives.
+     */
+    if (screen.name !== "detail") {
+      if (listing || verdict) reset();
+      return;
+    }
     const m = path.match(/^\/c\/(\d+)$/);
     if (!m) return;
-    setTab("check"); setBusy(true);
+    setBusy(true);
     fetch(`/v1/checks/${m[1]}`).then((r) => r.json()).then((d) => {
       if (d.error) return setError(d.error);
       setListing(d.listing); setVerdict(d.verdict); setCheckId(d.checkId);
@@ -1206,7 +1320,8 @@ export default function App() {
   function runUrl(raw: string) {
     const u = raw.trim();
     if (!u || busy) return;
-    reset(); setUrl(u); setBusy(true); setTab("check");
+    reset(); setUrl(u); setBusy(true);
+    if (screen.name !== "check") replace("/check");
 
     const src = new EventSource(`/v1/checks/stream?url=${encodeURIComponent(u)}`);
     es.current = src;
@@ -1275,15 +1390,15 @@ export default function App() {
             <Link size={19} />
           </button>
         )}
-        <button className={`iconbtn ${tab === "settings" ? "on" : ""}`}
-          aria-label="Settings" aria-pressed={tab === "settings"}
-          onClick={() => goTab(tab === "settings" ? "deals" : "settings")}>
+        <button className={`iconbtn ${screen.name === "settings" ? "on" : ""}`}
+          aria-label="Settings" aria-pressed={screen.name === "settings"}
+          onClick={() => goTab(screen.name === "settings" ? "deals" : "settings")}>
           <Gear size={19} />
         </button>
       </header>
 
       <main className="scroll">
-            {tab === "deals" && !listing && (
+            {screen.name === "deals" && (
               <>
                 <div className="feedhead">
                   <h1>Worth driving for</h1>
@@ -1292,12 +1407,12 @@ export default function App() {
                 {settings.askOutcomes && ask && (
                   <OutcomePrompt h={ask} onDone={() => setAsk(null)} />
                 )}
-                <Feed onOpen={(id) => { setTab("check"); go(`/c/${id}`); }}
+                <Feed onOpen={(id) => go(`/c/${id}`)}
                   onWatchChange={setSavedCount} />
               </>
             )}
 
-            {(tab === "check" || (tab === "deals" && listing)) && (
+            {(screen.name === "check" || screen.name === "detail") && (
               <>
                 {/**
                   * An APP screen, not a landing page.
@@ -1397,14 +1512,14 @@ export default function App() {
               </>
             )}
 
-            {tab === "saved" && !listing && (
-              <Watchlist onOpen={(id) => { setTab("check"); go(`/c/${id}`); }}
+            {screen.name === "saved" && (
+              <Watchlist onOpen={(id) => go(`/c/${id}`)}
                 onWatchChange={setSavedCount} />
             )}
 
-            {tab === "you" && <You hist={hist} onOpen={(id) => { setTab("check"); go(`/c/${id}`); }} />}
 
-            {tab === "settings" && (
+
+            {screen.name === "settings" && (
               <SettingsScreen s={settings} save={saveSettings}
                 savedCount={savedCount}
                 onClearSaved={() => { writeWatch([]); setSavedCount(0); }} />
