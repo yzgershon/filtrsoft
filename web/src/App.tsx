@@ -149,6 +149,26 @@ function useRoute() {
 const PAGE = 60;
 
 /**
+ * A listing thumbnail that fails GRACEFULLY.
+ *
+ * **Facebook CDN urls are signed and they expire.** Measured on the live feed:
+ * `scontent-bos5-1.xx.fbcdn.net/...` returns 403 once the token lapses, and the
+ * hero card rendered the browser's broken-image glyph — a torn page icon in the
+ * middle of the most prominent card on the site.
+ *
+ * We cannot fix the expiry without hosting the bytes ourselves, and photo
+ * retention was deliberately removed because it filled the production volume
+ * and took the crawler down for 13 hours. So the honest handling is to fail to
+ * the SAME placeholder a listing with no photo uses: an expired image and an
+ * absent one are indistinguishable to the reader, and both are true.
+ */
+function Thumb({ src, size = 22 }: { src: string | null; size?: number }) {
+  const [dead, setDead] = useState(false);
+  if (!src || dead) return <span className="noimg"><Ghost size={size} /></span>;
+  return <img src={src} alt="" loading="lazy" onError={() => setDead(true)} />;
+}
+
+/**
  * One card in the 2-up grid. Shared by the feed and the watchlist so a saved
  * listing looks exactly like the thing you saved.
  *
@@ -177,7 +197,7 @@ function Gcard({ i, saved, onSave, onOpen }: {
         aria-label={`Open ${i.title}`}>
         <span className="gshot">
           {i.thumb
-            ? <img src={i.thumb} alt="" loading="lazy" />
+            ? <Thumb src={i.thumb} />
             : <span className="noimg"><Ghost size={22} /></span>}
           <span className={`gcall b-${i.call}`}>{LABEL[i.call]}</span>
           {i.gone ? <span className="gghost">Gone</span> : null}
@@ -296,7 +316,7 @@ function Feed({ onOpen, onWatchChange }: {
               <button className={`dealhero v-${hero.call}`} onClick={() => onOpen(hero.id)}>
                 <span className="hshot">
                   {hero.thumb
-                    ? <img src={hero.thumb} alt="" />
+                    ? <Thumb src={hero.thumb} size={28} />
                     : <span className="noimg"><Ghost size={28} /></span>}
                   <span className="hover">
                     <span className={`dcall b-${hero.call}`}>{LABEL[hero.call]}</span>
