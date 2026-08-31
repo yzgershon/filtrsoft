@@ -2671,10 +2671,12 @@ the length of the fetch**. Visibly the chips blink out; invisibly, keyboard
 focus died with the unmount, which is why a roving-tabindex fix alone did
 nothing — the element being focused no longer existed a tick later.
 
-**Commit 4 `6017540` — the desktop shell.** From 1024px: shell 1180px, gutters
-24 (32 at 1280+), header 64px, four-column grid at 16px gaps, nav moves into
-the header, detail becomes 56/44 with the decision column sticky at `top: 80px`.
-Below 1024 nothing changes — a tablet in portrait is held like a phone.
+**Commit 4 `6017540` — the desktop shell. ⚠ SUPERSEDED 2026-08-31, SEE 17h.**
+From 1024px it made the shell 1180px, gutters 24 (32 at 1280+), header 64px, a
+four-column grid, nav in the header, and a 56/44 detail with the decision column
+sticky. Yish used it and called it goofy; above 1024px the app is now a 360x780
+phone in a frame instead. Kept here as the record of what was built and why, not
+as a description of what ships.
 
 ⚠ **Both navs render and CSS picks one.** They are two elements because the
 bottom bar is a fixed overlay with a safe-area inset and the header row is in
@@ -2880,3 +2882,76 @@ fine 768px top bar reported "104px past the edge" because the hidden desktop
 nav sat at 0 while the centred shell started at 104.
 
 **166 pass / 0 fail** (was 126 on hand-picked widths).
+
+### 17h. On a desktop, Assyze is a phone on a desk — and the wide shell is gone
+
+Yish, 2026-08-31, after using the live site: *"on desktop when I go to
+assyze.com it looks goofy because it's meant for mobile ... have an outline of a
+phone and then assyze inside with the exact dimensions of the real app so they
+both reflect the same thing."*
+
+⚠ **THIS REPLACED THE WIDE DESKTOP SHELL. DO NOT REINSTATE IT.** The 1180px
+shell with header navigation, a four-column grid and a two-column detail was
+commit `6017540`, built for the audit, and is superseded by his call after
+seeing it running. Both cannot exist: one of them has to decide what 1440px
+means. `HeaderNav` and its CSS are **deleted**, not dormant — a component that
+can never render is archaeology. That commit is the whole of it if it is ever
+wanted back.
+
+**360 × 780 CSS px, which is his Galaxy S24, deliberately.** "The exact
+dimensions of the real app" means the desktop view is a true preview of the
+device he carries: same width so the same things wrap in the same places, same
+height so the same amount is above the fold. A generic 393×852 would be a
+different phone and would disagree with his in exactly the way this exists to
+remove.
+
+#### Why this is not the fake phone frame that was deleted
+
+There WAS a device mock here, and it shipped to real phones — gated at
+**≥ 880px**, which a tablet and a large phone in landscape both clear, so the
+app arrived on his phone as a desktop site pretending to be mobile: two-finger
+scroll, pinch zoom, tiny text. Three things stop that repeating:
+
+- **1024px, not 880.** No phone reaches it in either orientation.
+- **Every rule is additive and scoped to the media query.** Measured on a real
+  Galaxy S24 after the change: `transform: none`, `border: 0px`, `radius: 0px`,
+  the document still scrolls natively. The phone layout is untouched.
+- ⚠ **THE FRAME IS THE CONTAINING BLOCK FOR `position: fixed`, VIA A
+  TRANSFORM.** Without it the tab bar, the filter sheet, the toasts and the
+  lightbox resolve against the VIEWPORT and span the whole desktop window while
+  the phone sits in the middle of them. It is the single most likely way to get
+  this wrong and it looks broken rather than subtly off. `ui-verify` asserts the
+  transform exists and that the tab bar and toasts are inside the frame's box.
+
+#### ⚠ Viewport media queries misfire inside the frame
+
+A media query asks the **WINDOW** (1440px), while the app lives in a 360px box.
+Every `min-width` rule written for a wide screen therefore fires inside a phone:
+three feed columns squeezed into 360px, a filter sheet centred as a desktop
+dialog instead of rising from the bottom edge. Both are undone at the end of
+`10-desktop.css`.
+
+**ANY NEW `@media (min-width: …)` RULE ABOVE 360px NEEDS A COUNTERPART THERE**,
+or it renders inside the phone and only on a desktop, which is the hardest kind
+of bug to notice.
+
+#### Scaling, not resizing
+
+A 780px phone plus bezel and padding needs ~850px of window; laptops routinely
+have less. The frame scales — 0.92 / 0.85 / 0.78 / 0.71 by viewport height — and
+**stays exactly 360 × 780 CSS px at every step**, so the layout is identical to
+his phone and the preview stays honest. Resizing the frame would reflow it into
+a layout no device has.
+
+#### Two pre-existing bugs the new assertions caught, neither desktop-only
+
+- **The lightbox focus trap counted buttons the browser will not focus.**
+  `button:not(:disabled)` matches `display: none` elements, and the prev/next
+  controls are hidden below 560px — so on a **phone** the list was
+  `[close, hidden-next]`, the wrap condition could never fire, and Tab walked
+  out of the dialog into the page behind. Filter on
+  `getClientRects().length > 0`; `offsetParent` is fooled by the dialog's own
+  `position: fixed` ancestor.
+- **The photo index was never clamped** and reached "Photo 14 of 10".
+
+**164 pass / 0 fail.**
