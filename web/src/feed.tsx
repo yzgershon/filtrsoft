@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Again, Bell, Check, Cut, Ghost, Save, Sliders } from "./icons.tsx";
+import { Alert, Again, Bell, Check, Cut, Ghost, Save } from "./icons.tsx";
 import type { Call, FeedItem } from "./types.ts";
 import {
   type Filters, type Quality,
@@ -17,7 +17,7 @@ import {
 } from "./nav.ts";
 import {
   LABEL, money, ago, readWatch, toggleWatch, readSettings, toast, Thumb,
-  SUBKEY, urlB64ToBytes,
+  SUBKEY, urlB64ToBytes, onOpenFilters, publishFilterCount,
 } from "./lib.tsx";
 
 export const PAGE = 60;
@@ -456,6 +456,14 @@ export function Feed({ onOpen, onWatchChange }: {
    */
   const nFilters = activeFilterCount(filters);
 
+  /**
+   * The badge lives on a button in another component, so the count is
+   * published rather than passed. Publishing on every filter change keeps the
+   * two in step without `App` having to know what a facet is.
+   */
+  useEffect(() => { publishFilterCount(nFilters); }, [nFilters]);
+  useEffect(() => onOpenFilters(() => setSheet(true)), []);
+
   const SEGS: Array<{ id: Quality; label: string; n: number }> = [
     { id: "ready", label: "Ready", n: segments.ready ?? 0 },
     { id: "verify", label: "Verify", n: segments.verify ?? 0 },
@@ -481,18 +489,19 @@ export function Feed({ onOpen, onWatchChange }: {
 
   return (
     <>
-      <div className="qrow">
-        <Segmented value={quality} onChange={setQuality} options={SEGS} />
-        <button className={`filterbtn${nFilters ? " on" : ""}`} onClick={() => setSheet(true)}
-          aria-label={nFilters ? `Filters, ${nFilters} active` : "Filters"}>
-          {/* `Sliders`, not `Cut`. Cut is a down arrow meaning "the price
-              dropped" everywhere else, and at 375px the label is hidden so the
-              icon IS the control. */}
-          <Sliders size={16} />
-          <span>Filters</span>
-          {nFilters > 0 && <em className="num">{nFilters}</em>}
-        </button>
-      </div>
+      {/**
+        * ⚠ THE FILTERS BUTTON IS IN THE TOP BAR, NOT HERE.
+        *
+        * It sat beside the segment control and did not fit. Measured on a real
+        * Galaxy S24 (360px, Android UA): the four chips plus a 44px button
+        * overflow the row and the "All 387" chip was CLIPPED 22px past the
+        * edge. iPhone SE clipped 62px, Pixel 7 clipped 13px. An iPhone 14 at
+        * 390px clipped nothing, which is exactly why hand-picked 375/390 test
+        * widths never caught it.
+        *
+        * The chips get the whole row now. See `openFilters` in `lib.tsx`.
+        */}
+      <Segmented value={quality} onChange={setQuality} options={SEGS} />
 
       {sheet && (
         <FilterSheet f={filters} facets={facets} onApply={applyFilters} onClose={() => setSheet(false)} />
@@ -707,7 +716,16 @@ export function Segmented<T extends string>({ value, onChange, options }: {
     if (!box) return;
     const measure = () => {
       const el = box.querySelector<HTMLElement>('[aria-checked="true"]');
-      if (el) setInd({ left: el.offsetLeft, width: el.offsetWidth });
+      if (!el) return;
+      setInd({ left: el.offsetLeft, width: el.offsetWidth });
+      /**
+       * The control scrolls rather than clips when the chips cannot fit (see
+       * `.seg` in 04-feed.css). Keep the SELECTED chip on screen, or the one
+       * piece of state the control exists to show is the piece you cannot see.
+       */
+      if (box.scrollWidth > box.clientWidth + 1) {
+        el.scrollIntoView({ inline: "nearest", block: "nearest" });
+      }
     };
     measure();
     const ro = new ResizeObserver(measure);

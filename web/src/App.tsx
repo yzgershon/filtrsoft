@@ -7,11 +7,12 @@
  * `nav.ts` where `bun test` can pin them without a DOM.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Clip, Gear, Link, Again } from "./icons.tsx";
+import { Clip, Gear, Link, Again, Sliders } from "./icons.tsx";
 import type { Comp, Hist, Listing, Meta, Signal, Verdict } from "./types.ts";
 import {
   LABEL, Toaster, pushHist, readHist, readAsked, readWatch, writeWatch,
   readSettings, writeSettings, pendingOutcome, shareOrCopy, toast,
+  openFilters, onFilterCount,
 } from "./lib.tsx";
 import { Feed } from "./feed.tsx";
 import { Report } from "./detail.tsx";
@@ -84,6 +85,19 @@ export default function App() {
   const [savedCount, setSavedCount] = useState(() => readWatch().length);
   const [settings, setSettings] = useState<Settings>(readSettings);
   const [ask, setAsk] = useState<Hist | null>(() => pendingOutcome(readHist(), readAsked()));
+  /**
+   * ⚠ THE FILTERS BUTTON IS HERE BECAUSE IT DID NOT FIT BESIDE THE SEGMENT
+   * CONTROL. Measured on a real Galaxy S24 (360px, Android UA): four chips
+   * plus a 44px button overflow the row and the last chip was CLIPPED 22px
+   * past the edge.
+   *
+   * The count is PUBLISHED by the feed rather than derived here: the filters
+   * live in the URL and this component only tracks `pathname`, so reading the
+   * badge from `location.search` would go stale the moment a filter changed
+   * without a route change.
+   */
+  const [filterCount, setFilterCount] = useState(0);
+  useEffect(() => onFilterCount(setFilterCount), []);
   const es = useRef<EventSource | null>(null);
   const field = useRef<HTMLInputElement | null>(null);
 
@@ -287,6 +301,14 @@ export default function App() {
           * an unlabelled icon is the worse of the two to keep. Audit S11: keep
           * one action.
           */}
+        {/* Deals only: filtering a screen that has no feed is meaningless. */}
+        {tab === "deals" && (
+          <button className={`iconbtn filtbtn${filterCount ? " on" : ""}`} onClick={openFilters}
+            aria-label={filterCount ? `Filters, ${filterCount} active` : "Filters"}>
+            <Sliders size={19} />
+            {filterCount > 0 && <em className="num">{filterCount}</em>}
+          </button>
+        )}
         <button className={`iconbtn ${screen.name === "settings" ? "on" : ""}`}
           aria-label="Settings" aria-pressed={screen.name === "settings"}
           onClick={() => goTab(screen.name === "settings" ? "deals" : "settings")}>

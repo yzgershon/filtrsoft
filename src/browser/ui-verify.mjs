@@ -19,7 +19,7 @@
  *
  * Widths are 375 / 768 / 1024 / 1440 — phone, tablet, small laptop, desktop.
  */
-import { chromium } from "playwright-core";
+import { chromium, devices } from "playwright-core";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -27,8 +27,35 @@ const LABEL = process.argv[2] ?? "run";
 const BASE = process.argv[3] ?? "http://localhost:3177";
 const CHROME = process.env.ASSYZE_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const OUT = join("docs", "ui", LABEL);
-// 390 is the audit's iPhone-14 width; the rest are the four it names.
-const WIDTHS = [375, 390, 768, 1024, 1440];
+/**
+ * REAL DEVICE PROFILES, NOT HAND-PICKED WIDTHS.
+ *
+ * This used to be `[375, 390, 768, 1024, 1440]` with `isMobile: true` and a
+ * DESKTOP user agent, which is Chrome resized into a phone shape rather than a
+ * phone. Two things went wrong because of it:
+ *
+ *   · **The widths were guesses and they missed his actual device.** Yish is on
+ *     a Galaxy S24, which is 360 CSS px — narrower than anything tested. The
+ *     segment control clipped its last chip by 22px there while 375 and 390
+ *     both looked perfect.
+ *   · `isMobile` sets touch and viewport-meta handling but NOT the user agent
+ *     or the device pixel ratio, so nothing under test ever saw an Android UA
+ *     or a 3x screen.
+ *
+ * Playwright's descriptors carry viewport, DPR, UA, touch and mobile together.
+ * The desktop entries stay as plain viewports because there is no "desktop"
+ * descriptor and none is needed.
+ */
+const PHONES = ["iPhone SE", "Galaxy S24", "iPhone 14", "Pixel 7"];
+/**
+ * The phone every functional block runs on.
+ *
+ * It was a bare 375, a width no device in PHONES actually has. Yish is on a
+ * Galaxy S24, so that is what the interaction tests drive; the geometry loop at
+ * the bottom still sweeps all four profiles.
+ */
+const PHONE = "Galaxy S24";
+const DESKTOPS = [768, 1024, 1440];
 
 mkdirSync(OUT, { recursive: true });
 
@@ -40,20 +67,61 @@ const ok = (name, cond, detail = "") => {
 
 const browser = await chromium.launch({ executablePath: CHROME, headless: true });
 
-/** Settings live in localStorage, so each run starts from a known state. */
-async function newPage(width, settings) {
-  const ctx = await browser.newContext({
-    viewport: { width, height: width < 500 ? 812 : 900 },
-    deviceScaleFactor: 2,
-    isMobile: width < 500,
-    hasTouch: width < 500,
-  });
+/**
+ * Settings live in localStorage, so each run starts from a known state.
+ *
+ * `spec` is either a device NAME from Playwright's registry (real UA, DPR,
+ * viewport and touch) or a plain desktop width.
+ */
+async function newPage(spec, settings) {
+  const opts = typeof spec === "string"
+    ? { ...devices[spec] }
+    : { viewport: { width: spec, height: 900 }, deviceScaleFactor: 2 };
+  const ctx = await browser.newContext(opts);
   await ctx.addInitScript((s) => {
     if (s) localStorage.setItem("assyze:settings", JSON.stringify(s));
   }, settings ?? null);
   const page = await ctx.newPage();
   return { ctx, page };
 }
+
+/**
+ * ⚠ A CONTROL CAN OVERFLOW ITSELF WITHOUT THE PAGE SCROLLING, AND THAT IS THE
+ * BUG THIS SUITE MISSED FOR FIVE COMMITS.
+ *
+ * The only overflow assertion here was `document.documentElement.scrollWidth`,
+ * which is a PAGE-level measure. The segment control's chips were clipped 22px
+ * past its right edge on a Galaxy S24 and the document reported zero overflow,
+ * because the overflow was contained inside `.seg`.
+ *
+ * Measure the last child against its container's box. `scrollWidth` is not
+ * enough either: `.seg button` is `flex: 1`, so the chips stretch to whatever
+ * box they are given and `scrollWidth` tracks the container — it reads "fits"
+ * at every width while the labels are visibly cut off.
+ */
+const clippedBy = (page, sel) => page.evaluate((s) => {
+  const box = document.querySelector(s);
+  if (!box) return null;
+  let worst = 0;
+  const b = box.getBoundingClientRect();
+  for (const c of box.children) {
+    const r = c.getBoundingClientRect();
+    /**
+     * SKIP WHAT IS NOT RENDERED, AND SKIP WHAT IS NOT IN FLOW.
+     *
+     * A `display: none` child reports a rect of all zeros, so a container that
+     * does not start at x=0 reads as clipping it by exactly its own left
+     * offset. That is how a perfectly fine 768px top bar reported "104px past
+     * the edge": the hidden desktop nav sat at 0 while the centred shell
+     * started at 104. Absolutely-positioned children (the sliding indicator)
+     * are out of flow and cannot overflow anything either.
+     */
+    if (r.width === 0 && r.height === 0) continue;
+    if (getComputedStyle(c).position === "absolute") continue;
+    worst = Math.max(worst, Math.round(r.right - b.right), Math.round(b.left - r.left));
+  }
+  return worst;
+}, sel);
 
 const shot = (page, name) => page.screenshot({ path: join(OUT, `${name}.png`), fullPage: false });
 
@@ -69,7 +137,7 @@ const detailOpen = (page) => page.evaluate(
 // ─────────────────────────────────────────────────── 1. navigation and Back
 {
   console.log("\nnavigation");
-  const { ctx, page } = await newPage(375);
+  const { ctx, page } = await newPage(PHONE);
   await page.goto(BASE, { waitUntil: "networkidle" });
   await page.waitForSelector(".grid .gcard, .dealhero, .empty", { timeout: 20000 });
 
@@ -110,7 +178,7 @@ const detailOpen = (page) => page.evaluate(
 // ───────────────────────────────────────────── 2. the segment control counts
 {
   console.log("\nsegments");
-  const { ctx, page } = await newPage(375);
+  const { ctx, page } = await newPage(PHONE);
   await page.goto(BASE, { waitUntil: "networkidle" });
   await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
 
@@ -146,7 +214,7 @@ const detailOpen = (page) => page.evaluate(
 // ─────────────────────────────────────────────────── 3. Saved and its subtabs
 {
   console.log("\nsaved");
-  const { ctx, page } = await newPage(375);
+  const { ctx, page } = await newPage(PHONE);
   await page.goto(BASE + "/saved", { waitUntil: "networkidle" });
   await page.waitForTimeout(1000);
 
@@ -181,7 +249,7 @@ const detailOpen = (page) => page.evaluate(
 // ───────────────────────────────────────────── 4. settings do what they say
 {
   console.log("\nsettings");
-  const { ctx, page } = await newPage(375);
+  const { ctx, page } = await newPage(PHONE);
   await page.goto(BASE + "/settings", { waitUntil: "networkidle" });
   await page.waitForTimeout(900);
 
@@ -218,7 +286,7 @@ const detailOpen = (page) => page.evaluate(
 // ──────────────────── 5. hideGone and drive reach the SERVER, not just storage
 {
   console.log("\nsettings reach the server");
-  const a = await newPage(375, { driveMinutes: 15, hideGone: true, reduceMotion: false, askOutcomes: true });
+  const a = await newPage(PHONE, { driveMinutes: 15, hideGone: true, reduceMotion: false, askOutcomes: true });
   const aReqs = [];
   a.page.on("request", (r) => { if (r.url().includes("/v1/feed")) aReqs.push(r.url()); });
   await a.page.goto(BASE, { waitUntil: "networkidle" });
@@ -228,7 +296,7 @@ const detailOpen = (page) => page.evaluate(
     () => fetch("/v1/feed?limit=1&quality=all").then((r) => r.json()).then((d) => d.total));
   await a.ctx.close();
 
-  const b = await newPage(375, { driveMinutes: 15, hideGone: false, reduceMotion: false, askOutcomes: true });
+  const b = await newPage(PHONE, { driveMinutes: 15, hideGone: false, reduceMotion: false, askOutcomes: true });
   const bReqs = [];
   b.page.on("request", (r) => { if (r.url().includes("/v1/feed")) bReqs.push(r.url()); });
   await b.page.goto(BASE, { waitUntil: "networkidle" });
@@ -239,7 +307,7 @@ const detailOpen = (page) => page.evaluate(
   ok("delisted rows are a real difference", shown > hidden, `${hidden} hidden · ${shown} shown`);
   await b.ctx.close();
 
-  const c = await newPage(375, { driveMinutes: 90, hideGone: true, reduceMotion: false, askOutcomes: true });
+  const c = await newPage(PHONE, { driveMinutes: 90, hideGone: true, reduceMotion: false, askOutcomes: true });
   const checks = [];
   c.page.on("request", (r) => { if (/\/v1\/checks\/\d+/.test(r.url())) checks.push(r.url()); });
   await c.page.goto(BASE, { waitUntil: "networkidle" });
@@ -258,7 +326,7 @@ const detailOpen = (page) => page.evaluate(
  */
 {
   console.log("\naccessibility");
-  const { ctx, page } = await newPage(375);
+  const { ctx, page } = await newPage(PHONE);
   await page.goto(BASE, { waitUntil: "networkidle" });
   await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
 
@@ -465,7 +533,7 @@ const detailOpen = (page) => page.evaluate(
 // ─────────────────────────────────────── 8. a failed feed is not an empty feed
 {
   console.log("\nfailure states");
-  const { ctx, page } = await newPage(375);
+  const { ctx, page } = await newPage(PHONE);
   // Kill the feed request only. Everything else loads, so this is the network
   // failing under a working app — the case that used to read "Nothing here yet".
   await page.route("**/v1/feed*", (r) => r.abort());
@@ -490,7 +558,7 @@ const detailOpen = (page) => page.evaluate(
 // ────────────────────────────────────────────────── 9. discovery filters
 {
   console.log("\ndiscovery");
-  const { ctx, page } = await newPage(375);
+  const { ctx, page } = await newPage(PHONE);
   await page.goto(BASE, { waitUntil: "networkidle" });
   await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
 
@@ -501,7 +569,7 @@ const detailOpen = (page) => page.evaluate(
   ok("the hero can be saved", (await page.locator(".herosave").count()) > 0);
 
   // The sheet is a real dialog, same rules as the lightbox.
-  await page.locator(".filterbtn").click();
+  await page.locator(".filtbtn").click();
   await page.waitForTimeout(500);
   ok("the filter sheet opens", (await page.locator(".sheet").count()) === 1);
   ok("it takes focus", await page.evaluate(() => !!document.activeElement?.closest?.(".sheet")));
@@ -554,7 +622,7 @@ const detailOpen = (page) => page.evaluate(
 // ────────────────────────────── 10. comp transparency and the offer sandbox
 {
   console.log("\ncomps and offers");
-  const { ctx, page } = await newPage(375);
+  const { ctx, page } = await newPage(PHONE);
   await page.goto(BASE, { waitUntil: "networkidle" });
   await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
   await page.locator(".grid .gcard .gopen, .dealhero").first().click();
@@ -593,16 +661,57 @@ const detailOpen = (page) => page.evaluate(
   await ctx.close();
 }
 
-// ────────────────────────────────────────────── 11. every width, every screen
+// ────────────────────────────── 11. every real device, every screen
 console.log("\nscreens");
-for (const w of WIDTHS) {
-  const { ctx, page } = await newPage(w);
+for (const spec of [...PHONES, ...DESKTOPS]) {
+  const { ctx, page } = await newPage(spec);
+  const label = String(spec).replace(/\s+/g, '-');
   for (const [path, name] of [["/", "deals"], ["/check", "check"], ["/saved", "saved"], ["/settings", "settings"]]) {
     await page.goto(BASE + path, { waitUntil: "networkidle" });
     await page.waitForTimeout(1100);
-    await shot(page, `${w}-${name}`);
+    await shot(page, `${label}-${name}`);
   }
   await page.goto(BASE, { waitUntil: "networkidle" });
+  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
+
+  // The real CSS width, whatever the descriptor calls the device.
+  const w = await page.evaluate(() => window.innerWidth);
+  const dpr = await page.evaluate(() => window.devicePixelRatio);
+
+  /**
+   * NO CONTROL MAY CLIP ITS OWN CHILDREN. This is the assertion that was
+   * missing for five commits: page-level overflow read zero on every
+   * device while the segment control cut its last chip off, because the
+   * overflow lived inside `.seg` and the document never scrolled.
+   */
+  for (const sel of [".seg", ".topbar", ".tabbar"]) {
+    const over = await clippedBy(page, sel);
+    if (over === null) continue;
+    ok(`${label}: ${sel} does not clip its children`, over <= 1, `${over}px past the edge`);
+  }
+
+  /**
+   * Four-digit counts must not break it either; today's numbers are luck.
+   *
+   * A 320px screen genuinely cannot fit four labelled chips with four-digit
+   * counts, so the pass condition is NOT "it fits" — it is "nothing becomes
+   * unreachable". Overflow must be SCROLLABLE rather than clipped.
+   */
+  await page.evaluate(() => document.querySelectorAll(".segn").forEach((n) => { n.textContent = "1204"; }));
+  await page.waitForTimeout(250);
+  const stress = await page.evaluate(() => {
+    const el = document.querySelector(".seg");
+    const cs = getComputedStyle(el);
+    return {
+      over: el.scrollWidth > el.clientWidth + 1,
+      scrollable: /auto|scroll/.test(cs.overflowX),
+      reach: el.scrollWidth - el.clientWidth,
+    };
+  });
+  ok(`${label}: 4-digit counts stay reachable`,
+    !stress.over || stress.scrollable,
+    stress.over ? `overflows ${stress.reach}px, scrollable=${stress.scrollable}` : "fits outright");
+  await page.reload({ waitUntil: "networkidle" });
   await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
 
   /**
@@ -616,11 +725,11 @@ for (const w of WIDTHS) {
     return g ? (getComputedStyle(g).gridTemplateColumns.match(/px/g) || []).length : null;
   });
   const wantCols = w >= 1024 ? 4 : w >= 520 ? 3 : 2;
-  ok(`${w}px: the feed grid is ${wantCols} columns`, cols === wantCols, `${cols}`);
+  ok(`${label}: the feed grid is ${wantCols} columns`, cols === wantCols, `${cols} at ${w}px @${dpr}x`);
 
   await page.locator(".grid .gcard .gopen, .dealhero").first().click();
   await page.waitForTimeout(1800);
-  await shot(page, `${w}-detail`);
+  await shot(page, `${label}-detail`);
 
   /**
    * The decision column has to sit BESIDE the photos and STICK. A stretched
@@ -645,10 +754,10 @@ for (const w of WIDTHS) {
   });
   if (two) {
     if (w >= 1024) {
-      ok(`${w}px: the detail is two columns`, two.cols === 2, `${two.cols}`);
-      ok(`${w}px: the decision sits beside the photos`, two.sideLeft >= two.galRight - 2,
+      ok(`${label}: the detail is two columns`, two.cols === 2, `${two.cols}`);
+      ok(`${label}: the decision sits beside the photos`, two.sideLeft >= two.galRight - 2,
         `gallery ends ${two.galRight}, decision starts ${two.sideLeft}`);
-      ok(`${w}px: the decision column sticks`, two.sticky === "sticky", two.sticky);
+      ok(`${label}: the decision column sticks`, two.sticky === "sticky", two.sticky);
       /**
        * ⚠ ASSERT `align-items: start`, NOT "the column is shorter".
        *
@@ -663,9 +772,9 @@ for (const w of WIDTHS) {
        * live on a listing with more photos. Demanding it be shorter would fail
        * on real content that is perfectly laid out.
        */
-      ok(`${w}px: neither column is force-stretched`, two.align === "start", two.align);
+      ok(`${label}: neither column is force-stretched`, two.align === "start", two.align);
     } else {
-      ok(`${w}px: the detail is one column`, two.cols <= 1, `${two.cols}`);
+      ok(`${label}: the detail is one column`, two.cols <= 1, `${two.cols}`);
     }
   }
 
@@ -694,19 +803,19 @@ for (const w of WIDTHS) {
       padL: pad ? Math.round(parseFloat(pad.paddingLeft)) : 0,
     };
   });
-  ok(`${w}px: exactly one nav is visible`, !!nav.tabbar !== !!nav.hnav,
+  ok(`${label}: exactly one nav is visible`, !!nav.tabbar !== !!nav.hnav,
     `tabbar ${nav.tabbar ? "on" : "off"} · header ${nav.hnav ? "on" : "off"}`);
 
   if (w >= 1024) {
-    ok(`${w}px: the shell is capped at 1180`, nav.shellW === Math.min(1180, w),
+    ok(`${label}: the shell is capped at 1180`, nav.shellW === Math.min(1180, w),
       `${nav.shellW}px`);
-    ok(`${w}px: gutters are ${w >= 1280 ? 32 : 24}px`, nav.padL === (w >= 1280 ? 32 : 24), `${nav.padL}px`);
-    ok(`${w}px: the desktop nav is in the header`, !!nav.hnav && nav.hnav.pos !== "fixed",
+    ok(`${label}: gutters are ${w >= 1280 ? 32 : 24}px`, nav.padL === (w >= 1280 ? 32 : 24), `${nav.padL}px`);
+    ok(`${label}: the desktop nav is in the header`, !!nav.hnav && nav.hnav.pos !== "fixed",
       nav.hnav ? nav.hnav.pos : "missing");
   } else {
     // The original bug: `position: absolute` inside a fake phone frame meant
     // reaching the bar required scrolling past 285 listings.
-    ok(`${w}px: the tab bar is fixed and on screen`,
+    ok(`${label}: the tab bar is fixed and on screen`,
       !!nav.tabbar && nav.tabbar.pos === "fixed" && nav.tabbar.bottom <= nav.vh + 2,
       nav.tabbar ? `${nav.tabbar.pos} bottom=${nav.tabbar.bottom} vh=${nav.vh}` : "missing");
   }
@@ -726,12 +835,12 @@ for (const w of WIDTHS) {
     const use = el && getComputedStyle(el).display !== "none" ? el : document.querySelector(".topbar");
     return use ? getComputedStyle(use).backdropFilter : null;
   });
-  if (blur !== null) ok(`${w}px: the chrome blurs what is behind it`, blur !== "none", blur);
+  if (blur !== null) ok(`${label}: the chrome blurs what is behind it`, blur !== "none", blur);
 
   // No horizontal scroll at any width. A 2px overflow is a broken layout.
   const over = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  ok(`${w}px: no horizontal overflow`, over <= 1, `${over}px`);
+  ok(`${label}: no horizontal overflow`, over <= 1, `${over}px`);
   await ctx.close();
 }
 

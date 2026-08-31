@@ -12,24 +12,6 @@
  * completely different question from "graphics cards under $500". Without the
  * second one the only way to find a specific thing was to scroll.
  */
-.qrow { display: flex; align-items: center; gap: var(--s2); }
-.qrow .seg { flex: 1; min-width: 0; margin-bottom: 0; }
-
-.filterbtn {
-  flex: none; display: flex; align-items: center; gap: 6px;
-  min-height: 44px; padding: 0 13px; border-radius: var(--r-md);
-  background: var(--surface-2); border: 1px solid var(--line);
-  color: var(--ink-2); font-size: 13px; font-weight: 650;
-  touch-action: manipulation;
-  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
-}
-.filterbtn.on { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 45%, transparent); }
-.filterbtn em {
-  font-style: normal; min-width: 18px; padding: 1px 5px; border-radius: 999px;
-  background: var(--brand); color: var(--on-brand); font-size: 11px; font-weight: 800;
-}
-/* The word costs 60px on a 375px screen and the icon already says it. */
-@media (max-width: 400px) { .filterbtn span { display: none; } }
 
 /*
  * Active filters, stated in words, each with its own way out. A filter you
@@ -217,4 +199,24 @@
   /* The sheet becomes a centred dialog; a bottom sheet is a thumb gesture. */
   .sheetwrap { align-items: center; }
   .sheet { border-radius: var(--r-xl); max-height: 80dvh; }
+}
+
+/*
+ * The Filters button in the top bar.
+ *
+ * ⚠ IT MOVED HERE BECAUSE IT DID NOT FIT BESIDE THE SEGMENT CONTROL. Measured
+ * on a real Galaxy S24 (360x780 @3x): four chips plus a 44px button overflow
+ * the row and the last chip was clipped 22px past the edge. The chips get the
+ * whole row now, and the button sits with the other screen-level control.
+ *
+ * The badge is positioned rather than inline: `.iconbtn` is a fixed 44x44 grid
+ * cell, and a second child in flow would push the glyph off centre.
+ */
+.filtbtn { position: relative; }
+.filtbtn em {
+  position: absolute; top: 4px; right: 2px;
+  min-width: 15px; height: 15px; padding: 0 3px; border-radius: 999px;
+  background: var(--brand); color: var(--on-brand);
+  font-size: 9.5px; font-weight: 800; font-style: normal;
+  display: grid; place-items: center;
 }

@@ -59,11 +59,27 @@
 /* Segmented control. A radiogroup, not a row of loose pills: exactly one is
    active, arrow keys move between them, and the indicator SLIDES so state is
    carried by position as well as colour. */
+/*
+ * IF IT CANNOT FIT, IT SCROLLS. IT MUST NEVER CLIP.
+ *
+ * The metrics below fit four chips on every phone at today's counts, but the
+ * counts are data: 387 becomes 1,204 and a 320px screen runs out of room no
+ * matter how tight the padding is. Without `overflow-x` the last chip is simply
+ * cut off, SILENTLY, because the overflow is inside this box and the page never
+ * scrolls — which is exactly how "All 387" hung 22px off the edge of a Galaxy
+ * S24 for five commits without any assertion noticing.
+ *
+ * Scrolling degrades honestly: everything stays reachable, and `Segmented`
+ * scrolls the selected chip into view so the active state is never off-screen.
+ * The scrollbar is hidden because this is a segmented control, not a list.
+ */
 .seg {
   position: relative; display: flex; gap: 2px; padding: 3px;
   background: var(--surface-2); border: 1px solid var(--line);
   border-radius: var(--r-md); margin-bottom: var(--s3);
+  overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain;
 }
+.seg::-webkit-scrollbar { display: none; }
 /* Follows the button box, so raising the buttons to 44px raises this with it. */
 .segind {
   position: absolute; top: 3px; bottom: 3px; left: 0; z-index: 0;
@@ -71,18 +87,32 @@
   box-shadow: 0 2px 10px -2px rgba(255,138,61,.55);
   transition: transform var(--dur) var(--ease), width var(--dur) var(--ease);
 }
+/*
+ * ⚠ THESE METRICS ARE MEASURED, NOT CHOSEN.
+ *
+ * `white-space: nowrap` means a chip cannot shrink below its own content, so on
+ * a narrow phone the last one is pushed past the control's edge and clipped —
+ * silently, because the overflow is inside `.seg` and the PAGE never scrolls.
+ * Measured on a real Galaxy S24 (360x780 @3x, Android UA): "All 387" hung 22px
+ * off the end. iPhone SE 62px, Pixel 7 13px. An iPhone 14 at 390px clipped
+ * nothing, which is why hand-picked 375/390 widths never caught it.
+ *
+ * 6px padding and a 5px gap, with the count badge tightened to match, clears it
+ * on every phone profile including four-digit counts. Do not loosen these
+ * without re-running the device measurement in `src/browser/ui-verify.mjs`.
+ */
 .seg button {
-  position: relative; z-index: 1; flex: 1; min-height: 44px; padding: 0 var(--s2);
+  position: relative; z-index: 1; flex: 1; min-height: 44px; padding: 0 6px;
   touch-action: manipulation;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
   border-radius: 9px; font-size: 13px; font-weight: 600; color: var(--ink-2);
   white-space: nowrap; transition: color var(--dur) var(--ease);
 }
 .seg button[aria-checked="true"] { color: var(--on-brand); }
 .seg button:hover:not([aria-checked="true"]) { color: var(--ink); }
 .segn {
-  font-size: 11px; font-weight: 700; padding: 1px 5px; border-radius: 999px;
-  background: rgba(255,255,255,.09); min-width: 18px; text-align: center;
+  font-size: 10.5px; font-weight: 700; padding: 1px 4px; border-radius: 999px;
+  background: rgba(255,255,255,.09); min-width: 16px; text-align: center;
 }
 .seg button[aria-checked="true"] .segn { background: rgba(0,0,0,.22); }
 

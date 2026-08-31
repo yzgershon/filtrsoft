@@ -225,3 +225,36 @@ export function urlB64ToBytes(s: string): ArrayBuffer {
   for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
   return out.buffer;
 }
+
+/**
+ * The Filters button lives in the TOP BAR, and the sheet lives in the feed.
+ *
+ * ⚠ THIS EXISTS BECAUSE THE BUTTON DID NOT FIT NEXT TO THE SEGMENT CONTROL.
+ * Measured on a real Galaxy S24 (360 x 780 @3x, Android UA): the four chips
+ * plus a 44px Filters button need more room than 360px has, and the "All 387"
+ * chip was clipped 22px past the control's right edge. iPhone SE clipped 62px,
+ * Pixel 7 clipped 13px — and an iPhone 14 at 390px clipped nothing, which is
+ * why hand-picked 375/390 test widths never saw it.
+ *
+ * Moving the button to the bar frees the whole row. That splits one control
+ * across two components, so this is the wire between them: the same
+ * module-level pattern as `toast`, chosen over lifting the filter state into
+ * `App` because the state already lives in the URL and the FEED is the only
+ * thing that knows the facet counts the sheet renders.
+ */
+const openListeners = new Set<() => void>();
+const countListeners = new Set<(n: number) => void>();
+
+/** Top bar -> feed: open the sheet. */
+export const openFilters = () => openListeners.forEach((fn) => fn());
+export function onOpenFilters(fn: () => void) {
+  openListeners.add(fn);
+  return () => { openListeners.delete(fn); };
+}
+
+/** Feed -> top bar: how many filters are on, for the badge. */
+export const publishFilterCount = (n: number) => countListeners.forEach((fn) => fn(n));
+export function onFilterCount(fn: (n: number) => void) {
+  countListeners.add(fn);
+  return () => { countListeners.delete(fn); };
+}
