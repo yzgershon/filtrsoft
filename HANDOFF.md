@@ -2390,9 +2390,11 @@ the product you asked for.
 Everything below the line is engine work he has already asked to be deferred
 until after that.
 
-1. **UI + the features Codex flagged.** His words: *"after all of that we will
-   focus on UI and features such as the ones that Codex pointed out."* See
-   section 14 for the audit status.
+1. ~~**UI + the features Codex flagged.**~~ **DONE 2026-08-30.** The frontend
+   audit's six commits all shipped; see 17a and 17e. What that pass did NOT
+   build, and said so rather than skipping silently: a **distance/radius
+   filter**, which needs geocoding at ingest because `listings.location` is
+   free text with no coordinates. See section 14 for the Codex audit status.
 
 ---
 
@@ -2459,8 +2461,11 @@ until after that.
 ## 17. Frontend deep-dive audit (2026-08-30)
 
 The implementation-ready report is
-`docs/FRONTEND-UI-UX-MASTER-AUDIT-2026-08-30.md`. This was a report-only pass;
-no production UI behavior changed.
+`docs/FRONTEND-UI-UX-MASTER-AUDIT-2026-08-30.md`. It was a report-only pass.
+
+**ALL SIX COMMITS ARE NOW SHIPPED** — see 17a for 1 and 2, 17e for 3 to 6, and
+17f for the baselines they leave behind. The findings below are kept as the
+record of what was wrong, not as an open list.
 
 The highest-severity live findings are:
 
@@ -2618,3 +2623,180 @@ and the phone bottom tab bar spanning the full window. Nothing is broken and
 nothing overflows; it is simply a phone layout on a desktop. That is what the
 audit's responsive-shell commit exists to fix, and the screenshots in
 `docs/ui/commit2/` are the before.
+
+### 17e. Commits 3–6 SHIPPED — the audit is complete
+
+`4ac8cae` accessibility · `6017540` desktop shell · `9bf9a5a` engine copy ·
+`6a735de` discovery · `6b4938b` archaeology. Measurements below are off the
+running app, not intent.
+
+**Commit 3 `4ac8cae` — accessibility and feedback.**
+
+`--ink-3` was `#6e6a7c`: 3.59:1 on a card, 3.84:1 on the page, and it was the
+colour of every 11–12px label. Now `#858092`. Measured after:
+
+| Selector | Before | After | Size |
+|---|---|---|---|
+| `.gloc` | 3.59:1 | **4.92:1** | 11px |
+| `.dloc` | 3.59:1 | **4.92:1** | 12px (was 11.5) |
+| `.sect span` | — | **5.26:1** | 11.5px |
+| `.tab .tl` | — | **8.9:1** | 11.5px (was 10.5) |
+
+⚠ **Do not put `opacity` on top of `--ink-3`.** An `opacity: .65` lands the
+result back under 3:1 and undoes the token. Four such multipliers were removed;
+pick a lighter token instead.
+
+⚠ **`--ink-1` was used in SEVEN declarations and defined NOWHERE.** Every one
+was invalid and silently inherited the parent colour, including
+`.chsw button.on`, where it was the entire selected state of the local/eBay
+switch. It is an alias of `--ink` now.
+
+Targets measured after: `.gsave` 44x44, `.seg button` 44x44 (was 38), `.tab`
+125x58, `.brand` 55x44. **The bookmark keeps a 30px visible circle inside a
+44px button** — growing the circle would put a dinner plate over the photo.
+
+`aria-label="Open {title}"` on a card REPLACED its contents as the accessible
+name, so price, verdict, profit and location were never announced. They are an
+`aria-describedby` description now. Every screen has exactly one H1; Check had
+none at all.
+
+The photo dialog claimed `aria-modal` and had no trap. It focuses Close on
+open, traps Tab both ways, restores focus to the triggering photo, pages with
+arrow keys, and names itself "Photo 2 of 10".
+
+**FOUND WHILE FIXING THE RADIOGROUP, and bigger than the reported bug:**
+switching segments set `items` to null and the component returned the skeleton
+from ABOVE `<Segmented>`, so **the control you had just pressed unmounted for
+the length of the fetch**. Visibly the chips blink out; invisibly, keyboard
+focus died with the unmount, which is why a roving-tabindex fix alone did
+nothing — the element being focused no longer existed a tick later.
+
+**Commit 4 `6017540` — the desktop shell.** From 1024px: shell 1180px, gutters
+24 (32 at 1280+), header 64px, four-column grid at 16px gaps, nav moves into
+the header, detail becomes 56/44 with the decision column sticky at `top: 80px`.
+Below 1024 nothing changes — a tablet in portrait is held like a phone.
+
+⚠ **Both navs render and CSS picks one.** They are two elements because the
+bottom bar is a fixed overlay with a safe-area inset and the header row is in
+normal flow. The list and the icons come from ONE `NAV` constant, so a fourth
+destination cannot appear in one and not the other.
+
+⚠ **`align-items: start` on `.dtop` is load-bearing.** A stretched grid item is
+as tall as its row, and `position: sticky` inside a full-height box never moves
+— which looks identical to working until you scroll.
+
+Three bugs the audit did not name, all found by measuring:
+
+- **The `.hnav` base rule was written BELOW the media query that turns it on.**
+  Same specificity, so source order decided: `display: none` won at every width
+  and the desktop nav was invisible on a desktop while every other rule in the
+  same block applied normally. That reads as "the component did not mount".
+- **The hero is `aspect-ratio: 16/10`, so at 1116px wide it was 700px TALL** —
+  one listing, no feed. It turns SIDEWAYS on desktop (7fr photo, 5fr decision,
+  no DOM change) rather than being height-capped, which would just crop a
+  portrait photo into a letterbox.
+- **The segment indicator only re-measured on `[value, options.length]`.** Fine
+  while every chip was `flex: 1`; content-sized chips exposed it, and the
+  counts arriving after the first fetch ("All" → "All 387") moved the buttons
+  without changing either dependency. The orange pill sat under a chip that was
+  not selected. It observes the group now.
+
+**`9bf9a5a` — the engine writes in Yish's voice.** Three corrections, all about
+one headline: `$625 net on facebook — clears your $135 floor.`
+
+⚠ **`best.channel` IS AN INTERNAL ID AND MUST NEVER BE PRINTED.** Yish:
+*"it will say $625 net on facebook ... because I don't just buy or sell from
+facebook."* The `facebook` channel means A LOCAL CASH SALE — equally
+Craigslist, OfferUp, or a parking lot. `CHANNEL_NAME` maps it to "locally".
+eBay keeps its name; the fee arithmetic behind that channel really is eBay's.
+
+⚠ **THE HEADLINE STATES THE DEAL, NOT THE SETTING.** *"I don't like how it
+relates things to my $ floor."* The floor still decides the call, is still in
+the reasoning, and is still its own row in The Numbers. It does not get the
+headline. BUY now reads `Worth $2,125, so you make $625 locally.`
+
+⚠ **NO EM DASHES IN ANYTHING A PERSON READS** — headlines, reasoning, seller
+questions, signal evidence, risk-gate reasons, dead-market explanations, push
+bodies. Console logging keeps them; that is for the log. Two tests assert this
+on the ASSEMBLED output, not the source, because these strings are built from
+templates and a grep cannot see what a template produces. Not theoretical: the
+test failed on its first run and found one in `product-type.ts` that four
+manual passes had missed.
+
+ENGINE_VERSION **0.3.24 → 0.3.25**, load-bearing: `reverdictStale` selects on
+it, so without the bump every stored verdict serves the old wording forever.
+1,200 re-scored locally.
+
+**Commit 5 `6a735de` — discovery.** Search (every word, not any), category,
+source, price ceiling, sort. Category is derived at feed time by the SAME
+`detectCategory` the engine classifies with, so a filter cannot disagree with
+the verdict it filtered to.
+
+⚠ **THE FILTER STATE LIVES IN THE URL.** In component state it is lost on every
+refresh and every trip into a listing and back. Applying pushes a history
+entry, so Back undoes a search. Defaults are omitted from the query string.
+
+⚠ **THE SEGMENT COUNTS ARE COMPUTED OVER THE DISCOVERY-FILTERED SET.** Search
+"rtx" and the chips say how many BUYs there are AMONG RTX cards.
+
+Also: source labels on cards (as muted text, never as colour — the verdict
+stays the only colour that means anything), a hero bookmark (a SIBLING of the
+open button; a button inside a button is invalid HTML), "Alert me about this
+search" (permission requested on the TAP, never on load), the 12 most recent
+comps behind a disclosure, and an offer slider.
+
+⚠ **NO DISTANCE FILTER, DELIBERATELY.** `listings.location` is free text with
+no coordinates and nothing geocodes at ingest, so a radius control would be a
+string match wearing a mileage label. The audit asks for one; it needs
+geocoding first.
+
+The slider derived its floor from the economics and produced min $1,720 against
+max $1,500 on the RTX 4090 — an **inverted range**. A range input whose min
+exceeds its max does not error, it pins and never moves, so the control
+rendered perfectly and did nothing. It is 0 to the asking price now.
+
+**Commit 6 `6b4938b` — the archaeology.**
+
+`bun run typecheck` exists and passes. First run: **165 errors**, 146 of them
+from ONE omission — `SeedSku.liquidity` was declared required and 29 CPU
+entries lacked it, which widened the array union and failed every element. It
+is optional now; only `liquidity === "dead"` vetoes a BUY, so absent already
+behaved as saleable.
+
+⚠ **`VerdictPayload` had `[key: string]: unknown` to mean "and anything else".**
+An interface with declared properties has no implicit index signature, so
+`VerdictResult` — the only thing anyone passes — was incompatible with the type
+written to satisfy it.
+
+Deleted: `src/scripts/derive-catalog.ts` (imported two functions that do not
+exist in `derive.ts`; it could not run), 31 dead CSS rules across 12 classes,
+and 4.5 MB of stale committed screenshots.
+
+`App.tsx` **2,802 → 425 lines** plus `types.ts`, `lib.tsx`, `feed.tsx`,
+`detail.tsx`, `screens.tsx`. `styles.css` **1,793 lines → an index of 11
+numbered partials**.
+
+⚠ **THE IMPORT ORDER IN `styles.css` IS THE CASCADE.** The numbers exist so
+reordering has to be deliberate. New partials go at the END unless they are
+tokens.
+
+The CSS split has the strongest proof available: **the built stylesheet is
+BYTE-IDENTICAL before and after, 42,853 bytes both times.**
+
+### 17f. Baselines after the audit
+
+    bun test                                   115 pass / 0 fail   (was 61)
+    bun run typecheck                            0 errors          (was none run; 165 on first run)
+    node src/browser/ui-verify.mjs <label>     126 pass / 0 fail   (was none)
+
+Run the browser suite against a server started with `ASSYZE_CRAWL=off`; a crawl
+mid-run changes the counts underneath the assertions.
+
+    ASSYZE_CRAWL=off bun run src/api/index.ts &
+    node src/browser/ui-verify.mjs <label>
+
+**Nine assertions failed across the five commits and eight of them were real
+bugs.** The one that was not — a contrast reading of 1.99:1 — was the checker
+treating a translucent ancestor background as opaque white; it composites the
+layers now, because a checker that cries wolf makes the next real miss read as
+another false alarm.
