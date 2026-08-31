@@ -1,0 +1,220 @@
+/**
+ * The filter sheet, active-filter pills, comps and the offer sandbox.
+ *
+ * Part of the ordered set imported by `styles.css`. ⚠ The cascade is the
+ * import order there, not the alphabet.
+ */
+
+/* ================================================================ discovery */
+/*
+ * ⚠ THREE SEGMENTS IS NOT DISCOVERY FOR 387 LISTINGS (audit §20).
+ * Ready/Verify/Risky/All answers "how confident is the engine", which is a
+ * completely different question from "graphics cards under $500". Without the
+ * second one the only way to find a specific thing was to scroll.
+ */
+.qrow { display: flex; align-items: center; gap: var(--s2); }
+.qrow .seg { flex: 1; min-width: 0; margin-bottom: 0; }
+
+.filterbtn {
+  flex: none; display: flex; align-items: center; gap: 6px;
+  min-height: 44px; padding: 0 13px; border-radius: var(--r-md);
+  background: var(--surface-2); border: 1px solid var(--line);
+  color: var(--ink-2); font-size: 13px; font-weight: 650;
+  touch-action: manipulation;
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.filterbtn.on { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 45%, transparent); }
+.filterbtn em {
+  font-style: normal; min-width: 18px; padding: 1px 5px; border-radius: 999px;
+  background: var(--brand); color: var(--on-brand); font-size: 11px; font-weight: 800;
+}
+/* The word costs 60px on a 375px screen and the icon already says it. */
+@media (max-width: 400px) { .filterbtn span { display: none; } }
+
+/*
+ * Active filters, stated in words, each with its own way out. A filter you
+ * cannot see is a filter you think is a bug: the feed looks empty and nothing
+ * on screen says why.
+ */
+.active { display: flex; flex-wrap: wrap; gap: 6px; margin: var(--s3) 0 0; }
+.apill {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 32px; padding: 0 10px; border-radius: 999px;
+  background: color-mix(in srgb, var(--brand) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 34%, transparent);
+  color: var(--ink); font-size: 12.5px; font-weight: 600;
+}
+.apill i { font-style: normal; color: var(--ink-3); font-size: 11px; }
+.apill:hover i { color: var(--ink); }
+.apill.clear { background: none; border-color: var(--line); color: var(--ink-2); }
+
+/* ── the sheet ───────────────────────────────────────────────────────────── */
+.sheetwrap {
+  position: fixed; inset: 0; z-index: 70;
+  background: rgba(4,3,6,.62);
+  backdrop-filter: blur(3px);
+  display: flex; align-items: flex-end; justify-content: center;
+  animation: fadein 140ms var(--ease);
+}
+@keyframes fadein { from { opacity: 0 } to { opacity: 1 } }
+.sheet {
+  width: 100%; max-width: 560px;
+  max-height: 86dvh; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  padding: var(--s4) var(--s4) calc(var(--s4) + env(safe-area-inset-bottom, 0px));
+  animation: sheetup 200ms var(--ease);
+}
+@keyframes sheetup { from { transform: translateY(14px) } to { transform: none } }
+.sheethead { display: flex; align-items: center; margin-bottom: var(--s4); }
+.sheethead b { flex: 1; font-size: 17px; font-weight: 700; }
+.sheetx {
+  width: var(--tap); height: var(--tap); margin: -10px -10px -10px 0;
+  border-radius: var(--r-md); color: var(--ink-2); font-size: 18px; line-height: 1;
+}
+.fld { display: block; margin-bottom: var(--s4); }
+.fld > span {
+  display: block; margin-bottom: 7px;
+  font-size: 12px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.fld input {
+  width: 100%; min-height: 46px; padding: 0 13px;
+  border-radius: var(--r-md); border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--ink); font-size: 16px;
+}
+.fld input:focus { outline: none; border-color: var(--brand); }
+.pricefld { position: relative; }
+.pricefld i {
+  position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+  font-style: normal; color: var(--ink-3); font-size: 16px;
+}
+.pricefld input { padding-left: 28px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.fchip {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 44px; padding: 0 13px; border-radius: 999px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  color: var(--ink-2); font-size: 13.5px; font-weight: 600;
+  touch-action: manipulation;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.fchip em {
+  font-style: normal; font-size: 11.5px; font-weight: 700; color: var(--ink-3);
+}
+.fchip.on { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.fchip.on em { color: var(--on-brand); opacity: .72; }
+
+/*
+ * ⚠ THE FOOTER STICKS TO THE BOTTOM OF THE SHEET.
+ *
+ * Five field groups is taller than a 375x812 screen, so "Show deals" sat below
+ * the fold: you set a filter and then had to scroll to find the button that
+ * applies it. A primary action you have to go looking for is one people assume
+ * is not there.
+ *
+ * The negative margins and matching padding let the blur run edge to edge while
+ * the buttons stay on the sheet's own gutter.
+ */
+.sheetfoot {
+  position: sticky; bottom: calc(-1 * (var(--s4) + env(safe-area-inset-bottom, 0px)));
+  display: flex; gap: var(--s2);
+  margin: var(--s5) calc(-1 * var(--s4)) calc(-1 * (var(--s4) + env(safe-area-inset-bottom, 0px)));
+  padding: var(--s3) var(--s4) calc(var(--s3) + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--line-soft);
+}
+.sheetfoot .btn2 { flex: none; }
+.sheetfoot .cta { flex: 1; min-height: 50px; }
+
+.savedsearch { margin: var(--s5) 0 var(--s4); text-align: center; }
+.savedsearch p { margin: var(--s2) 0 0; color: var(--risk); font-size: 12.5px; }
+.savedsearch.ok {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  color: var(--buy); font-size: 13.5px; font-weight: 600;
+}
+
+/* The hero's bookmark. Same control as the card's, positioned to the card. */
+.herowrap { position: relative; }
+.herosave { top: 4px; right: 4px; }
+
+/* ============================================== comps and the offer sandbox */
+.offer { padding: var(--s4); }
+.offerrow { display: flex; align-items: baseline; justify-content: space-between; }
+.offerlbl { color: var(--ink-2); font-size: 13.5px; }
+.offerval { font-size: 26px; font-weight: 800; letter-spacing: -.03em; }
+.offerslide {
+  width: 100%; margin: var(--s3) 0 var(--s2);
+  -webkit-appearance: none; appearance: none;
+  height: 44px; background: none; touch-action: manipulation;
+}
+.offerslide::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 999px; background: var(--surface-3);
+}
+.offerslide::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 26px; height: 26px; margin-top: -10px; border-radius: 999px;
+  background: var(--brand); border: 3px solid var(--surface);
+  box-shadow: 0 2px 8px rgba(0,0,0,.5);
+}
+.offerslide:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--ink); outline-offset: 2px; }
+.offerout {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 13.5px; line-height: 1.45; color: var(--ink-2);
+}
+.offerout b { color: var(--ink); font-weight: 700; }
+.offerout.ok { color: var(--buy); }
+.offerout.ok b { color: var(--buy); }
+.offerout.no { color: var(--ink-2); }
+.offerreset {
+  margin-top: var(--s3); min-height: 44px;
+  color: var(--ink-3); font-size: 12.5px; font-weight: 600;
+}
+.offerreset:hover { color: var(--ink); }
+
+/*
+ * The comps, behind a disclosure. Every number on the detail descends from one
+ * median and the screen used to say "59 sold comps" without showing one, which
+ * asks for trust on the strength of a count.
+ */
+.disclose {
+  display: flex; align-items: center; gap: var(--s2); width: 100%;
+  min-height: 44px; color: inherit; font: inherit;
+  text-transform: inherit; letter-spacing: inherit;
+}
+.disclose i { font-style: normal; margin-left: auto; color: var(--ink-3); }
+.comps { padding: 2px 0; }
+/*
+ * ⚠ PLACE ALL THREE CELLS EXPLICITLY.
+ *
+ * Auto-placement put the price in column 1 because it is the third child, so
+ * the money landed on the LEFT and the title was pushed into the narrow
+ * column, wrapping the date onto three lines. Money right-aligned is the same
+ * rule the rest of the app follows: comparing prices should be eye travel, not
+ * memory.
+ */
+.comp {
+  display: grid; grid-template-columns: 1fr auto; gap: 2px var(--s3);
+  padding: 11px var(--s4); align-items: center;
+}
+.ctitle {
+  grid-area: 1 / 1; font-size: 13px; line-height: 1.35; color: var(--ink);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.cmeta { grid-area: 2 / 1; font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+.cprice {
+  grid-area: 1 / 2 / 3 / 3; align-self: center; text-align: right;
+  font-size: 15px; font-weight: 700; white-space: nowrap;
+}
+.compnote {
+  margin: 0; padding: 11px var(--s4);
+  font-size: 12px; color: var(--ink-3); line-height: 1.5;
+}
+
+@media (min-width: 1024px) {
+  /* The sheet becomes a centred dialog; a bottom sheet is a thumb gesture. */
+  .sheetwrap { align-items: center; }
+  .sheet { border-radius: var(--r-xl); max-height: 80dvh; }
+}

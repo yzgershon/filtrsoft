@@ -28,10 +28,12 @@ let added = 0;
 d.transaction(() => {
   for (const s of CATALOG) {
     if (existing.get({ $b: s.brand, $m: s.model })) continue;
+    // bun:sqlite types named parameters as a positional union; the object form
+    // is supported at runtime and is what every other query here uses.
     const row = insSku.get({
       $cat: s.category, $brand: s.brand, $model: s.model,
-      $attrs: JSON.stringify(s.attributes ?? {}), $liq: s.liquidity, $now: now(),
-    }) as { id: number };
+      $attrs: JSON.stringify(s.attributes ?? {}), $liq: s.liquidity ?? null, $now: now(),
+    } as never) as { id: number };
     added++;
     for (const a of [s.model.toLowerCase(), ...(s.aliases ?? [])]) {
       insAlias.run({ $sku: row.id, $alias: a.toLowerCase(), $now: now() });

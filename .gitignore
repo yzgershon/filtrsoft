@@ -43,3 +43,11 @@ node_modules/
 # six audit phases would put 45 MB of near-identical PNGs in the repo forever.
 # The assertions are the durable artefact; they live in the script.
 /docs/ui/
+
+# Ad-hoc screenshot dumps. `docs/shots/` and `docs/now-*.png` were committed as
+# handoff artifacts and then went stale in place, showing a product state that
+# no longer existed. The audit called them "misleading handoff artifacts" and it
+# was right: a screenshot in git is a claim about the present that nothing keeps
+# true. `src/browser/ui-verify.mjs` writes fresh ones on demand.
+/docs/shots/
+/docs/now-*.png

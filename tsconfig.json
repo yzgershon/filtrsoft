@@ -1,0 +1,36 @@
+{
+  "$comment": [
+    "Typecheck only. `noEmit` is the point: Bun runs the TypeScript directly and",
+    "Vite builds the web app, so nothing here is a build step and there is no",
+    "output to keep in sync with either of them.",
+    "",
+    "This did not exist. Every type error in the repo was therefore invisible",
+    "until it became a runtime one, which is how `--ink-1` sat undefined in",
+    "seven CSS declarations and how a null `items` reached `.length` on a screen",
+    "that had already shipped.",
+    "",
+    "`strict` is on and `noUncheckedIndexedAccess` is off: the codebase indexes",
+    "arrays constantly (rows, comps, options) and turning it on would add",
+    "hundreds of non-null assertions that assert exactly what the surrounding",
+    "logic already guarantees. That is noise, not safety."
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["bun"],
+    "allowJs": false,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "web/src/**/*.ts", "web/src/**/*.tsx", "types/**/*.d.ts"],
+  "exclude": ["node_modules", "web/node_modules", "web/dist"]
+}

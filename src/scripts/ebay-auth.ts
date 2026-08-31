@@ -99,3 +99,6 @@ state rather than a typo. In the eBay developer portal, check in this order:
 Re-run this with:  bun run ebay:auth`);
 }
 process.exit(1);
+
+// Top-level await needs this file to BE a module, and it imports nothing.
+export {};

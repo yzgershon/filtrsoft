@@ -20,7 +20,19 @@ export interface SeedSku {
   brand: string;
   model: string;
   attributes?: Record<string, unknown>;
-  liquidity: Liquidity;
+  /**
+   * ⚠ OPTIONAL, AND ABSENT MEANS "normal". The type said REQUIRED and 29
+   * entries (every Intel and AMD CPU) did not have it, which produced 146 type
+   * errors from one omission and is why nobody had run a typecheck on this
+   * file. The runtime never cared: only `liquidity === "dead"` vetoes a BUY,
+   * so undefined already behaved as "saleable".
+   *
+   * Left optional rather than backfilled, because filling in 29 values would
+   * mean inventing a market judgement for each CPU. Absent is honest: nobody
+   * has assessed it. `skus.liquidity` is nullable in the schema for the same
+   * reason.
+   */
+  liquidity?: Liquidity;
   aliases?: string[];
 }
 

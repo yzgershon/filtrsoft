@@ -1,0 +1,79 @@
+/**
+ * Feed card internals, the bookmark target, and the empty state.
+ *
+ * Part of the ordered set imported by `styles.css`. ⚠ The cascade is the
+ * import order there, not the alphabet.
+ */
+
+/* ============================================================ card extras */
+/*
+ * `.gcard` is a div now (a save button cannot live inside another button), so
+ * `.gopen` is the control that fills it and carries the press feedback.
+ */
+.gcard { position: relative; }
+.gopen {
+  display: flex; flex-direction: column; text-align: left; min-width: 0; width: 100%;
+  background: none; border: 0; padding: 0;
+  transition: transform var(--dur) var(--ease);
+}
+.gcard:active .gopen { transform: scale(.98); }
+
+/*
+ * ⚠ THE VISIBLE CIRCLE AND THE TOUCH TARGET ARE DIFFERENT SIZES ON PURPOSE.
+ *
+ * The bookmark was a 30x30 button — the whole control — which is well under the
+ * 44x44 minimum, on a card you are tapping one-handed. Growing the circle to
+ * 44px would put a dinner plate over the photo.
+ *
+ * So the BUTTON is 44x44 and transparent, and the circle is a `::before` inside
+ * it. `top`/`right` are -1px because the target now extends 7px further in
+ * every direction than the circle it draws, and the circle has to stay where it
+ * was: 6px in from the card's corner.
+ */
+.gsave {
+  position: absolute; top: -1px; right: -1px; z-index: 2;
+  width: 44px; height: 44px; border: 0; background: none; padding: 0;
+  display: grid; place-items: center;
+  color: #fff; touch-action: manipulation;
+  transition: color var(--dur) var(--ease), transform 120ms var(--ease);
+}
+.gsave::before {
+  content: ""; position: absolute; width: 30px; height: 30px; border-radius: 999px;
+  background: rgba(8,7,10,.55);
+  backdrop-filter: blur(6px);
+  transition: background var(--dur) var(--ease);
+}
+.gsave > * { position: relative; }
+.gsave:active { transform: scale(.88); }
+.gsave.on { color: var(--on-brand); }
+.gsave.on::before { background: var(--brand); }
+
+/* A price cut outranks net profit on the card: it is the stronger signal. */
+.gdrop {
+  display: inline-flex; align-items: center; gap: 1px;
+  color: var(--buy); font-weight: 800;
+}
+.gloc s { color: var(--ink-3); margin-right: 5px; text-decoration-thickness: 1px; }
+
+/* A dead listing must not look as actionable as a live one. */
+.gcard.is-gone .gshot img { filter: grayscale(1) brightness(.5); }
+.gcard.is-gone .gbody b { color: var(--ink-2); }
+.gghost {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  color: #fff; background: rgba(8,7,10,.35);
+}
+
+/* ================================================================= empty */
+.empty { text-align: center; padding: var(--s7) var(--s4); }
+.empty .eic {
+  display: grid; place-items: center; width: 54px; height: 54px; margin: 0 auto var(--s3);
+  border-radius: 16px; background: var(--surface-2); color: var(--ink-3);
+}
+.empty b { display: block; font-size: 17px; margin-bottom: 6px; }
+.empty p { margin: 0 auto; max-width: 30ch; color: var(--ink-2); font-size: 14px; line-height: 1.55; }
+
+.micro2 {
+  margin-top: var(--s5); text-align: center;
+  color: var(--ink-3); font-size: 11.5px;
+}

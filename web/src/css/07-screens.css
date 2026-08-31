@@ -1,0 +1,154 @@
+/**
+ * Settings, the outcome prompt, the channel switch and the pickup list.
+ *
+ * Part of the ordered set imported by `styles.css`. ⚠ The cascade is the
+ * import order there, not the alphabet.
+ */
+
+/* ============================================================== settings */
+.sgroup { margin-bottom: var(--s5); }
+.shead {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+  color: var(--ink-3); font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .09em;
+}
+.scard {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-lg); overflow: hidden;
+}
+.srow {
+  display: flex; align-items: center; gap: var(--s3); width: 100%;
+  padding: var(--s3) var(--s4); text-align: left;
+  background: none; border: 0; border-bottom: 1px solid var(--line);
+}
+.srow:last-child { border-bottom: 0; }
+.srow.static { cursor: default; }
+.stext { flex: 1; min-width: 0; }
+.stext b { display: block; font-size: 14.5px; font-weight: 620; margin-bottom: 2px; }
+.stext span { display: block; color: var(--ink-2); font-size: 12.5px; line-height: 1.45; }
+
+.sw {
+  flex: none; width: 44px; height: 26px; border-radius: 999px;
+  background: var(--surface-3); position: relative;
+  transition: background var(--dur) var(--ease);
+}
+.sw i {
+  position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
+  border-radius: 50%; background: var(--ink-2);
+  transition: transform var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.sw.on { background: var(--brand); }
+.sw.on i { transform: translateX(18px); background: var(--on-brand); }
+
+/*
+ * The stepper's minus and plus were 30x30. They are the control that changes
+ * the verdict, and they were the smallest targets in the app.
+ */
+.stepper { flex: none; display: flex; align-items: center; gap: 2px; }
+.stepper button {
+  width: 44px; height: 44px; border-radius: 11px; border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--ink-1); font-size: 19px; line-height: 1;
+  touch-action: manipulation;
+}
+.stepper button:disabled { opacity: .4; }
+.stepper .num { min-width: 42px; text-align: center; font-size: 14px; font-weight: 700; }
+
+.planrow { display: flex; align-items: center; gap: var(--s3); padding: var(--s4); }
+.planrow > div { flex: 1; min-width: 0; }
+.planrow b { display: block; font-size: 16px; margin-bottom: 3px; }
+.planrow span { color: var(--ink-2); font-size: 12.5px; line-height: 1.45; }
+.pill {
+  flex: none; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  color: var(--buy); background: color-mix(in srgb, var(--buy) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--buy) 35%, transparent);
+}
+.snote {
+  margin: 0; padding: 0 var(--s4) var(--s4);
+  color: var(--ink-3); font-size: 12.5px; line-height: 1.55;
+}
+.scard .btn2 { margin: 0 var(--s4) var(--s4); }
+.btn3 {
+  flex: none; padding: 7px 12px; border-radius: 9px;
+  border: 1px solid var(--line); background: var(--surface-2);
+  color: var(--ink-2); font-size: 12.5px; font-weight: 600;
+}
+
+/* ============================================================ ask outcome */
+.ask {
+  margin-bottom: var(--s4); padding: var(--s3) var(--s4) var(--s4);
+  border-radius: var(--r-lg);
+  border: 1px solid color-mix(in srgb, var(--brand) 32%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 10%, transparent), transparent 70%), var(--surface);
+}
+.askhead { display: flex; align-items: center; gap: var(--s2); }
+.askhead b { flex: 1; font-size: 14.5px; font-weight: 680; }
+.askx {
+  flex: none; width: 44px; height: 44px; margin: -9px -9px -9px 0;
+  border-radius: 8px; border: 0;
+  background: none; color: var(--ink-3); font-size: 19px; line-height: 1;
+}
+.asktitle {
+  display: block; margin: 3px 0 var(--s3);
+  color: var(--ink-2); font-size: 12.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.askrow { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.askrow button {
+  min-height: 44px; border-radius: 10px; font-size: 13.5px; font-weight: 600;
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-1);
+}
+.askrow button:active { transform: scale(.97); }
+.ask.done {
+  display: flex; align-items: center; gap: 7px;
+  color: var(--buy); font-size: 13.5px; font-weight: 600;
+  padding: var(--s4);
+}
+
+.newsearch { gap: 6px; }
+.newsearch input {
+  min-width: 0; padding: 9px 10px; font-size: 15px;
+  border-radius: 9px; border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--ink-1);
+}
+.newsearch input:first-of-type { flex: 1; }
+.newsearch input:nth-of-type(2) { width: 74px; flex: none; }
+.newsearch input:focus { outline: none; border-color: var(--brand); }
+.alertnote { color: var(--ink-1); }
+
+/* ===================================================== channel switch (Numbers) */
+.nhead { display: flex; align-items: center; gap: var(--s3); margin-bottom: 8px; }
+.nhead h4 { margin: 0; flex: 1; }
+/*
+ * A segmented switch, not a toggle: both states are named, so you can see what
+ * the other one is before you press it. Local leads because that is what Yish
+ * actually does — the default is the answer, not a neutral starting point.
+ */
+.chsw {
+  display: inline-flex; padding: 2px; gap: 2px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px;
+}
+.chsw button {
+  min-height: 44px; padding: 0 15px; border: 0; border-radius: 999px; background: none;
+  color: var(--ink-3); font-size: 12.5px; font-weight: 650; letter-spacing: -.01em;
+  touch-action: manipulation;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.chsw button.on { background: var(--surface-3); color: var(--ink-1); }
+.chnote { margin: 8px 2px 0; color: var(--ink-3); font-size: 12px; line-height: 1.5; }
+
+/* ===================================================== check-on-pickup list */
+/*
+ * Deliberately quiet. These are things to look at when you get there, not
+ * reasons to stay home — rendering them as alert boxes is what made every
+ * graphics card look like it had a hard blocker.
+ */
+.pickup { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.pickup li {
+  position: relative; padding: 9px 12px 9px 30px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 11px;
+  color: var(--ink-2); font-size: 13.5px; line-height: 1.45;
+}
+.pickup li::before {
+  content: ""; position: absolute; left: 12px; top: 15px;
+  width: 7px; height: 7px; border-radius: 2px; border: 1.5px solid var(--ink-3);
+}

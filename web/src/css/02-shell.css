@@ -1,0 +1,139 @@
+/**
+ * The app shell, the top bar, and the Check screen.
+ *
+ * Part of the ordered set imported by `styles.css`. ⚠ The cascade is the
+ * import order there, not the alphabet.
+ */
+
+/* ================================================================== shell
+   NO FAKE PHONE FRAME.
+
+   This used to render the app inside a 393x852 device mock at >= 880px, with a
+   "Shown at iPhone 16 size" caption under it. That was a dev affordance, and it
+   shipped: on Yish's phone the app read as a desktop site pretending to be
+   mobile — two-finger scroll, pinch zoom, tiny text.
+
+   The app is now simply responsive. Full-bleed on a phone; on a wide screen the
+   column is centred and capped, which is what a mobile-first layout should do
+   at desktop width anyway.
+   ========================================================================== */
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  max-width: 560px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.topbar {
+  flex: none;
+  padding: calc(var(--safe-t) + 10px) var(--s3) 10px var(--s4);
+  display: flex; align-items: center; gap: 2px;
+  border-bottom: 1px solid var(--line-soft);
+  background: rgba(8,7,10,.86);
+  backdrop-filter: blur(16px);
+  /* STICKY, not absolute. The old bottom nav sat at the end of the scroll
+     content, so on a 285-listing feed you had to scroll to the bottom to
+     navigate. Actions belong where they are always reachable. */
+  position: sticky; top: 0; z-index: 20;
+}
+.brand {
+  font-size: 18px; font-weight: 700; letter-spacing: -.02em;
+  background: none; border: 0; color: var(--ink);
+  min-height: var(--tap); display: flex; align-items: center; padding: 0 2px;
+  touch-action: manipulation;
+}
+.brand span { color: var(--brand); }
+.topbar .spacer { flex: 1; }
+.iconbtn {
+  width: var(--tap); height: var(--tap);
+  display: grid; place-items: center;
+  background: none; border: 0; color: var(--ink-2); border-radius: var(--r-md);
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.iconbtn:hover { color: var(--ink); background: var(--surface-2); }
+.iconbtn:active { transform: scale(.94); }
+.iconbtn.on { color: var(--brand); background: rgba(255,138,61,.12); }
+
+.scroll {
+  flex: 1;
+  padding: 0 var(--s4) calc(var(--safe-b) + var(--s6));
+  /* No nested scroller. The old one was `overflow-y: auto` inside a fixed-height
+     frame, which is what broke momentum scrolling on the phone — the page
+     scrolled the frame, not the document. */
+}
+
+/* =================================================================== check */
+/*
+ * App scale, not landing-page scale. The old .hero was a 30px marketing
+ * headline with a coloured phrase in it, shown to somebody who has already
+ * installed the app and only wants to know what to tap.
+ */
+
+/*
+ * The clipboard button is the PRIMARY action and is styled like it: full
+ * width, brand fill, 52px tall. The typed-URL field below it is the fallback,
+ * which is the opposite of how this screen used to be weighted.
+ */
+.paste {
+  width: 100%; min-height: 52px; margin-bottom: var(--s3);
+  display: flex; align-items: center; justify-content: center; gap: var(--s2);
+  border: 0; border-radius: var(--r-md);
+  background: var(--brand); color: var(--on-brand);
+  font-size: 15.5px; font-weight: 700; letter-spacing: -.01em;
+  box-shadow: 0 6px 20px -8px rgba(255,122,26,.55);
+  transition: filter var(--dur) var(--ease), transform 120ms var(--ease);
+}
+.paste:hover:not(:disabled) { filter: brightness(1.07); }
+.paste:active:not(:disabled) { transform: scale(.985); }
+.paste:disabled { opacity: .5; box-shadow: none; }
+
+.ordiv {
+  display: flex; align-items: center; gap: var(--s3);
+  margin: var(--s3) 0; color: var(--ink-3); font-size: 12px;
+}
+.ordiv::before, .ordiv::after {
+  content: ""; flex: 1; height: 1px; background: var(--line);
+}
+
+/* Supported sources, stated before you waste a paste on an unsupported one. */
+
+.field {
+  display: flex; align-items: center; gap: var(--s2);
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-md); padding: 5px 5px 5px var(--s3);
+  transition: border-color var(--dur) var(--ease);
+}
+.field:focus-within { border-color: var(--brand); }
+.field input {
+  flex: 1; min-width: 0; background: none; border: 0; outline: none;
+  padding: 12px 0; font-size: 16px;  /* 16px prevents iOS zoom-on-focus */
+}
+.field input::placeholder { color: var(--ink-3); }
+
+.cta {
+  min-height: var(--tap); min-width: var(--tap);
+  padding: 0 var(--s4); border: 0; border-radius: var(--r-sm);
+  background: var(--brand); color: var(--on-brand); font-weight: 700; font-size: 15px;
+  display: grid; place-items: center;
+  transition: filter var(--dur) var(--ease), transform 120ms var(--ease);
+}
+.cta:hover:not(:disabled) { filter: brightness(1.07); }
+.cta:active:not(:disabled) { transform: scale(.96); }
+/*
+ * A disabled brand fill at 40% opacity reads as a BROKEN button, not an
+ * inactive one — it is still obviously "the orange button", just dim. Disabled
+ * drops the fill entirely so the control reads as waiting for input.
+ */
+.cta:disabled {
+  background: none; color: var(--ink-3); box-shadow: none; cursor: default;
+  border: 1px solid var(--line);
+}
+
+
+.alert {
+  margin-top: var(--s4); padding: var(--s3) var(--s4);
+  border-radius: var(--r-md); font-size: 14px;
+  background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.3); color: #ffc9c9;
+}

@@ -1,0 +1,172 @@
+/**
+ * Tokens, reset, focus and the screen-reader-only helper.
+ *
+ * Part of the ordered set imported by `styles.css`. ⚠ The cascade is the
+ * import order there, not the alphabet.
+ */
+
+/*
+ * ⚠ NEVER HAND-WRITE `-webkit-backdrop-filter`. THE BUILD ADDS IT, AND WRITING
+ * IT YOURSELF DELETES THE PROPERTY THAT ACTUALLY WORKS.
+ *
+ * Chrome does NOT support the -webkit- alias at all. Measured in real Chrome:
+ * a rule declaring only `-webkit-backdrop-filter: blur(18px) saturate(1.3)`
+ * computes to `backdrop-filter: none`.
+ *
+ * The source declared both, standard first and the alias second. The CSS
+ * minifier treats that as one property declared twice and keeps the LAST — so
+ * `.tabbar` and `.gsave` shipped with only the alias, and neither has blurred
+ * in Chrome since. That is why the feed reads straight through the bottom bar:
+ * an 86%-opacity wash with no blur behind it, product titles and prices
+ * colliding with the tab labels.
+ *
+ * It was invisible in review because the SOURCE looked correct. Confirm this
+ * one in `web/dist/assets/index-*.css`, never in `styles.css`:
+ *
+ *     grep -oE '(^|[;{])(-webkit-)?backdrop-filter:[^;}]*' web/dist/assets/*.css
+ *
+ * Every rule must appear with the unprefixed property. Vite emits the alias
+ * itself for the browsers that need it.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&display=swap');
+
+/* ============================================================================
+   Assyze — mobile-first, OLED dark.
+   Numerals are JetBrains Mono (tabular) because prices sit in columns and must
+   not shift width as they change. Everything else is the system stack so text
+   never blocks on a webfont.
+   ========================================================================== */
+:root {
+  /* surfaces — true black base for OLED, lifted cards for hierarchy */
+  --bg: #08070a;
+  --surface: #121116;
+  --surface-2: #1b1a21;
+  --surface-3: #26242d;
+  --line: #2a2833;
+  --line-soft: #201f28;
+
+  /*
+   * text — EVERY ONE OF THESE MUST CLEAR 4.5:1 ON --surface.
+   *
+   * `--ink-3` was #6e6a7c, which measures 3.59:1 on a card and 3.84:1 on the
+   * page background, and it is the colour of the 11-12px labels: locations,
+   * timestamps, section heads, the bottom-nav labels. Small AND low contrast
+   * is the combination that makes text unreadable in daylight, which is where
+   * this app is actually used — standing next to a car looking at a listing.
+   * #858092 measures 4.92:1 on --surface.
+   *
+   * ⚠ DO NOT PUT OPACITY ON TOP OF THESE. An `opacity: .65` on --ink-3 lands
+   * back under 3:1 and undoes the token. Pick a lighter token instead.
+   *
+   * `--ink-1` was used in seven declarations and DEFINED NOWHERE, so every one
+   * of them was invalid and silently inherited the parent colour — including
+   * `.chsw button.on`, where it was the entire selected state. It is an alias
+   * rather than a rename so the seven sites keep reading as "the brightest
+   * ink", which is what they meant.
+   */
+  --ink: #f2f0f5;
+  --ink-1: #f2f0f5;
+  --ink-2: #a8a4b4;
+  --ink-3: #858092;
+
+  --brand: #ff8a3d;
+  --on-brand: #160d05;
+
+  --buy: #34d399;
+  --fair: #60a5fa;
+  --pass: #fbbf24;
+  --verify: #ff8a3d;
+  --risk: #f87171;
+  --unknown: #a78bfa;
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+
+  /* 4/8 rhythm */
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 24px; --s6: 32px; --s7: 48px;
+
+  --tap: 44px;
+  --dur: 200ms;
+  --ease: cubic-bezier(.22,.61,.36,1);
+
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+input, button { font: inherit; color: inherit; }
+/**
+ * A real button reset, not just `cursor`.
+ *
+ * There was none, so any button that did not set its own background inherited
+ * the browser's default light grey. Every existing control happened to set one,
+ * which hid it — until the segmented control, where three opaque default
+ * buttons sat on top of the sliding indicator and covered it completely. The
+ * active option rendered white-on-white and the whole affordance vanished.
+ */
+button {
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  /*
+   * Kills the 300ms tap delay AND the double-tap-to-zoom gesture on the
+   * control itself. Without it a fast second tap on a bookmark zooms the page
+   * instead of unsaving the listing.
+   */
+  touch-action: manipulation;
+}
+a { color: inherit; touch-action: manipulation; }
+
+/*
+ * Visible focus, and only for keyboards.
+ *
+ * `:focus-visible` means a pointer tap never draws a ring, so this costs the
+ * phone nothing — but tabbing through the app previously showed the browser
+ * default outline on some controls and nothing at all on the ones that set
+ * `outline: none`, which is not a keyboard-navigable app.
+ */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/*
+ * Text that only screen readers read. Used for the card descriptions: the
+ * accessible NAME of a feed card is its title, and the price, verdict, profit
+ * and location are announced from here through `aria-describedby`.
+ *
+ * ⚠ NOT `display: none` and NOT `visibility: hidden` — both remove the element
+ * from the accessibility tree, which is the opposite of the point.
+ */
+.vh {
+  position: absolute; width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+
+.num { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

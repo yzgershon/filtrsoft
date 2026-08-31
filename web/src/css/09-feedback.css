@@ -1,0 +1,117 @@
+/**
+ * Toasts, offline and error states, and the lightbox controls.
+ *
+ * Part of the ordered set imported by `styles.css`. ⚠ The cascade is the
+ * import order there, not the alphabet.
+ */
+
+/* ==================================================================== toast */
+/*
+ * Confirmation for actions that leave no trace on screen.
+ *
+ * Copy link and Share both wrote to the clipboard and said NOTHING. On a phone
+ * there is no clipboard indicator, so the only way to find out whether the tap
+ * registered was to go and paste it somewhere. A tap that produces no feedback
+ * reads as a broken button, and people tap it again.
+ *
+ * It sits above the tab bar, not over it — a toast that covers the navigation
+ * is a toast that blocks the way out.
+ */
+.toasts {
+  position: fixed; left: 0; right: 0; z-index: 60;
+  bottom: calc(66px + env(safe-area-inset-bottom, 0px) + 10px);
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  pointer-events: none;
+}
+.toast {
+  max-width: min(92vw, 420px);
+  padding: 10px 16px; border-radius: 999px;
+  background: var(--surface-3); color: var(--ink);
+  border: 1px solid var(--line);
+  font-size: 13.5px; font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0,0,0,.45);
+  display: flex; align-items: center; gap: 8px;
+  animation: toastin 180ms var(--ease);
+}
+.toast.bad { color: var(--risk); border-color: color-mix(in srgb, var(--risk) 40%, transparent); }
+@keyframes toastin { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+
+/* ============================================================ offline / error */
+/*
+ * ⚠ A FAILED FETCH IS NOT AN EMPTY FEED.
+ *
+ * Rendering "Nothing here yet" for a network error tells you the product has
+ * no deals when what actually happened is that the request did not complete.
+ * The two states have to look different and only one of them offers a retry.
+ */
+.errbox {
+  margin: var(--s5) 0; padding: var(--s5) var(--s4);
+  border-radius: var(--r-lg); text-align: center;
+  background: var(--surface); border: 1px solid color-mix(in srgb, var(--risk) 30%, transparent);
+}
+.errbox .eic {
+  display: grid; place-items: center; width: 46px; height: 46px; margin: 0 auto var(--s3);
+  border-radius: 999px; color: var(--risk);
+  background: color-mix(in srgb, var(--risk) 12%, transparent);
+}
+.errbox b { display: block; font-size: 15.5px; margin-bottom: 6px; }
+.errbox p { margin: 0 0 var(--s4); color: var(--ink-2); font-size: 13.5px; line-height: 1.5; }
+
+/* The offline strip is not an error — it explains why nothing is updating. */
+.offline {
+  position: sticky; top: 52px; z-index: 25;
+  margin: var(--s3) 0; padding: 9px 12px; border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--pass) 14%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--pass) 34%, transparent);
+  color: var(--ink); font-size: 12.5px; font-weight: 600;
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* ======================================================= lightbox controls */
+/*
+ * Desktop needs buttons; a horizontal scroll strip is a phone gesture. The
+ * count is visible rather than only announced, because "which of these am I
+ * looking at" is a question you have on a 20-photo listing.
+ */
+.lbxnav {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 2;
+  width: var(--tap); height: var(--tap); border-radius: 999px;
+  display: grid; place-items: center;
+  background: rgba(8,7,10,.6); color: #fff; font-size: 20px; line-height: 1;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,.14);
+}
+.lbxnav.prev { left: 10px; }
+.lbxnav.next { right: 10px; }
+.lbxnav:disabled { opacity: .3; }
+.lbxcount {
+  position: absolute; left: 0; right: 0; bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  z-index: 2; text-align: center; color: var(--ink-2); font-size: 13px; font-weight: 600;
+}
+@media (max-width: 560px) { .lbxnav { display: none; } }
+
+/*
+ * Header navigation.
+ *
+ * ⚠ THIS BLOCK MUST STAY ABOVE THE 1024px MEDIA QUERY. `display: none` here and
+ * `display: flex` in the media query are the SAME specificity, so source order
+ * decides — declared after, the base rule wins at every width and the desktop
+ * nav is invisible on a desktop while every other rule in the same block
+ * (shell width, gutters, columns) applies normally. That is a failure that
+ * reads as "the component did not mount".
+ */
+.hnav { display: none; align-items: center; gap: 2px; }
+.hnavlink {
+  display: flex; align-items: center; gap: 7px;
+  height: 40px; padding: 0 14px; border-radius: 999px;
+  color: var(--ink-2); font-size: 14px; font-weight: 600;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.hnavlink:hover { color: var(--ink); background: var(--surface-2); }
+.hnavlink.on { color: var(--brand); background: rgba(255,138,61,.12); }
+.hnavn {
+  min-width: 18px; padding: 1px 5px; border-radius: 999px;
+  background: var(--surface-3); color: var(--ink);
+  font-size: 11px; font-weight: 700; text-align: center;
+}
+.hnavlink.on .hnavn { background: var(--brand); color: var(--on-brand); }

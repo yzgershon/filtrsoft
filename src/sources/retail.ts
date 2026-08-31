@@ -884,7 +884,7 @@ export function skusNeedingRetail(limit = 10): Array<{
                  observed ASC, s.id
         LIMIT $lim`,
     )
-    .all(params) as never;
+    .all(params as never) as never;
 }
 
 export type RetailEvent =

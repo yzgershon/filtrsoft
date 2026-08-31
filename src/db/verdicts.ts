@@ -14,10 +14,20 @@
 import { db, now } from "./index.ts";
 import type { Database } from "bun:sqlite";
 
+/**
+ * What this layer needs from a verdict: the two columns it indexes, and the
+ * whole object to serialise.
+ *
+ * ⚠ THE INDEX SIGNATURE IS GONE. `[key: string]: unknown` made this
+ * structurally incompatible with `VerdictResult` — an interface with declared
+ * properties has no implicit index signature, so EVERY real caller
+ * (`engine`, `scheduler`, `push`, `verdict.ts`) failed to typecheck against the
+ * very type they were meant to satisfy. Five errors from one line that was
+ * trying to say "and anything else".
+ */
 export interface VerdictPayload {
   call: string;
   confidence?: string | null;
-  [key: string]: unknown;
 }
 
 export interface StoreVerdictResult {

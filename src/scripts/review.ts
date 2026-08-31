@@ -77,6 +77,8 @@ interface Row {
   engine: string; headline: string; reasoning: string;
   valuation: any; netProfitCents: number | null; requiredProfitCents: number | null;
   bestChannel: any; riskChecks: any[]; questions: string[];
+  /** The one number on the page that did NOT come from the comps table. */
+  retail: unknown;
   sku: string | null; storageGb: number | null; usedCount: number; targetCond: string;
   comps: Array<{ p: number; c: string; t: string; sold: string | null; used: boolean; adj: number; salvage: boolean }>;
 }

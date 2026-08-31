@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { parseModel } from "../src/catalog/derive.ts";
 import { namedCatalogBrand } from "../src/catalog/match.ts";
 import { isUnsupportedPrinter, resolveCategory, resolveProductType } from "../src/signals/product-type.ts";
+import type { ProductKind } from "../src/signals/product-type.ts";
 import { detectCategory, offPlatformDomain, randomSuffix } from "../src/signals/index.ts";
 import { variantPattern } from "../src/signals/variants.ts";
 import {
@@ -269,13 +270,16 @@ describe("verdict retention", () => {
 });
 
 describe("product grammar", () => {
-  test.each([
+  // Typed explicitly: `test.each` infers the tuple as a union of its literals,
+  // so `kind` arrives as `string` and no longer matches `ProductKind`.
+  const CASES: Array<[string, ProductKind, string | null]> = [
     ["Dell Precision 5760 + Charger", "tech", "laptop"],
     ["HP XL 17 Laptop Bag", "accessory", "laptop"],
     ["Lenovo P50 Mobile Workstation Laptop", "tech", "laptop"],
     ["Apple iMac A1312 with keyboard and mouse", "tech", "prebuilt"],
     ["Glass and Metal Computer Table", "furniture", null],
-  ])("classifies %s", (title, kind, category) => {
+  ];
+  test.each(CASES)("classifies %s", (title, kind, category) => {
     expect(resolveProductType(title).kind).toBe(kind);
     expect(resolveCategory(title)).toBe(category);
   });
