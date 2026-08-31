@@ -64,6 +64,20 @@
    * disagree with his in exactly the way this change exists to remove.
    */
   .app {
+    /*
+     * ⚠ `content-box`, AND IT IS THE WHOLE POINT OF THE NUMBER.
+     *
+     * The reset sets `box-sizing: border-box` globally, so `width: 360px` with
+     * a 10px bezel gives the SCREEN 340px — and the app inside then lays out
+     * at a width no phone has. Measured against a real Galaxy S24 before this
+     * line existed: feed columns 150px instead of 160px, hero 308 instead of
+     * 328. Twenty pixels narrower than the device it claims to be, which is
+     * precisely the disagreement this frame exists to remove.
+     *
+     * The bezel belongs OUTSIDE the screen, exactly as it does on the real
+     * thing.
+     */
+    box-sizing: content-box;
     width: 360px;
     height: 780px;
     min-height: 0;

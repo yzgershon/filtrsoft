@@ -850,7 +850,13 @@ for (const spec of [...PHONES, ...DESKTOPS]) {
             && b.top >= r.top - 1 && b.bottom <= r.bottom + 1;
       };
       return {
-        cssW: a.offsetWidth, cssH: a.offsetHeight,
+        /**
+         * MEASURE THE SCREEN, NOT THE DEVICE. `offsetWidth` includes the 10px
+         * bezel on each side, so a correct 360px phone reads as 380 and the
+         * assertion fails on the very thing it is meant to protect.
+         * `clientWidth` is the content box, which is the screen.
+         */
+        cssW: a.clientWidth, cssH: a.clientHeight,
         framed: getComputedStyle(a).transform !== "none",
         scroller: getComputedStyle(document.querySelector(".scroll")).overflowY,
         tab: inside(".tabbar"), toasts: inside(".toasts"),
@@ -903,6 +909,49 @@ for (const spec of [...PHONES, ...DESKTOPS]) {
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   ok(`${label}: no horizontal overflow`, over <= 1, `${over}px`);
   await ctx.close();
+}
+
+// ────────────────────── 12. the desktop frame IS the phone
+/**
+ * The strongest form of "they both reflect the same thing": render the same
+ * page on a real Galaxy S24 and inside the desktop frame, and require the
+ * measurements to MATCH.
+ *
+ * This is not decoration. The frame shipped 20px narrow on its first run:
+ * the reset sets `box-sizing: border-box`, so `width: 360px` with a 10px
+ * bezel gave the screen 340px and the feed laid out at 150px columns against
+ * the device's 160px. Everything looked fine — it was a phone, in a frame,
+ * at the right aspect — and it was a phone that does not exist.
+ */
+{
+  console.log("\nthe desktop frame is the phone");
+  const read = (page) => page.evaluate(() => ({
+    screenW: document.querySelector(".scroll").clientWidth,
+    cols: getComputedStyle(document.querySelector(".grid")).gridTemplateColumns,
+    heroW: Math.round(document.querySelector(".dealhero").getBoundingClientRect().width),
+    chipW: +document.querySelector(".seg button").getBoundingClientRect().width.toFixed(1),
+    tabW: Math.round(document.querySelector(".tabbar").getBoundingClientRect().width),
+  }));
+
+  const phone = await newPage(PHONE);
+  await phone.page.goto(BASE, { waitUntil: "networkidle" });
+  await phone.page.waitForSelector(".grid .gcard, .dealhero", { timeout: T });
+  await phone.page.waitForTimeout(900);
+  const onPhone = await read(phone.page);
+  await phone.ctx.close();
+
+  const desk = await newPage(1512);
+  await desk.page.goto(BASE, { waitUntil: "networkidle" });
+  await desk.page.waitForSelector(".grid .gcard, .dealhero", { timeout: T });
+  await desk.page.waitForTimeout(900);
+  const onDesk = await read(desk.page);
+  await shot(desk.page, "desktop-frame");
+  await desk.ctx.close();
+
+  for (const k of Object.keys(onPhone)) {
+    ok(`the frame matches the phone: ${k}`, onDesk[k] === onPhone[k],
+      `phone ${onPhone[k]} · desktop ${onDesk[k]}`);
+  }
 }
 
 await browser.close();
