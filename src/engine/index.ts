@@ -78,8 +78,18 @@ export function runPipeline(
     visionText: vText,
     clusterSize: opts.clusterSize,
   });
+  /**
+   * ⚠ THE POLARITY COMES FROM THE SIGNAL, NOT FROM HERE.
+   *
+   * This used to be `{ ...vs, polarity: "negative" }`, which made a positive
+   * finding from vision structurally impossible — every photo observation was
+   * evidence against the seller by construction. That is half of why a listing
+   * whose seller had PHOTOGRAPHED HIS OWN SPEC SCREEN to prove the components
+   * was flagged as a scam (2026-08-31, on an RTX 5090 the feed found in 30
+   * minutes). See `visionSignals` in vision/merge.ts.
+   */
   for (const vs of visionSignals(vision)) {
-    signals.signals.push({ ...vs, polarity: "negative" } as Signal);
+    signals.signals.push(vs as Signal);
   }
 
   // Vision text joins the matcher's input — photos are a first-class source of
@@ -394,10 +404,16 @@ export function checkStored(
  * 0.3.19 — unresolved category hard blockers always veto BUY.
  * 0.3.20 — category agreement, brand boundaries, printer purge, 256G storage.
  *
+ * 0.3.26 — a spec screen is evidence FOR the seller. Vision signals carry
+ *           their own polarity instead of being cast negative, `specScreens`
+ *           emits a positive SPEC_SCREEN_PROOF, SCREENSHOT_ARTIFACTS drops to
+ *           medium when the listing also shows a spec readout, and a positive
+ *           signal no longer generates a question.
+ *
  * 0.3.6 is also the reminder that this list is not a changelog. The storage
  * fix shipped WITHOUT a bump and production kept serving the old verdicts,
  * because reverdictStale found nothing stale — the stored rows already claimed
  * the current version. Exactly the failure this constant was made load-bearing
  * to prevent, two days after writing that down.
  */
-export const ENGINE_VERSION = "0.3.25";
+export const ENGINE_VERSION = "0.3.26";

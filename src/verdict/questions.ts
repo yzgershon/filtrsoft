@@ -106,8 +106,21 @@ export function buildQuestions(
     if (q && !out.includes(q) && out.length < 2) out.push(q);
   };
 
-  // 1. Something is off about THIS listing. Highest information, always first.
-  for (const s of signals.signals) push(BY_SIGNAL[s.code]);
+  /**
+   * 1. Something is off about THIS listing. Highest information, always first.
+   *
+   * ⚠ POSITIVE SIGNALS DO NOT EARN A QUESTION. A question exists to resolve a
+   * doubt, and a signal that is evidence FOR the seller has none to resolve —
+   * asking "could you send photos you've taken yourself" of someone who already
+   * posted a spec readout from the machine is the app telling him his proof
+   * does not count. Guarded here rather than by omitting the `BY_SIGNAL` entry,
+   * because the entry is right for the negative case and the same code can be
+   * either (see SCREENSHOT_ARTIFACTS in vision/merge.ts).
+   */
+  for (const s of signals.signals) {
+    if (s.polarity === "positive") continue;
+    push(BY_SIGNAL[s.code]);
+  }
 
   /**
    * 2. Remote blockers only. An in-person check ("show me the I/O bracket")

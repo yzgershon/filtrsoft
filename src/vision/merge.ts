@@ -43,37 +43,94 @@ export function visionToText(v: VisionResult | null): string {
   return parts.join("\n");
 }
 
-/** Signals derived from vision that the text layer cannot produce. */
+/**
+ * Signals derived from vision that the text layer cannot produce.
+ *
+ * ⚠ EACH ONE CARRIES ITS OWN POLARITY. `engine/index.ts` used to push these
+ * with a hardcoded `polarity: "negative"`, which made a positive finding
+ * structurally impossible to express — and that is half of why a seller PROVING
+ * his specs was scored as a scam tell.
+ */
 export function visionSignals(v: VisionResult | null) {
-  const out: Array<{ code: string; severity: "blocker" | "high" | "medium"; evidence: string }> = [];
+  const out: Array<{
+    code: string;
+    severity: "blocker" | "high" | "medium" | "info";
+    polarity: "negative" | "positive";
+    evidence: string;
+  }> = [];
   if (!v) return out;
+
+  /**
+   * ⚠ A SPEC READOUT IS EVIDENCE FOR THE SELLER, NOT AGAINST HIM.
+   *
+   * Yish, 2026-08-31, on an RTX 5090 the feed found 30 minutes after it posted:
+   * *"the image itself is a photo of the computer's specs verified on the
+   * monitor of the PC, making this extra trustworthy, not a red flag ... a lot
+   * of the time there is a screenshot or an image of proof of specs which
+   * usually states the model or type of ram, cpu, gpu."*
+   *
+   * He is right and the codebase already half-agreed with him: the vision
+   * prompt calls these "the highest-value image in any listing" and
+   * `photos/index.ts` records the Phase 0 miss where a whole spec sheet sat in
+   * photo 3. Nothing ever said so in the verdict, and the window chrome around
+   * one was being reported as fraud instead.
+   */
+  const specScreens = v.specScreens ?? [];
+  if (specScreens.length) {
+    out.push({
+      code: "SPEC_SCREEN_PROOF", severity: "info", polarity: "positive",
+      evidence: specScreens.length === 1
+        ? "One photo shows a spec readout from the machine itself, so the components are shown rather than claimed."
+        : `${specScreens.length} photos show spec readouts from the machine itself, so the components are shown rather than claimed.`,
+    });
+  }
 
   if (v.displayOutputsVisible === false) {
     out.push({
-      code: "NO_DISPLAY_OUTPUT", severity: "blocker",
+      code: "NO_DISPLAY_OUTPUT", severity: "blocker", polarity: "negative",
       evidence: "The I/O bracket in the photos carries no display connectors at all. You cannot plug a monitor into this card.",
     });
   }
   if (v.bootScreenOnly) {
     out.push({
-      code: "BOOT_SCREEN_ONLY", severity: "high",
+      code: "BOOT_SCREEN_ONLY", severity: "high", polarity: "negative",
       evidence: "Every photo shows the device on a boot or logo screen. That proves it powers on and rules out nothing — activation lock, FRP lock, carrier lock and a failing panel are all still unverified. Ask to see it at the home screen.",
     });
   }
   if (v.screenshotArtifacts) {
+    /**
+     * ⚠ DOWNGRADED WHEN THE LISTING ALSO CARRIES A SPEC SCREEN, AND THIS GUARD
+     * IS FOR THE CACHE, NOT FOR THE MODEL.
+     *
+     * The prompt now tells the model to leave this null for chrome around a
+     * spec readout (PROMPT_VERSION 2026-08-31.1). But vision results are cached
+     * on photo content, and every result already stored was produced by the OLD
+     * prompt — which conflated the two. Those rows keep serving until a listing
+     * is re-analysed, so without this a re-score would go on calling a proven
+     * machine a scam using an answer from a prompt that no longer exists.
+     *
+     * It is a downgrade rather than a suppression because both CAN be true: a
+     * seller can post a genuine spec screen and a lifted product photo. Medium
+     * says "worth a look" without the high-severity accusation.
+     */
+    const explained = specScreens.length > 0;
     out.push({
-      code: "SCREENSHOT_ARTIFACTS", severity: "high",
-      evidence: `Photos are screenshots taken from another app rather than original pictures. ${v.screenshotArtifacts}`,
+      code: "SCREENSHOT_ARTIFACTS",
+      severity: explained ? "medium" : "high",
+      polarity: "negative",
+      evidence: explained
+        ? `Some photos carry another app's UI chrome. This listing also shows a spec readout, and window chrome around one of those is normal — check whether the chrome is around a PHOTO of the item rather than around the specs. ${v.screenshotArtifacts}`
+        : `Photos are screenshots taken from another app rather than original pictures. ${v.screenshotArtifacts}`,
     });
   }
   if (v.portDamage && v.portCondition) {
     out.push({
-      code: "PORT_DAMAGE", severity: "high",
+      code: "PORT_DAMAGE", severity: "high", polarity: "negative",
       evidence: `Visible damage to ports, hinges or connectors — a FUNCTIONAL defect regardless of how the seller frames it. ${v.portCondition}`,
     });
   }
   for (const dmg of v.physicalDamage ?? []) {
-    out.push({ code: "PHYSICAL_DAMAGE", severity: "medium", evidence: dmg });
+    out.push({ code: "PHYSICAL_DAMAGE", severity: "medium", polarity: "negative", evidence: dmg });
   }
   return out;
 }

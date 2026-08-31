@@ -22,6 +22,8 @@ import {
 } from "../src/sources/marketplace.ts";
 import sharp from "sharp";
 import { thumbFromBytes, THUMB_EDGE, MAX_BYTES, THUMB_KEEP_DAYS } from "../src/photos/thumb.ts";
+import { visionSignals } from "../src/vision/merge.ts";
+import { buildQuestions } from "../src/verdict/questions.ts";
 import {
   applyDiscovery, applyQuality, matchesSearch, NO_FILTERS, parseDrive, parseFilters,
   QUALITIES, segmentCounts, sortFeed, withinPrice,
@@ -146,6 +148,113 @@ describe("vision budget ledger", () => {
  * safe only because one image per listing at 480px WebP is ~15 KB, so that is
  * the number under test. Read `photos/thumb.ts` before changing any of it.
  */
+/**
+ * A photo of a spec readout is evidence FOR the seller.
+ *
+ * ⚠ THIS IS YISH'S DOMAIN KNOWLEDGE AND IT OVERRODE THE ENGINE. 2026-08-31, on
+ * an RTX 5090 FE at $2,800 the feed surfaced 30 minutes after it posted:
+ * *"the image itself is a photo of the computer's specs verified on the monitor
+ * of the PC, making this extra trustworthy, not a red flag ... a lot of the time
+ * there is a screenshot or an image of proof of specs which usually states the
+ * model or type of ram, cpu, gpu."*
+ *
+ * The engine disagreed with itself. The vision prompt calls a spec screen "the
+ * highest-value image in any listing", `photos/index.ts` records the Phase 0
+ * miss where a whole spec sheet sat in photo 3 — and `screenshotArtifacts`
+ * asked for "any UI chrome proving the photo was screenshotted from another
+ * app", which a photo of Task Manager is covered in. So it fired at HIGH
+ * severity on exactly the listings a diligent seller produces.
+ */
+describe("a spec screen is proof, not a scam tell", () => {
+  const V = (over: Record<string, unknown> = {}) => ({
+    components: {}, facts: [], specScreens: [], lockScreen: false,
+    bootScreenOnly: false, screenshotArtifacts: null, displayOutputsVisible: null,
+    portCondition: null, portDamage: false, physicalDamage: [], unreadable: [],
+    ...over,
+  } as any);
+
+  test("spec screens produce a POSITIVE signal", () => {
+    const out = visionSignals(V({ specScreens: ["2"] }));
+    const proof = out.find((s) => s.code === "SPEC_SCREEN_PROOF");
+    expect(proof).toBeTruthy();
+    expect(proof!.polarity).toBe("positive");
+    // Info, not high. It is reassurance, not an alarm.
+    expect(proof!.severity).toBe("info");
+    expect(proof!.evidence).toContain("shown rather than claimed");
+  });
+
+  test("no spec screen, no positive signal invented", () => {
+    expect(visionSignals(V()).some((s) => s.code === "SPEC_SCREEN_PROOF")).toBe(false);
+  });
+
+  /**
+   * ⚠ THE DOWNGRADE IS FOR THE CACHE, NOT THE MODEL. Vision results are cached
+   * on photo content, so every row stored before PROMPT_VERSION 2026-08-31.1
+   * came from the prompt that conflated the two. Those keep serving until a
+   * listing is re-analysed, and without this a re-score would go on calling a
+   * proven machine a scam using an answer from a prompt that no longer exists.
+   */
+  test("a stale artifact report is demoted when a spec screen is present", () => {
+    const withSpec = visionSignals(V({
+      specScreens: ["2"], screenshotArtifacts: "Image 2 shows window chrome",
+    })).find((s) => s.code === "SCREENSHOT_ARTIFACTS")!;
+    expect(withSpec.severity).toBe("medium");
+    expect(withSpec.evidence).toContain("window chrome around one of those is normal");
+
+    // And it is a DOWNGRADE, not a suppression: a seller can post a genuine
+    // spec screen AND a lifted product photo.
+    expect(withSpec.polarity).toBe("negative");
+  });
+
+  test("without a spec screen it stays a high-severity tell", () => {
+    const alone = visionSignals(V({
+      screenshotArtifacts: "SAVE icon visible over the product photo",
+    })).find((s) => s.code === "SCREENSHOT_ARTIFACTS")!;
+    expect(alone.severity).toBe("high");
+    expect(alone.evidence).toContain("screenshots taken from another app");
+  });
+
+  test("every vision signal carries its own polarity", () => {
+    // `engine/index.ts` used to push these with a hardcoded negative, which made
+    // a positive finding structurally impossible to express.
+    for (const s of visionSignals(V({ specScreens: ["1"], bootScreenOnly: true, physicalDamage: ["dent"] }))) {
+      expect(["positive", "negative"]).toContain(s.polarity);
+    }
+    expect(visionSignals(V({ bootScreenOnly: true }))[0].polarity).toBe("negative");
+  });
+
+  test("a positive signal never earns a question", () => {
+    const ask = (sig: Array<{ code: string; polarity: string }>) => buildQuestions(
+      { signals: sig, missingValueFields: [], category: "gpu" } as any,
+      {} as any,
+    );
+    // The negative case still asks — this is the real scam tell.
+    expect(ask([{ code: "SCREENSHOT_ARTIFACTS", polarity: "negative" }])[0])
+      .toContain("photos you've taken yourself");
+
+    /**
+     * The positive case must not. It still gets the CATEGORY fallback, which is
+     * right — every listing deserves something to ask — so the assertion is
+     * that the doubt-resolving question is absent, not that the list is empty.
+     * Asking "send photos you've taken yourself" of someone who already posted
+     * a spec readout tells him his proof does not count.
+     */
+    const positive = ask([{ code: "SPEC_SCREEN_PROOF", polarity: "positive" }]);
+    expect(positive.some((q) => q.includes("photos you've taken yourself"))).toBe(false);
+
+    /**
+     * And the same code on the SAME listing behaves differently by polarity,
+     * which is the whole reason the guard is on polarity rather than on the
+     * `BY_SIGNAL` table.
+     */
+    const both = ask([
+      { code: "SPEC_SCREEN_PROOF", polarity: "positive" },
+      { code: "BOOT_SCREEN_ONLY", polarity: "negative" },
+    ]);
+    expect(both[0]).toContain("home screen");
+  });
+});
+
 describe("thumbnail bounds", () => {
   /** A real image, encoded here rather than checked in as a fixture. */
   const bigJpeg = async () =>
