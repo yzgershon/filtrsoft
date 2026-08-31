@@ -44,17 +44,74 @@
 
 /* ================================================================ sections */
 .sec { margin: var(--s5) 0; }
-.sec h4 {
-  font-size: 11px; text-transform: uppercase; letter-spacing: .12em;
-  color: var(--ink-3); margin: 0 0 var(--s3); font-weight: 700;
+/*
+ * ⚠ THE CHILD COMBINATOR IS LOAD-BEARING, AND SO IS THE FACT THAT THIS RULE IS
+ * NOW IN ONE PLACE.
+ *
+ * `.sec h4` was declared in THREE blocks across two files — here, and twice in
+ * 08-polish.css — with the properties split between them. So `.dhead h4`
+ * (0,2,0), written to replace this micro-label, was beaten by a `.sec h4`
+ * (0,2,0) that happened to come later in the cascade, and the new section
+ * headers rendered at 11px uppercase with .14em tracking: the exact styling
+ * they exist to remove. It looked like the component had not been applied.
+ *
+ * `>` fixes it by making the two selectors describe different elements rather
+ * than compete, and cannot be undone by a future rule landing further down.
+ */
+.sec > h4 {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .14em;
+  color: var(--ink-3); margin: 0 0 10px; font-weight: 700;
   display: flex; align-items: center; gap: var(--s2);
 }
-.sec h4 em {
+.sec > h4 em {
   font-style: normal; color: var(--ink-3);
   /* A parenthetical is an aside, not a second heading. It inherited the head's
      uppercase and .12em tracking and ran to two shouted lines. */
   text-transform: none; letter-spacing: 0; font-weight: 600;
 }
+
+/* ─────────────────────────────── the detail section head, VaultX feature-card
+ *
+ * Yish, 2026-08-31: *"the detail screen's sections should use the demo's
+ * icon-topped card treatment."*
+ *
+ * The demo's feature card is an accent-coloured icon on top, a bold white
+ * title, and a muted line of body. Eight `.sec h4` micro-labels — 11px,
+ * uppercase, `.12em` tracked, `--ink-3` muted — read as one undifferentiated
+ * column of captions, which is why the detail screen was hard to skim even
+ * though every section on it was correct.
+ *
+ * ⚠ THE TILE COLOUR COMES FROM `--tone`, WHICH `.t-*` SETS AND NOTHING ELSE
+ * READS DIRECTLY. `color-mix` off that one value gives the ink, the fill, the
+ * hairline and the glow, so a new section needs a `tone` string and no CSS.
+ *
+ * ⚠ AND IT DOES NOT COMPETE WITH `.sec > h4` ANY MORE. It used to: both are
+ * (0,2,0), so the winner was whichever landed later, and a third partial
+ * `.sec h4` in 08-polish.css put the micro-label styling back on top of this
+ * component. The child combinator above is what makes the two describe
+ * different elements instead.
+ */
+.dhead { margin: 0 0 var(--s3); }
+.sicon {
+  display: grid; place-items: center;
+  width: 38px; height: 38px; margin-bottom: 10px;
+  border-radius: var(--r-md);
+  color: var(--tone, var(--brand));
+  background: color-mix(in srgb, var(--tone, var(--brand)) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tone, var(--brand)) 26%, transparent);
+  box-shadow: 0 0 26px color-mix(in srgb, var(--tone, var(--brand)) 12%, transparent);
+}
+/* Title + note on the left, the section's own control on the right.
+   `min-width: 0` so a long title wraps rather than shoving the control off. */
+.drow { display: flex; align-items: center; gap: var(--s3); }
+.dtext { flex: 1; min-width: 0; }
+.dhead h4 {
+  margin: 0;
+  font-size: 16px; font-weight: 700; letter-spacing: -.01em;
+  text-transform: none; color: var(--ink);
+}
+.dnote { margin: 2px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-3); }
+.dnote .warn { color: var(--verify); }
 
 /*
  * Glass, not fill. `--surface` is `rgba(255,255,255,.05)` now, so a panel needs

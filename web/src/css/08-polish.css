@@ -21,8 +21,10 @@
  * difference IS the grouping, and it costs nothing to express.
  */
 .sec { margin: var(--s6) 0 0; }
-.sec h4 { margin-bottom: 10px; }
 .sec + .sec { margin-top: var(--s6); }
+/* The `h4` metrics that used to be split across this file live with the rest
+   of the rule in 03-detail.css. Three partial declarations of one selector is
+   how `.dhead h4` ended up losing to it. */
 
 /*
  * 2. THE MONEY PANEL HAS AN ANCHOR NOW.
@@ -270,8 +272,6 @@ body::before {
 .kv .v.num { font-size: 16px; }
 .kv.anchor .v { font-size: 30px; }
 
-/* The section label sits closer to what it labels than to what precedes it. */
-.sec h4 { font-size: 11px; letter-spacing: .14em; }
 
 /* ═══════════════════════════════════════════════ second pass: the top of the screen
  *

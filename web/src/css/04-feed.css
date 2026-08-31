@@ -139,10 +139,23 @@
   text-transform: uppercase;
 }
 .sect span { font-size: 11.5px; color: var(--ink-3); }
-.sdot { width: 7px; height: 7px; border-radius: 99px; flex: none; }
-.t-buy { background: var(--buy); }
-.t-verify { background: var(--verify); }
-.t-mute { background: var(--ink-3); }
+.sdot { width: 7px; height: 7px; border-radius: 99px; flex: none; background: var(--tone); }
+
+/*
+ * ⚠ `.t-*` NAMES A TONE, IT DOES NOT PAINT ANYTHING.
+ *
+ * It used to set `background` directly, which worked while the only consumer
+ * was a 7px dot and stopped working the moment a second one existed: the
+ * detail screen's icon tile needs the same hue as a COLOUR, a tinted fill and
+ * a border, and none of those is a background. One custom property, three
+ * consumers, and adding a fourth needs no new tone rules.
+ */
+.t-buy { --tone: var(--buy); }
+.t-verify { --tone: var(--verify); }
+.t-risk { --tone: var(--risk); }
+.t-brand { --tone: var(--brand); }
+.t-alt { --tone: var(--brand-2); }
+.t-mute { --tone: var(--ink-3); }
 
 /* Feed hero. NAMED `.dealhero`, not `.hero`: the landing headline already owns
    `.hero`, and reusing it wrapped that headline in a card border with an
@@ -317,7 +330,9 @@
 
 /* Copy-all. Codex: "Copy these three questions" — one tap, not three. */
 .copyall {
-  float: right; font-size: 11.5px; font-weight: 600; color: var(--ink-2);
+  /* ⚠ NOT `float: right`. It lives in `.drow`, a flex row, where floats are
+     ignored outright — the h4's `flex: 1` is what pushes it to the edge. */
+  flex: none; font-size: 11.5px; font-weight: 600; color: var(--ink-2);
   background: var(--surface-2); border: 1px solid var(--line);
   border-radius: 999px; padding: 0 14px; min-height: 44px;
   touch-action: manipulation;

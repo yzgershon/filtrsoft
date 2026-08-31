@@ -116,8 +116,8 @@
 .alertnote { color: var(--ink-1); }
 
 /* ===================================================== channel switch (Numbers) */
-.nhead { display: flex; align-items: center; gap: var(--s3); margin-bottom: 8px; }
-.nhead h4 { margin: 0; flex: 1; }
+/* `.nhead` is gone: the channel switch is `SecHead`'s `trailing` slot now, so
+   the money panel's header is the same component as every other section's. */
 /*
  * A segmented switch, not a toggle: both states are named, so you can see what
  * the other one is before you press it. Local leads because that is what Yish

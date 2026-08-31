@@ -8,10 +8,66 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Back as BackIcon, Check, Eye, Ghost, Info, Link, Shield, Tag } from "./icons.tsx";
+import {
+  Alert, Back as BackIcon, Chat, Check, Cut, Eye, Ghost, Info, Link, Shield, Store, Tag,
+} from "./icons.tsx";
 import type { Comp, Listing, Meta, Retail, RiskCheck, Signal, Verdict } from "./types.ts";
 import { LABEL, money, ago, toast, Thumb } from "./lib.tsx";
 import { SectionHead } from "./feed.tsx";
+
+/**
+ * A detail-screen section header, in the demo's feature-card language.
+ *
+ * Yish, 2026-08-31: *"the detail screen's sections should use the demo's
+ * icon-topped card treatment."*
+ *
+ * ── WHAT THIS REPLACES ─────────────────────────────────────────────────────
+ *
+ * `.sec h4` was 11px, uppercase, `.12em` tracked and `--ink-3` muted — a micro
+ * label, and eight of them in a column read as one undifferentiated list of
+ * captions. The demo does the opposite and it is the reason its long pages
+ * scan: an icon in an accent colour on top, a bold white title, a muted line of
+ * body. You can find the section you want without reading any of them.
+ *
+ * ⚠ THE ACCENT DESCRIBES WHAT THE SECTION IS, and on THIS screen that includes
+ * the verdict hues. The screen-level badges deliberately avoid them (see
+ * `.eyebrow` in 08-polish) because a badge in amber would read as a judgement
+ * about the whole screen — but "What's wrong with it" is a list of disclosed
+ * defects, and painting that green to satisfy a cycling rule would be a rule
+ * outranking a meaning.
+ *
+ * `trailing` exists because three of these headers own a control: the channel
+ * switch, "copy all", and the comps disclosure. Putting them anywhere else
+ * separates a control from the thing it controls.
+ */
+export function SecHead({ icon, title, note, tone, trailing }: {
+  icon: React.ReactNode;
+  title: React.ReactNode;
+  note?: React.ReactNode;
+  tone: string;
+  trailing?: React.ReactNode;
+}) {
+  return (
+    <div className={`dhead t-${tone}`}>
+      <span className="sicon" aria-hidden="true">{icon}</span>
+      {/**
+        * ⚠ THE NOTE IS INSIDE `.dtext`, NOT A SIBLING OF `.drow`.
+        *
+        * As a sibling it sat below the whole row, and the row is as tall as its
+        * tallest child — which on "The numbers" is a 44px channel switch. So the
+        * subtitle rendered ~30px under its own title, reading as though it
+        * belonged to the panel beneath rather than to the heading above.
+        */}
+      <div className="drow">
+        <div className="dtext">
+          <h4>{title}</h4>
+          {note ? <p className="dnote">{note}</p> : null}
+        </div>
+        {trailing}
+      </div>
+    </div>
+  );
+}
 
 export function Flags({ signals }: { signals: Signal[] }) {
   if (!signals.length) return null;
@@ -19,7 +75,8 @@ export function Flags({ signals }: { signals: Signal[] }) {
     s.polarity === "positive" ? <Check /> : s.severity === "medium" ? <Info /> : <Alert />;
   return (
     <section className="sec rise">
-      <h4>What's flagged <em>({signals.length})</em></h4>
+      <SecHead tone="alt" icon={<Info size={18} />} title="What's flagged"
+        note={`${signals.length} thing${signals.length === 1 ? "" : "s"} the engine noticed in the listing itself`} />
       <div className="panel">
         {signals.map((s, i) => (
           <div className={`flag f-${s.severity}`} key={i}>
@@ -72,17 +129,16 @@ export function Numbers({ v, ask }: { v: Verdict; ask: number | null }) {
 
   return (
     <section className="sec rise">
-      <div className="nhead">
-        <h4>The numbers</h4>
-        {canSwitch && (
+      <SecHead tone="buy" icon={<Tag size={18} />} title="The numbers"
+        note="what it resells for, and what you keep"
+        trailing={canSwitch ? (
           <div className="chsw" role="tablist" aria-label="Resale channel">
             <button role="tab" aria-selected={mode === "local"}
               className={mode === "local" ? "on" : ""} onClick={() => setMode("local")}>Local</button>
             <button role="tab" aria-selected={mode === "shipped"}
               className={mode === "shipped" ? "on" : ""} onClick={() => setMode("shipped")}>eBay</button>
           </div>
-        )}
-      </div>
+        ) : undefined} />
 
       <div className="panel">
         <div className="kv">
@@ -176,10 +232,8 @@ export function CompsAndOffer({ v, comps, ask }: {
   return (
     <>
       <section className="sec rise">
-        <h4>
-          What if you offer less
-          <em>({money(v.targetOfferCents ?? 0)} is the most that still works)</em>
-        </h4>
+        <SecHead tone="brand" icon={<Cut size={18} />} title="What if you offer less"
+          note={`${money(v.targetOfferCents ?? 0)} is the most that still works`} />
         <div className="panel offer">
           <div className="offerrow">
             <span className="offerlbl">You offer</span>
@@ -213,13 +267,14 @@ export function CompsAndOffer({ v, comps, ask }: {
             * verdict; a disclosure that opens on demand is evidence you can
             * check without being made to read it.
             */}
-          <h4>
-            <button className="disclose" aria-expanded={open} onClick={() => setOpen(!open)}>
-              Where {money(v.valuation.medianCents)} comes from
-              <em>({v.valuation.compCount} sold)</em>
-              <i aria-hidden="true">{open ? "▴" : "▾"}</i>
-            </button>
-          </h4>
+          <SecHead tone="brand" icon={<Eye size={18} />}
+            title={
+              <button className="disclose" aria-expanded={open} onClick={() => setOpen(!open)}>
+                Where {money(v.valuation.medianCents)} comes from
+                <i aria-hidden="true">{open ? "▴" : "▾"}</i>
+              </button>
+            }
+            note={`${v.valuation.compCount} sold comps, newest first`} />
           {open && (
             <div className="panel comps">
               {comps.map((c, i) => (
@@ -265,12 +320,13 @@ export function Questions({ qs }: { qs: string[] }) {
 
   return (
     <section className="sec rise">
-      <h4>
-        Ask the seller <em>(before you drive)</em>
-        <button className={`copyall ${copied === -1 ? "ok" : ""}`} onClick={copyAll}>
-          {copied === -1 ? "copied all" : `copy all ${qs.length}`}
-        </button>
-      </h4>
+      <SecHead tone="brand" icon={<Chat size={18} />} title="Ask the seller"
+        note="before you drive anywhere"
+        trailing={
+          <button className={`copyall ${copied === -1 ? "ok" : ""}`} onClick={copyAll}>
+            {copied === -1 ? "copied all" : `copy all ${qs.length}`}
+          </button>
+        } />
       <div className="panel">
         {qs.map((q, i) => (
           <div className="q" key={i}>
@@ -518,7 +574,8 @@ export function Blockers({ checks }: { checks: RiskCheck[] }) {
     <>
       {disclosed.length > 0 && (
         <section className="sec rise">
-          <h4>What's wrong with it <em>({disclosed.length} disclosed)</em></h4>
+          <SecHead tone="risk" icon={<Alert size={18} />} title="What's wrong with it"
+            note={`${disclosed.length} the seller stated outright`} />
           <ul className="risks">
             {disclosed.map((c) => (
               <li key={c.code} className="risk r-failed">
@@ -535,7 +592,8 @@ export function Blockers({ checks }: { checks: RiskCheck[] }) {
 
       {onPickup.length > 0 && (
         <section className="sec rise">
-          <h4>Check when you get there</h4>
+          <SecHead tone="verify" icon={<Shield size={18} />} title="Check when you get there"
+            note="things a photo cannot settle" />
           <ul className="pickup">
             {onPickup.map((c) => <li key={c.code}>{c.label}</li>)}
           </ul>
@@ -553,9 +611,10 @@ export function Blockers({ checks }: { checks: RiskCheck[] }) {
 export function Ceiling({ r }: { r: Retail }) {
   return (
     <section className="sec rise ceil">
-      <h4>New retail {r.corroborated
-        ? <em>({r.quotes.length} retailers agree)</em>
-        : <em className="warn">(one retailer only)</em>}</h4>
+      <SecHead tone="alt" icon={<Store size={18} />} title="New retail"
+        note={r.corroborated
+          ? `${r.quotes.length} retailers agree`
+          : <span className="warn">one retailer only</span>} />
       <div className="ceilrow">
         <span className="num ceilprice">{money(r.priceCents)}</span>
         <span className="ceilwho">{r.quotes.map((q) => `${q.source} ${money(q.priceCents)}`).join(" · ")}</span>

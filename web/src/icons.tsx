@@ -97,6 +97,14 @@ export const Sliders = ({ size = 22, className }: P) =>
 export const Bell = ({ size = 22, className }: P) =>
   svg(size, <><path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6" /><path d="M13.7 20a2 2 0 0 1-3.4 0" /></>, className);
 
+/** Storefront — the new-retail ceiling, the one price not from the comps. */
+export const Store = ({ size = 18, className }: P) =>
+  svg(size, <><path d="M4 9v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9" /><path d="M3 9h18l-1.6-4.4A1 1 0 0 0 18.5 4h-13a1 1 0 0 0-.9.6L3 9Z" /><path d="M9 20v-6h6v6" /></>, className);
+
+/** Speech bubble — the questions to ask before you drive. */
+export const Chat = ({ size = 18, className }: P) =>
+  svg(size, <><path d="M20 15a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2Z" /><path d="M8.5 9.5h7M8.5 12.5h4" /></>, className);
+
 /**
  * Left arrow — back.
  *
