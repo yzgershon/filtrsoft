@@ -322,7 +322,10 @@ export default function App() {
             {screen.name === "deals" && (
               <>
                 <div className="feedhead">
-                  <h1>Worth driving for</h1>
+                  {/* Badge, headline with one gradient accent word, subtitle.
+                      The demo repeats this exact rhythm in every section. */}
+                  <span className="eyebrow buy"><i />Live deals</span>
+                  <h1>Worth <span className="g">driving for</span></h1>
                   <p>Only listings the engine actually verified. Newest and best first.</p>
                 </div>
                 {settings.askOutcomes && ask && (
@@ -363,7 +366,8 @@ export default function App() {
                         and the supported sources were only ever explained by
                         failing. */}
                     <div className="feedhead">
-                      <h1>Check a listing</h1>
+                      <span className="eyebrow">Link checker</span>
+                      <h1>Check a <span className="g">listing</span></h1>
                       <p>Paste a Craigslist link and get the number it is actually worth, before you drive.</p>
                     </div>
                     <button className="paste" onClick={pasteAndCheck} disabled={busy}>

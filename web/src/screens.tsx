@@ -71,7 +71,8 @@ export function Watchlist({ onOpen, onWatchChange, onBrowse }: {
   return (
     <div className="sec">
       <div className="feedhead">
-        <h1>Saved</h1>
+        <span className="eyebrow">Watchlist</span>
+        <h1>Your <span className="g">saved</span></h1>
         <p>
           {items === null ? "Loading…"
             : items.length === 0 ? "Listings you bookmark, and alerts for searches you save."
@@ -531,7 +532,10 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
 
   return (
     <div className="sec settings">
-      <div className="feedhead"><h1>Settings</h1></div>
+      <div className="feedhead">
+        <span className="eyebrow">Preferences</span>
+        <h1>Your <span className="g">settings</span></h1>
+      </div>
 
       {/**
         * ⚠ BILLING RENDERS ONLY WHEN BILLING IS ENABLED (audit §14).

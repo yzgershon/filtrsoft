@@ -45,7 +45,7 @@
 .kv.quiet .v { font-size: 14px; font-weight: 600; }
 
 /* The offer stays the closing line: accented, and last. */
-.kv.hi { background: rgba(255,138,61,.07); }
+.kv.hi { background: rgba(0,212,255,.07); }
 .kv.hi .k { color: var(--ink-1); font-weight: 600; }
 .kv.hi .v { font-size: 18px; font-weight: 800; letter-spacing: -.02em; }
 
@@ -71,7 +71,7 @@
  * instead of on most of them.
  */
 .gcall {
-  background: rgba(8,7,10,.82);
+  background: rgba(10,14,23,.82);
   border: 1px solid rgba(255,255,255,.1);
   padding: 4px 7px;
 }
@@ -88,7 +88,7 @@
 .dealhero .dcall {
   display: inline-block; margin-bottom: 5px;
   padding: 4px 8px; border-radius: 6px;
-  background: rgba(8,7,10,.82);
+  background: rgba(10,14,23,.82);
   border: 1px solid rgba(255,255,255,.1);
   backdrop-filter: blur(10px);
 }
@@ -122,8 +122,8 @@
 body::before {
   content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background:
-    radial-gradient(120% 60% at 50% -10%, rgba(255,138,61,.10), transparent 60%),
-    radial-gradient(100% 50% at 10% 100%, rgba(96,165,250,.06), transparent 60%),
+    radial-gradient(120% 60% at 50% -10%, rgba(0,212,255,.10), transparent 60%),
+    radial-gradient(100% 50% at 10% 100%, rgba(123,97,255,.06), transparent 60%),
     var(--bg);
 }
 
@@ -155,22 +155,28 @@ body::before {
 }
 .verdictcard > * { position: relative; z-index: 1; }
 
-.v-BUY    { --tint: rgba(52,211,153,.22);  box-shadow: 0 10px 34px -18px rgba(52,211,153,.55); }
-.v-VERIFY { --tint: rgba(255,138,61,.20);  box-shadow: 0 10px 34px -18px rgba(255,138,61,.5); }
-.v-FAIR   { --tint: rgba(96,165,250,.18);  box-shadow: 0 10px 34px -18px rgba(96,165,250,.45); }
-.v-PASS   { --tint: rgba(251,191,36,.14);  box-shadow: 0 10px 34px -18px rgba(251,191,36,.35); }
-.v-RISK   { --tint: rgba(248,113,113,.20); box-shadow: 0 10px 34px -18px rgba(248,113,113,.5); }
+.v-BUY    { --tint: rgba(0,255,136,.22);  box-shadow: 0 10px 34px -18px rgba(0,255,136,.55); }
+.v-VERIFY { --tint: rgba(0,212,255,.20);  box-shadow: 0 10px 34px -18px rgba(0,212,255,.5); }
+.v-FAIR   { --tint: rgba(123,97,255,.18);  box-shadow: 0 10px 34px -18px rgba(123,97,255,.45); }
+.v-PASS   { --tint: rgba(148,163,184,.14);  box-shadow: 0 10px 34px -18px rgba(148,163,184,.35); }
+.v-RISK   { --tint: rgba(255,71,87,.20); box-shadow: 0 10px 34px -18px rgba(255,71,87,.5); }
 
 /*
- * 4. THE PANEL LIFTS OFF THE GROUND.
+ * 4. DEPTH IS A COLOURED GLOW, NEVER A BLACK DROP SHADOW.
  *
- * A 1px border was the only thing separating a card from the page. A soft
- * shadow does the same job the way a physical card would, and it is what makes
- * the reference screens read as layered rather than drawn.
+ * ⚠ THE DEMO HAS NO BLACK SHADOWS AT ALL. Its only two shadows are
+ * `0 0 60px rgba(0,212,255,.2)` and the purple equivalent — light coming OFF
+ * the surface, not the surface casting onto the page. On an OLED navy a black
+ * shadow is invisible anyway, which is why the old one had to be pushed to
+ * .9 alpha to do anything.
+ *
+ * Cards separate by their hairline border and their translucency. The glow is
+ * reserved for what the screen is ABOUT: the hero and the verdict.
  */
-.panel, .scard, .gcard, .dealhero {
-  box-shadow: 0 2px 10px -4px rgba(0,0,0,.6), 0 12px 32px -20px rgba(0,0,0,.9);
+.panel, .scard, .gcard {
+  backdrop-filter: blur(var(--blur));
 }
+.dealhero { box-shadow: var(--glow); }
 
 /*
  * 5. NUMBERS ARE THE SUBJECT.
@@ -179,7 +185,7 @@ body::before {
  * and the listing price were set at body size next to their own labels, so the
  * eye had to hunt for the number it came for.
  */
-.lh .price { font-size: 30px; font-weight: 800; letter-spacing: -.035em; }
+.lh .price { font-size: 30px; font-weight: 700; letter-spacing: -.02em; }
 .kv .v.num { font-size: 16px; }
 .kv.anchor .v { font-size: 30px; }
 
@@ -197,7 +203,7 @@ body::before {
 /*
  * THE HEADER STOPS BEING A SLAB.
  *
- * `rgba(8,7,10,.86)` over a page that is now lit means the bar is the one
+ * `rgba(10,14,23,.86)` over a page that is now lit means the bar is the one
  * remaining piece of flat black, and it cuts a hard line across the warm glow
  * behind it. Dropping the fill and keeping only the blur lets the ground run
  * under it — the bar reads as glass over the page rather than a lid on it.
@@ -206,7 +212,7 @@ body::before {
  * the only moment it is doing any work.
  */
 .topbar {
-  background: linear-gradient(to bottom, rgba(8,7,10,.72), rgba(8,7,10,.32));
+  background: linear-gradient(to bottom, rgba(10,14,23,.72), rgba(10,14,23,.32));
   border-bottom-color: transparent;
   backdrop-filter: blur(20px) saturate(1.4);
 }
@@ -220,7 +226,37 @@ body::before {
  * first visit and nowhere after, so it is smaller and the block is tighter.
  */
 .feedhead { padding: var(--s4) 0 var(--s3); }
-.feedhead h1 { font-size: 30px; letter-spacing: -.035em; margin-bottom: 4px; }
+/*
+ * ⚠ LETTER-SPACING IS NORMAL. The demo does not track its headings tight;
+ * -.035em is a different typographic voice and it fought Space Grotesk, whose
+ * own metrics are already fairly narrow.
+ */
+.feedhead h1 { font-size: 32px; letter-spacing: normal; margin-bottom: 8px; line-height: 1.1; }
+
+/*
+ * ⚠ THE PILL BADGE IS THE DEMO'S SECTION RHYTHM, AND IT REPEATS EXACTLY.
+ *
+ * Every section on the demo is: centred pill badge → big Space Grotesk headline
+ * with ONE accent word in the gradient → muted one-line subtitle → grid of
+ * glass cards. The badge changes colour per section (cyan / purple / green) and
+ * that is the only thing that varies.
+ *
+ * Measured off the demo: glass fill, 1px hairline, 50px radius, 14px/500,
+ * `6px 14px` padding.
+ */
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px; margin-bottom: var(--s3);
+  border-radius: var(--r-pill);
+  background: var(--surface); border: 1px solid var(--line);
+  color: var(--brand); font-size: 13px; font-weight: 500;
+  backdrop-filter: blur(var(--blur));
+}
+.eyebrow.buy { color: var(--buy); }
+.eyebrow i {
+  width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+  animation: glowpulse 2s cubic-bezier(.4,0,.6,1) infinite;
+}
 .feedhead p { font-size: 13px; color: var(--ink-3); max-width: 34ch; }
 
 /*
@@ -279,3 +315,65 @@ body::before {
 }
 .subtabs button.on { background: var(--surface-3); color: var(--ink); border-color: var(--surface-3); }
 .empty .btn2 { margin: var(--s4) auto 0; display: inline-flex; }
+
+/* ══════════════════════════════════════ VaultX: glass, glow and motion */
+/*
+ * ⚠ GLASS IS TRANSLUCENCY PLUS BLUR, AND WITHOUT THE BLUR IT IS JUST A WASH.
+ *
+ * `--surface` is `rgba(255,255,255,.05)` now. On a flat page that renders as a
+ * barely-there grey and the cards read as drawn rather than layered — which is
+ * exactly how the first pass of this restyle looked. The demo pairs the same
+ * fill with `backdrop-filter: blur(20px)` on every surface, and it is the blur
+ * that makes the ambient glow behind the page bend through the card.
+ */
+.gcard, .dealhero, .panel, .scard, .sheet, .seg, .more, .chip, .field, .subtabs button {
+  backdrop-filter: blur(var(--blur));
+}
+
+/*
+ * The verdict tints on the hero. `color-mix` against the verdict token, so one
+ * rule covers every call and a new call needs no new CSS.
+ */
+.dealhero.v-BUY, .dealhero.v-VERIFY, .dealhero.v-RISK, .dealhero.v-FAIR {
+  background:
+    linear-gradient(155deg, color-mix(in srgb, var(--tint) 12%, transparent), transparent 62%),
+    var(--surface);
+  border-color: color-mix(in srgb, var(--tint) 34%, transparent);
+  box-shadow: 0 0 60px color-mix(in srgb, var(--tint) 14%, transparent);
+}
+.dealhero.v-BUY    { --tint: var(--buy); }
+.dealhero.v-VERIFY { --tint: var(--verify); }
+.dealhero.v-RISK   { --tint: var(--risk); }
+.dealhero.v-FAIR   { --tint: var(--fair); }
+
+/*
+ * ⚠ STAGGERED ENTRANCE, AND IT STOPS AT SIX.
+ *
+ * The demo staggers its card grids in; Material's guidance is 30-50ms a step.
+ * Past about six items the last card would wait half a second for a screen it
+ * is already scrolled past, so the delay caps and every later card simply
+ * appears. `--i` is set by the grid, not by an inline style per card.
+ */
+@keyframes cardin { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
+.grid > * { animation: cardin 320ms var(--ease) both; }
+.grid > *:nth-child(1) { animation-delay: 0ms }
+.grid > *:nth-child(2) { animation-delay: 40ms }
+.grid > *:nth-child(3) { animation-delay: 80ms }
+.grid > *:nth-child(4) { animation-delay: 120ms }
+.grid > *:nth-child(5) { animation-delay: 160ms }
+.grid > *:nth-child(n+6) { animation-delay: 200ms }
+
+/*
+ * The ambient light behind the page, in the demo's two brand hues. `float`
+ * moves it slowly so the glass has something changing to refract; it is
+ * `transform` only, so it costs nothing and reduced-motion switches it off with
+ * everything else.
+ */
+body::before {
+  background:
+    radial-gradient(90% 50% at 15% -5%, rgba(0,212,255,.10), transparent 60%),
+    radial-gradient(80% 50% at 95% 8%, rgba(123,97,255,.10), transparent 60%),
+    radial-gradient(90% 40% at 50% 105%, rgba(0,255,136,.05), transparent 60%),
+    var(--bg);
+  animation: float 14s ease-in-out infinite;
+}

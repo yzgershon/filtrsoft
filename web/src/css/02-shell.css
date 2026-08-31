@@ -34,20 +34,31 @@
   padding: calc(var(--safe-t) + 10px) var(--s3) 10px var(--s4);
   display: flex; align-items: center; gap: 2px;
   border-bottom: 1px solid var(--line-soft);
-  background: rgba(8,7,10,.86);
+  background: rgba(10,14,23,.86);
   backdrop-filter: blur(16px);
   /* STICKY, not absolute. The old bottom nav sat at the end of the scroll
      content, so on a 285-listing feed you had to scroll to the bottom to
      navigate. Actions belong where they are always reachable. */
   position: sticky; top: 0; z-index: 20;
 }
+/*
+ * ⚠ THE WORDMARK IS THE GRADIENT. In the demo the logo mark, the primary CTA
+ * and the accent word in every headline all carry one linear-gradient, and
+ * nothing else does. That repetition IS the identity — spreading the gradient
+ * onto more elements would dilute it, and putting it on none would leave the
+ * app with no brand at all now that the orange is gone.
+ */
 .brand {
-  font-size: 18px; font-weight: 700; letter-spacing: -.02em;
+  font-size: 19px; font-weight: 700; letter-spacing: normal;
   background: none; border: 0; color: var(--ink);
   min-height: var(--tap); display: flex; align-items: center; padding: 0 2px;
   touch-action: manipulation;
 }
-.brand span { color: var(--brand); }
+.brand span {
+  background: var(--grad);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+}
 .topbar .spacer { flex: 1; }
 .iconbtn {
   width: var(--tap); height: var(--tap);
@@ -57,7 +68,7 @@
 }
 .iconbtn:hover { color: var(--ink); background: var(--surface-2); }
 .iconbtn:active { transform: scale(.94); }
-.iconbtn.on { color: var(--brand); background: rgba(255,138,61,.12); }
+.iconbtn.on { color: var(--brand); background: rgba(0,212,255,.12); }
 
 .scroll {
   flex: 1;
@@ -85,7 +96,7 @@
   border: 0; border-radius: var(--r-md);
   background: var(--brand); color: var(--on-brand);
   font-size: 15.5px; font-weight: 700; letter-spacing: -.01em;
-  box-shadow: 0 6px 20px -8px rgba(255,122,26,.55);
+  box-shadow: 0 6px 20px -8px rgba(0,212,255,.55);
   transition: filter var(--dur) var(--ease), transform 120ms var(--ease);
 }
 .paste:hover:not(:disabled) { filter: brightness(1.07); }
@@ -117,11 +128,20 @@
 
 .cta {
   min-height: var(--tap); min-width: var(--tap);
-  padding: 0 var(--s4); border: 0; border-radius: var(--r-sm);
-  background: var(--brand); color: var(--on-brand); font-weight: 700; font-size: 15px;
+  padding: 0 var(--s5); border: 0; border-radius: var(--r-pill);
+  /*
+   * ⚠ THE GRADIENT IS THE BRAND. The demo uses one linear-gradient for the
+   * logo mark, the primary CTA and the accent word in every headline, and
+   * nothing else competes with it. A flat fill here would leave the app with
+   * no identity at all now that the orange is gone.
+   */
+  background: var(--grad); color: #fff; font-weight: 700; font-size: 15px;
   display: grid; place-items: center;
-  transition: filter var(--dur) var(--ease), transform 120ms var(--ease);
+  box-shadow: var(--glow);
+  transition: filter var(--dur) var(--ease), transform 120ms var(--ease),
+              box-shadow var(--dur) var(--ease);
 }
+.cta:hover:not(:disabled) { box-shadow: 0 0 70px rgba(0,212,255,.35); }
 .cta:hover:not(:disabled) { filter: brightness(1.07); }
 .cta:active:not(:disabled) { transform: scale(.96); }
 /*
@@ -138,5 +158,5 @@
 .alert {
   margin-top: var(--s4); padding: var(--s3) var(--s4);
   border-radius: var(--r-md); font-size: 14px;
-  background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.3); color: #ffc9c9;
+  background: rgba(255,71,87,.1); border: 1px solid rgba(255,71,87,.3); color: #ffd7db;
 }

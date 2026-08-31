@@ -41,7 +41,7 @@
    * The desk. Cooler and flatter than the app so the phone reads as an object
    * sitting on something, rather than as a panel that happens to be inset.
    */
-  html { background: #060508; }
+  html { background: #050810; }
   body {
     min-height: 100dvh; height: auto;
     display: grid; place-items: center;
@@ -49,9 +49,9 @@
   }
   body::before {
     background:
-      radial-gradient(90% 55% at 50% 0%, rgba(255,138,61,.07), transparent 62%),
-      radial-gradient(70% 45% at 50% 100%, rgba(96,165,250,.05), transparent 60%),
-      #060508;
+      radial-gradient(90% 55% at 50% 0%, rgba(0,212,255,.07), transparent 62%),
+      radial-gradient(70% 45% at 50% 100%, rgba(123,97,255,.05), transparent 60%),
+      #050810;
   }
 
   /*
@@ -85,7 +85,7 @@
     margin: 0;
     overflow: hidden;
     border-radius: 40px;
-    border: 10px solid #0d0c11;
+    border: 10px solid #0c1220;
     background: var(--bg);
     /*
      * ⚠ LOAD-BEARING, AND NOT FOR THE VISUAL. A transform makes this element
@@ -100,15 +100,15 @@
     box-shadow:
       0 0 0 1px rgba(255,255,255,.06),
       0 30px 70px -20px rgba(0,0,0,.9),
-      0 0 90px -30px rgba(255,138,61,.18);
+      0 0 90px -30px rgba(0,212,255,.18);
   }
 
   /* The phone's own lit ground. `body::before` is the DESK now. */
   .app::before {
     content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
     background:
-      radial-gradient(120% 60% at 50% -10%, rgba(255,138,61,.10), transparent 60%),
-      radial-gradient(100% 50% at 10% 100%, rgba(96,165,250,.06), transparent 60%),
+      radial-gradient(120% 60% at 50% -10%, rgba(0,212,255,.10), transparent 60%),
+      radial-gradient(100% 50% at 10% 100%, rgba(123,97,255,.06), transparent 60%),
       var(--bg);
   }
 

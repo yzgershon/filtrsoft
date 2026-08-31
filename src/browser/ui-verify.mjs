@@ -229,7 +229,14 @@ const detailOpen = (page) => page.evaluate(
   await page.goto(BASE + "/saved", { waitUntil: "networkidle" });
   await page.waitForTimeout(1000);
 
-  ok("Saved always has an H1", ((await page.locator("h1").first().textContent()) ?? "").trim() === "Saved");
+  /**
+   * The POINT is that the heading exists in the empty state too — it used to
+   * return early with a bare <b>, so the screen had no landmark at all. Pinning
+   * the exact words made a copy change fail a structural assertion: the VaultX
+   * restyle reads "Your saved", with the accent word in the brand gradient.
+   */
+  const h1 = ((await page.locator("h1").first().textContent()) ?? "").trim();
+  ok("Saved always has an H1", h1.length > 0 && /saved/i.test(h1), h1 || "none");
 
   const subs = page.locator(".subtabs button");
   ok("Saved has Listings/Alerts sub-tabs", (await subs.count()) === 2);

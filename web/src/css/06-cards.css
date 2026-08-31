@@ -39,7 +39,7 @@
 }
 .gsave::before {
   content: ""; position: absolute; width: 30px; height: 30px; border-radius: 999px;
-  background: rgba(8,7,10,.55);
+  background: rgba(10,14,23,.55);
   backdrop-filter: blur(6px);
   transition: background var(--dur) var(--ease);
 }
@@ -61,7 +61,7 @@
 .gghost {
   position: absolute; inset: 0; display: grid; place-items: center;
   font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
-  color: #fff; background: rgba(8,7,10,.35);
+  color: #fff; background: rgba(10,14,23,.35);
 }
 
 /* ================================================================= empty */

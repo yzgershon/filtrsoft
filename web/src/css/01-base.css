@@ -29,22 +29,48 @@
  * itself for the browsers that need it.
  */
 
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
 
 /* ============================================================================
-   Assyze — mobile-first, OLED dark.
-   Numerals are JetBrains Mono (tabular) because prices sit in columns and must
-   not shift width as they change. Everything else is the system stack so text
-   never blocks on a webfont.
+   Assyze — the VaultX design system, mobile-first, OLED dark.
+
+   ⚠ EVERY VALUE HERE WAS MEASURED OFF THE RUNNING DEMO, not chosen. Yish,
+   2026-08-31: *"literally abandon everything from Assyze and use this design
+   system ... and use the demo's colors aswell."* Source, extraction script and
+   the full mapping: `docs/VAULTX-DESIGN-SYSTEM.md` and `src/browser/extract-design-tokens.mjs`.
+
+   The skill's own `--design-system` search returns gold #F59E0B + purple and
+   recommends Orbitron for "fintech crypto". The demo uses none of that. The
+   DEMO is the brief.
+
+   Three fonts, each with a job:
+     · Space Grotesk  headings. 367 elements on the demo use it.
+     · DM Sans        body.
+     · JetBrains Mono numerals ONLY — tabular figures, so prices in a column
+                       do not shift width as they change. Kept from the old
+                       system because it is a data rule, not a style one.
    ========================================================================== */
 :root {
-  /* surfaces — true black base for OLED, lifted cards for hierarchy */
-  --bg: #08070a;
-  --surface: #121116;
-  --surface-2: #1b1a21;
-  --surface-3: #26242d;
-  --line: #2a2833;
-  --line-soft: #201f28;
+  /*
+   * SURFACES ARE GLASS, NOT FILL.
+   *
+   * The demo paints `rgba(255,255,255,.05)` 53 times and one border colour,
+   * `rgba(255,255,255,.1)`, 48 times. That is the entire surface system: a
+   * translucent white wash over an OLED navy, separated by a hairline. There
+   * are no lifted greys.
+   *
+   * ⚠ `--surface` IS TRANSLUCENT NOW. Anything that needs to hide what is
+   * behind it — a sticky bar, a sheet — must pair it with `backdrop-filter`,
+   * which is how the demo does it. A translucent surface with no blur behind
+   * it reads as a rendering mistake.
+   */
+  --bg: #0a0e17;
+  --surface: rgba(255,255,255,.05);
+  --surface-2: rgba(255,255,255,.08);
+  --surface-3: rgba(255,255,255,.12);
+  --line: rgba(255,255,255,.1);
+  --line-soft: rgba(255,255,255,.06);
+  --blur: 20px;
 
   /*
    * text — EVERY ONE OF THESE MUST CLEAR 4.5:1 ON --surface.
@@ -65,33 +91,66 @@
    * rather than a rename so the seven sites keep reading as "the brightest
    * ink", which is what they meant.
    */
-  --ink: #f2f0f5;
-  --ink-1: #f2f0f5;
-  --ink-2: #a8a4b4;
-  --ink-3: #858092;
+  --ink: #ffffff;
+  --ink-1: #ffffff;
+  --ink-2: #94a3b8;
+  --ink-3: #94a3b8;
 
-  --brand: #ff8a3d;
-  --on-brand: #160d05;
+  /*
+   * ⚠ THE BRAND IS A GRADIENT, AND ASSYZE'S ORANGE IS GONE.
+   *
+   * The demo has no orange except as a Bitcoin token colour. Its signature is
+   * one gradient, used for the logo mark, the primary CTA and the accent word
+   * in every headline. `--brand` stays a flat colour for the places that need
+   * one (a border, an icon, a focus ring); `--grad` is the real identity.
+   */
+  --brand: #00d4ff;
+  --brand-2: #7b61ff;
+  --grad: linear-gradient(135deg, #00d4ff 0%, #7b61ff 100%);
+  --on-brand: #04121a;
 
-  --buy: #34d399;
-  --fair: #60a5fa;
-  --pass: #fbbf24;
-  --verify: #ff8a3d;
-  --risk: #f87171;
-  --unknown: #a78bfa;
+  /*
+   * ⚠ THE VERDICT COLOURS ARE THE PRODUCT, NOT DECORATION. They carry the
+   * only judgement the app makes, so they move onto the demo's palette rather
+   * than being dropped. Mapping and reasoning: docs/VAULTX-DESIGN-SYSTEM.md.
+   *
+   * ⚠ BUY green and RISK red are a colour-blind-unsafe pair ON THEIR OWN.
+   * They are safe here because every verdict is also a WORD on screen ("BUY
+   * IT", "RISKY") and an icon. Do not drop those labels to save space.
+   */
+  --buy: #00ff88;
+  --verify: #00d4ff;
+  --risk: #ff4757;
+  --fair: #7b61ff;
+  --pass: #94a3b8;
+  --unknown: #64748b;
 
+  /*
+   * The demo's radii, by how often it uses them: 20px on cards (34 times),
+   * pills at 50/9999 (27), 12px on small tiles (15), 8px on inline chips (9).
+   */
   --r-sm: 8px;
   --r-md: 12px;
-  --r-lg: 16px;
-  --r-xl: 22px;
+  --r-lg: 20px;
+  --r-xl: 20px;
+  --r-pill: 999px;
+
+  /*
+   * Depth is a coloured GLOW, never a black drop shadow. Both measured off the
+   * demo at 60px spread and .2 alpha.
+   */
+  --glow: 0 0 60px rgba(0,212,255,.2);
+  --glow-2: 0 0 60px rgba(123,97,255,.2);
 
   /* 4/8 rhythm */
   --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
   --s5: 24px; --s6: 32px; --s7: 48px;
 
   --tap: 44px;
+  /* The demo transitions on `all .2s ease` and `all .3s ease`. */
   --dur: 200ms;
-  --ease: cubic-bezier(.22,.61,.36,1);
+  --dur-slow: 300ms;
+  --ease: ease;
 
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
@@ -104,7 +163,7 @@ html, body {
   height: 100%;
   background: var(--bg);
   color: var(--ink);
-  font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  font: 400 16px/1.55 "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -163,7 +222,43 @@ a { color: inherit; touch-action: manipulation; }
   overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }
 
+/*
+ * Headings are Space Grotesk 700 and letter-spacing is NORMAL.
+ *
+ * ⚠ THE DEMO DOES NOT TRACK ITS HEADINGS TIGHT. Assyze's old scale used
+ * -.035em on the feed headline, which is a different typographic voice; the
+ * per-heading overrides that still set it are corrected where they are
+ * declared, not fought with `!important` here.
+ */
+h1, h2, h3, h4, h5, .brand {
+  font-family: "Space Grotesk", "DM Sans", system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: normal;
+}
+
+/*
+ * ⚠ NUMERALS STAY JetBrains Mono AND THAT IS A DATA RULE, NOT A STYLE ONE.
+ * Prices sit in columns and must not shift width as they change. The demo
+ * renders its balances in a mono face for the same reason.
+ */
 .num { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+/*
+ * The demo's two motion primitives. Everything animated is `transform` or
+ * `opacity` — nothing animates layout.
+ */
+@keyframes float { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-20px) } }
+@keyframes glowpulse { 50% { opacity: .5 } }
+
+/*
+ * The gradient text used for the accent word in every headline. Applied to a
+ * span, never to a whole heading: the point is ONE word carrying the accent.
+ */
+.g {
+  background: var(--grad);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+}
 
 :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
 

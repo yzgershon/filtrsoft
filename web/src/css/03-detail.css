@@ -35,11 +35,11 @@
 }
 .verdict .settles b { color: var(--ink-2); font-weight: 600; }
 
-.v-BUY    { color: var(--buy);     border-color: rgba(52,211,153,.32);  background: linear-gradient(180deg, rgba(52,211,153,.09), transparent 58%), var(--surface); }
-.v-FAIR   { color: var(--fair);    border-color: rgba(96,165,250,.32);  background: linear-gradient(180deg, rgba(96,165,250,.09), transparent 58%), var(--surface); }
-.v-PASS   { color: var(--pass);    border-color: rgba(251,191,36,.32);  background: linear-gradient(180deg, rgba(251,191,36,.09), transparent 58%), var(--surface); }
-.v-VERIFY { color: var(--verify);  border-color: rgba(255,138,61,.34);  background: linear-gradient(180deg, rgba(255,138,61,.1), transparent 58%), var(--surface); }
-.v-RISK   { color: var(--risk);    border-color: rgba(248,113,113,.34); background: linear-gradient(180deg, rgba(248,113,113,.1), transparent 58%), var(--surface); }
+.v-BUY    { color: var(--buy);     border-color: rgba(0,255,136,.32);  background: linear-gradient(180deg, rgba(0,255,136,.09), transparent 58%), var(--surface); }
+.v-FAIR   { color: var(--fair);    border-color: rgba(123,97,255,.32);  background: linear-gradient(180deg, rgba(123,97,255,.09), transparent 58%), var(--surface); }
+.v-PASS   { color: var(--pass);    border-color: rgba(148,163,184,.32);  background: linear-gradient(180deg, rgba(148,163,184,.09), transparent 58%), var(--surface); }
+.v-VERIFY { color: var(--verify);  border-color: rgba(0,212,255,.34);  background: linear-gradient(180deg, rgba(0,212,255,.1), transparent 58%), var(--surface); }
+.v-RISK   { color: var(--risk);    border-color: rgba(255,71,87,.34); background: linear-gradient(180deg, rgba(255,71,87,.1), transparent 58%), var(--surface); }
 .v-INSUFFICIENT_DATA, .v-OUT_OF_SCOPE { color: var(--unknown); border-color: var(--line); background: var(--surface); }
 
 /* ================================================================ sections */
@@ -56,7 +56,15 @@
   text-transform: none; letter-spacing: 0; font-weight: 600;
 }
 
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; }
+/*
+ * Glass, not fill. `--surface` is `rgba(255,255,255,.05)` now, so a panel needs
+ * the blur behind it or the translucency reads as a rendering mistake.
+ */
+.panel {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-lg); overflow: hidden;
+  backdrop-filter: blur(var(--blur));
+}
 .panel > * + * { border-top: 1px solid var(--line-soft); }
 
 .kv { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s4); padding: 13px var(--s4); }
@@ -65,7 +73,7 @@
 .kv .v { font-size: 15px; font-weight: 600; white-space: nowrap; }
 .kv.sub .k { padding-left: var(--s3); color: var(--ink-3); font-size: 13px; }
 .kv.sub .v { font-weight: 500; color: var(--ink-2); font-size: 14px; }
-.kv.hi { background: rgba(255,138,61,.06); }
+.kv.hi { background: rgba(0,212,255,.06); }
 .kv.hi .v { color: var(--brand); }
 .pos { color: var(--buy); } .neg { color: var(--risk); }
 
@@ -74,11 +82,11 @@
 .flag .txt { min-width: 0; }
 .flag .code { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 3px; }
 .flag .ev { font-size: 13.5px; line-height: 1.5; color: var(--ink-2); }
-.f-blocker .dot, .f-high .dot { background: rgba(248,113,113,.15); color: var(--risk); }
+.f-blocker .dot, .f-high .dot { background: rgba(255,71,87,.15); color: var(--risk); }
 .f-blocker .code, .f-high .code { color: var(--risk); }
-.f-medium .dot { background: rgba(251,191,36,.15); color: var(--pass); }
+.f-medium .dot { background: rgba(148,163,184,.15); color: var(--pass); }
 .f-medium .code { color: var(--pass); }
-.f-low .dot, .f-info .dot { background: rgba(52,211,153,.14); color: var(--buy); }
+.f-low .dot, .f-info .dot { background: rgba(0,255,136,.14); color: var(--buy); }
 .f-low .code, .f-info .code { color: var(--buy); }
 
 .q { display: flex; gap: var(--s3); padding: 12px var(--s4); align-items: flex-start; }
@@ -93,7 +101,7 @@
 }
 .q button:hover { color: var(--ink); border-color: var(--ink-3); }
 .q button:active { transform: scale(.94); }
-.q button.ok { color: var(--buy); border-color: rgba(52,211,153,.4); }
+.q button.ok { color: var(--buy); border-color: rgba(0,255,136,.4); }
 
 /* ================================================================ progress */
 .prog { display: flex; gap: var(--s2); margin: var(--s4) 0 0; }
