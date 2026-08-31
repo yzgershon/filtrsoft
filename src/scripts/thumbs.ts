@@ -49,21 +49,24 @@ if (has("prune")) {
 }
 
 /**
- * ⚠ ORDERED NEWEST FIRST, AND THAT IS THE WHOLE STRATEGY ON A BACKLOG.
+ * ⚠ ORDERED BY WHEN THE PHOTO WAS CAPTURED, NOT BY LISTING ID.
  *
- * The urls we can still fetch are the ones captured most recently. Working
- * through 1,000 listings oldest-first spends the run on Facebook tokens that
- * expired days ago and reaches the salvageable ones last — the opposite of what
- * a race against a 48-hour expiry wants.
+ * The only thing that decides whether a fetch can still succeed is how fresh
+ * the url is, and `l.id DESC` is a proxy for how recently the LISTING was
+ * created — a different quantity. Measured against production: ordering by id
+ * cached 188 thumbnails and **none of them Facebook**, because those rows were
+ * pushed earlier while the container keeps minting fresh Craigslist ids. It was
+ * working hardest on the source that needed it least.
  */
 type Row = { id: number; source: string; url: string };
 const rows = db().query(`
-  SELECT l.id, l.source,
-         (SELECT p.url FROM listing_photos p WHERE p.listing_id = l.id ORDER BY p.position LIMIT 1) url
-  FROM listings l
-  WHERE l.delisted_at IS NULL
-    ${has("refresh") ? "" : "AND NOT EXISTS(SELECT 1 FROM listing_thumbs t WHERE t.listing_id = l.id)"}
-  ORDER BY l.id DESC
+  SELECT p.listing_id AS id, l.source, p.url
+  FROM listing_photos p
+  JOIN listings l ON l.id = p.listing_id
+  WHERE p.position = 0
+    AND l.delisted_at IS NULL
+    ${has("refresh") ? "" : "AND NOT EXISTS(SELECT 1 FROM listing_thumbs t WHERE t.listing_id = p.listing_id)"}
+  ORDER BY p.captured_at DESC
 `).all().filter((r) => (r as Row).url) as Row[];
 
 const limit = Number(arg("limit")) || 200;

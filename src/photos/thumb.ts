@@ -218,10 +218,20 @@ export function pruneThumbs(): { deleted: number; freedBytes: number; keptBytes:
 /**
  * Cache a few listings that have no thumbnail yet. Bounded, for the crawl loop.
  *
- * ⚠ NEWEST FIRST, AND THAT IS THE WHOLE STRATEGY AGAINST A 48-HOUR EXPIRY. The
- * urls still worth fetching are the ones captured most recently; working a
- * backlog oldest-first spends every run on Facebook tokens that died days ago
- * and reaches the salvageable rows last.
+ * ⚠ ORDERED BY WHEN THE PHOTO WAS CAPTURED, NOT BY LISTING ID, AND THE
+ * DIFFERENCE IS THE WHOLE POINT OF THE BACKFILL.
+ *
+ * The first version ordered `l.id DESC`, which is a proxy for how recently the
+ * LISTING was created — and that put Facebook LAST, because those rows were
+ * pushed earlier while the container keeps minting fresh Craigslist ids. Watched
+ * running against production: 188 thumbnails cached, **0 of them Facebook**,
+ * which is the one source whose urls expire. The backfill was working hardest
+ * on the rows that needed it least.
+ *
+ * `listing_photos.captured_at` is literally "how fresh is this url", which is
+ * the only thing that decides whether a fetch can still succeed. A re-crawl or
+ * a re-push updates it, so a listing whose photo url was just re-signed goes
+ * back to the front of the queue.
  *
  * ⚠ AND IT MUST STAY SMALL PER TICK. This is network I/O inside the loop that
  * also crawls and scores. 25 at 6-wide is a couple of seconds; it drains a
@@ -231,12 +241,13 @@ export function pruneThumbs(): { deleted: number; freedBytes: number; keptBytes:
 export async function backfillThumbs(limit = 25): Promise<{ cached: number; tried: number }> {
   if (THUMBS_OFF) return { cached: 0, tried: 0 };
   const rows = db().query(`
-    SELECT l.id,
-           (SELECT p.url FROM listing_photos p WHERE p.listing_id = l.id ORDER BY p.position LIMIT 1) url
-    FROM listings l
-    WHERE l.delisted_at IS NULL
-      AND NOT EXISTS(SELECT 1 FROM listing_thumbs t WHERE t.listing_id = l.id)
-    ORDER BY l.id DESC
+    SELECT p.listing_id AS id, p.url, p.captured_at
+    FROM listing_photos p
+    JOIN listings l ON l.id = p.listing_id
+    WHERE p.position = 0
+      AND l.delisted_at IS NULL
+      AND NOT EXISTS(SELECT 1 FROM listing_thumbs t WHERE t.listing_id = p.listing_id)
+    ORDER BY p.captured_at DESC
     LIMIT $n
   `).all({ $n: limit }) as Array<{ id: number; url: string | null }>;
 
