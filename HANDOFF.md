@@ -51,7 +51,7 @@ a debugging fallback, never the address of the product.
 > one reason to be careful.
 
 ```
-PRODUCTION   engine 0.3.25
+PRODUCTION   engine 0.3.26
 listings   717 in the feed  (377 craigslist · 193 facebook · 147 offerup)
 verdicts   550 INSUFFICIENT_DATA · 111 PASS · 25 RISK · 15 VERIFY · 13 FAIR · 3 BUY
 comps    18,588   ALL REAL, from eBay sold listings
@@ -3307,6 +3307,54 @@ itself out. So the tick backfill went 6 workers / 8s to **3 workers / 20s** —
 trading wall-clock, which a 3-minute tick has, for yield, which a 48-hour
 expiry does not. And the tick logs MISSES as well as hits; logging only
 successes is what made a 20% yield look like "there were only five to do".
+
+### 18h. ⚠ A SPEC SCREEN IS EVIDENCE *FOR* THE SELLER — engine 0.3.26
+
+Yish, 2026-08-31, on the RTX 5090 listing in §2: *"the image itself is a photo
+of the computer's specs verified on the monitor of the PC, making this extra
+trustworthy, not a red flag ... a lot of the time there is a screenshot or an
+image of proof of specs which usually states the model or type of ram, cpu,
+gpu."*
+
+**The engine was disagreeing with itself.** The vision prompt calls a spec
+readout *"the highest-value image in any listing"*, and `photos/index.ts`
+records the Phase 0 miss where an entire spec sheet sat in photo 3 — while
+`screenshotArtifacts` asked for *"any UI chrome proving the photo was
+screenshotted from another app"*, which a photo of Task Manager is covered in.
+The two fields OVERLAPPED and the overlap was scored as fraud, at HIGH severity,
+on exactly the listings a diligent seller produces.
+
+⚠ **THE DISCRIMINATOR IS WHAT THE CHROME IS WRAPPED AROUND.** A photo of the
+ITEM inside another app's UI means the seller may not own it — a SAVE icon is
+the strongest form, because you only save a photo somebody sent you. A SPEC
+READOUT on the item's own display means he does own it and is showing you.
+`PROMPT_VERSION` 2026-08-31.1 states that exclusion in capitals.
+
+The bug had four layers and all four are fixed:
+
+- `visionSignals` emits **`SPEC_SCREEN_PROOF`** — positive, `info` severity.
+- **Vision signals carry their own polarity.** `engine/index.ts` pushed every
+  one of them with a hardcoded `polarity: "negative"`, so a positive finding
+  from a photo was *structurally impossible to express*.
+- `SCREENSHOT_ARTIFACTS` drops to `medium` when the listing also shows a spec
+  screen. ⚠ **That guard is for the CACHE, not the model** — vision results are
+  keyed on photo CONTENT, so every stored row came from the old prompt and keeps
+  serving until re-analysed. A downgrade rather than a suppression, because a
+  seller can post a genuine spec screen AND a lifted product photo.
+- **A positive signal no longer generates a question.** Asking *"could you send
+  photos you've taken yourself"* of someone who already posted a spec readout is
+  the app telling him his proof does not count.
+
+Verified against the 66 stored vision results mentioning the field. **Listing
+#624 is the case exactly**: artifacts read *"Ubuntu system screen with
+orange-bordered boxes containing spec information"* — a spec screen, reported as
+fraud. It now reads `[info/positive] SPEC_SCREEN_PROOF` plus a demoted note.
+Eleven more listings gain a positive signal they never had.
+
+⚠ `checkStored` calls `loadVision(listingId)` with **no prompt-version filter**,
+which is what makes the ENGINE_VERSION bump enough: production re-scores with
+the new handling immediately instead of waiting on paid re-analysis. The
+PROMPT_VERSION bump only affects newly analysed listings.
 
 ### 18g. OPEN, NOT ACTED ON: 77% of the feed cannot be priced
 
