@@ -3,7 +3,8 @@
 **Master plan AND current state. Update before you stop working.** A stale line
 here is worse than a missing one, because a fresh session will believe it.
 
-Last updated **2026-08-27**.
+Last updated **2026-08-31**. Newest first: read **section 18** for the current
+pass, including the one open item (77% of the feed cannot be priced).
 
 ---
 
@@ -104,10 +105,11 @@ bun run retail [--skus N] [--sku "RTX 5070"] [--source newegg] [--replay]
                                   NEW retail from Newegg / Micro Center / Best Buy
 bun run archive [--check|--import]
                                   ship the comps archive to production
-bun run catalog:derive [--min N] [--apply]    dry run by default
 
 bun run ou:crawl --query "graphics card"      OfferUp   (local basis)
+bun run ou:photos [--limit 40]                OfferUp full-res photos, per listing
 bun run mc:crawl --query "rtx 4070"           Mercari   (eBay basis)
+bun run thumbs [--limit 200] [--prune]        self-hosted card thumbnails
 bun run push --source facebook                local crawl -> assyze.com
 
 bun run check <url>               one listing, staged timings
@@ -2955,3 +2957,280 @@ a layout no device has.
 - **The photo index was never clamped** and reached "Photo 14 of 10".
 
 **164 pass / 0 fail.**
+
+---
+
+## 18. The 2026-08-31 pass — ten things Yish listed in one message
+
+Nine of them shipped; the tenth is a diagnosis at the bottom that nobody has
+acted on yet. Baselines after: **`bun test` 126 pass**, **`bun run typecheck`
+clean**, **`ui-verify` 170 pass / 0 fail**.
+
+### 18a. `.b-*` was emitted by four components and defined by nobody
+
+*"The overlayed tags should not all be black, they should correspond with the
+tag — if it's a buy it's green, verify is yellow, pass is black still, and risky
+is red."*
+
+`Gcard`, the feed hero, the Check history and the Saved grid have all rendered
+``className={`gcall b-${call}`}`` since the feed was built and **there was never
+a `.b-*` rule anywhere in the stylesheet**. Every one of those classes was
+inert, so all seven verdicts drew the same dark chip with the same inherited
+white ink. He was reading a control that had silently lost its only variable.
+
+**BUY, VERIFY and RISK carry the colour as a FILL; PASS, FAIR and Can't tell
+keep the dark chip with the hue as ink.** That is his traffic light, and it is
+also what keeps every combination above 4.5:1 — a filled `--fair` purple
+measures 4.29:1 against dark ink and 4.27:1 against white, failing BOTH
+directions with no ink choice that rescues it.
+
+**⚠ `--verify` IS AMBER NOW, NOT THE DEMO'S CYAN.** Cyan is `--brand`: the
+wordmark, the segment indicator, the CTA and the focus ring. The one palette
+entry carrying a JUDGEMENT was rendering in the same colour as ordinary chrome.
+`docs/VAULTX-DESIGN-SYSTEM.md` records this as the single value in the system
+that is deliberately not the demo's.
+
+The dark chip went from `.82` to `.92` alpha because these sit on an arbitrary
+photo and **the worst case is a white one**.
+
+### 18b. Back, and it puts you where you were
+
+*"The only back button that works is when I click the assyze logo, but that
+always brings me back to the top of the homepage."*
+
+- **Back is on the photo** (`.dback`), where he asked for it. A listing with no
+  photos gets the same control in flow above the title — `Gallery` returns null
+  on an empty `photoUrls`, so hanging it only there would lose it on exactly the
+  listings ZERO_PHOTOS fires on. Settings gets one in the top bar.
+- **It calls `history.back()`, not `go("/")`.** Pushing `/` is a NEW entry, so
+  the feed mounts as a forward navigation and lands at the top — which is what
+  the wordmark already did. `depth` tracks how far into our own stack we are,
+  because a shared link opens onto `/c/842` with nothing behind it and
+  `history.length` cannot tell you that.
+
+**⚠ THE BROWSER'S OWN `scrollRestoration` CANNOT DO THIS.** It restores when the
+document is restored, which here is a mount with `items === null` and a feed 0px
+tall; the attempt clamps to 0 and by the time 60 cards exist it has finished.
+Restoration has to happen when the ROWS land, which only the feed knows.
+
+**⚠ AND THE OFFSET ALONE IS NOT ENOUGH.** Press "Show more" twice, scroll to row
+150, open a listing: a fresh mount fetches 60 rows and a saved offset of
+14,000px clamps to the bottom of them. You land somewhere you have never been,
+on a screen that looks like the restore worked. `restoreLimit` sends the row
+count with the offset. Measured on a Galaxy S24: 119 rows, y=7405 → back → 119
+rows, y=7405, **drift 0**. Same inside the desktop frame, where the scroller is
+`.scroll` rather than the document — which is why `scrollHost()` READS the
+overflow instead of assuming.
+
+The spot is recorded in `go()`, not on the card: a card is one of several ways
+out of the feed and any of them can be followed by Back.
+
+**Recently viewed:** `pushHist` was called in exactly one place, the check
+stream's `done` handler. A listing you PASTED was remembered and a listing you
+TAPPED was not — and tapping is how the app is used, so the list was always
+empty. ⚠ Side effect worth knowing: `OutcomePrompt` now has real history to draw
+on, so "what happened with this one?" will appear far more often than it used
+to. The Settings toggle turns it off.
+
+### 18c. Two off-centre icons and a label 1px from its border
+
+*"The saved tab has some buttons that are bugged like the browse deals and the
+saved icon are not centered or cut off."*
+
+Both from one character. **`.empty svg` is a DESCENDANT selector**, so its 12px
+bottom margin landed on every icon anywhere inside an empty state. A margin
+inside a `place-items: center` box shifts the item up by half of it: measured,
+the saved bookmark sat 8px from the top of its 54px tile and 20px from the
+bottom, and the icon in "Browse deals" 9px down in a 44px button with 21px
+below. `> svg` fixes both.
+
+**`.btn2` had ZERO horizontal padding.** Survivable in `.actions` and
+`.sheetfoot` where a grid stretches it; fatal anywhere it sizes to its own
+content. `.empty .btn2` is `inline-flex`, so "Browse deals" rendered 114px wide
+with its icon 1px from the left border.
+
+**`src/browser/button-audit.mjs` is the durable half**, and it is part of
+`ui-verify` (section 13): 359 buttons across Deals, Check, Saved, Settings, a
+listing, the filter sheet and the lightbox. Four checks — 44px target, children
+inside the box, ink off a visible edge, content vertically centred — and each is
+a bug that shipped past a screenshot review.
+
+**⚠ TWO QUALIFICATIONS KEEP IT FROM CRYING WOLF, AND WITHOUT THEM IT IS
+USELESS.** The ink rule applies only to buttons with a VISIBLE edge, and not
+when a child is deliberately full-bleed. Without those it fired on all 60 feed
+cards and the wordmark — 65 findings, none real, which is how the actual 1px
+case would have stayed buried.
+
+### 18d. The top of every screen, cut roughly in half
+
+Measured on his Galaxy S24:
+
+|          | head | first content |
+|---|---|---|
+| Deals    | 158 → **107** | 291 → **240**px of 780 (37% → 31%) |
+| Check    | 158 → **107** | 223 → **172** (29% → 22%) |
+| Saved    | 158 → **107** | 255 → **172** (33% → 22%) |
+| Settings | 117 → **89**  | 214 → **154** (27% → 20%) |
+
+The demo's rhythm is intact — badge, headline with one gradient accent word,
+muted subtitle. It was the SCALE. A 32px headline is a landing-page headline and
+this is a screen inside an app you have already opened.
+
+**⚠ THE SUBTITLE IS ONE LINE AND THE COPY IS WHAT CHANGED, NOT THE MAX-WIDTH.**
+A second line costs 18px on every screen forever. Verified unclipped down to
+iPhone SE's 288px.
+
+Saved and Settings were 32px worse than Deals for a reason neither chose: both
+wrapped in `.sec`, which carries `margin-top: var(--s6)` for the DETAIL screen's
+stacked sections. `.settings` went with it, having never been defined anywhere.
+
+**"Ready" is "Buy it".** The card on a BUY listing has said "BUY IT" since the
+feed existed, so the segment collecting them was the one place calling that
+verdict something else. **The id stays `ready`** — it is a URL and a server
+query. That rename is why segment padding went 6px → 5px: one extra character
+put iPhone SE 3px into overflow, which `.seg` absorbs by SCROLLING rather than
+clipping and so would have gone unnoticed.
+
+### 18e. The detail screen's sections, in the demo's card language
+
+All eight headers were `.sec h4`: 11px, uppercase, `.14em` tracked, muted grey.
+Eight down a column read as one undifferentiated list of captions. `SecHead` is
+an accent icon tile, a bold white title and one muted line — the demo's feature
+card.
+
+**⚠ THE ACCENT DESCRIBES WHAT THE SECTION IS, AND HERE THAT INCLUDES VERDICT
+HUES.** Green for the money, cyan for evidence, purple for retail and flags,
+amber for pickup checks, red for what the seller disclosed is wrong. The
+SCREEN-level badges deliberately avoid verdict colours (`.eyebrow`) because an
+amber badge reads as a judgement about the whole screen; a list of disclosed
+defects painted green to satisfy a cycling rule would be a rule outranking a
+meaning.
+
+**Two cascade bugs surfaced by doing it, and both are the same shape:**
+
+- **`.sec h4` was declared in THREE blocks across two files** with the
+  properties split between them, so `.dhead h4` (0,2,0) simply lost to whichever
+  `.sec h4` (0,2,0) came last — the new headers rendered as the exact thing they
+  replace, which looks like the component was never applied. `.sec > h4` makes
+  them describe different elements instead of competing.
+- **`.t-*` set `background` directly.** Fine while a 7px dot was the only
+  consumer, useless the moment the icon tile needed the same hue as a colour, a
+  12% fill, a 26% hairline and a glow. It names a `--tone` now.
+
+`--dur-exit` was used in 04-feed.css and **defined nowhere**, which invalidated
+`.dealhero`'s whole `transition` declaration — the feed hero has had no
+transitions at all. Same shape as the `--ink-1` bug; found the same way, by
+sweeping for `var(--x)` with no matching `--x:`.
+
+### 18f. ⚠ OFFERUP'S CARD IS NOT THE LISTING, AND FACEBOOK'S URLS DIE IN 2 DAYS
+
+Two separate image bugs, both measured before either was touched.
+
+**OfferUp.** *"OfferUp listings only show 1 photo in worse resolution than the
+original, when the original listing has like 4 photos."* He is describing the
+search CARD, which is all we ever read: one signed 250x250, and **OfferUp signs
+per size**, so rewriting the dimensions returns 400. The detail page hands over
+every slide at full size — measured on a real listing, **9 `<img>` tags carrying
+4 DISTINCT photos, largest 1442x1922**, each with its own valid signature.
+
+⚠ **THE SAME PHOTO APPEARS THREE OR FOUR TIMES PER PAGE WITH DIFFERENT
+SIGNATURES**, so the FILENAME is the only stable identity. Deduping on the url
+gives nine photos where there are four.
+
+    bun run ou:photos [--limit 40] [--all] [--headless] [--dry]
+
+149 listings, **596 full-size photos**, ~4 each against 1 tiny one.
+
+⚠ **THE 640px FLOOR IS A CONTAMINATION GUARD, NOT A QUALITY PREFERENCE.** A
+detail page also renders "similar items" as `images.offerup.com` thumbnails;
+letting those through gives a listing ANOTHER listing's photos, and vision then
+reads specs off the wrong machine — a confident wrong verdict, the worst failure
+available here. Gallery slides are served at 720+, carousel thumbnails at 250.
+The "for sale in" title check is the second half: OfferUp answers a dead item by
+BOUNCING you to search rather than 404ing.
+
+It is a separate pass on purpose — one browser visit per listing, against a
+crawl that gets ~25 per page load.
+
+**Facebook.** Every failing image on the live feed carried an `oe=` expiry in
+the PAST and every working one about 40 hours ahead:
+
+    403   oe -> 2026-08-30T11:34     (checked 2026-08-31T18:21)
+    200   oe -> 2026-09-01T14:46 … 17:39
+
+**The feed keeps a listing for 28 days, so from about day two every Facebook
+card is guaranteed to render a broken image.** No proxy helps — the token is
+dead, so the server 403s exactly as the browser does. Production cannot
+re-crawl Facebook either; that needs his signed-in browser.
+
+⚠ **`listing_thumbs` IS NOT THE RETENTION THAT FILLED THE VOLUME IN 2026-08.**
+That was 316 MB of full-resolution photos for 654 listings, ~480 KB each,
+unbounded, on the disk holding the database — 13 hours of crawler downtime while
+the feed looked healthy. Every property that made it dangerous is inverted:
+
+- ONE image per listing, enforced by a primary key
+- 480px WebP q72 — **measured at 15–16 KB across 189 real listings**, not 480 KB
+- a hard `MAX_BYTES` refusal, so a pathological encode is dropped
+- pruned on the same 28-day window the feed uses, **with a test asserting the
+  two numbers still agree**
+- in the database, so a crash cannot leave an orphan directory
+- `ASSYZE_NO_THUMB_CACHE=1` turns it off
+- **`/v1/health` reports its size**, because last time every surface said
+  healthy while the disk filled
+
+Three capture points, **none of which adds a request**: the crawler reuses the
+bytes `persistPhotos` already downloads for the perceptual hash; a push caches
+at ingest, minutes after the crawl and the only moment production can fetch a
+Facebook url at all; and the crawl tick backfills 25 a tick, **newest first**,
+because the salvageable rows are the recent ones and an oldest-first backlog
+spends every run on tokens that died days ago.
+
+    bun run thumbs [--limit 200] [--prune] [--stats] [--refresh]
+
+### 18g. OPEN, NOT ACTED ON: 77% of the feed cannot be priced
+
+*"There's only 1 buy out of 578 listings."* Measured across all 708 production
+listings on 2026-08-31:
+
+| | | |
+|---|---|---|
+| **545** | INSUFFICIENT_DATA | **77.0%** |
+| 108 | PASS | 15.3% |
+| 25 | RISK | 3.5% |
+| 15 | VERIFY | 2.1% |
+| 13 | FAIR | 1.8% |
+| **2** | **BUY** | **0.3%** |
+
+**The BUY count is not the engine being strict — it is that three quarters of
+the feed never gets priced at all.** Of the 163 listings that CAN be priced,
+only 12 clear the profit floor, and 9 of those are held at VERIFY by an
+unresolved risk, which is `riskGate` doing exactly its job.
+
+The 545, by the reason the verdict itself gives:
+
+| | |
+|---|---|
+| 318 | "Can't be valued: `<spec>` not stated" |
+| 158 | "Couldn't identify the exact model" |
+| **51** | **"No recent sold comps for this model"** |
+| 9 | Custom build, not enough component comps |
+| 9 | Specs known, market prices aren't |
+
+Two things stand out and neither has been done:
+
+1. **A lot of it is out of scope entirely** and should never have reached a
+   verdict: *"20 PlayStation 2 Games"*, *"PS5 video game Warhammer 40,000"*,
+   *"Vintage Symphonic 9-inch CRT TV/VHS"*, *"Astec Cisco System Power Supply"*,
+   *"Otterbox Defender Phone Case"*. Those are media and accessories — already
+   out of scope per section 1 — and they are padding the "Couldn't price these"
+   bucket he has said twice he does not want. Tightening the grammar gate is the
+   cheapest win here, and it needs an `ENGINE_VERSION` bump so production
+   re-scores.
+2. **51 listings matched a SKU and have no comps.** That is `bun run ebay:comps`
+   on his machine, and it is the only one of these that is purely a data pull.
+
+⚠ **DO NOT "FIX" THIS BY LOOSENING THE MATCHER.** The 158 unidentified include
+real gaps (*"HP Victus RTX 4050 Laptop"*) and genuinely unidentifiable listings
+(*"Gaming pc"*, *"Pc whole setup"*). Section 7 already records that
+hand-enumerating the catalog does not work — 39 hand-written laptop SKUs moved
+the unmatched count 125 to 132.
