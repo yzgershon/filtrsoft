@@ -122,6 +122,19 @@
 .actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); margin-top: var(--s5); }
 .btn2 {
   min-height: var(--tap); border-radius: var(--r-sm);
+  /*
+   * ⚠ THE HORIZONTAL PADDING IS NOT COSMETIC — WITHOUT IT THIS BUTTON READS AS
+   * CUT OFF.
+   *
+   * `.btn2` had none, which is survivable in `.actions` and `.sheetfoot` where
+   * a grid or a flex parent stretches it. It is NOT survivable anywhere the
+   * button sizes to its own content: `.empty .btn2` is `inline-flex`, so
+   * "Browse deals" rendered 114px wide with its icon starting 1px from the
+   * left border and the label ending 1px from the right. Measured on a Galaxy
+   * S24. Yish: *"the browse deals and the saved icon are not centered or cut
+   * off."*
+   */
+  padding: 0 var(--s4);
   background: var(--surface-2); border: 1px solid var(--line); color: var(--ink);
   font-size: 14px; font-weight: 600;
   display: flex; align-items: center; justify-content: center; gap: 7px;
@@ -131,7 +144,20 @@
 .btn2:active { transform: scale(.97); }
 
 .empty { text-align: center; padding: var(--s7) var(--s4); color: var(--ink-3); }
-.empty svg { color: var(--surface-3); margin-bottom: var(--s3); }
+/*
+ * ⚠ THE CHILD COMBINATOR IS THE WHOLE FIX. `.empty svg` is a DESCENDANT
+ * selector, so this 12px bottom margin was landing on every icon anywhere
+ * inside an empty state — including the bookmark inside `.empty .eic` and the
+ * grid glyph inside `.empty .btn2`, neither of which is the illustration this
+ * rule was written for.
+ *
+ * A margin inside a `place-items: center` box or an `align-items: center` row
+ * shifts the item UP by half of it. Measured on a Galaxy S24: the saved icon
+ * sat 8px from the top of its 54px tile and 20px from the bottom, and the icon
+ * in "Browse deals" 9px down in a 44px button with 21px below. Six pixels off
+ * centre in both, from one selector that was one character too broad.
+ */
+.empty > svg { color: var(--surface-3); margin-bottom: var(--s3); }
 .empty b { display: block; color: var(--ink-2); font-size: 15px; margin-bottom: 5px; font-weight: 600; }
 .empty span { font-size: 13.5px; }
 

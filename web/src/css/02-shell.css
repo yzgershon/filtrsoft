@@ -70,12 +70,16 @@
 .iconbtn:active { transform: scale(.94); }
 .iconbtn.on { color: var(--brand); background: rgba(0,212,255,.12); }
 /*
- * The bar's back arrow. Narrower than a full 44px SQUARE because it is the
- * first thing in the row and the wordmark has to sit beside it, but the TAP
- * TARGET keeps its full height — the width is what gives, and 40x44 still
- * clears the minimum in the direction a thumb actually misses.
+ * The bar's back arrow.
+ *
+ * ⚠ A FULL 44x44, PULLED LEFT BY ITS OWN GUTTER RATHER THAN NARROWED. The
+ * first version was `width: 40px` to make room for the wordmark, which the
+ * button audit flagged and was right to: 40 is under the minimum, and it was
+ * under it for a reason that a negative margin solves without shrinking
+ * anything. The bar has 332px of usable width on a 360px phone and this row
+ * uses 189.
  */
-.backbtn { width: 40px; margin-left: -8px; color: var(--ink); }
+.backbtn { margin-left: -10px; color: var(--ink); }
 
 .scroll {
   flex: 1;
