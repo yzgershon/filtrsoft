@@ -3,8 +3,10 @@
 **Master plan AND current state. Update before you stop working.** A stale line
 here is worse than a missing one, because a fresh session will believe it.
 
-Last updated **2026-08-31**. Newest first: read **section 18** for the current
-pass, including the one open item (77% of the feed cannot be priced).
+Last updated **2026-08-31**. **Section 2 is the current state and section 15
+is what to do next**; section 18 is the most recent pass in detail. The one
+thing bigger than everything else on the list is §18g — 77% of the feed cannot
+be priced.
 
 ---
 
@@ -30,27 +32,84 @@ components. **Out:** furniture, accessories, cameras.
 
 ---
 
-## 2. Current state — 2026-08-26
+## 2. Current state — 2026-08-31
 
-**assyze.com is LIVE and pricing real listings.** `https://assyze.com` — use it
-everywhere; `assyze-production.up.railway.app` is a debugging fallback, never
-the address of the product.
+**assyze.com is LIVE, pricing real listings, and has now found a real deal.**
+`https://assyze.com` — use it everywhere; `assyze-production.up.railway.app` is
+a debugging fallback, never the address of the product.
+
+> **2026-08-31, and this is the first one that matters.** The feed surfaced an
+> **RTX 5090 FE at $2,800 on Craigslist, 30 minutes after it posted**, and Yish
+> opened a conversation with the seller. Engine: median **$4,149** across 58
+> comps (high confidence), eBay net $3,584 / local net $3,527, **+$727 against
+> the $135 floor**, new retail $4,400 corroborated at Micro Center. One
+> unresolved check (display outputs, in person) and one **high-severity negative
+> signal — `SCREENSHOT_ARTIFACTS`, "image 2 shows window chrome"** — which is
+> exactly what the question "send photos you took yourself with today's date on
+> a piece of paper" exists for. Whatever happens with the sale, **the product
+> did the thing it was built to do**: found it fast, priced it, and flagged the
+> one reason to be careful.
 
 ```
-listings   430 local  (345 craigslist · 62 facebook · 13 offerup · 10 mercari)
-           ~1,025 in production, which crawls Craigslist on its own
-skus       291    (173 laptop · 45 phone · 27 component · 24 gpu · 12 console · 10 prebuilt)
-comps    13,981   ALL REAL, from eBay sold listings. 227 of 291 SKUs covered.
-verdicts   181 INSUFFICIENT_DATA · 164 OUT_OF_SCOPE · 69 PASS · 11 FAIR
-           2 BUY · 2 VERIFY · 1 RISK
-judgments   79  (69 original + 10 re-reviewed WITH the comps visible)
-outcomes     3  (observed, from delistings)
-retail      35 quotes across 3 retailers (newegg · microcenter · bestbuy),
-                per board tier. Every ceiling agrees with the archive.
-vision spend to date: $0.055
+PRODUCTION   engine 0.3.25
+listings   717 in the feed  (377 craigslist · 193 facebook · 147 offerup)
+verdicts   550 INSUFFICIENT_DATA · 111 PASS · 25 RISK · 15 VERIFY · 13 FAIR · 3 BUY
+comps    18,588   ALL REAL, from eBay sold listings
+skus        428
+thumbs      334 self-hosted card images, 5.6 MB  (see §18f)
+
+LOCAL
+listings 2,773  (2,390 craigslist · 222 facebook · 151 offerup · 10 mercari)
+           1,308 live and inside the feed's 28-day window
+skus       423   (211 laptop · 56 component · 56 gpu · 45 phone · 43 prebuilt · 12 console)
+           46 of them DERIVED from listing titles rather than hand-written
+comps   18,588   283 of 423 SKUs covered
+photos  12,010   596 of them OfferUp full-resolution (§18f)
+judgments   79   (69 original + 10 re-reviewed WITH the comps visible)
+outcomes     4   observed, from delistings
+retail      35   quotes across newegg · microcenter · bestbuy, per board tier
 ```
 
-### The 2026-08-26 session, in one table
+⚠ **THE HEADLINE NUMBER IS 550 / 717 = 77% INSUFFICIENT_DATA, AND IT IS THE
+BIGGEST THING WRONG WITH THE PRODUCT.** Three BUYs is not the engine being
+strict — of the 163 listings it CAN price, 12 clear the profit floor and 9 of
+those are correctly held at VERIFY by `riskGate`. Everything else never gets
+priced at all. **Read §18g before touching the engine**: it breaks the 550 down
+by the reason the verdict itself gives, and names the two fixes that have not
+been done.
+
+### What shipped most recently
+
+- **2026-08-31 — §18.** Ten items from one message: verdict-coloured overlay
+  chips (`.b-*` had never been defined), a real Back that restores scroll
+  position, OfferUp full-resolution photos, self-hosted thumbnails because
+  Facebook's CDN urls expire in ~2 days, a density pass, the button audit, and
+  Recently viewed. Plus §18g, the 77% diagnosis, which is OPEN.
+- **2026-08-31 — the VaultX restyle** (`0e0be89`). The whole app moved onto the
+  demo's design system. `docs/VAULTX-DESIGN-SYSTEM.md` is the measured source of
+  truth; every value there was read off the running demo, not chosen.
+- **2026-08-30 — §17.** The frontend audit, in six commits.
+
+### Baselines — anything worse than these is yours
+
+```
+bun test           126 pass / 0 fail
+bun run typecheck   clean
+ui-verify          170 pass / 0 fail   (node src/browser/ui-verify.mjs <label> [url])
+```
+
+⚠ `ui-verify` runs under **Node**, not Bun — Playwright hangs under Bun on this
+machine. `bun test` proves the functions, `ui-verify` proves the running app,
+and `src/browser/measure.mjs` + `shots.mjs` are the scratch tools for a design
+pass.
+
+### HISTORY — the 2026-08-26 session, in one table
+
+⚠ **THESE NUMBERS ARE FROM 2026-08-26 AND ARE HERE FOR THE SHAPE, NOT THE
+VALUES.** The current counts are at the top of this section. Kept because the
+BEFORE/AFTER is the clearest record of what a correctness pass actually moves,
+and because the INSUFFICIENT_DATA line is a warning: it went 425 -> 181 in one
+day and is back at 550 as the crawler reached wider, which is §18g.
 
 Yish went through the live feed and found four wrong answers in about a minute.
 Diagnosing them turned into the largest correctness pass so far.
@@ -2388,36 +2447,66 @@ the product you asked for.
 
 ## 15. Next actions
 
+⚠ **THE ONE THAT MATTERS IS §18g: 550 OF 717 LISTINGS (77%) NEVER GET PRICED.**
+Everything else on this list is smaller than that number. Measured 2026-08-31,
+broken down by the reason each verdict gives, with the two candidate fixes
+named. It is the difference between a feed with 3 buys and a feed with enough
+to choose from — and on 2026-08-31 one of those 3 was an RTX 5090 FE at $2,800
+that Yish opened a conversation about, so the ones that DO land are worth real
+money.
+
+The two things under it, neither started:
+
+1. **Junk is reaching a verdict at all.** *"20 PlayStation 2 Games"*, *"PS5
+   video game Warhammer 40,000"*, *"Vintage Symphonic CRT TV/VHS"*, *"Astec
+   Cisco Power Supply"*, *"Otterbox Defender Phone Case"* — media and
+   accessories, already out of scope per §1, padding the "Couldn't price these"
+   bucket Yish has said twice he does not want. Tightening the grammar gate is
+   the cheapest win available. **Needs an `ENGINE_VERSION` bump** so production
+   re-scores itself.
+2. **51 listings matched a SKU and have no comps.** Purely a data pull:
+   `bun run ebay:comps` on his machine, then re-export the archive.
+
+⚠ **DO NOT ATTACK IT BY LOOSENING THE MATCHER.** §7 already records that
+hand-enumerating the catalog does not work — 39 hand-written laptop SKUs moved
+the unmatched count 125 → 132. The 158 "couldn't identify" rows are a genuine
+long tail mixed with genuinely unidentifiable listings (*"Gaming pc"*, *"Pc
+whole setup"*), and a looser matcher prices the second group WRONGLY rather
+than leaving them honest.
+
+---
+
 **Yish's stated order, 2026-08-26: UI and the Codex-audit features are next.**
 Everything below the line is engine work he has already asked to be deferred
 until after that.
 
-1. ~~**UI + the features Codex flagged.**~~ **DONE 2026-08-30.** The frontend
-   audit's six commits all shipped; see 17a and 17e. What that pass did NOT
-   build, and said so rather than skipping silently: a **distance/radius
-   filter**, which needs geocoding at ingest because `listings.location` is
-   free text with no coordinates. See section 14 for the Codex audit status.
+1. ~~**UI + the features Codex flagged.**~~ **DONE 2026-08-30**, and extended
+   2026-08-31 (§18). The frontend audit's six commits all shipped; see 17a and
+   17e. What that pass did NOT build, and said so rather than skipping
+   silently: a **distance/radius filter**, which needs geocoding at ingest
+   because `listings.location` is free text with no coordinates. See section 14
+   for the Codex audit status.
 
 ---
 
-2. **Keep filling the comps queue.** 64 SKUs still have zero comps.
+2. **Keep filling the comps queue.** 140 of 423 SKUs still have zero comps.
    `bun run ebay:comps --skus 10` orders itself worst-first; ten batches is
    about thirty minutes and moved INSUFFICIENT_DATA from 425 to 181 in one
    session. **Re-export the archive afterwards or production stays behind** —
-   `bun run stats` reports the drift.
+   `bun run stats` reports the drift, and the shipped archive is currently from
+   2026-08-29.
 
 3. **The remaining INSUFFICIENT_DATA is mostly real coverage now**, not bugs.
-   The composition after the 2026-08-26 pass: unmatched laptops (Latitudes,
-   Chromebooks, Inspirons the catalog lacks) and custom builds whose CPU is
-   named only as "Ryzen 5" with no part number. `bun run catalog:derive
-   --apply` mines new SKUs from observed listings and added 67 last run.
+   Composition measured 2026-08-31 in §18g. ⚠ `bun run catalog:derive` NO
+   LONGER EXISTS as a script — the generative matcher lives in
+   `src/catalog/derive.ts` and runs inside the pipeline; 46 of the 423 SKUs are
+   `source='derived'`.
 
 4. **Retail coverage is GPU-heavy.** Newegg and Micro Center are shipped and
    cover gpu/component well. Phones and laptops have no usable ceiling — Best
    Buy sells carrier phones on financing only, and neither of the other two
    sells phones at all. Walmart is the obvious next source. **Yish ruled out
    Apple deliberately on 2026-08-25.**
-
 5. **Phone comps are the open valuation dispute.** iPhone 15 128GB and iPhone
    16 Pro Max are the two remaining eval disagreements and Yish reads the
    medians as low. Retail cannot referee this one, so it needs better comps or
@@ -2428,20 +2517,25 @@ until after that.
    margin math** — eBay-to-eBay means fees on both ends, so it needs a
    different basis from local arbitrage. Alerts come after the UI, his call.
 
-7. **Expand tests.** The first 43 tests cover product grammar, risk gates,
-   persistence, the vision ledger and captured eBay/retail parsers. `matchSku`
-   still needs an isolated catalog fixture, and scheduler/queue behavior still
-   has no integration coverage.
+7. **Expand tests.** 126 now, covering product grammar, risk gates,
+   persistence, the vision ledger, captured eBay/retail parsers, the web
+   shell's routing and filters, OfferUp detail photos and the thumbnail bounds.
+   `matchSku` still needs an isolated catalog fixture, and scheduler/queue
+   behaviour still has no integration coverage.
 
-8. **Run `bun run sweep` daily.** Every day it does not run is clearing-price
-   history nobody can refetch.
+8. ~~**Run `bun run sweep` daily.**~~ **AUTOMATIC since 2026-08-26** — the
+   container runs it on a 24h loop (§11h). The script still exists for a manual
+   run; nothing needs doing here.
 
 9. **`/v1/checks` still only accepts Craigslist URLs.** Facebook, OfferUp and
    Mercari need a browser to fetch a single listing, so the paste-a-link box
    cannot serve them the way the crawlers do. `badUrl` says so honestly.
 
-10. **`retail` and `riskChecks` do not reach the web API.** Both are carried on
-    the verdict and rendered by `bun run review`, but the site never sees them.
+10. ~~**`retail` and `riskChecks` do not reach the web API.**~~ **DONE.** Both
+    are on the verdict payload `/v1/checks/:id` returns, and the detail screen
+    renders them as `Ceiling` and `Blockers` (§17e). Verified live on
+    2026-08-31 against the RTX 5090 listing: one unresolved risk check and a
+    corroborated $4,400 Micro Center ceiling, both on screen.
 
 ---
 
