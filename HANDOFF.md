@@ -3187,6 +3187,33 @@ spends every run on tokens that died days ago.
 
     bun run thumbs [--limit 200] [--prune] [--stats] [--refresh]
 
+**⚠ THE BACKFILL ORDERS BY `listing_photos.captured_at`, NOT BY LISTING ID.**
+The first version used `l.id DESC`, which is a proxy for how recently the
+LISTING was created — a different quantity. Watched running against production:
+188 thumbnails cached and **none of them Facebook**, the one source whose urls
+expire, because those rows were pushed earlier while the container keeps minting
+fresh Craigslist ids. It was working hardest on the source that needed it least.
+Only visible by watching the counter; both orderings drain the same backlog and
+only one wins the race it exists to win.
+
+**⚠ AND A FAILED FETCH IS RECORDED, OR THE BACKFILL RETRIES IT FOREVER.**
+`cacheThumb` writes nothing on failure, so a row that cannot succeed stayed
+eligible and came back three minutes later, and again, for the 28 days the
+listing lives. As the fetchable rows drain the queue converges on exactly the
+rows that can never succeed, and the loop settles into 25 pointless requests
+every three minutes against three CDNs — ~12,000 a day, growing with the feed.
+`listing_thumb_misses` gives each url a **budget of 3**, and a re-crawl that
+re-signs the url resets it.
+
+**It is a budget rather than a tombstone because most failures were OURS.**
+Measured: the tick cached ~5 of 25 attempted while only **10% of the remaining
+urls were actually dead**, and the same urls fetched **40/40 from a laptop**. A
+small container running this alongside crawling, scoring and vision was timing
+itself out. So the tick backfill went 6 workers / 8s to **3 workers / 20s** —
+trading wall-clock, which a 3-minute tick has, for yield, which a 48-hour
+expiry does not. And the tick logs MISSES as well as hits; logging only
+successes is what made a 20% yield look like "there were only five to do".
+
 ### 18g. OPEN, NOT ACTED ON: 77% of the feed cannot be priced
 
 *"There's only 1 buy out of 578 listings."* Measured across all 708 production

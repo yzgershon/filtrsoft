@@ -230,7 +230,15 @@ async function runOnce(reason: string) {
      */
     try {
       const th = await backfillThumbs(25);
-      if (th.cached) console.log(`  thumbnails: cached ${th.cached}/${th.tried}`);
+      /**
+       * ⚠ REPORT THE MISSES, NOT JUST THE HITS. The first version logged only
+       * successes, so "cached 5" looked like there were only five to do rather
+       * than like twenty had failed — and the ~20% yield that exposed the
+       * container's own contention was invisible in the logs for hours.
+       */
+      if (th.cached || th.missed) {
+        console.log(`  thumbnails: cached ${th.cached}, missed ${th.missed} of ${th.tried}`);
+      }
     } catch (e) {
       console.error("thumbnail backfill failed:", (e as Error).message);
     }

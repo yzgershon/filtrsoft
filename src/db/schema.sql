@@ -305,3 +305,33 @@ CREATE TABLE IF NOT EXISTS listing_thumbs (
   bytes_len   INTEGER NOT NULL,
   captured_at TEXT NOT NULL
 );
+
+/*
+ * Thumbnails we tried to fetch and could not.
+ *
+ * WARNING: WITHOUT THIS THE BACKFILL RETRIES A DEAD URL ON EVERY TICK, FOREVER.
+ * `cacheThumb` writes nothing on failure, so a row that cannot succeed stays
+ * eligible and is attempted again three minutes later, and again, for the 28
+ * days the listing lives. As the fetchable rows drain the queue converges on
+ * exactly the rows that can never succeed, and the loop settles into 25 pointless
+ * requests every three minutes against three CDNs — about 12,000 a day, growing
+ * with the feed.
+ *
+ * Measured on production 2026-08-31: the tick cached ~5 of 25 attempted while
+ * only 10% of the remaining urls were actually dead. The same urls fetched
+ * 40/40 from a laptop, so the failures are the CONTAINER (a small box running
+ * this alongside crawling, scoring and vision), not the images.
+ *
+ * That is why this is a RETRY BUDGET rather than a tombstone. A one-strike rule
+ * would permanently discard rows that failed once to a timeout under load,
+ * which is most of them. Three attempts distinguishes "busy" from "gone".
+ *
+ * `src` is part of the identity: a re-crawl re-signs a Facebook url, and a new
+ * url deserves a fresh budget because it genuinely might work now.
+ */
+CREATE TABLE IF NOT EXISTS listing_thumb_misses (
+  listing_id INTEGER PRIMARY KEY REFERENCES listings(id),
+  src        TEXT NOT NULL,
+  tries      INTEGER NOT NULL DEFAULT 1,
+  last_try   TEXT NOT NULL
+);

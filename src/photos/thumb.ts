@@ -72,7 +72,7 @@ export interface Thumb {
  * listing. A CDN that hangs would otherwise hold a request open for the
  * platform's full timeout and turn one slow image into a failed push.
  */
-export async function fetchThumb(url: string, timeoutMs = 8000): Promise<Thumb | null> {
+export async function fetchThumb(url: string, timeoutMs = 15_000): Promise<Thumb | null> {
   let buf: Buffer;
   try {
     const res = await fetch(url, {
@@ -173,15 +173,50 @@ export function getThumb(listingId: number): { bytes: ArrayBuffer; mime: string;
  */
 export type ThumbOutcome = "cached" | "kept" | "unfetchable" | "skipped";
 
-export async function cacheThumb(listingId: number, url: string | null | undefined): Promise<ThumbOutcome> {
+/**
+ * ⚠ HOW MANY TIMES A URL MAY FAIL BEFORE THE BACKFILL STOPS OFFERING IT.
+ *
+ * A budget, NOT a tombstone. Measured on production: the crawl tick cached ~5
+ * of 25 attempted while only 10% of the remaining urls were actually dead, and
+ * the same urls fetched 40/40 from a laptop — so most failures are the small
+ * container timing out under its own crawl-and-score load, not a dead image.
+ * One strike would permanently discard rows that are perfectly fetchable. Three
+ * separates "busy" from "gone".
+ */
+export const MISS_BUDGET = 3;
+
+export async function cacheThumb(
+  listingId: number, url: string | null | undefined, timeoutMs?: number,
+): Promise<ThumbOutcome> {
   if (THUMBS_OFF || !url) return "skipped";
   const have = db().query("SELECT src FROM listing_thumbs WHERE listing_id=?")
     .get(listingId) as { src: string } | null;
   if (have && have.src === url) return "kept";
 
-  const t = await fetchThumb(url);
-  if (!t) return "unfetchable";
+  const t = await fetchThumb(url, timeoutMs);
+  if (!t) {
+    /**
+     * ⚠ RECORD THE FAILURE OR THE BACKFILL RETRIES IT FOREVER. `putThumb` is
+     * never reached here, so without this row the listing stays eligible and
+     * comes back on the next tick, and the next, for the 28 days it lives.
+     *
+     * `src` is part of the identity: a re-crawl re-signs a Facebook url, and a
+     * NEW url deserves a fresh budget because it genuinely might work now.
+     */
+    db().query(
+      `INSERT INTO listing_thumb_misses (listing_id, src, tries, last_try)
+       VALUES ($id,$src,1,$at)
+       ON CONFLICT(listing_id) DO UPDATE SET
+         tries = CASE WHEN listing_thumb_misses.src = excluded.src
+                      THEN listing_thumb_misses.tries + 1 ELSE 1 END,
+         src = excluded.src,
+         last_try = excluded.last_try`,
+    ).run({ $id: listingId, $src: url, $at: now() });
+    return "unfetchable";
+  }
   putThumb(listingId, url, t);
+  // It worked, so the budget is spent on nothing. Clear it.
+  db().query("DELETE FROM listing_thumb_misses WHERE listing_id=?").run(listingId);
   return "cached";
 }
 
@@ -204,6 +239,22 @@ export function pruneThumbs(): { deleted: number; freedBytes: number; keptBytes:
     DELETE FROM listing_thumbs WHERE listing_id IN (
       SELECT t.listing_id FROM listing_thumbs t
       LEFT JOIN listings l ON l.id = t.listing_id
+      WHERE l.id IS NULL
+         OR l.delisted_at IS NOT NULL
+         OR (l.posted_at IS NOT NULL
+             AND julianday('now') - julianday(l.posted_at) > ${THUMB_KEEP_DAYS})
+    )`);
+
+  /**
+   * ⚠ THE MISS ROWS GO WITH THEM. They are tiny, but they are keyed on
+   * `listing_id` and nothing else would ever delete them — an unbounded table
+   * is an unbounded table whatever its row size, and this cache exists under a
+   * rule written after one filled a disk.
+   */
+  db().exec(`
+    DELETE FROM listing_thumb_misses WHERE listing_id IN (
+      SELECT m.listing_id FROM listing_thumb_misses m
+      LEFT JOIN listings l ON l.id = m.listing_id
       WHERE l.id IS NULL
          OR l.delisted_at IS NOT NULL
          OR (l.posted_at IS NOT NULL
@@ -238,8 +289,8 @@ export function pruneThumbs(): { deleted: number; freedBytes: number; keptBytes:
  * thousand-listing backlog over about two hours of ticks, which is the right
  * shape for something self-healing rather than something that blocks a tick.
  */
-export async function backfillThumbs(limit = 25): Promise<{ cached: number; tried: number }> {
-  if (THUMBS_OFF) return { cached: 0, tried: 0 };
+export async function backfillThumbs(limit = 25): Promise<{ cached: number; missed: number; tried: number }> {
+  if (THUMBS_OFF) return { cached: 0, missed: 0, tried: 0 };
   const rows = db().query(`
     SELECT p.listing_id AS id, p.url, p.captured_at
     FROM listing_photos p
@@ -247,21 +298,39 @@ export async function backfillThumbs(limit = 25): Promise<{ cached: number; trie
     WHERE p.position = 0
       AND l.delisted_at IS NULL
       AND NOT EXISTS(SELECT 1 FROM listing_thumbs t WHERE t.listing_id = p.listing_id)
+      /* Spent its retry budget on THIS url. A re-crawl changes the url and the
+         budget resets, which is the only way a dead signature comes back. */
+      AND NOT EXISTS(
+        SELECT 1 FROM listing_thumb_misses m
+        WHERE m.listing_id = p.listing_id AND m.src = p.url AND m.tries >= ${MISS_BUDGET})
     ORDER BY p.captured_at DESC
     LIMIT $n
   `).all({ $n: limit }) as Array<{ id: number; url: string | null }>;
 
   const queue = rows.filter((r) => r.url);
-  let cached = 0;
-  await Promise.all(Array.from({ length: 6 }, async () => {
+  let cached = 0, missed = 0;
+  /**
+   * ⚠ THREE WORKERS HERE, NOT SIX, AND A LONGER TIMEOUT.
+   *
+   * This runs at the END of a tick that has already crawled, scored and
+   * possibly called vision, on a small container. Measured: at 6-wide with an
+   * 8s abort it landed ~5 of 25, while the same urls fetched 40/40 from a
+   * laptop — the failures were our own contention, not the images. Fewer in
+   * flight and more patience trades wall-clock (which a 3-minute tick has) for
+   * yield (which the 48-hour Facebook expiry does not).
+   */
+  await Promise.all(Array.from({ length: 3 }, async () => {
     for (;;) {
       const r = queue.pop();
       if (!r) return;
-      try { if ((await cacheThumb(r.id, r.url)) === "cached") cached++; }
-      catch { /* never let an image fail a tick */ }
+      try {
+        const outcome = await cacheThumb(r.id, r.url, 20_000);
+        if (outcome === "cached") cached++;
+        else if (outcome === "unfetchable") missed++;
+      } catch { /* never let an image fail a tick */ }
     }
   }));
-  return { cached, tried: rows.length };
+  return { cached, missed, tried: rows.length };
 }
 
 export function thumbStats(): { count: number; bytes: number } {
