@@ -1295,3 +1295,31 @@ body::before {
   color: var(--ink-3); margin: 0 0 10px; font-weight: 700;
 }
 
+/*
+ * The in-app Reduce motion switch. Mirrors the OS media query rather than
+ * duplicating its rules, so a later visual pass that adds an animation is
+ * covered by both without remembering either.
+ *
+ * `!important` is load-bearing here: these have to beat whatever specificity a
+ * component rule used, and the alternative is every animated selector growing
+ * a `.no-motion &` twin that the next pass forgets to add.
+ */
+.no-motion *,
+.no-motion *::before,
+.no-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Saved sub-tabs. Listings and Alerts are both "things you saved". */
+.subtabs { display: flex; gap: var(--s2); margin-bottom: var(--s4); }
+.subtabs button {
+  min-height: 44px; padding: 0 16px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface);
+  color: var(--ink-2); font-size: 13.5px; font-weight: 650;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.subtabs button.on { background: var(--surface-3); color: var(--ink); border-color: var(--surface-3); }
+.empty .btn2 { margin: var(--s4) auto 0; display: inline-flex; }

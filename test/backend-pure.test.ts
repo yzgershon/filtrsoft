@@ -17,6 +17,7 @@ import {
   parseShipping,
 } from "../src/sources/ebay.ts";
 import { cardToListing, parseCards, probeVerdict } from "../src/sources/marketplace.ts";
+import { applyQuality, parseDrive, QUALITIES, segmentCounts, withinPrice } from "../src/api/query.ts";
 import { parseBestBuy, parseMicroCenter, parseNewegg } from "../src/sources/retail.ts";
 import { normalizeCondition } from "../src/valuation/condition.ts";
 import { storageOf } from "../src/valuation/index.ts";
@@ -626,5 +627,114 @@ describe("screenOf / tabOf", () => {
     expect(tabOf(screenOf("/saved"))).toBe("saved");
     // Settings is reachable but is not a bottom-bar destination.
     expect(tabOf(screenOf("/settings"))).toBeNull();
+  });
+});
+
+/**
+ * ── FEED SEGMENTATION ──────────────────────────────────────────────────────
+ *
+ * Audit P0-1: the Deals control said 20 and the view dead-ended at 13. Seven
+ * listings were unreachable by any interaction, because the count came from one
+ * population and the rows from another.
+ *
+ * The invariant is the whole fix: for every segment, the count MUST equal the
+ * number of rows that segment actually serves.
+ */
+describe("feed segments", () => {
+  const rows = [
+    { call: "BUY", askingPriceCents: 20000 },
+    { call: "BUY", askingPriceCents: 90000 },
+    { call: "VERIFY", askingPriceCents: 15000 },
+    { call: "VERIFY", askingPriceCents: 15000 },
+    { call: "RISK", askingPriceCents: 5000 },
+    { call: "FAIR", askingPriceCents: 30000 },
+    { call: "PASS", askingPriceCents: 30000 },
+    { call: "INSUFFICIENT_DATA", askingPriceCents: null },
+    { call: "INSUFFICIENT_DATA", askingPriceCents: 45000 },
+  ];
+
+  test("every count equals the rows that segment serves", () => {
+    const counts = segmentCounts(rows);
+    for (const q of QUALITIES) {
+      expect(counts[q]).toBe(applyQuality(rows, q).length);
+    }
+  });
+
+  test("the named segments are exactly the audit's vocabulary", () => {
+    const counts = segmentCounts(rows);
+    expect(counts.all).toBe(9);
+    expect(counts.ready).toBe(2);   // BUY only
+    expect(counts.verify).toBe(2);
+    expect(counts.risky).toBe(1);   // RISK is its own state, never a deal
+    expect(counts.browse).toBe(2);  // FAIR + PASS
+  });
+
+  test("RISK is never counted as a deal", () => {
+    // Audit §4. It used to sit under "ready", which is how a listing with an
+    // open hard blocker got presented as somewhere to drive.
+    const counts = segmentCounts(rows);
+    expect(counts.ready + counts.verify + counts.browse + counts.risky).toBeLessThanOrEqual(counts.all);
+    expect(applyQuality(rows, "ready").every((r) => r.call === "BUY")).toBe(true);
+  });
+
+  test("INSUFFICIENT_DATA is reachable only under all", () => {
+    for (const q of ["ready", "verify", "risky", "browse"]) {
+      expect(applyQuality(rows, q).some((r) => r.call === "INSUFFICIENT_DATA")).toBe(false);
+    }
+    expect(applyQuality(rows, "all").filter((r) => r.call === "INSUFFICIENT_DATA").length).toBe(2);
+  });
+
+  test("an unknown segment serves everything rather than nothing", () => {
+    expect(applyQuality(rows, "bogus").length).toBe(rows.length);
+    expect(applyQuality(rows, "").length).toBe(rows.length);
+  });
+
+  test("the price filter narrows counts and rows together", () => {
+    const scoped = withinPrice(rows, 40000);
+    const counts = segmentCounts(scoped);
+    for (const q of QUALITIES) expect(counts[q]).toBe(applyQuality(scoped, q).length);
+    // The $900 BUY is out; the unpriced row is out (Infinity, not free).
+    expect(counts.ready).toBe(1);
+    expect(scoped.some((r) => r.askingPriceCents === null)).toBe(false);
+  });
+
+  test("paging a segment cannot leave rows unreachable", () => {
+    // The bug, stated as a test: page until you have `total`, and you must get
+    // every row the count promised.
+    for (const q of QUALITIES) {
+      const filtered = applyQuality(rows, q);
+      const seen: unknown[] = [];
+      for (let off = 0; off < filtered.length; off += 2) seen.push(...filtered.slice(off, off + 2));
+      expect(seen.length).toBe(segmentCounts(rows)[q]);
+    }
+  });
+});
+
+/**
+ * The drive-time override. The Settings stepper wrote `driveMinutes` to
+ * localStorage and nothing read it (audit P0-3); this is the server half.
+ */
+describe("parseDrive", () => {
+  test("accepts the range the client stepper offers", () => {
+    expect(parseDrive("5")).toBe(5);
+    expect(parseDrive("25")).toBe(25);
+    expect(parseDrive("90")).toBe(90);
+  });
+
+  test("absent or malformed means use the stored verdict", () => {
+    // undefined, not a default: the feed row and the detail must agree unless
+    // the caller explicitly asked for something else.
+    expect(parseDrive(undefined)).toBeUndefined();
+    expect(parseDrive("")).toBeUndefined();
+    expect(parseDrive("soon")).toBeUndefined();
+  });
+
+  test("out of range is REJECTED, not clamped", () => {
+    // Clamping here while the client did not would show 120 minutes on screen
+    // and compute the verdict at 90.
+    expect(parseDrive("0")).toBeUndefined();
+    expect(parseDrive("4")).toBeUndefined();
+    expect(parseDrive("91")).toBeUndefined();
+    expect(parseDrive("-30")).toBeUndefined();
   });
 });

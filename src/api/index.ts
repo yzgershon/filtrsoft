@@ -16,6 +16,7 @@ import { serveStatic } from "hono/bun";
 import { existsSync } from "node:fs";
 import { checkListing, checkStored, ENGINE_VERSION, type Stage } from "../engine/index.ts";
 import { handlePush } from "./push.ts";
+import { applyQuality, parseDrive, segmentCounts, withinPrice } from "./query.ts";
 import { handleDeletionChallenge, handleDeletionNotice, deletionEndpoint, deletionConfigured } from "./ebay-deletion.ts";
 import {
   handleVapid, handleSubscribe, handleListSearches, handleCreateSearch,
@@ -524,46 +525,18 @@ app.get("/v1/feed", (c) => {
   // Rank globally, then page. Paging before ranking would make page 2 a
   // second-best bucket rather than the continuation of one ordered list.
   /**
-   * The segment vocabulary. Audit §4: **RISK is never a deal**, and a listing
-   * that needs an answer is not ready to act on.
+   * ⚠ THE COUNTS AND THE PAGE COME FROM ONE POPULATION.
    *
-   *   ready   BUY only            — go now
-   *   verify  VERIFY              — one message settles it
-   *   risky   RISK                — its own state, never counted as a deal
-   *   browse  FAIR + PASS         — priced, and not worth it
-   *   all     everything the feed already allows
-   *
-   * `INSUFFICIENT_DATA` is deliberately reachable ONLY under `all`. It is the
-   * largest bucket and the one that can never be acted on.
+   * `priceScoped` is filtered ONCE; the segment counts and the served rows are
+   * both derived from it. When those were two separate expressions the Deals
+   * control said 20 while the view dead-ended at 13. The segment vocabulary and
+   * the invariant that ties them together live in `./query.ts`, where a test
+   * asserts `segmentCounts(rows)[q] === applyQuality(rows, q).length`.
    */
-  const QUALITY: Record<string, string[] | null> = {
-    all: null,
-    ready: ["BUY"],
-    verify: ["VERIFY"],
-    risky: ["RISK"],
-    browse: ["FAIR", "PASS"],
-  };
-  const wanted = QUALITY[quality] ?? null;
-
-  const filtered = ranked.filter((i) =>
-    (wanted ? wanted.includes(i.call) : true) &&
-    (maxPrice ? (i.askingPriceCents ?? Infinity) <= maxPrice : true));
-
+  const priceScoped = withinPrice(ranked, maxPrice);
+  const filtered = applyQuality(priceScoped, quality);
   const items = filtered.slice(offset, offset + limit);
-
-  /**
-   * Segment counts over the SAME ranked set the feed serves, after the price
-   * filter but before the quality filter — so switching segments never changes
-   * the numbers on the other segments.
-   */
-  const priceScoped = ranked.filter((i) => (maxPrice ? (i.askingPriceCents ?? Infinity) <= maxPrice : true));
-  const segments = {
-    all: priceScoped.length,
-    ready: priceScoped.filter((i) => i.call === "BUY").length,
-    verify: priceScoped.filter((i) => i.call === "VERIFY").length,
-    risky: priceScoped.filter((i) => i.call === "RISK").length,
-    browse: priceScoped.filter((i) => i.call === "FAIR" || i.call === "PASS").length,
-  };
+  const segments = segmentCounts(priceScoped);
 
   const lastCrawl = db().query("SELECT started_at, analysed FROM crawls ORDER BY id DESC LIMIT 1").get() as any;
 
@@ -686,10 +659,30 @@ app.get("/v1/checks/:id", (c) => {
    * `checkStored` re-runs signals, matching and valuation from the listing text
    * already in the database: no refetch, no network, about a millisecond.
    */
+  /**
+   * ⚠ DRIVE TIME IS A PER-REQUEST OVERRIDE, AND THAT IS DELIBERATE.
+   *
+   * The Settings stepper wrote `driveMinutes` to localStorage and NOTHING read
+   * it — the verdict economics never changed, so the control moved a number on
+   * screen and lied about what it did (audit P0-3).
+   *
+   * It is applied HERE and not to the stored verdict, because the audit's own
+   * warning applies: a user-specific engine input would have to enter the
+   * verdict cache key or force a re-score, and one shared row per listing
+   * cannot express per-user answers. `checkStored` recomputes from text already
+   * in the database in about a millisecond, so the detail screen can honour it
+   * without the feed's precomputed rows becoming wrong for everyone else.
+   */
+  const driveMinutes = parseDrive(c.req.query("drive"));
+
   let signals: unknown[] = [];
   let meta: Record<string, unknown> = {};
+  let verdict = row.payload ? JSON.parse(row.payload) : null;
   try {
-    const re = checkStored(id, {});
+    const re = checkStored(id, driveMinutes ? { driveMinutes } : {});
+    // Only replace the stored verdict when the caller actually asked for a
+    // different drive time; otherwise the feed and the detail must agree.
+    if (driveMinutes) verdict = re.verdict;
     signals = re.signals.signals;
     meta = {
       category: re.signals.category,
@@ -712,7 +705,7 @@ app.get("/v1/checks/:id", (c) => {
       title: row.title, url: row.url, askingPriceCents: row.asking_price_cents,
       location: row.location, postedAt: row.posted_at, source: row.source, photoUrls: photos,
     },
-    verdict: row.payload ? JSON.parse(row.payload) : null,
+    verdict,
     signals,
     meta,
   });

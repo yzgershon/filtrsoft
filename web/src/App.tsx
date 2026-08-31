@@ -1,5 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Scan, Clock, User, Alert, Check, Info, Link, Again, Eye, Shield, Tag, Ghost, Clip, Save, Grid, Gear, Cut, Bell, Card } from "./icons.tsx";
+/**
+ * Routing, settings and the feed query live in `nav.ts` because they are the
+ * parts of the shell that are decidable from a string, and `bun test` can pin
+ * them there without a DOM. Re-exported so the module boundary is an
+ * implementation detail rather than a second import path for callers.
+ */
+import {
+  type Screen, type Settings, type Quality,
+  screenOf, tabOf, mergeSettings, clampDrive, feedQuery, checkQuery,
+  DEFAULT_SETTINGS, SETTINGS_KEY, DRIVE_MIN, DRIVE_MAX, DRIVE_STEP,
+} from "./nav.ts";
+export { screenOf, tabOf } from "./nav.ts";
+export type { Screen, Settings } from "./nav.ts";
 
 // ---------------------------------------------------------------- types
 type Call = "BUY" | "FAIR" | "PASS" | "VERIFY" | "RISK" | "INSUFFICIENT_DATA" | "OUT_OF_SCOPE";
@@ -115,64 +128,23 @@ function pendingOutcome(hist: Hist[], asked: number[]): Hist | null {
   return ripe.sort((a, b) => a.at - b.at)[0] ?? null;
 }
 
-/** Settings the user actually controls. Server-side economics stay server-side. */
-const SKEY = "assyze:settings";
-export interface Settings {
-  driveMinutes: number;
-  hideGone: boolean;
-  reduceMotion: boolean;
-  askOutcomes: boolean;
-}
-const DEFAULT_SETTINGS: Settings = {
-  driveMinutes: 15, hideGone: true, reduceMotion: false, askOutcomes: true,
-};
+/**
+ * Settings the user actually controls. Shape, defaults and parsing are in
+ * `nav.ts`; only the storage touch is here, because storage is the one part a
+ * test cannot run.
+ */
 const readSettings = (): Settings => {
-  try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem(SKEY) || "{}") }; }
+  try { return mergeSettings(localStorage.getItem(SETTINGS_KEY)); }
   catch { return DEFAULT_SETTINGS; }
 };
-const writeSettings = (s: Settings) => localStorage.setItem(SKEY, JSON.stringify(s));
+const writeSettings = (s: Settings) => localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
 
 // --------------------------------------------------------------- router
 /**
- * ⚠ THE URL IS THE SCREEN. It used to be a hint, and the two disagreed.
- *
- * Primary tabs lived only in React state while `useRoute` tracked `path`
- * separately, which produced three separate live bugs:
- *
- *   · Back from `/c/3918` changed the URL to `/` and left the DETAIL VISIBLE,
- *     with the bottom bar highlighting Check.
- *   · Refreshing Check, Saved or Settings returned to Deals.
- *   · The PWA manifest shortcut pointed at `/?tab=check` and opened Deals,
- *     because nothing ever read that parameter.
- *
- * `screenOf` derives the COMPLETE screen from the path, so `popstate`, a
- * refresh, a deep link and a tab press all go through one function and cannot
- * produce different answers.
+ * `screenOf` derives the COMPLETE screen from the path (see `nav.ts`), so
+ * `popstate`, a refresh, a deep link and a tab press all go through one
+ * function and cannot produce different answers.
  */
-export type Screen =
-  | { name: "deals" }
-  | { name: "check" }
-  | { name: "saved" }
-  | { name: "settings" }
-  | { name: "detail"; id: number };
-
-export function screenOf(pathname: string): Screen {
-  const m = pathname.match(/^\/c\/(\d+)\/?$/);
-  if (m) return { name: "detail", id: Number(m[1]) };
-  if (/^\/check\/?$/.test(pathname)) return { name: "check" };
-  if (/^\/saved\/?$/.test(pathname)) return { name: "saved" };
-  if (/^\/settings\/?$/.test(pathname)) return { name: "settings" };
-  return { name: "deals" };
-}
-
-/** Which bottom-bar item is lit for a screen. Detail belongs to no tab. */
-export function tabOf(s: Screen): "deals" | "check" | "saved" | null {
-  if (s.name === "deals") return "deals";
-  if (s.name === "check") return "check";
-  if (s.name === "saved") return "saved";
-  return null;
-}
-
 function useRoute() {
   const [path, setPath] = useState(location.pathname);
   useEffect(() => {
@@ -194,8 +166,6 @@ function useRoute() {
     }, []),
   };
 }
-
-type Quality = "all" | "ready" | "verify" | "risky" | "browse";
 
 const PAGE = 60;
 
@@ -308,7 +278,12 @@ function Feed({ onOpen, onWatchChange }: {
   const load = useCallback((offset: number, q: Quality) => {
     setLoadingMore(offset > 0);
     if (offset === 0) setFailed(false);
-    return fetch(`/v1/feed?limit=${PAGE}&offset=${offset}&quality=${q}`)
+    /**
+     * `hideGone` was written to localStorage and never read (audit P0-3). The
+     * feed hides delisted rows by default, so the switch has to ASK for them
+     * when it is off — `feedQuery` inverts it onto the existing `?gone=1` flag.
+     */
+    return fetch(feedQuery({ limit: PAGE, offset, quality: q, hideGone: readSettings().hideGone }))
       .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
       .then((d) => {
         setItems((prev) => (offset === 0 ? (d.items ?? []) : [...(prev ?? []), ...(d.items ?? [])]));
@@ -1012,10 +987,13 @@ function Report({ listing, verdict, signals, meta, stage, reading, checkId }: {
  * The summary line leads because it is the answer to "why did I open this":
  * two dropped, one is gone. That sentence is the whole feature.
  */
-function Watchlist({ onOpen, onWatchChange }: {
+function Watchlist({ onOpen, onWatchChange, onBrowse }: {
   onOpen: (id: number) => void;
   onWatchChange: (n: number) => void;
+  /** The empty state needs a way out. Audit §"Saved and Alerts". */
+  onBrowse: () => void;
 }) {
+  const [sub, setSub] = useState<"listings" | "alerts">("listings");
   const [ids, setIds] = useState<number[]>(readWatch);
   const [items, setItems] = useState<FeedItem[] | null>(null);
   const [summary, setSummary] = useState<{ dropped: number; gone: number }>({ dropped: 0, gone: 0 });
@@ -1042,36 +1020,65 @@ function Watchlist({ onOpen, onWatchChange }: {
     // hammer the endpoint.
   }, [ids.join(",")]);
 
-  if (!items) return <div className="sec">{[0, 1].map((i) => <div className="skel" key={i} style={{ height: 240, marginBottom: 8 }} />)}</div>;
-
-  if (!items.length) {
-    return (
-      <div className="empty">
-        <span className="eic"><Save size={26} /></span>
-        <b>Nothing saved yet</b>
-        <p>Tap the bookmark on any listing. We re-check saved listings every day and tell you when the price drops or it disappears.</p>
-      </div>
-    );
-  }
-
   const news: string[] = [];
   if (summary.dropped) news.push(`${summary.dropped} dropped in price`);
   if (summary.gone) news.push(`${summary.gone} ${summary.gone === 1 ? "is" : "are"} gone`);
 
+  /**
+   * ⚠ THE H1 ALWAYS RENDERS (audit §17). The empty state used to return early
+   * with only a `<b>`, so the Saved screen had no heading at all and screen
+   * readers got no landmark for it.
+   *
+   * **Alerts live here, not in Settings** (audit §12). A saved search is
+   * discovery, not configuration — it was buried below Billing and Feed
+   * settings, which is the wrong place for one of the few features that gives
+   * anyone a reason to come back.
+   */
   return (
     <div className="sec">
       <div className="feedhead">
         <h1>Saved</h1>
-        <p>{news.length ? news.join(" · ") : `${items.length} saved, nothing changed yet.`}</p>
+        <p>
+          {items === null ? "Loading…"
+            : items.length === 0 ? "Listings you bookmark, and alerts for searches you save."
+            : news.length ? news.join(" · ")
+            : `${items.length} saved, nothing changed yet.`}
+        </p>
       </div>
-      <div className="grid">
-        {items.map((i) => (
-          <Gcard key={i.id} i={i} saved
-            onSave={() => { const n = toggleWatch(i.id); setIds(n); onWatchChange(n.length); }}
-            onOpen={() => onOpen(i.id)} />
-        ))}
+
+      <div className="subtabs" role="tablist" aria-label="Saved">
+        <button role="tab" aria-selected={sub === "listings"} className={sub === "listings" ? "on" : ""}
+          onClick={() => setSub("listings")}>Listings{items?.length ? ` (${items.length})` : ""}</button>
+        <button role="tab" aria-selected={sub === "alerts"} className={sub === "alerts" ? "on" : ""}
+          onClick={() => setSub("alerts")}>Alerts</button>
       </div>
-      <p className="micro2">Saved on this device only. Signing in is coming.</p>
+
+      {sub === "listings" && (
+        !items ? (
+          <div>{[0, 1].map((i) => <div className="skel" key={i} style={{ height: 240, marginBottom: 8 }} />)}</div>
+        ) : items.length === 0 ? (
+          <div className="empty">
+            <span className="eic"><Save size={26} /></span>
+            <b>Nothing saved yet</b>
+            <p>Tap the bookmark on any listing. Saved listings are re-checked daily, and this is where a price drop or a disappearance shows up.</p>
+            <button className="btn2" onClick={onBrowse}><Grid size={15} /> Browse deals</button>
+          </div>
+        ) : (
+          <>
+            <div className="grid">
+              {items.map((i) => (
+                <Gcard key={i.id} i={i} saved
+                  onSave={() => { const n = toggleWatch(i.id); setIds(n); onWatchChange(n.length); }}
+                  onOpen={() => onOpen(i.id)} />
+              ))}
+            </div>
+            {/* Present tense: this is what the product does, not a promise. */}
+            <p className="micro2">Saved on this device.</p>
+          </>
+        )
+      )}
+
+      {sub === "alerts" && <Alerts />}
     </div>
   );
 }
@@ -1230,6 +1237,19 @@ export default function App() {
   };
 
   /**
+   * ⚠ REDUCE MOTION NOW REDUCES MOTION.
+   *
+   * The switch wrote to localStorage and nothing read it — during the audit it
+   * was ON while the detail `.rise` entry animation still computed to 0.32s.
+   * A class on the root lets one CSS rule disable every animation, including
+   * the ones added by later visual passes, without each of them remembering to
+   * check a flag.
+   */
+  useEffect(() => {
+    document.documentElement.classList.toggle("no-motion", settings.reduceMotion);
+  }, [settings.reduceMotion]);
+
+  /**
    * ANDROID SHARE SHEET. The manifest registers `/share` as a share target, so
    * Assyze appears in Chrome's Share menu on a Craigslist page and the whole
    * copy-paste step disappears.
@@ -1273,10 +1293,18 @@ export default function App() {
       if (listing || verdict) reset();
       return;
     }
-    const m = path.match(/^\/c\/(\d+)$/);
-    if (!m) return;
+    /**
+     * ⚠ THE ID COMES FROM `screen`, NOT A SECOND REGEX ON THE PATH.
+     *
+     * This used to re-match `/^\/c\/(\d+)$/` — no trailing slash — while
+     * `screenOf` accepts `/c/123/`. A PWA launched onto a trailing-slash deep
+     * link therefore rendered the detail shell and never fetched anything: a
+     * permanently blank screen with no error. One derivation, one answer.
+     */
     setBusy(true);
-    fetch(`/v1/checks/${m[1]}`).then((r) => r.json()).then((d) => {
+    // The Settings stepper is a real input now: it changes the required
+    // profit floor, and therefore the verdict, on this screen.
+    fetch(checkQuery(screen.id, settings.driveMinutes)).then((r) => r.json()).then((d) => {
       if (d.error) return setError(d.error);
       setListing(d.listing); setVerdict(d.verdict); setCheckId(d.checkId);
       // The detail endpoint recomputes these; dropping them left the risk
@@ -1514,7 +1542,8 @@ export default function App() {
 
             {screen.name === "saved" && (
               <Watchlist onOpen={(id) => go(`/c/${id}`)}
-                onWatchChange={setSavedCount} />
+                onWatchChange={setSavedCount}
+                onBrowse={() => goTab("deals")} />
             )}
 
 
@@ -1573,7 +1602,7 @@ function deviceRef(): string {
  * `?paid=1` on return from Checkout only triggers a REFRESH. It is never taken
  * as proof of payment; the webhook is the only thing that grants access.
  */
-function Billing() {
+function Billing({ onlyWhenEnabled }: { onlyWhenEnabled?: boolean }) {
   const [st, setSt] = useState<{ enabled: boolean; plan: string; active?: boolean; until?: string | null } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -1600,6 +1629,10 @@ function Billing() {
       if (r.url) location.href = r.url;
     } finally { setBusy(false); }
   }
+
+  // Nothing to sell and nothing bought: render nothing at all.
+  if (onlyWhenEnabled && st && !st.enabled && !st.active) return null;
+  if (onlyWhenEnabled && !st) return null;
 
   return (
     <div className="sgroup">
@@ -1832,7 +1865,15 @@ function SettingsScreen({ s, save, savedCount, onClearSaved }: {
     <div className="sec settings">
       <div className="feedhead"><h1>Settings</h1></div>
 
-      <Billing />
+      {/**
+        * ⚠ BILLING RENDERS ONLY WHEN BILLING IS ENABLED (audit §14).
+        *
+        * The first Settings card explained that the product is free and paid
+        * plans may come later. That is honest but not useful, and it pushed
+        * every control that DOES something below the fold. `Billing` already
+        * asks the server; it just always rendered the answer.
+        */}
+      <Billing onlyWhenEnabled />
 
       <div className="sgroup">
         <div className="shead"><Tag size={14} /> Your numbers</div>
@@ -1842,12 +1883,15 @@ function SettingsScreen({ s, save, savedCount, onClearSaved }: {
               <b>Willing to drive</b>
               <span>Longer drives need a bigger margin to be worth it.</span>
             </span>
+            {/* The bounds are `nav.ts` constants because the SERVER enforces
+                the same 5..90 window. A stepper that offered 120 would move
+                this number and silently get a 90-minute verdict back. */}
             <span className="stepper">
-              <button aria-label="Less driving time"
-                onClick={() => save({ driveMinutes: Math.max(5, s.driveMinutes - 5) })}>−</button>
-              <span className="num">{s.driveMinutes}m</span>
-              <button aria-label="More driving time"
-                onClick={() => save({ driveMinutes: Math.min(90, s.driveMinutes + 5) })}>+</button>
+              <button aria-label="Less driving time" disabled={s.driveMinutes <= DRIVE_MIN}
+                onClick={() => save({ driveMinutes: clampDrive(s.driveMinutes - DRIVE_STEP) })}>−</button>
+              <span className="num" aria-live="polite">{s.driveMinutes}m</span>
+              <button aria-label="More driving time" disabled={s.driveMinutes >= DRIVE_MAX}
+                onClick={() => save({ driveMinutes: clampDrive(s.driveMinutes + DRIVE_STEP) })}>+</button>
             </span>
           </label>
           <p className="snote">
@@ -1867,12 +1911,11 @@ function SettingsScreen({ s, save, savedCount, onClearSaved }: {
             hint="A day after you open a listing, ask if you bought it. This is what teaches the engine."
             on={s.askOutcomes} onChange={(v) => save({ askOutcomes: v })} />
           <Toggle label="Reduce motion"
-            hint="Turns off the card-to-hero animation."
+            hint="Turns off screen and card entry animations."
             on={s.reduceMotion} onChange={(v) => save({ reduceMotion: v })} />
         </div>
       </div>
 
-      <Alerts />
 
       <div className="sgroup">
         <div className="shead"><Save size={14} /> Data</div>
@@ -1880,7 +1923,7 @@ function SettingsScreen({ s, save, savedCount, onClearSaved }: {
           <div className="srow static">
             <span className="stext">
               <b>{savedCount} saved {savedCount === 1 ? "listing" : "listings"}</b>
-              <span>Stored on this device. Signing in is coming.</span>
+              <span>Stored on this device.</span>
             </span>
             {savedCount > 0 && !cleared && (
               <button className="btn3" onClick={() => { onClearSaved(); setCleared(true); }}>Clear</button>
@@ -1925,7 +1968,6 @@ function You({ hist, onOpen }: { hist: Hist[]; onOpen: (id: number) => void }) {
           </div>
         ))}
       </div>
-      <p className="soon">Editing these is coming.</p>
 
       {hist.length > 0 && (
         <section className="sec">
