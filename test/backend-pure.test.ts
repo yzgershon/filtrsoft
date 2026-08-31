@@ -21,7 +21,6 @@ import {
   bestPhotos, cardToListing, parseCards, photoArea, photoIdentity, probeVerdict,
 } from "../src/sources/marketplace.ts";
 import sharp from "sharp";
-import { readFileSync } from "node:fs";
 import { thumbFromBytes, THUMB_EDGE, MAX_BYTES, THUMB_KEEP_DAYS } from "../src/photos/thumb.ts";
 import {
   applyDiscovery, applyQuality, matchesSearch, NO_FILTERS, parseDrive, parseFilters,
