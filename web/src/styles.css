@@ -1,3 +1,27 @@
+/*
+ * ⚠ NEVER HAND-WRITE `-webkit-backdrop-filter`. THE BUILD ADDS IT, AND WRITING
+ * IT YOURSELF DELETES THE PROPERTY THAT ACTUALLY WORKS.
+ *
+ * Chrome does NOT support the -webkit- alias at all. Measured in real Chrome:
+ * a rule declaring only `-webkit-backdrop-filter: blur(18px) saturate(1.3)`
+ * computes to `backdrop-filter: none`.
+ *
+ * The source declared both, standard first and the alias second. The CSS
+ * minifier treats that as one property declared twice and keeps the LAST — so
+ * `.tabbar` and `.gsave` shipped with only the alias, and neither has blurred
+ * in Chrome since. That is why the feed reads straight through the bottom bar:
+ * an 86%-opacity wash with no blur behind it, product titles and prices
+ * colliding with the tab labels.
+ *
+ * It was invisible in review because the SOURCE looked correct. Confirm this
+ * one in `web/dist/assets/index-*.css`, never in `styles.css`:
+ *
+ *     grep -oE '(^|[;{])(-webkit-)?backdrop-filter:[^;}]*' web/dist/assets/*.css
+ *
+ * Every rule must appear with the unprefixed property. Vite emits the alias
+ * itself for the browsers that need it.
+ */
+
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&display=swap');
 
 /* ============================================================================
@@ -807,7 +831,6 @@ a { color: inherit; }
   display: grid; grid-template-columns: repeat(3, 1fr);
   background: color-mix(in srgb, var(--bg) 86%, transparent);
   backdrop-filter: blur(18px) saturate(1.3);
-  -webkit-backdrop-filter: blur(18px) saturate(1.3);
   border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -850,7 +873,7 @@ a { color: inherit; }
   width: 30px; height: 30px; border-radius: 999px; border: 0;
   display: grid; place-items: center;
   background: rgba(8,7,10,.55); color: #fff;
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
   transition: background var(--dur) var(--ease), color var(--dur) var(--ease), transform 120ms var(--ease);
 }
 .gsave:active { transform: scale(.88); }
@@ -1229,7 +1252,6 @@ body::before {
 .topbar {
   background: linear-gradient(to bottom, rgba(8,7,10,.72), rgba(8,7,10,.32));
   border-bottom-color: transparent;
-  -webkit-backdrop-filter: blur(20px) saturate(1.4);
   backdrop-filter: blur(20px) saturate(1.4);
 }
 
@@ -1272,3 +1294,4 @@ body::before {
   font-size: 10.5px; text-transform: uppercase; letter-spacing: .14em;
   color: var(--ink-3); margin: 0 0 10px; font-weight: 700;
 }
+
