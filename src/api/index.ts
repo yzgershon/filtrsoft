@@ -16,7 +16,10 @@ import { serveStatic } from "hono/bun";
 import { existsSync } from "node:fs";
 import { checkListing, checkStored, ENGINE_VERSION, type Stage } from "../engine/index.ts";
 import { handlePush } from "./push.ts";
-import { applyQuality, parseDrive, segmentCounts, withinPrice } from "./query.ts";
+import {
+  applyDiscovery, applyQuality, parseDrive, parseFilters, segmentCounts, sortFeed,
+} from "./query.ts";
+import { detectCategory } from "../signals/index.ts";
 import { handleDeletionChallenge, handleDeletionNotice, deletionEndpoint, deletionConfigured } from "./ebay-deletion.ts";
 import {
   handleVapid, handleSubscribe, handleListSearches, handleCreateSearch,
@@ -35,6 +38,16 @@ import {
 } from "./guard.ts";
 
 const app = new Hono();
+
+/** Facet counts, so a filter chip never offers a value with nothing behind it. */
+function countBy<T>(rows: T[], key: (r: T) => string | null | undefined): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const r of rows) {
+    const k = key(r);
+    if (k) out[k] = (out[k] ?? 0) + 1;
+  }
+  return out;
+}
 
 /**
  * CORS was `cors()` with no options — wildcard, any origin.
@@ -387,7 +400,6 @@ export function tracker(r: {
 
 app.get("/v1/feed", (c) => {
   const call = c.req.query("call");           // optional filter
-  const cat = c.req.query("category");
   /**
    * The feed was showing 40 of 600+ and the UI has no pager, so the rest was
    * simply unreachable — Yish counted the listings on screen against the total
@@ -416,8 +428,13 @@ app.get("/v1/feed", (c) => {
    * They are computed from the ranked, filtered set now, so a segment number
    * and its reachable rows cannot disagree.
    */
-  const quality = (c.req.query("quality") ?? "all").toLowerCase();
-  const maxPrice = Number(c.req.query("maxPrice")) || null;
+  /**
+   * ⚠ ONE FILTER MODEL, PARSED ONCE. `parseFilters` is shared with the tests
+   * and mirrored by the client's URL state, so a control cannot ask for
+   * something the server does not understand and silently get everything back.
+   */
+  const filters = parseFilters((k) => c.req.query(k));
+  const { quality } = filters;
 
   const rows = db().query(`
     SELECT l.id, l.title, l.url, l.asking_price_cents, l.location, l.posted_at, l.source,
@@ -501,6 +518,14 @@ app.get("/v1/feed", (c) => {
       + freshness * 200 + dropBoost + goneP;
     return {
       id: r.id, title: r.title, url: r.url, source: r.source,
+      /**
+       * Derived here rather than stored. `listings` has no category column and
+       * the verdict payload does not carry one, so the alternative is a
+       * migration plus a backfill for a value `detectCategory` recomputes from
+       * the title in microseconds. It is also the SAME function the engine
+       * classifies with, so the filter cannot disagree with the verdict.
+       */
+      category: detectCategory(r.title ?? "", ""),
       askingPriceCents: r.asking_price_cents, location: r.location, postedAt: r.posted_at,
       thumb: r.thumb, call: r.call, confidence: r.confidence,
       headline: v?.headline ?? null,
@@ -533,10 +558,18 @@ app.get("/v1/feed", (c) => {
    * the invariant that ties them together live in `./query.ts`, where a test
    * asserts `segmentCounts(rows)[q] === applyQuality(rows, q).length`.
    */
-  const priceScoped = withinPrice(ranked, maxPrice);
-  const filtered = applyQuality(priceScoped, quality);
+  /**
+   * ⚠ THE SEGMENT COUNTS ARE COMPUTED OVER THE DISCOVERY-FILTERED SET.
+   *
+   * Search for "rtx" and the chips must say how many BUYs there are AMONG RTX
+   * cards, not in the whole feed. Counting the unfiltered population would put
+   * "Ready 3" above a search that returns one, which is the same class of lie
+   * the segment rewrite existed to remove: a number you cannot reach.
+   */
+  const scoped = sortFeed(applyDiscovery(ranked, filters), filters.sort);
+  const filtered = applyQuality(scoped, quality);
   const items = filtered.slice(offset, offset + limit);
-  const segments = segmentCounts(priceScoped);
+  const segments = segmentCounts(scoped);
 
   const lastCrawl = db().query("SELECT started_at, analysed FROM crawls ORDER BY id DESC LIMIT 1").get() as any;
 
@@ -552,6 +585,15 @@ app.get("/v1/feed", (c) => {
     limit,
     quality,
     segments,
+    filters,
+    /**
+     * The facets that actually have rows behind them, counted over the
+     * price/search-scoped set. Offering "Mercari (0)" is offering a dead end.
+     */
+    facets: {
+      category: countBy(scoped, (r) => r.category),
+      source: countBy(scoped, (r) => r.source),
+    },
     // Raw call counts over the same ranked set, for anything that still wants
     // them. NOT the global verdict table, which counts rows the feed hides.
     counts: Object.fromEntries(
@@ -676,6 +718,7 @@ app.get("/v1/checks/:id", (c) => {
   const driveMinutes = parseDrive(c.req.query("drive"));
 
   let signals: unknown[] = [];
+  let comps: unknown[] = [];
   let meta: Record<string, unknown> = {};
   let verdict = row.payload ? JSON.parse(row.payload) : null;
   try {
@@ -684,6 +727,26 @@ app.get("/v1/checks/:id", (c) => {
     // different drive time; otherwise the feed and the detail must agree.
     if (driveMinutes) verdict = re.verdict;
     signals = re.signals.signals;
+    /**
+     * ⚠ THE COMPS BEHIND THE MEDIAN, NAMED (audit §20 "comp transparency").
+     *
+     * Every number on the detail screen descends from one median, and the
+     * screen said "59 sold comps" without ever showing one. That asks for
+     * trust on the strength of a count. Yish's own valuation dispute on the
+     * NZXT build was settled by looking at what the comps actually WERE, which
+     * is not something the product let anyone else do.
+     *
+     * Capped at 12 and ordered newest-first: this is evidence for a judgement,
+     * not a data export, and 59 rows would bury the verdict above it.
+     */
+    if (re.match?.skuId) {
+      comps = db().query(
+        `SELECT raw_title, sold_price_cents + COALESCE(shipping_cents,0) AS total,
+                condition_norm, sold_at, url
+           FROM comps WHERE sku_id = $sku AND sold_price_cents > 0
+          ORDER BY COALESCE(sold_at, captured_at) DESC LIMIT 12`,
+      ).all({ $sku: re.match.skuId }) as unknown[];
+    }
     meta = {
       category: re.signals.category,
       listingQuality: re.signals.listingQuality,
@@ -707,6 +770,7 @@ app.get("/v1/checks/:id", (c) => {
     },
     verdict,
     signals,
+    comps,
     meta,
   });
 });

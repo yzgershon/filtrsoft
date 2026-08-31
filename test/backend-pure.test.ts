@@ -17,7 +17,10 @@ import {
   parseShipping,
 } from "../src/sources/ebay.ts";
 import { cardToListing, parseCards, probeVerdict } from "../src/sources/marketplace.ts";
-import { applyQuality, parseDrive, QUALITIES, segmentCounts, withinPrice } from "../src/api/query.ts";
+import {
+  applyDiscovery, applyQuality, matchesSearch, NO_FILTERS, parseDrive, parseFilters,
+  QUALITIES, segmentCounts, sortFeed, withinPrice,
+} from "../src/api/query.ts";
 import { analyze } from "../src/signals/index.ts";
 import { matchSku } from "../src/catalog/match.ts";
 import { buildVerdict } from "../src/verdict/index.ts";
@@ -837,5 +840,104 @@ describe("engine copy", () => {
       expect(v.headline.toLowerCase()).not.toContain("floor");
       expect(v.headline).toMatch(/\$[\d,]+/);
     }
+  });
+});
+
+/**
+ * The server half of the same filter vocabulary. These must agree with
+ * `test/web-shell.test.ts` field for field: a mismatch means a control asks for
+ * something the server ignores, and the filter silently does nothing.
+ */
+describe("feed discovery", () => {
+  const rows = [
+    { call: "BUY", title: "NVIDIA GeForce RTX 4090 24GB", source: "craigslist", category: "gpu", askingPriceCents: 150000, postedAt: "2026-08-25", priceDropCents: 0, score: 900 },
+    { call: "BUY", title: "RTX 3060 12GB Graphics Card", source: "offerup", category: "gpu", askingPriceCents: 20000, postedAt: "2026-08-28", priceDropCents: 5000, score: 800 },
+    { call: "VERIFY", title: "MacBook Pro 14 M1 Pro", source: "facebook", category: "laptop", askingPriceCents: 90000, postedAt: "2026-08-20", priceDropCents: 0, score: 700 },
+    { call: "PASS", title: "PS5 Disc Edition", source: "mercari", category: "console", askingPriceCents: 45000, postedAt: null, priceDropCents: 12000, score: 600 },
+    { call: "FAIR", title: "Dell laptop charger", source: "craigslist", category: "unknown", askingPriceCents: null, postedAt: "2026-08-29", priceDropCents: 0, score: 500 },
+  ];
+
+  test("search requires EVERY word, not any of them", () => {
+    // "rtx 3060" must not return every RTX card.
+    expect(matchesSearch("RTX 3060 12GB Graphics Card", "rtx 3060")).toBe(true);
+    expect(matchesSearch("NVIDIA GeForce RTX 4090 24GB", "rtx 3060")).toBe(false);
+    expect(matchesSearch("anything", "")).toBe(true);
+  });
+
+  test("search is case-insensitive and matches glued model numbers", () => {
+    expect(matchesSearch("Gigabyte RTX3060 Ti OC", "rtx3060")).toBe(true);
+    expect(matchesSearch("MACBOOK PRO", "macbook")).toBe(true);
+  });
+
+  test("category, source and price all narrow the set", () => {
+    expect(applyDiscovery(rows, { ...NO_FILTERS, category: "gpu" }).length).toBe(2);
+    expect(applyDiscovery(rows, { ...NO_FILTERS, source: "craigslist" }).length).toBe(2);
+    expect(applyDiscovery(rows, { ...NO_FILTERS, maxPrice: 50000 }).length).toBe(2);
+  });
+
+  test("filters compose rather than replace each other", () => {
+    const got = applyDiscovery(rows, { ...NO_FILTERS, category: "gpu", maxPrice: 50000 });
+    expect(got.length).toBe(1);
+    expect(got[0].title).toContain("3060");
+  });
+
+  test("an unpriced row is excluded by a price ceiling, not treated as free", () => {
+    const got = applyDiscovery(rows, { ...NO_FILTERS, maxPrice: 100000 });
+    expect(got.some((r) => r.askingPriceCents === null)).toBe(false);
+  });
+
+  test("the segment counts are computed over the DISCOVERY-filtered set", () => {
+    // Search for "rtx" and the chips must say how many BUYs there are AMONG
+    // RTX cards. Counting the whole feed would print a number you cannot reach.
+    const scoped = applyDiscovery(rows, { ...NO_FILTERS, q: "rtx" });
+    const counts = segmentCounts(scoped);
+    expect(counts.all).toBe(2);
+    expect(counts.ready).toBe(2);
+    expect(counts.verify).toBe(0);
+    for (const q of QUALITIES) expect(counts[q]).toBe(applyQuality(scoped, q).length);
+  });
+
+  test("sort orders by the thing it names", () => {
+    expect(sortFeed(rows, "newest")[0].title).toContain("charger");
+    expect(sortFeed(rows, "drop")[0].title).toContain("PS5");
+    expect(sortFeed(rows, "price")[0].title).toContain("3060");
+    expect(sortFeed(rows, "best")[0].title).toContain("4090");
+  });
+
+  test("unpriced rows sink under cheapest-first", () => {
+    // "Cheapest first" with no price is not an answer.
+    const out = sortFeed(rows, "price");
+    expect(out[out.length - 1].askingPriceCents).toBeNull();
+  });
+
+  test("sort is stable, so paging cannot duplicate or drop a row", () => {
+    // Half these rows have no postedAt; without the score fallback their order
+    // is arbitrary and page 2 overlaps page 1.
+    const a = sortFeed(rows, "newest").map((r) => r.title);
+    const b = sortFeed(rows, "newest").map((r) => r.title);
+    expect(a).toEqual(b);
+  });
+
+  test("parseFilters mirrors the client's URL model", () => {
+    const q: Record<string, string> = {
+      quality: "READY", q: "  rtx 3060  ", category: "GPU", source: "OfferUp",
+      maxPrice: "50000", sort: "drop",
+    };
+    const f = parseFilters((k) => q[k]);
+    expect(f).toEqual({
+      quality: "ready", q: "rtx 3060", category: "gpu", source: "offerup",
+      maxPrice: 50000, sort: "drop",
+    });
+  });
+
+  test("parseFilters rejects junk instead of passing it through", () => {
+    const f = parseFilters((k) => ({ sort: "sideways", maxPrice: "-3" } as Record<string, string>)[k]);
+    expect(f.sort).toBe("best");
+    expect(f.maxPrice).toBeNull();
+  });
+
+  test("the server caps the search the same way the client does", () => {
+    const long = "a".repeat(500);
+    expect(parseFilters((k) => (k === "q" ? long : undefined)).q.length).toBe(80);
   });
 });

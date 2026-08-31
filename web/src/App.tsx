@@ -7,9 +7,11 @@ import { Scan, Clock, User, Alert, Check, Info, Link, Again, Eye, Shield, Tag, G
  * implementation detail rather than a second import path for callers.
  */
 import {
-  type Screen, type Settings, type Quality,
-  screenOf, tabOf, mergeSettings, clampDrive, feedQuery, checkQuery,
+  type Screen, type Settings, type Quality, type Filters, type Sort,
+  screenOf, tabOf, mergeSettings, clampDrive, checkQuery,
   DEFAULT_SETTINGS, SETTINGS_KEY, DRIVE_MIN, DRIVE_MAX, DRIVE_STEP,
+  NO_FILTERS, CATEGORIES, SOURCES, SORTS, sourceLabel,
+  filtersFromSearch, searchFromFilters, activeFilterCount, feedUrl,
 } from "./nav.ts";
 export { screenOf, tabOf } from "./nav.ts";
 export type { Screen, Settings } from "./nav.ts";
@@ -328,7 +330,16 @@ function Gcard({ i, saved, onSave, onOpen }: {
             {i.priceDropCents
               ? <s className="num">{money(i.priceWasCents)}</s>
               : null}
-            {[i.location, ago(i.postedAt)].filter(Boolean).join(" · ")}
+            {/**
+              * ⚠ THE SOURCE IS A LABEL, NOT A COLOUR. Audit §19: where a
+              * listing came from changes how you contact the seller and how
+              * much to trust the photos, and it was nowhere on the card. It is
+              * set in the muted ink beside the location for the same reason
+              * the audit gives: the VERDICT colour stays the only colour that
+              * means anything, so a brand palette here would compete with the
+              * one signal the card exists to carry.
+              */}
+            {[sourceLabel(i.source), i.location, ago(i.postedAt)].filter(Boolean).join(" · ")}
           </span>
         </span>
       </button>
@@ -339,6 +350,218 @@ function Gcard({ i, saved, onSave, onOpen }: {
         aria-pressed={saved}>
         <Save size={16} filled={saved} />
       </button>
+    </div>
+  );
+}
+
+/**
+ * Discovery. Search, category, source, price ceiling and sort.
+ *
+ * ⚠ THREE SEGMENTS IS NOT DISCOVERY FOR 387 LISTINGS (audit §20). Ready/Verify/
+ * Risky/All answers "how confident is the engine", which is a completely
+ * different question from "show me graphics cards under $500". Without the
+ * second one the only way to find a specific thing was to scroll.
+ *
+ * **Mobile is a bottom sheet, desktop is the same panel inline.** One component,
+ * one state, one set of controls: a separate desktop toolbar would be a second
+ * implementation of the same filters to keep in sync, which is how one of them
+ * ends up missing an option.
+ *
+ * The sheet is a real dialog: focus moves into it, Tab is trapped, Escape
+ * closes, and focus returns to the button that opened it. Same rules as the
+ * photo lightbox, and for the same reason.
+ */
+function FilterSheet({ f, facets, onApply, onClose }: {
+  f: Filters;
+  facets: { category?: Record<string, number>; source?: Record<string, number> };
+  onApply: (next: Filters) => void;
+  onClose: () => void;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const [draft, setDraft] = useState<Filters>(f);
+  const set = (patch: Partial<Filters>) => setDraft((d) => ({ ...d, ...patch }));
+
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    box.current?.querySelector<HTMLElement>("input,button")?.focus();
+    const on = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); onClose(); return; }
+      if (e.key !== "Tab") return;
+      const els = box.current?.querySelectorAll<HTMLElement>("input,button,select");
+      if (!els?.length) return;
+      const first = els[0], last = els[els.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    addEventListener("keydown", on);
+    return () => {
+      removeEventListener("keydown", on);
+      document.body.style.overflow = prev;
+      opener?.focus?.();
+    };
+  }, [onClose]);
+
+  const priceInput = draft.maxPrice ? String(Math.round(draft.maxPrice / 100)) : "";
+
+  return (
+    <div className="sheetwrap" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label="Filter deals" ref={box}>
+        <div className="sheethead">
+          <b>Filters</b>
+          <button className="sheetx" onClick={onClose} aria-label="Close filters">✕</button>
+        </div>
+
+        <label className="fld">
+          <span>Search</span>
+          <input value={draft.q} placeholder="rtx 3060, macbook, ps5"
+            onChange={(e) => set({ q: e.target.value })}
+            /* Enter applies, because typing then hunting for a button is two
+               gestures for something the keyboard already implies. */
+            onKeyDown={(e) => { if (e.key === "Enter") onApply(draft); }}
+            inputMode="search" autoCapitalize="off" autoCorrect="off" spellCheck={false} />
+        </label>
+
+        <div className="fld">
+          <span>Category</span>
+          <div className="chips">
+            <button className={`fchip${draft.category === "" ? " on" : ""}`}
+              onClick={() => set({ category: "" })} aria-pressed={draft.category === ""}>Any</button>
+            {/* ⚠ Only categories with rows behind them. Offering "Tablets (0)"
+                is offering a dead end, and the count comes from the same
+                filtered population the feed serves. */}
+            {CATEGORIES.filter((c) => (facets.category?.[c.id] ?? 0) > 0).map((c) => (
+              <button key={c.id} className={`fchip${draft.category === c.id ? " on" : ""}`}
+                aria-pressed={draft.category === c.id}
+                onClick={() => set({ category: draft.category === c.id ? "" : c.id })}>
+                {c.label}<em className="num">{facets.category?.[c.id]}</em>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="fld">
+          <span>Where it's listed</span>
+          <div className="chips">
+            <button className={`fchip${draft.source === "" ? " on" : ""}`}
+              onClick={() => set({ source: "" })} aria-pressed={draft.source === ""}>Any</button>
+            {SOURCES.filter((x) => (facets.source?.[x.id] ?? 0) > 0).map((x) => (
+              <button key={x.id} className={`fchip${draft.source === x.id ? " on" : ""}`}
+                aria-pressed={draft.source === x.id}
+                onClick={() => set({ source: draft.source === x.id ? "" : x.id })}>
+                {x.label}<em className="num">{facets.source?.[x.id]}</em>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <label className="fld">
+          <span>Most you'd pay</span>
+          <div className="pricefld">
+            <i>$</i>
+            <input value={priceInput} placeholder="any" inputMode="numeric"
+              onChange={(e) => {
+                const n = Number(e.target.value.replace(/[^0-9]/g, ""));
+                set({ maxPrice: n > 0 ? n * 100 : null });
+              }}
+              onKeyDown={(e) => { if (e.key === "Enter") onApply(draft); }} />
+          </div>
+        </label>
+
+        <div className="fld">
+          <span>Sort by</span>
+          <div className="chips">
+            {SORTS.map((o) => (
+              <button key={o.id} className={`fchip${draft.sort === o.id ? " on" : ""}`}
+                aria-pressed={draft.sort === o.id}
+                onClick={() => set({ sort: o.id })}>{o.label}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className="sheetfoot">
+          <button className="btn2" onClick={() => onApply({ ...NO_FILTERS, quality: draft.quality })}>
+            Clear
+          </button>
+          <button className="cta" onClick={() => onApply(draft)}>Show deals</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * "Save this search" turns the filters you are looking at into an alert.
+ *
+ * ⚠ IT ONLY EVER APPEARS ONCE THERE IS SOMETHING TO SAVE, and it asks for
+ * notification permission on the TAP, never on load. Audit §12: "Keep permission
+ * requests user-triggered." A permission prompt that fires because a page
+ * rendered is the fastest way to get permanently blocked.
+ */
+function SaveSearch({ f }: { f: Filters }) {
+  const [state, setState] = useState<"idle" | "busy" | "done" | "error">("idle");
+  const [msg, setMsg] = useState<string | null>(null);
+  if (!activeFilterCount(f)) return null;
+
+  async function save() {
+    setState("busy"); setMsg(null);
+    try {
+      let subId = Number(localStorage.getItem(SUBKEY)) || null;
+      if (!subId) {
+        if (typeof Notification === "undefined" || !("serviceWorker" in navigator)) {
+          throw new Error("This browser can't do alerts.");
+        }
+        const p = await Notification.requestPermission();
+        if (p !== "granted") throw new Error("Notifications were blocked, so there's nowhere to send the alert.");
+        const { publicKey, configured } = await (await fetch("/v1/push/vapid")).json();
+        if (!configured || !publicKey) throw new Error("Alerts aren't configured on the server yet.");
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true, applicationServerKey: urlB64ToBytes(publicKey),
+        });
+        const r = await (await fetch("/v1/push/subscribe", {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify(sub.toJSON()),
+        })).json();
+        if (!r.subId) throw new Error("Couldn't register this device.");
+        localStorage.setItem(SUBKEY, String(r.subId));
+        subId = r.subId;
+      }
+
+      const label = [
+        f.q || CATEGORIES.find((c) => c.id === f.category)?.label || "Deals",
+        f.source ? `on ${sourceLabel(f.source)}` : "",
+        f.maxPrice ? `under ${money(f.maxPrice)}` : "",
+      ].filter(Boolean).join(" ");
+
+      const r = await (await fetch("/v1/searches", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          subId, label, query: f.q || null,
+          maxPriceCents: f.maxPrice ?? undefined,
+          // The whole point of an alert is the ones worth driving for.
+          calls: ["BUY", "VERIFY"],
+        }),
+      })).json();
+      if (r.error) throw new Error(r.error);
+      setState("done");
+      toast("Saved. You'll get a push when one shows up.");
+    } catch (e) {
+      setState("error");
+      setMsg((e as Error).message);
+    }
+  }
+
+  if (state === "done") {
+    return <p className="savedsearch ok" role="status"><Check size={14} /> Saved to Alerts.</p>;
+  }
+  return (
+    <div className="savedsearch">
+      <button className="btn2" onClick={save} disabled={state === "busy"}>
+        <Bell size={15} /> {state === "busy" ? "Saving…" : "Alert me about this search"}
+      </button>
+      {msg && <p role="alert">{msg}</p>}
     </div>
   );
 }
@@ -361,7 +584,17 @@ function Feed({ onOpen, onWatchChange }: {
    * Server-side means the count, the page and the pagination all come from one
    * filter model, so they cannot disagree.
    */
-  const [quality, setQuality] = useState<Quality>("all");
+  /**
+   * ⚠ FILTERS LIVE IN THE URL (audit §20). Held in component state they are
+   * lost on every refresh and on every trip into a listing and back, which on
+   * a 387-row feed means re-typing the search after each thing you look at.
+   * They are also then shareable, which is what the audit asked for.
+   */
+  const [filters, setFilters] = useState<Filters>(() => filtersFromSearch(location.search));
+  const quality = filters.quality;
+  const setQuality = (q: Quality) => applyFilters({ ...filters, quality: q });
+  const [sheet, setSheet] = useState(false);
+  const [facets, setFacets] = useState<{ category?: Record<string, number>; source?: Record<string, number> }>({});
   const [segments, setSegments] = useState<Record<string, number>>({});
   const [total, setTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -375,19 +608,20 @@ function Feed({ onOpen, onWatchChange }: {
   const [offline, setOffline] = useState(() => typeof navigator !== "undefined" && !navigator.onLine);
   const [watch, setWatch] = useState<number[]>(readWatch);
 
-  const load = useCallback((offset: number, q: Quality) => {
+  const load = useCallback((offset: number, f: Filters) => {
     setLoadingMore(offset > 0);
     if (offset === 0) setFailed(false);
     /**
      * `hideGone` was written to localStorage and never read (audit P0-3). The
      * feed hides delisted rows by default, so the switch has to ASK for them
-     * when it is off — `feedQuery` inverts it onto the existing `?gone=1` flag.
+     * when it is off — `feedUrl` inverts it onto the existing `?gone=1` flag.
      */
-    return fetch(feedQuery({ limit: PAGE, offset, quality: q, hideGone: readSettings().hideGone }))
+    return fetch(feedUrl({ limit: PAGE, offset, hideGone: readSettings().hideGone, filters: f }))
       .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
       .then((d) => {
         setItems((prev) => (offset === 0 ? (d.items ?? []) : [...(prev ?? []), ...(d.items ?? [])]));
         setSegments(d.segments ?? {});
+        setFacets(d.facets ?? {});
         setTotal(d.total ?? 0);
       })
       /**
@@ -399,19 +633,38 @@ function Feed({ onOpen, onWatchChange }: {
       .finally(() => setLoadingMore(false));
   }, []);
 
-  // Reset rows AND offset whenever the segment changes, or page 2 of the old
-  // segment would append onto page 1 of the new one.
-  useEffect(() => { setItems(null); void load(0, quality); }, [load, quality]);
+  /**
+   * Reset rows AND offset whenever ANY filter changes, or page 2 of the old
+   * query appends onto page 1 of the new one. Keyed on the serialised filter
+   * state rather than the object, which is new on every render.
+   */
+  const key = searchFromFilters(filters);
+  useEffect(() => { setItems(null); void load(0, filtersFromSearch(key)); }, [load, key]);
+
+  /**
+   * Applying filters PUSHES a history entry, so Back undoes a search rather
+   * than leaving the feed and losing it. `popstate` reads them back.
+   */
+  const applyFilters = (next: Filters) => {
+    setFilters(next);
+    setSheet(false);
+    history.pushState({}, "", `${location.pathname}${searchFromFilters(next)}`);
+  };
+  useEffect(() => {
+    const on = () => setFilters(filtersFromSearch(location.search));
+    addEventListener("popstate", on);
+    return () => removeEventListener("popstate", on);
+  }, []);
 
   // Coming back online retries by itself. Making someone tap Try again for a
   // connection that already recovered is a step the browser can take for them.
   useEffect(() => {
-    const up = () => { setOffline(false); setFailed(false); void load(0, quality); };
+    const up = () => { setOffline(false); setFailed(false); void load(0, filters); };
     const down = () => setOffline(true);
     addEventListener("online", up);
     addEventListener("offline", down);
     return () => { removeEventListener("online", up); removeEventListener("offline", down); };
-  }, [load, quality]);
+  }, [load, key]);
 
   /**
    * ⚠ THE SEGMENT CONTROL MUST NOT UNMOUNT WHILE ITS OWN RESULTS LOAD.
@@ -455,6 +708,8 @@ function Feed({ onOpen, onWatchChange }: {
    * Each segment now names exactly one thing. RISK is its own state and is
    * never counted as a deal.
    */
+  const nFilters = activeFilterCount(filters);
+
   const SEGS: Array<{ id: Quality; label: string; n: number }> = [
     { id: "ready", label: "Ready", n: segments.ready ?? 0 },
     { id: "verify", label: "Verify", n: segments.verify ?? 0 },
@@ -480,7 +735,56 @@ function Feed({ onOpen, onWatchChange }: {
 
   return (
     <>
-      <Segmented value={quality} onChange={setQuality} options={SEGS} />
+      <div className="qrow">
+        <Segmented value={quality} onChange={setQuality} options={SEGS} />
+        <button className={`filterbtn${nFilters ? " on" : ""}`} onClick={() => setSheet(true)}
+          aria-label={nFilters ? `Filters, ${nFilters} active` : "Filters"}>
+          <Cut size={16} />
+          <span>Filters</span>
+          {nFilters > 0 && <em className="num">{nFilters}</em>}
+        </button>
+      </div>
+
+      {sheet && (
+        <FilterSheet f={filters} facets={facets} onApply={applyFilters} onClose={() => setSheet(false)} />
+      )}
+
+      {/**
+        * What is actually being filtered, stated in words, with a way out of
+        * each one. A filter you cannot see is a filter you think is a bug: the
+        * feed looks empty and nothing on screen says why.
+        */}
+      {nFilters > 0 && (
+        <div className="active" role="status">
+          {filters.q && (
+            <button className="apill" onClick={() => applyFilters({ ...filters, q: "" })}>
+              "{filters.q}" <i aria-hidden="true">✕</i>
+              <span className="vh">Remove the search</span>
+            </button>
+          )}
+          {filters.category && (
+            <button className="apill" onClick={() => applyFilters({ ...filters, category: "" })}>
+              {CATEGORIES.find((c) => c.id === filters.category)?.label ?? filters.category} <i aria-hidden="true">✕</i>
+              <span className="vh">Remove the category filter</span>
+            </button>
+          )}
+          {filters.source && (
+            <button className="apill" onClick={() => applyFilters({ ...filters, source: "" })}>
+              {sourceLabel(filters.source)} <i aria-hidden="true">✕</i>
+              <span className="vh">Remove the source filter</span>
+            </button>
+          )}
+          {filters.maxPrice && (
+            <button className="apill" onClick={() => applyFilters({ ...filters, maxPrice: null })}>
+              under {money(filters.maxPrice)} <i aria-hidden="true">✕</i>
+              <span className="vh">Remove the price limit</span>
+            </button>
+          )}
+          <button className="apill clear" onClick={() => applyFilters({ ...NO_FILTERS, quality })}>
+            Clear all
+          </button>
+        </div>
+      )}
 
       {!items && (
         <div className="sec" aria-busy="true">
@@ -513,7 +817,7 @@ function Feed({ onOpen, onWatchChange }: {
           <p>{offline
             ? "Reconnect and try again — nothing was lost."
             : "The request didn't finish. This is usually the connection, not the deals."}</p>
-          <button className="btn2" onClick={() => { setFailed(false); setItems(null); void load(0, quality); }}>
+          <button className="btn2" onClick={() => { setFailed(false); setItems(null); void load(0, filters); }}>
             <Again size={15} /> Try again
           </button>
         </div>
@@ -530,6 +834,14 @@ function Feed({ onOpen, onWatchChange }: {
               <SectionHead
                 tone={hero.call === "BUY" ? "buy" : hero.call === "VERIFY" ? "verify" : "mute"}
                 label="Best right now" />
+              {/**
+                * ⚠ THE BOOKMARK IS A SIBLING OF THE OPEN BUTTON, NEVER INSIDE
+                * IT. Audit §18: every grid card could be saved and the best
+                * listing on the page could not. A button nested in a button is
+                * invalid HTML, and browsers resolve it by dropping one of them
+                * — which is exactly the bug `.gcard` was made a div to avoid.
+                */}
+              <div className="herowrap">
               <button className={`dealhero v-${hero.call}`} onClick={() => onOpen(hero.id)}>
                 <span className="hshot">
                   {hero.thumb
@@ -548,6 +860,16 @@ function Feed({ onOpen, onWatchChange }: {
                 </span>
                 {hero.headline ? <span className="hwhy">{hero.headline}</span> : null}
               </button>
+              <button className={`gsave herosave${watch.includes(hero.id) ? " on" : ""}`}
+                aria-pressed={watch.includes(hero.id)}
+                aria-label={watch.includes(hero.id) ? `Remove ${hero.title} from your watchlist` : `Save ${hero.title}`}
+                onClick={() => {
+                  const n = toggleWatch(hero.id); setWatch(n); onWatchChange(n.length);
+                  toast(n.includes(hero.id) ? "Saved" : "Removed from Saved");
+                }}>
+                <Save size={16} filled={watch.includes(hero.id)} />
+              </button>
+              </div>
             </>
           )}
 
@@ -589,8 +911,10 @@ function Feed({ onOpen, onWatchChange }: {
         * no interaction that could reach them. Show more is available for every
         * segment now, until `items.length === total` for THAT segment.
         */}
+      {items && shown.length === total && <SaveSearch f={filters} />}
+
       {items && shown.length < total ? (
-        <button className="more" disabled={loadingMore} onClick={() => void load(shown.length, quality)}>
+        <button className="more" disabled={loadingMore} onClick={() => void load(shown.length, filters)}>
           {loadingMore ? "Loading…" : `Show more — ${shown.length} of ${total}`}
         </button>
       ) : null}
@@ -812,9 +1136,129 @@ function Numbers({ v, ask }: { v: Verdict; ask: number | null }) {
       </div>
 
       {!canSwitch && ch?.channel === "facebook" && (
-        <p className="chnote">Too bulky to post — local sale only, so there are no fees to take out.</p>
+        <p className="chnote">Too bulky to post, so it is a local sale only and there are no fees to take out.</p>
       )}
     </section>
+  );
+}
+
+interface Comp {
+  raw_title: string; total: number;
+  condition_norm: string | null; sold_at: string | null; url: string | null;
+}
+
+/**
+ * The comps behind the median, and what happens if you offer less.
+ *
+ * ── WHY BOTH LIVE IN ONE COMPONENT ─────────────────────────────────────────
+ *
+ * They answer the two halves of the same question. "Where does $2,500 come
+ * from" and "what if they won't take my number" are both people refusing to
+ * accept one figure on faith, which is the correct instinct.
+ *
+ * ⚠ THE SLIDER RECOMPUTES IN THE BROWSER AND THAT IS SAFE HERE. Net is
+ * `gross - offer`, pure subtraction over numbers the server already sent, so
+ * there is no second engine to drift out of sync. Anything that needed the
+ * ENGINE — a different drive time, a different channel's fees — goes back to
+ * the server, which is why the drive-time control does.
+ */
+function CompsAndOffer({ v, comps, ask }: {
+  v: Verdict; comps: Comp[]; ask: number | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const usable = (v.channels ?? []).filter((c) => c.available);
+  const ch = v.bestChannel ?? usable[0];
+  const [offer, setOffer] = useState<number | null>(null);
+  if (!ch || ask == null) return null;
+
+  const at = offer ?? ask;
+  const net = ch.netCents - at;
+  const required = v.requiredProfitCents ?? 0;
+  const clears = net >= required;
+  /**
+   * ⚠ 0 TO THE ASKING PRICE, AND NOTHING CLEVERER THAN THAT.
+   *
+   * The first version derived the floor from the economics
+   * (`netCents - required * 3`), and on the RTX 4090 that produced min $1,720
+   * against max $1,500: an INVERTED RANGE. A range input whose min exceeds its
+   * max does not error, it just pins and never moves, so the control rendered
+   * perfectly and did nothing. Caught by asserting that dragging it changes
+   * the number, which is the only way this was ever going to show up.
+   *
+   * Offering MORE than they asked is not a thing anyone needs a slider for, so
+   * the asking price is the ceiling. $5 steps: fine enough to land on a real
+   * number, coarse enough that a drag feels like it is doing something.
+   */
+  const max = Math.max(ask, 500);
+  const min = 0;
+
+  return (
+    <>
+      <section className="sec rise">
+        <h4>
+          What if you offer less
+          <em>({money(v.targetOfferCents ?? 0)} is the most that still works)</em>
+        </h4>
+        <div className="panel offer">
+          <div className="offerrow">
+            <span className="offerlbl">You offer</span>
+            <span className="num offerval">{money(at)}</span>
+          </div>
+          <input
+            className="offerslide" type="range"
+            min={min} max={max} step={500} value={at}
+            aria-label="Your offer"
+            onChange={(e) => setOffer(Number(e.target.value))} />
+          <div className={`offerout ${clears ? "ok" : "no"}`} role="status" aria-live="polite">
+            {clears
+              ? <><Check size={15} /><span>You'd make <b className="num">{money(net)}</b>, which is worth the trip.</span></>
+              : <><Info size={15} /><span>You'd make <b className="num">{money(net)}</b>, under the {money(required)} you need.</span></>}
+          </div>
+          {offer != null && offer !== ask && (
+            <button className="offerreset" onClick={() => setOffer(null)}>
+              Back to the asking price
+            </button>
+          )}
+        </div>
+      </section>
+
+      {comps.length > 0 && (
+        <section className="sec">
+          {/**
+            * ⚠ COLLAPSED BY DEFAULT AND THAT IS THE POINT. Every number on this
+            * screen descends from one median, and the screen used to say "59
+            * sold comps" without ever showing one, which asks for trust on the
+            * strength of a count. Twelve rows expanded by default would bury the
+            * verdict; a disclosure that opens on demand is evidence you can
+            * check without being made to read it.
+            */}
+          <h4>
+            <button className="disclose" aria-expanded={open} onClick={() => setOpen(!open)}>
+              Where {money(v.valuation.medianCents)} comes from
+              <em>({v.valuation.compCount} sold)</em>
+              <i aria-hidden="true">{open ? "▴" : "▾"}</i>
+            </button>
+          </h4>
+          {open && (
+            <div className="panel comps">
+              {comps.map((c, i) => (
+                <div className="comp" key={i}>
+                  <span className="ctitle">{c.raw_title}</span>
+                  <span className="cmeta">
+                    {[c.condition_norm?.replace(/_/g, " "), c.sold_at?.slice(0, 10)].filter(Boolean).join(" · ")}
+                  </span>
+                  <span className="num cprice">{money(c.total)}</span>
+                </div>
+              ))}
+              <p className="compnote">
+                The {v.valuation.compCount} sold prices behind the median, newest first.
+                Showing the most recent {comps.length}.
+              </p>
+            </div>
+          )}
+        </section>
+      )}
+    </>
   );
 }
 
@@ -1143,8 +1587,9 @@ function Outcome({ id }: { id: number }) {
   );
 }
 
-function Report({ listing, verdict, signals, meta, stage, reading, checkId }: {
+function Report({ listing, verdict, signals, comps, meta, stage, reading, checkId }: {
   listing: Listing | null; verdict: Verdict | null; signals: Signal[];
+  comps?: Comp[];
   meta?: Meta; stage: number; reading: number; checkId?: number | null;
 }) {
   const [lbx, setLbx] = useState<number | null>(null);
@@ -1238,6 +1683,9 @@ function Report({ listing, verdict, signals, meta, stage, reading, checkId }: {
           {verdict && <Numbers v={verdict} ask={listing?.askingPriceCents ?? null} />}
         </div>
       </div>
+      {verdict && (
+        <CompsAndOffer v={verdict} comps={comps ?? []} ask={listing.askingPriceCents} />
+      )}
       {verdict?.retail && <Ceiling r={verdict.retail} />}
       {verdict?.riskChecks?.length ? <Blockers checks={verdict.riskChecks} /> : null}
       <Flags signals={signals} />
@@ -1554,6 +2002,7 @@ export default function App() {
   const [listing, setListing] = useState<Listing | null>(null);
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [signals, setSignals] = useState<Signal[]>([]);
+  const [comps, setComps] = useState<Comp[]>([]);
   const [meta, setMeta] = useState<Meta | undefined>(undefined);
   const [stage, setStage] = useState(0);
   const [ms, setMs] = useState<number | null>(null);
@@ -1656,14 +2105,14 @@ export default function App() {
       setListing(d.listing); setVerdict(d.verdict); setCheckId(d.checkId);
       // The detail endpoint recomputes these; dropping them left the risk
       // layer blank on every listing opened from the feed or a shared link.
-      setSignals(d.signals ?? []); setMeta(d.meta); setStage(3);
+      setSignals(d.signals ?? []); setComps(d.comps ?? []); setMeta(d.meta); setStage(3);
     }).finally(() => setBusy(false));
   }, [path]);
 
   const reset = () => {
     es.current?.close();
     setError(null); setListing(null); setVerdict(null);
-    setSignals([]); setMeta(undefined); setStage(0); setMs(null); setCheckId(null); setReading(0);
+    setSignals([]); setComps([]); setMeta(undefined); setStage(0); setMs(null); setCheckId(null); setReading(0);
   };
 
   function run(e?: React.FormEvent) {
@@ -1874,7 +2323,7 @@ export default function App() {
                     subhead above, where it is read before you spend a paste
                     rather than after one fails. (`.srcs` in styles.css is dead
                     with them — audit commit 6.) */}
-                <Report listing={listing} verdict={verdict} signals={signals}
+                <Report listing={listing} verdict={verdict} signals={signals} comps={comps}
                   meta={meta} stage={stage} reading={reading} checkId={checkId} />
 
                 {ms != null && <div className="timing num">verdict in {ms}ms</div>}

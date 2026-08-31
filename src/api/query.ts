@@ -87,3 +87,118 @@ export function parseDrive(raw: string | undefined): number | undefined {
   if (n < DRIVE_MIN || n > DRIVE_MAX) return undefined;
   return n;
 }
+
+// ─────────────────────────────────────────────────────────── discovery
+
+/**
+ * Search, category, source and sort — the rest of the feed query.
+ *
+ * ⚠ THREE SEGMENTS IS NOT DISCOVERY FOR 387 LISTINGS (audit §20). Every one of
+ * these is a pure function over the already-ranked rows for the same reason the
+ * segment counts are: the number the control prints and the rows it serves must
+ * come from one filter model, or they drift apart exactly as they did before.
+ *
+ * ⚠ THERE IS NO DISTANCE FILTER AND THAT IS NOT AN OVERSIGHT. `listings` stores
+ * `location` as free text ("Nonantum", "Salem, MA") with no coordinates and no
+ * geocoding anywhere in the pipeline, so a radius control would either be a
+ * string match wearing a mileage label or a number invented on the spot. The
+ * audit asks for one; it needs geocoding at ingest first.
+ */
+export type Sort = "best" | "newest" | "drop" | "price";
+export const SORTS: Sort[] = ["best", "newest", "drop", "price"];
+
+export interface FeedFilters {
+  quality: string;
+  q: string;
+  category: string;
+  source: string;
+  maxPrice: number | null;
+  sort: Sort;
+}
+
+export const NO_FILTERS: FeedFilters = {
+  quality: "all", q: "", category: "", source: "", maxPrice: null, sort: "best",
+};
+
+/** Reads one request's worth of query params into the filter model. */
+export function parseFilters(get: (k: string) => string | undefined): FeedFilters {
+  const price = Number(get("maxPrice"));
+  const sort = (get("sort") ?? "best").toLowerCase() as Sort;
+  return {
+    quality: (get("quality") ?? "all").toLowerCase(),
+    q: (get("q") ?? "").trim().slice(0, 80),
+    category: (get("category") ?? "").toLowerCase(),
+    source: (get("source") ?? "").toLowerCase(),
+    maxPrice: Number.isFinite(price) && price > 0 ? price : null,
+    sort: SORTS.includes(sort) ? sort : "best",
+  };
+}
+
+/**
+ * How many filters are ON, for the badge on the Filters button.
+ *
+ * ⚠ QUALITY AND SORT ARE DELIBERATELY EXCLUDED. The segment control is always
+ * visible and always has one option selected, and sort has a default; counting
+ * either would show "2 filters" on a screen where nothing has been filtered,
+ * which teaches people to ignore the badge.
+ */
+export function activeFilterCount(f: FeedFilters): number {
+  return (f.q ? 1 : 0) + (f.category ? 1 : 0) + (f.source ? 1 : 0) + (f.maxPrice ? 1 : 0);
+}
+
+/**
+ * Every word must appear somewhere in the title.
+ *
+ * AND, not OR: "rtx 3060" must not return every RTX card and every listing with
+ * a 3060-something in it. Substring rather than word-boundary, because model
+ * numbers are written glued to their qualifiers ("RTX3060", "3060Ti") often
+ * enough that requiring a boundary loses real matches.
+ */
+export function matchesSearch(title: string, q: string): boolean {
+  if (!q) return true;
+  const hay = title.toLowerCase();
+  return q.toLowerCase().split(/\s+/).filter(Boolean).every((t) => hay.includes(t));
+}
+
+export interface Discoverable extends Scoped {
+  title?: string | null;
+  source?: string | null;
+  category?: string | null;
+  postedAt?: string | null;
+  priceDropCents?: number | null;
+  score?: number;
+}
+
+/** Everything EXCEPT quality, which the segment counts are computed over. */
+export function applyDiscovery<T extends Discoverable>(rows: T[], f: FeedFilters): T[] {
+  return withinPrice(rows, f.maxPrice).filter((r) =>
+    matchesSearch(r.title ?? "", f.q) &&
+    (f.category ? r.category === f.category : true) &&
+    (f.source ? r.source === f.source : true));
+}
+
+/**
+ * ⚠ SORT IS STABLE AND ALWAYS FALLS BACK TO `score`.
+ *
+ * "Newest" on a feed where half the listings have no `posted_at` would
+ * otherwise scatter those rows arbitrarily, and an ordering that changes
+ * between two identical requests makes pagination duplicate and drop rows.
+ */
+export function sortFeed<T extends Discoverable>(rows: T[], sort: Sort): T[] {
+  const by = (n: number) => (a: T, b: T) => n;
+  const score = (r: T) => r.score ?? 0;
+  const out = [...rows];
+  if (sort === "newest") {
+    out.sort((a, b) => (Date.parse(b.postedAt ?? "") || 0) - (Date.parse(a.postedAt ?? "") || 0)
+      || score(b) - score(a));
+  } else if (sort === "drop") {
+    out.sort((a, b) => (b.priceDropCents ?? 0) - (a.priceDropCents ?? 0) || score(b) - score(a));
+  } else if (sort === "price") {
+    // Unpriced rows sink: "cheapest first" with no price is not an answer.
+    const p = (r: T) => r.askingPriceCents ?? Number.MAX_SAFE_INTEGER;
+    out.sort((a, b) => p(a) - p(b) || score(b) - score(a));
+  } else {
+    out.sort((a, b) => score(b) - score(a));
+  }
+  return out;
+}

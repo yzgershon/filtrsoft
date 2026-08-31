@@ -134,3 +134,120 @@ export function feedQuery(o: {
 export function checkQuery(id: number, driveMinutes: number): string {
   return `/v1/checks/${id}?drive=${clampDrive(driveMinutes)}`;
 }
+
+// ─────────────────────────────────────────────────────── discovery filters
+
+/**
+ * ⚠ THE FILTER STATE LIVES IN THE URL, NOT IN REACT STATE.
+ *
+ * Audit §20: "reflect filter state in the URL so searches are shareable and
+ * restorable." That is not only about sharing. Filters held in component state
+ * are lost on every refresh and on every trip into a listing and back, which on
+ * a feed of 387 rows means re-typing the search after each thing you look at.
+ *
+ * These mirror `src/api/query.ts` exactly. If the two ever disagree the control
+ * asks for something the server does not understand and silently gets
+ * everything back, which reads as "the filter did nothing".
+ *
+ * ⚠ NO DISTANCE FILTER. `listings.location` is free text with no coordinates
+ * and nothing geocodes at ingest, so a radius control would be a string match
+ * wearing a mileage label. The audit asks for one; it needs geocoding first.
+ */
+export type Sort = "best" | "newest" | "drop" | "price";
+export const SORTS: Array<{ id: Sort; label: string }> = [
+  { id: "best", label: "Best deals" },
+  { id: "newest", label: "Newest" },
+  { id: "drop", label: "Biggest price drop" },
+  { id: "price", label: "Cheapest" },
+];
+
+export const CATEGORIES: Array<{ id: string; label: string }> = [
+  { id: "gpu", label: "Graphics cards" },
+  { id: "laptop", label: "Laptops" },
+  { id: "phone", label: "Phones" },
+  { id: "console", label: "Consoles" },
+  { id: "prebuilt", label: "Desktops" },
+  { id: "tablet", label: "Tablets" },
+  { id: "component", label: "Components" },
+];
+
+/** The label is how a person says it. "offerup" is not how anyone says it. */
+export const SOURCES: Array<{ id: string; label: string }> = [
+  { id: "craigslist", label: "Craigslist" },
+  { id: "facebook", label: "Facebook" },
+  { id: "offerup", label: "OfferUp" },
+  { id: "mercari", label: "Mercari" },
+];
+export const sourceLabel = (id: string): string =>
+  SOURCES.find((s) => s.id === id)?.label ?? id;
+
+export interface Filters {
+  quality: Quality;
+  q: string;
+  category: string;
+  source: string;
+  maxPrice: number | null;
+  sort: Sort;
+}
+
+export const NO_FILTERS: Filters = {
+  quality: "all", q: "", category: "", source: "", maxPrice: null, sort: "best",
+};
+
+const QUALITIES: Quality[] = ["all", "ready", "verify", "risky", "browse"];
+
+/** Read filters out of a `?a=b` string. Anything unrecognised falls back. */
+export function filtersFromSearch(search: string): Filters {
+  const p = new URLSearchParams(search);
+  const price = Number(p.get("maxPrice"));
+  const quality = (p.get("quality") ?? "all") as Quality;
+  const sort = (p.get("sort") ?? "best") as Sort;
+  return {
+    quality: QUALITIES.includes(quality) ? quality : "all",
+    q: (p.get("q") ?? "").slice(0, 80),
+    category: p.get("category") ?? "",
+    source: p.get("source") ?? "",
+    maxPrice: Number.isFinite(price) && price > 0 ? price : null,
+    sort: SORTS.some((s) => s.id === sort) ? sort : "best",
+  };
+}
+
+/**
+ * Back to a query string, DEFAULTS OMITTED.
+ *
+ * A URL that reads `?quality=all&q=&category=&source=&sort=best` after every
+ * interaction is a URL nobody will share and one that makes the back button
+ * step through states that look identical.
+ */
+export function searchFromFilters(f: Filters): string {
+  const p = new URLSearchParams();
+  if (f.quality !== "all") p.set("quality", f.quality);
+  if (f.q) p.set("q", f.q);
+  if (f.category) p.set("category", f.category);
+  if (f.source) p.set("source", f.source);
+  if (f.maxPrice) p.set("maxPrice", String(f.maxPrice));
+  if (f.sort !== "best") p.set("sort", f.sort);
+  const s = p.toString();
+  return s ? `?${s}` : "";
+}
+
+/**
+ * How many filters are ON, for the badge on the Filters button.
+ *
+ * ⚠ QUALITY AND SORT ARE EXCLUDED. The segment control is always visible with
+ * one option selected and sort always has a value; counting either would show
+ * "2 filters" on a screen where nothing has been filtered, which teaches people
+ * to ignore the badge.
+ */
+export const activeFilterCount = (f: Filters): number =>
+  (f.q ? 1 : 0) + (f.category ? 1 : 0) + (f.source ? 1 : 0) + (f.maxPrice ? 1 : 0);
+
+/** The feed request for a whole filter state. */
+export function feedUrl(o: { limit: number; offset: number; hideGone: boolean; filters: Filters }): string {
+  const p = new URLSearchParams(searchFromFilters(o.filters).replace(/^\?/, ""));
+  p.set("limit", String(o.limit));
+  p.set("offset", String(o.offset));
+  p.set("quality", o.filters.quality);
+  if (!o.hideGone) p.set("gone", "1");
+  return `/v1/feed?${p.toString()}`;
+}

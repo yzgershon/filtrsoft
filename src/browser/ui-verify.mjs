@@ -475,7 +475,113 @@ const detailOpen = (page) => page.evaluate(
   await ctx.close();
 }
 
-// ────────────────────────────────────────────── 9. every width, every screen
+// ────────────────────────────────────────────────── 9. discovery filters
+{
+  console.log("\ndiscovery");
+  const { ctx, page } = await newPage(375);
+  await page.goto(BASE, { waitUntil: "networkidle" });
+  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
+
+  ok("cards name their source",
+    /craigslist|facebook|offerup|mercari/i.test(await page.locator(".gloc").first().innerText()),
+    (await page.locator(".gloc").first().innerText()).replace(/\n/g, " "));
+
+  ok("the hero can be saved", (await page.locator(".herosave").count()) > 0);
+
+  // The sheet is a real dialog, same rules as the lightbox.
+  await page.locator(".filterbtn").click();
+  await page.waitForTimeout(500);
+  ok("the filter sheet opens", (await page.locator(".sheet").count()) === 1);
+  ok("it takes focus", await page.evaluate(() => !!document.activeElement?.closest?.(".sheet")));
+  for (let i = 0; i < 10; i++) await page.keyboard.press("Tab");
+  ok("Tab is trapped in the sheet", await page.evaluate(() => !!document.activeElement?.closest?.(".sheet")));
+
+  await page.locator(".fld input").first().fill("rtx");
+  await page.locator(".sheetfoot .cta").click();
+  await page.waitForTimeout(1400);
+
+  /**
+   * ⚠ THE FILTER MUST REACH THE URL, THE SERVER AND THE COUNTS.
+   *
+   * Held in component state it is lost on every refresh and on every trip into
+   * a listing and back; computed against the unfiltered population the chips
+   * print numbers the search cannot reach.
+   */
+  ok("the search reaches the URL", page.url().includes("q=rtx"), page.url().replace(BASE, ""));
+  const chip = await page.locator(".qbar button, .seg button").last().innerText();
+  const claimed = Number(chip.match(/(\d+)\s*$/)?.[1] ?? NaN);
+  const total = await page.evaluate(() =>
+    fetch(location.search ? `/v1/feed?limit=1&quality=all&q=rtx` : "/v1/feed?limit=1").then((r) => r.json()).then((d) => d.total));
+  ok("the segment count reflects the search", claimed === total, `chip ${claimed} · server ${total}`);
+  ok("an active filter is shown with a way out", (await page.locator(".apill").count()) > 0);
+
+  const titles = await page.locator(".grid .gcard b, .dealhero b").allInnerTexts();
+  ok("every result matches the search", titles.every((t) => /rtx/i.test(t)),
+    titles.length ? `${titles.length} rows` : "no rows");
+
+  // A refresh must restore it; that is the whole reason it is in the URL.
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(1200);
+  ok("a refresh restores the search", (await page.locator(".apill").count()) > 0);
+
+  // Back must undo the search rather than leaving the feed.
+  await page.goBack();
+  await page.waitForTimeout(1200);
+  ok("Back undoes the search", !page.url().includes("q=rtx"), page.url().replace(BASE, ""));
+
+  // Clearing from the pill.
+  await page.goto(`${BASE}/?q=rtx&category=gpu`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1400);
+  ok("two filters show two pills", (await page.locator(".apill:not(.clear)").count()) === 2);
+  await page.locator(".apill.clear").click();
+  await page.waitForTimeout(1200);
+  ok("Clear all removes them", (await page.locator(".apill").count()) === 0);
+  await ctx.close();
+}
+
+// ────────────────────────────── 10. comp transparency and the offer sandbox
+{
+  console.log("\ncomps and offers");
+  const { ctx, page } = await newPage(375);
+  await page.goto(BASE, { waitUntil: "networkidle" });
+  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
+  await page.locator(".grid .gcard .gopen, .dealhero").first().click();
+  await page.waitForTimeout(2200);
+
+  const slide = page.locator(".offerslide");
+  if (await slide.count()) {
+    const before = await page.locator(".offerout").innerText();
+    // Drag the slider down and the net must fall with it.
+    await slide.evaluate((el) => {
+      const set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+      set.call(el, String(Number(el.min) + (Number(el.max) - Number(el.min)) * 0.1));
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await page.waitForTimeout(500);
+    const after = await page.locator(".offerout").innerText();
+    ok("the offer slider recomputes the net", before !== after,
+      `${before.replace(/\n/g, " ").slice(0, 40)} -> ${after.replace(/\n/g, " ").slice(0, 40)}`);
+    ok("the result is announced", (await page.locator(".offerout").getAttribute("aria-live")) === "polite");
+  } else {
+    console.log("  \x1b[90mskip\x1b[0m offer slider — this listing has no priced channel");
+  }
+
+  const disc = page.locator(".disclose");
+  if (await disc.count()) {
+    ok("comps start collapsed", (await disc.getAttribute("aria-expanded")) === "false");
+    await disc.click();
+    await page.waitForTimeout(400);
+    ok("comps open on demand", (await page.locator(".comp").count()) > 0,
+      `${await page.locator(".comp").count()} rows`);
+    ok("each comp names a price", /\$[\d,]+/.test(await page.locator(".cprice").first().innerText()));
+  } else {
+    console.log("  \x1b[90mskip\x1b[0m comps — this listing has no matched SKU");
+  }
+  await ctx.close();
+}
+
+// ────────────────────────────────────────────── 11. every width, every screen
 console.log("\nscreens");
 for (const w of WIDTHS) {
   const { ctx, page } = await newPage(w);
