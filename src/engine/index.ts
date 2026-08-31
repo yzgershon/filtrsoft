@@ -19,6 +19,7 @@ import { loadVision, loadVisionByFingerprint, photoFingerprint, photosUnchanged,
 import { analyzePhotos, VISION_MODEL, PROMPT_VERSION, type VisionResult } from "../vision/index.ts";
 import { releasePhotos, KEEP_PHOTOS } from "../photos/index.ts";
 import { downloadPhoto, fetchPhoto, dhash } from "../photos/index.ts";
+import { thumbFromBytes, putThumb, THUMBS_OFF } from "../photos/thumb.ts";
 import { getEconomics, type UserEconomics } from "../valuation/index.ts";
 import { db, now } from "../db/index.ts";
 import { upsertListingFacts } from "../db/listings.ts";
@@ -146,6 +147,22 @@ async function persistPhotos(listingId: number, urls: string[], keepFiles: boole
         : { path: null, buf: await fetchPhoto(u) };
       path = got.path;
       phash = await dhash(got.buf);
+      /**
+       * ⚠ THE THUMBNAIL COMES OFF THESE BYTES, NOT A SECOND REQUEST.
+       *
+       * We have just downloaded this photo to hash it, so the hero is in
+       * memory at exactly the moment the cache wants it. Calling `fetchThumb`
+       * here would re-fetch an image we are holding — a wasted round trip per
+       * listing against a source we are deliberately gentle with.
+       *
+       * Only position 0: one image per listing is what bounds the cache. Why a
+       * cache exists at all, and why it is not the retention that filled the
+       * volume in 2026-08, is in `photos/thumb.ts`.
+       */
+      if (i === 0 && !THUMBS_OFF) {
+        const t = await thumbFromBytes(got.buf);
+        if (t) putThumb(listingId, u, t);
+      }
     } catch { /* a dead image URL must not kill the check */ }
     ins.run({ $lid: listingId, $url: u, $path: path, $phash: phash, $pos: i, $cap: now() });
   }

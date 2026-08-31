@@ -275,3 +275,33 @@ CREATE TABLE IF NOT EXISTS retail_prices (
   observed_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_retail_sku ON retail_prices(sku_id, observed_at);
+
+/*
+ * ONE small self-hosted thumbnail per listing.
+ *
+ * MEASURED: Facebook signs its CDN urls with a ~2-day life — every failing
+ * image on the live feed carried an `oe=` expiry in the past and every working
+ * one about 40 hours ahead. The feed keeps a listing for 28 days, so past day
+ * two a Facebook card is guaranteed to render a broken image, and no proxy can
+ * help because the token itself is dead.
+ *
+ * WARNING: THIS IS NOT THE FULL-PHOTO RETENTION THAT FILLED THE VOLUME IN
+ * 2026-08 (316 MB / 654 listings, ~480 KB each, unbounded, 13 hours of crawler
+ * downtime). Every property that made that dangerous is inverted: ONE image per
+ * listing enforced by this primary key, a 480px WebP at ~20 KB rather than the
+ * original, a hard size refusal in `photos/thumb.ts`, and a prune tied to the
+ * same 28-day window the feed uses. Read that file before changing any of it.
+ */
+CREATE TABLE IF NOT EXISTS listing_thumbs (
+  listing_id  INTEGER PRIMARY KEY REFERENCES listings(id),
+  bytes       BLOB NOT NULL,
+  mime        TEXT NOT NULL,
+  width       INTEGER,
+  height      INTEGER,
+  -- The url these bytes came from. A push carrying the SAME url is a no-op; a
+  -- new one means the photo changed or Facebook re-signed it, and re-fetching
+  -- is right either way since what we hold may be about to expire.
+  src         TEXT NOT NULL,
+  bytes_len   INTEGER NOT NULL,
+  captured_at TEXT NOT NULL
+);

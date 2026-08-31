@@ -30,6 +30,7 @@ import {
 } from "./billing.ts";
 import { getEconomics } from "../valuation/index.ts";
 import { db, DB_PATH } from "../db/index.ts";
+import { getThumb, thumbStats, pruneThumbs, THUMBS_OFF } from "../photos/thumb.ts";
 import { archiveStatus } from "../db/archive.ts";
 import { VISION_MODEL, visionConfigured } from "../vision/index.ts";
 import {
@@ -166,6 +167,21 @@ app.get("/v1/health", (c) => {
      */
     archive: archiveStatus(),
     billing: { enabled: billingEnabled() },
+    /**
+     * ⚠ THE THUMBNAIL CACHE REPORTS ITS OWN SIZE, AND IT DOES SO BECAUSE THE
+     * LAST TIME THIS PROJECT PUT IMAGES ON THE VOLUME IT FILLED UP AND TOOK
+     * THE CRAWLER DOWN FOR 13 HOURS WITH NO SIGNAL ANYWHERE.
+     *
+     * The feed kept serving the whole time, so every surface said healthy. One
+     * number here is the difference between noticing at 20 MB and noticing at
+     * the disk limit. See `photos/thumb.ts` for the bounds that keep it small.
+     */
+    thumbs: THUMBS_OFF ? { enabled: false } : (() => {
+      try {
+        const t = thumbStats();
+        return { enabled: true, count: t.count, mb: Math.round((t.bytes / 1e6) * 10) / 10 };
+      } catch { return { enabled: true, error: "unavailable" }; }
+    })(),
   });
 });
 
@@ -398,6 +414,43 @@ export function tracker(r: {
   };
 }
 
+/**
+ * The url a card should load its image from.
+ *
+ * ⚠ OUR OWN COPY WINS WHENEVER WE HAVE ONE, AND THAT IS THE WHOLE POINT.
+ *
+ * Facebook signs its CDN urls with a ~2-day life — measured on the live feed:
+ * every 403 carried an `oe=` expiry in the past, every 200 one about 40 hours
+ * ahead. The feed keeps a listing for 28 days, so past day two a Facebook card
+ * is guaranteed to render a broken image and no amount of retrying helps. See
+ * `photos/thumb.ts` for why a 20 KB cached thumbnail is not the full-photo
+ * retention that filled the volume in 2026-08.
+ *
+ * The remote url stays the fallback, so a listing we have not cached yet still
+ * shows its photo rather than nothing.
+ */
+const thumbUrl = (r: { id: number; has_thumb?: number; thumb?: string | null }) =>
+  r.has_thumb ? `/v1/thumb/${r.id}` : r.thumb ?? null;
+
+/**
+ * A cached thumbnail. Immutable for a day: the bytes only change when the
+ * listing's photos do, and a card that re-downloads its image on every feed
+ * render would spend the saving this exists to make.
+ */
+app.get("/v1/thumb/:id", (c) => {
+  const id = Number(c.req.param("id"));
+  if (!Number.isInteger(id) || id <= 0) return c.text("bad id", 400);
+  const t = getThumb(id);
+  if (!t) return c.text("no thumbnail", 404);
+  return new Response(t.bytes, {
+    headers: {
+      "content-type": t.mime,
+      "cache-control": "public, max-age=86400",
+      "content-length": String(t.length),
+    },
+  });
+});
+
 app.get("/v1/feed", (c) => {
   const call = c.req.query("call");           // optional filter
   /**
@@ -441,6 +494,7 @@ app.get("/v1/feed", (c) => {
            l.delisted_at, l.delist_reason, l.last_price_cents, l.last_seen,
            v.call, v.confidence, v.payload,
            (SELECT url FROM listing_photos p WHERE p.listing_id = l.id ORDER BY position LIMIT 1) thumb,
+           EXISTS(SELECT 1 FROM listing_thumbs t WHERE t.listing_id = l.id) has_thumb,
            /**
             * FIRST and LATEST observed price, both filtered to POSITIVE values.
             *
@@ -527,7 +581,7 @@ app.get("/v1/feed", (c) => {
        */
       category: detectCategory(r.title ?? "", ""),
       askingPriceCents: r.asking_price_cents, location: r.location, postedAt: r.posted_at,
-      thumb: r.thumb, call: r.call, confidence: r.confidence,
+      thumb: thumbUrl(r), call: r.call, confidence: r.confidence,
       headline: v?.headline ?? null,
       netProfitCents: v?.netProfitCents ?? null,
       flagCount: (v?.blockers?.length ?? 0),
@@ -634,6 +688,7 @@ app.get("/v1/watchlist", (c) => {
            l.delisted_at, l.delist_reason, l.last_price_cents, l.last_seen,
            v.call, v.confidence, v.payload,
            (SELECT url FROM listing_photos p WHERE p.listing_id = l.id ORDER BY position LIMIT 1) thumb,
+           EXISTS(SELECT 1 FROM listing_thumbs t WHERE t.listing_id = l.id) has_thumb,
            (SELECT price_cents FROM listing_prices lp WHERE lp.listing_id = l.id
              AND lp.price_cents > 0 ORDER BY lp.observed_at ASC LIMIT 1) first_price_cents,
            (SELECT price_cents FROM listing_prices lp WHERE lp.listing_id = l.id
@@ -648,7 +703,7 @@ app.get("/v1/watchlist", (c) => {
     return {
       id: r.id, title: r.title, url: r.url, source: r.source,
       askingPriceCents: r.asking_price_cents, location: r.location, postedAt: r.posted_at,
-      thumb: r.thumb, call: r.call, confidence: r.confidence,
+      thumb: thumbUrl(r), call: r.call, confidence: r.confidence,
       headline: v?.headline ?? null,
       netProfitCents: v?.netProfitCents ?? null,
       flagCount: v?.blockers?.length ?? 0,

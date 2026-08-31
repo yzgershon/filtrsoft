@@ -30,10 +30,12 @@
     "archive": "bun run src/scripts/archive.ts",
     "push": "bun run src/scripts/push.ts",
     "ou:crawl": "bun run src/scripts/marketplace-crawl.ts --source offerup",
+    "ou:photos": "bun run src/scripts/ou-photos.ts",
     "mc:crawl": "bun run src/scripts/marketplace-crawl.ts --source mercari",
     "ebay:auth": "bun run src/scripts/ebay-auth.ts",
     "ebay:search": "bun run src/scripts/ebay-search.ts",
     "photos:prune": "bun run src/scripts/photos-prune.ts",
+    "thumbs": "bun run src/scripts/thumbs.ts",
     "daily": "bun run src/scripts/daily.ts",
     "probe": "bun run src/scripts/probe.ts"
   },

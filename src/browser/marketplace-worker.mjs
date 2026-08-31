@@ -106,6 +106,54 @@ try {
     }
   }
 
+  /**
+   * PHOTO MODE — every slide on a listing's DETAIL page, at full size.
+   *
+   * The search card carries one signed 250x250 and OfferUp signs per size, so
+   * the only way to a real photo is to open the listing. Yish, 2026-08-31:
+   * *"OfferUp listings only show 1 photo in worse resolution than the original,
+   * when the original listing has like 4 photos."*
+   *
+   * ⚠ THE WORKER STAYS DUMB. It emits every `images.offerup.com` url it can
+   * see, in DOM order, and `bestPhotos` in TypeScript decides which are gallery
+   * slides and which are the "similar items" carousel — because that decision
+   * is a size threshold with a fixture behind it, not a browser session.
+   *
+   * ⚠ AND IT NUDGES THE GALLERY FIRST. The slides lazy-load; without the wheel
+   * and the pause only the hero has a real `src` and the rest are placeholders,
+   * which is the same shape as the bug this exists to fix.
+   */
+  for (const item of opts.photosFor ?? []) {
+    try {
+      await page.goto(item.url, { waitUntil: "domcontentloaded", timeout: 45_000 });
+      await pause(2600, 3800);
+      await page.mouse.wheel(0, 500);
+      await pause(1100, 1700);
+
+      const urls = await page.evaluate(() => {
+        const out = [];
+        const push = (u) => { if (u && u.includes("images.offerup.com")) out.push(u); };
+        for (const img of document.querySelectorAll("img")) {
+          push(img.getAttribute("src"));
+          const set = img.getAttribute("srcset") || "";
+          for (const part of set.split(",")) push(part.trim().split(/\s+/)[0]);
+        }
+        return out;
+      });
+      /**
+       * `document.title` again: OfferUp names the tab after the listing while
+       * it exists. A page that no longer has a title with the item in it is a
+       * page whose photos we must NOT write, or a delisted item quietly adopts
+       * whatever the fallback page was showing.
+       */
+      const title = await page.title().catch(() => "");
+      emit({ type: "photos", id: item.id, url: item.url, finalUrl: page.url(), title, urls });
+    } catch (e) {
+      emit({ type: "photos", id: item.id, url: item.url, finalUrl: "", title: "", urls: [], error: String(e && e.message ? e.message : e) });
+    }
+    await pause(1500, 2800);
+  }
+
   for (const query of opts.queries ?? []) {
     log(`${command}: ${query}`);
     await page.goto(source.url(query, opts), { waitUntil: "domcontentloaded", timeout: 60_000 });

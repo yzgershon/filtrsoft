@@ -17,7 +17,12 @@ import {
   parseSoldRow,
   parseShipping,
 } from "../src/sources/ebay.ts";
-import { cardToListing, parseCards, probeVerdict } from "../src/sources/marketplace.ts";
+import {
+  bestPhotos, cardToListing, parseCards, photoArea, photoIdentity, probeVerdict,
+} from "../src/sources/marketplace.ts";
+import sharp from "sharp";
+import { readFileSync } from "node:fs";
+import { thumbFromBytes, THUMB_EDGE, MAX_BYTES, THUMB_KEEP_DAYS } from "../src/photos/thumb.ts";
 import {
   applyDiscovery, applyQuality, matchesSearch, NO_FILTERS, parseDrive, parseFilters,
   QUALITIES, segmentCounts, sortFeed, withinPrice,
@@ -130,6 +135,58 @@ describe("vision budget ledger", () => {
     );
     expect(spentVisionMicrosWithDb(d, at)).toBe(3_100);
     d.close();
+  });
+});
+
+/**
+ * The self-hosted thumbnail.
+ *
+ * ⚠ THE POINT OF THESE IS THE BOUND, NOT THE FEATURE. Putting images on the
+ * production volume is what filled it in 2026-08 and took the crawler down for
+ * 13 hours — 316 MB of full-resolution photos for 654 listings. This cache is
+ * safe only because one image per listing at 480px WebP is ~15 KB, so that is
+ * the number under test. Read `photos/thumb.ts` before changing any of it.
+ */
+describe("thumbnail bounds", () => {
+  /** A real image, encoded here rather than checked in as a fixture. */
+  const bigJpeg = async () =>
+    sharp({ create: { width: 2400, height: 1600, channels: 3, background: { r: 200, g: 40, b: 40 } } })
+      .jpeg({ quality: 90 }).toBuffer();
+
+  test("a 2400px photo becomes a 480px WebP well under the ceiling", async () => {
+    const t = await thumbFromBytes(await bigJpeg());
+    expect(t).not.toBeNull();
+    expect(t!.mime).toBe("image/webp");
+    expect(Math.max(t!.width, t!.height)).toBe(THUMB_EDGE);
+    expect(t!.bytes.length).toBeLessThan(MAX_BYTES);
+    // The whole justification: ~20 KB against the ~480 KB originals that filled
+    // the volume. A generous assertion, because a photograph compresses worse
+    // than this flat fill — `bun run thumbs` measured 15 KB across 40 real ones.
+    expect(t!.bytes.length).toBeLessThan(60_000);
+  });
+
+  test("a small photo is not blown up", async () => {
+    const small = await sharp({ create: { width: 120, height: 90, channels: 3, background: { r: 9, g: 9, b: 9 } } })
+      .png().toBuffer();
+    const t = await thumbFromBytes(small);
+    expect(t!.width).toBe(120);
+    expect(t!.height).toBe(90);
+  });
+
+  test("something that is not an image yields null, not a crash", async () => {
+    expect(await thumbFromBytes(Buffer.from("<html>404 Not Found</html>"))).toBeNull();
+    expect(await thumbFromBytes(Buffer.alloc(0))).toBeNull();
+  });
+
+  /**
+   * ⚠ THE PRUNE WINDOW MUST MATCH THE FEED'S. `/v1/feed` excludes anything
+   * posted more than 28 days ago, so a thumb older than that can never be
+   * rendered and is pure cost on the volume. These two numbers drifting apart
+   * is how the cache would quietly stop being bounded by the feed.
+   */
+  test("the prune window matches what the feed will show", () => {
+    const api = readFileSync(new URL("../src/api/index.ts", import.meta.url), "utf8");
+    expect(api).toContain(`date('now', '-${THUMB_KEEP_DAYS} days')`);
   });
 });
 
@@ -540,6 +597,88 @@ describe("marketplace card photos", () => {
       text: "Custom Gaming PC Build | $500 | Salem, MA",
     }]);
     expect(cardToListing(card).photoUrls).toEqual([]);
+  });
+});
+
+/**
+ * OfferUp detail-page photos.
+ *
+ * Yish, 2026-08-31: *"OfferUp listings only show 1 photo in worse resolution
+ * than the original, when the original listing has like 4 photos it will only
+ * show me the hero photo."*
+ *
+ * Every url below was CAPTURED off a real OfferUp listing by
+ * `src/browser/ou-probe.mjs`, not invented. The shape is what matters: the same
+ * photo appears three or four times per page at different sizes, each with its
+ * OWN signature, so the filename is the only stable identity.
+ */
+describe("offerup detail photos", () => {
+  // Listing 465f5561: four gallery slides, nine <img> tags.
+  const REAL = [
+    "https://images.offerup.com/xGB99GZMw60HspHCpMGE5H9Qs4Y=/1080x1080/888b/888bff8536434f2f8b6ef9732eb5a798.jpg",
+    "https://images.offerup.com/pM071t1stGtdatAcZvcOp_AMdUM=/1080x1920/c326/c326fd9f9c9c4a139e433f6bfeded32b.jpg",
+    "https://images.offerup.com/t-fmR80N0YxBT1huuP52ychwy-A=/1442x1922/950e/950ef870e9744a8e88f637a18d27585c.jpg",
+    "https://images.offerup.com/mPl4bagMTWQeynHh4q286IcSUSI=/250x250/888b/888bff8536434f2f8b6ef9732eb5a798.jpg",
+    "https://images.offerup.com/RM-dxQ76puUikKDi_dG2nWK8y4k=/250x444/c326/c326fd9f9c9c4a139e433f6bfeded32b.jpg",
+    "https://images.offerup.com/6I6BDHW9bkKrMS5R2QLiiWOlz2U=/250x333/950e/950ef870e9744a8e88f637a18d27585c.jpg",
+    "https://images.offerup.com/cF9bovo_WNoupxVdNm_azKTkgPU=/1080x1920/bcac/bcaca665269e40109add3b847a7f0c33.jpg",
+    "https://images.offerup.com/pM071t1stGtdatAcZvcOp_AMdUM=/1080x1920/c326/c326fd9f9c9c4a139e433f6bfeded32b.jpg",
+    "https://images.offerup.com/t-fmR80N0YxBT1huuP52ychwy-A=/1442x1922/950e/950ef870e9744a8e88f637a18d27585c.jpg",
+  ];
+
+  test("nine urls are four photos, each at its largest", () => {
+    const best = bestPhotos(REAL);
+    expect(best.length).toBe(4);
+    // Identities, in first-appearance order -- the gallery's own order, which
+    // is what makes photo 1 the hero on the card and in the feed.
+    expect(best.map((u) => photoIdentity(u)!.slice(0, 4)))
+      .toEqual(["888b", "c326", "950e", "bcac"]);
+    // And every one of them is the big signed url, not the 250 it also has.
+    for (const u of best) expect(photoArea(u)).toBeGreaterThanOrEqual(1080 * 1080);
+  });
+
+  test("the signature is per size, so identity cannot be the url", () => {
+    // Same photo, three urls, two distinct signatures. Deduping on the url
+    // gives nine photos where there are four.
+    const one = REAL.filter((u) => u.includes("/c326"));
+    expect(one.length).toBe(3);
+    expect(new Set(one).size).toBe(2);
+    expect(new Set(one.map(photoIdentity)).size).toBe(1);
+  });
+
+  /**
+   * The size floor is a CONTAMINATION GUARD. A detail page also renders
+   * "similar items" as images.offerup.com thumbnails, and letting those in
+   * would give a listing ANOTHER listing's photos -- which vision then reads
+   * specs off, producing a confident wrong verdict. Gallery slides are served
+   * at 720 or larger, carousel thumbnails at 250.
+   */
+  test("card-sized thumbnails are not gallery slides", () => {
+    const carousel = [
+      "https://images.offerup.com/aaa=/250x250/1111/1111ff8536434f2f8b6ef9732eb5a798.jpg",
+      "https://images.offerup.com/bbb=/100x100/2222/2222ff8536434f2f8b6ef9732eb5a798.jpg",
+    ];
+    expect(bestPhotos(carousel)).toEqual([]);
+    // Mixed in with a real gallery, only the gallery survives.
+    expect(bestPhotos([...carousel, ...REAL]).length).toBe(4);
+  });
+
+  test("720px slides pass, which is the smallest gallery seen in the wild", () => {
+    // Listing e29c8b98 serves its five slides at 720x1280.
+    const small = [
+      "https://images.offerup.com/x=/720x1280/c1b0/c1b05ae517d14119b232ec829e280814.jpg",
+      "https://images.offerup.com/y=/250x444/c1b0/c1b05ae517d14119b232ec829e280814.jpg",
+    ];
+    expect(bestPhotos(small)).toEqual([small[0]]);
+  });
+
+  test("non-image hosts and sizeless urls are ignored rather than guessed at", () => {
+    expect(bestPhotos([
+      // A video thumbnail. OfferUp cards can lead with one and it is not a
+      // gallery photo -- real, from listing e29c8b98's card.
+      "https://videos.offerup.com/1e5c/1e5c88fe403840b69456459ce5170e13/thumbnail/x_thumb_small.0000001.jpg",
+      "https://images.offerup.com/z=/nosize/aaaa/aaaaff8536434f2f8b6ef9732eb5a798.jpg",
+    ])).toEqual([]);
   });
 });
 

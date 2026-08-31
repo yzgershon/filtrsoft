@@ -35,6 +35,7 @@ import { discover, drain, queueDepth } from "../crawler/queue.ts";
 import { visionPass } from "../crawler/vision-pass.ts";
 import { sweep } from "../tracker/index.ts";
 import { prunePhotos } from "../photos/index.ts";
+import { pruneThumbs, backfillThumbs } from "../photos/thumb.ts";
 import { runAlerts } from "./alerts.ts";
 import { checkStored, ENGINE_VERSION } from "../engine/index.ts";
 import { db, now } from "../db/index.ts";
@@ -215,6 +216,24 @@ async function runOnce(reason: string) {
       }
     }
     metrics.vision = vision;
+
+    /**
+     * ⚠ A FEW THUMBNAILS PER TICK, AND IT IS A RACE AGAINST AN EXPIRY.
+     *
+     * Facebook's CDN urls last about two days (measured; see
+     * `photos/thumb.ts`), and the feed keeps a listing for 28. Anything not
+     * copied in that window is a broken image for the rest of the listing's
+     * life, and no later pass can recover it. Newly crawled listings get their
+     * thumbnail from the bytes `persistPhotos` already downloaded, and pushed
+     * ones get theirs at ingest — this is only the BACKLOG, which is why 25 a
+     * tick is enough and why it must not be more.
+     */
+    try {
+      const th = await backfillThumbs(25);
+      if (th.cached) console.log(`  thumbnails: cached ${th.cached}/${th.tried}`);
+    } catch (e) {
+      console.error("thumbnail backfill failed:", (e as Error).message);
+    }
 
     const quiet = d.queued === 0 && dr.analysed === 0 && !vision;
     if (!quiet) {
@@ -463,6 +482,19 @@ function startSweepLoop() {
       const pruned = prunePhotos();
       if (pruned.dirs) {
         console.log(`pruned ${pruned.dirs} orphaned photo folders (${(pruned.bytes / 1048576).toFixed(1)} MB)`);
+      }
+
+      /**
+       * ⚠ AND THE THUMBNAIL CACHE, ON THE SAME SCHEDULE AND FOR THE SAME
+       * REASON. It is small by construction (one 480px WebP per listing,
+       * ~20 KB) but "small per row" is exactly what the 316 MB of full photos
+       * was too. What bounds it is that thumbs for listings the feed can no
+       * longer show — delisted, or posted more than 28 days ago — get deleted,
+       * and the only thing that runs that is this line. See `photos/thumb.ts`.
+       */
+      const t = pruneThumbs();
+      if (t.deleted) {
+        console.log(`pruned ${t.deleted} thumbnails (${(t.freedBytes / 1048576).toFixed(1)} MB freed, ${(t.keptBytes / 1048576).toFixed(1)} MB held)`);
       }
       console.log(
         `sweep done in ${Math.round((Date.now() - t0) / 1000)}s — ` +

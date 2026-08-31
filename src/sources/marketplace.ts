@@ -123,6 +123,87 @@ export function parseCards(
   return out;
 }
 
+/* ─────────────────────────────────────── OfferUp photos, all of them, full size
+ *
+ * Yish, 2026-08-31: *"OfferUp listings only show 1 photo in worse resolution
+ * than the original, when the original listing has like 4 photos it will only
+ * show me the hero photo."*
+ *
+ * He is describing the search CARD, which is all we ever read. The card carries
+ * one signed 250x250 and the signature is per size, so `250x250` -> `1080x1080`
+ * in the string returns 400 rather than a bigger image — that was measured, and
+ * it is why the old comment here said full resolution "would mean opening each
+ * detail page". It does. So we open it.
+ *
+ * The detail page hands over every slide at full size. Measured on a real
+ * listing: 9 `<img>` tags carrying 4 DISTINCT photos, the largest 1442x1922,
+ * each with its own valid signature.
+ *
+ * ── THE IDENTITY IS THE FILENAME, NOT THE URL ──────────────────────────────
+ *
+ *     https://images.offerup.com/<sig>/1080x1080/888b/888bff85…798.jpg
+ *                                 ^^^^^ ^^^^^^^^^      ^^^^^^^^^^^^^^
+ *                                 per-size signature   the photo itself
+ *
+ * The same photo appears three or four times per page at different sizes, all
+ * with different signatures. Dedupe on the URL and you get 9 "photos" that are
+ * really 4; dedupe on the filename and you get the 4, and can then keep the
+ * biggest signed url for each.
+ */
+const OU_ID = /\/([0-9a-f]{16,})\.(jpg|jpeg|png|webp)(\?|$)/i;
+const OU_SIZE = /\/(\d{2,5})x(\d{2,5})\//;
+
+/** The photo's own identity, independent of size and signature. */
+export const photoIdentity = (url: string): string | null => url.match(OU_ID)?.[1] ?? null;
+
+/** Pixels, from the size segment. 0 when the url does not carry one. */
+export function photoArea(url: string): number {
+  const m = url.match(OU_SIZE);
+  return m ? Number(m[1]) * Number(m[2]) : 0;
+}
+
+/**
+ * ⚠ THE MINIMUM IS A CONTAMINATION GUARD, NOT A QUALITY PREFERENCE.
+ *
+ * An OfferUp detail page also renders "similar items" and seller cards, and
+ * those are `<img>` tags on `images.offerup.com` exactly like the gallery. If
+ * they got through, a listing would show ANOTHER listing's photos — and vision
+ * would then read specs off the wrong machine, which is a wrong verdict with
+ * confident evidence behind it. The worst possible failure here.
+ *
+ * The separation is clean and measured: gallery slides are served at 1080 or
+ * larger on the long edge, every card thumbnail at 250. 640 sits between them
+ * with room on both sides.
+ */
+export const OU_MIN_EDGE = 640;
+
+/**
+ * The best url for each distinct photo, in the order they first appear.
+ *
+ * Order is first-appearance because the gallery renders in gallery order, and
+ * photo 1 is the hero on the card and in the feed. Sorting by size would put a
+ * portrait shot of the serial number first.
+ */
+export function bestPhotos(urls: string[], max = 20): string[] {
+  const best = new Map<string, { url: string; area: number }>();
+  const order: string[] = [];
+
+  for (const url of urls) {
+    const id = photoIdentity(url);
+    if (!id) continue;
+    const m = url.match(OU_SIZE);
+    if (!m) continue;
+    if (Math.max(Number(m[1]), Number(m[2])) < OU_MIN_EDGE) continue;
+
+    const area = photoArea(url);
+    const prev = best.get(id);
+    if (!prev) { best.set(id, { url, area }); order.push(id); }
+    else if (area > prev.area) best.set(id, { url, area });
+  }
+
+  return order.slice(0, max).map((id) => best.get(id)!.url);
+}
+
 export function cardToListing(c: MarketCard): RawListing {
   return {
     source: c.source,
@@ -145,15 +226,11 @@ export function cardToListing(c: MarketCard): RawListing {
      * The worker collects the card thumbnail now. A card with a genuinely
      * missing image still yields none, which is the honest empty case.
      *
-     * ⚠ THESE ARE 250x250 THUMBNAILS AND CANNOT BE UPGRADED. OfferUp signs the
-     * URL per size — `eXrG1Dbi9mDtyjGLyzFEVdj6V1U=/250x250/...` — so rewriting
-     * the dimensions returns 400, not a bigger image. Measured: 250x250 -> 200
-     * at 12 KB, 640/1024/1600 -> 400.
-     *
-     * Enough to show a card and to stop ZERO_PHOTOS lying. NOT enough for
-     * vision to read a spec label off a screen. Full-resolution photos would
-     * mean opening each detail page, which is a browser visit per listing —
-     * worth it only if these listings start converting.
+     * ⚠ THIS IS ONE 250x250 THUMBNAIL AND IT IS A PLACEHOLDER, NOT THE ANSWER.
+     * OfferUp signs the url per size, so rewriting the dimensions returns 400.
+     * `bun run ou:photos` visits the detail page and replaces this with every
+     * slide at full resolution — see `bestPhotos` above. Until it runs, the
+     * card has something to show and ZERO_PHOTOS does not lie.
      */
     photoUrls: c.photoUrl ? [c.photoUrl] : [],
     attributes: c.shipped ? { shipping: "yes" } : {},
@@ -164,6 +241,8 @@ export function cardToListing(c: MarketCard): RawListing {
 export type MarketEvent =
   | { type: "log"; msg: string }
   | { type: "cards"; source: Marketplace; query: string; lines: string[]; links: Array<{ href: string; text: string; photo?: string }> }
+  | { type: "photos"; id: number; url: string; finalUrl: string; title: string; urls: string[]; error?: string }
+  | { type: "probe"; id: number; url: string; finalUrl: string; text: string; title?: string; error?: string }
   | { type: "error"; msg: string }
   | { type: "done"; stats: Record<string, unknown> };
 
