@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Check, Eye, Ghost, Info, Link, Shield, Tag } from "./icons.tsx";
+import { Alert, Back as BackIcon, Check, Eye, Ghost, Info, Link, Shield, Tag } from "./icons.tsx";
 import type { Comp, Listing, Meta, Retail, RiskCheck, Signal, Verdict } from "./types.ts";
 import { LABEL, money, ago, toast, Thumb } from "./lib.tsx";
 import { SectionHead } from "./feed.tsx";
@@ -301,7 +301,9 @@ export function Questions({ qs }: { qs: string[] }) {
  * you could not actually read photo 4. Sellers put the spec sheet, the damage
  * and the serial in the photos; this is the screen where you look at them.
  */
-export function Gallery({ urls, onOpen }: { urls: string[]; onOpen: (i: number) => void }) {
+export function Gallery({ urls, onOpen, onBack }: {
+  urls: string[]; onOpen: (i: number) => void; onBack?: () => void;
+}) {
   const [i, setI] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
   if (!urls?.length) return null;
@@ -314,6 +316,25 @@ export function Gallery({ urls, onOpen }: { urls: string[]; onOpen: (i: number) 
 
   return (
     <div className="gal hero-shot">
+      {/**
+        * ⚠ BACK LIVES ON THE PHOTO, WHICH IS WHERE HE ASKED FOR IT AND WHERE
+        * EVERY MARKETPLACE PUTS IT.
+        *
+        * Yish, 2026-08-31: *"if I click a listing the back button should be an
+        * overlayed back arrow on top left of the image."* Before this the only
+        * way out was the wordmark, which is Home — a different action that
+        * happens to also leave the screen, and it always landed at the top of
+        * the feed.
+        *
+        * It is a SIBLING of the photo buttons, never inside one: `.galshot` is
+        * a button and a button inside a button is invalid HTML that browsers
+        * resolve by detaching one of them. Same rule as `.gsave` on the card.
+        */}
+      {onBack && (
+        <button className="dback" onClick={onBack} aria-label="Back">
+          <BackIcon size={20} />
+        </button>
+      )}
       <div className="galstrip" ref={ref} onScroll={onScroll}>
         {urls.slice(0, 20).map((u, n) => (
           <button className="galshot" key={n} onClick={() => onOpen(n)}
@@ -591,10 +612,13 @@ export function Outcome({ id }: { id: number }) {
   );
 }
 
-export function Report({ listing, verdict, signals, comps, meta, stage, reading, checkId }: {
+export function Report({ listing, verdict, signals, comps, meta, stage, reading, checkId, onBack }: {
   listing: Listing | null; verdict: Verdict | null; signals: Signal[];
   comps?: Comp[];
   meta?: Meta; stage: number; reading: number; checkId?: number | null;
+  /** Absent during a paste, where the result appears in place and there is
+      nothing behind it to go back to. */
+  onBack?: () => void;
 }) {
   const [lbx, setLbx] = useState<number | null>(null);
   if (!listing) return null;
@@ -617,12 +641,25 @@ export function Report({ listing, verdict, signals, comps, meta, stage, reading,
         * flags, comps, provenance — stays full width below.
         */}
       <div className="dtop">
-        <Gallery urls={listing.photoUrls ?? []} onOpen={setLbx} />
+        <Gallery urls={listing.photoUrls ?? []} onOpen={setLbx} onBack={onBack} />
         {lbx !== null && (
           <Lightbox urls={listing.photoUrls} start={lbx} onClose={() => setLbx(null)} />
         )}
 
         <div className="dside">
+          {/**
+            * ⚠ A LISTING WITH NO PHOTOS STILL NEEDS A WAY BACK.
+            *
+            * `Gallery` returns null on an empty `photoUrls`, and it is the
+            * element the overlay arrow is positioned against — so putting Back
+            * only there loses it on exactly the listings ZERO_PHOTOS fires on,
+            * which are the ones most worth leaving. Same control, in flow.
+            */}
+          {onBack && !listing.photoUrls?.length && (
+            <button className="dback inflow" onClick={onBack} aria-label="Back">
+              <BackIcon size={20} />
+            </button>
+          )}
           <div className="lh rise">
             {/* The listing IS the page here, so its title is the H1. It was an H2
                 under no H1 at all, which leaves a screen reader's outline starting

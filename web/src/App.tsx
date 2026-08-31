@@ -7,12 +7,12 @@
  * `nav.ts` where `bun test` can pin them without a DOM.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Clip, Gear, Link, Again, Sliders } from "./icons.tsx";
+import { Back, Clip, Gear, Link, Again, Sliders } from "./icons.tsx";
 import type { Comp, Hist, Listing, Meta, Signal, Verdict } from "./types.ts";
 import {
   LABEL, Toaster, pushHist, readHist, readAsked, readWatch, writeWatch,
   readSettings, writeSettings, pendingOutcome, shareOrCopy, toast,
-  openFilters, onFilterCount,
+  openFilters, onFilterCount, rememberSpot, feedRows,
 } from "./lib.tsx";
 import { Feed } from "./feed.tsx";
 import { Report } from "./detail.tsx";
@@ -42,28 +42,67 @@ export type { Screen, Settings } from "./nav.ts";
  */
 function useRoute() {
   const [path, setPath] = useState(location.pathname);
+  /**
+   * ⚠ HOW DEEP INTO OUR OWN STACK WE ARE, because `history.back()` on entry 0
+   * leaves the site.
+   *
+   * A shared link opens straight onto `/c/842` with nothing behind it, and
+   * `history.length` cannot tell you that — it counts the whole tab, including
+   * whatever page the user was on before they tapped the link. Going "back"
+   * there would take them out of Assyze entirely, which is not what a Back
+   * button inside an app means. Below zero depth, Back goes to the feed.
+   */
+  const depth = useRef(0);
   useEffect(() => {
-    const on = () => setPath(location.pathname);
+    const on = () => { depth.current = Math.max(0, depth.current - 1); setPath(location.pathname); };
     addEventListener("popstate", on);
     return () => removeEventListener("popstate", on);
   }, []);
+  /**
+   * ⚠ EVERY FORWARD NAVIGATION WRITES DOWN WHERE IT LEFT FROM.
+   *
+   * Yish, 2026-08-31: *"if I'm halfway down the listings and click one then go
+   * back I want to stay where I am down there, I don't want to get scrolled
+   * back up."*
+   *
+   * It belongs HERE rather than on the card, because a card is only one of the
+   * ways out of the feed — the Settings gear, a saved-search link and the
+   * share flow all leave it too, and any of them can be followed by Back. One
+   * choke point cannot forget a case. `feedRows()` is published by the feed;
+   * the full reasoning for both halves is in `lib.tsx`.
+   */
+  const mark = () => rememberSpot(location.pathname + location.search, feedRows());
+
   return {
     path,
     screen: screenOf(path),
     go: useCallback((p: string) => {
       if (p === location.pathname) return;
+      mark();
+      depth.current++;
       history.pushState({}, "", p);
       setPath(p);
     }, []),
     replace: useCallback((p: string) => {
+      mark();
       history.replaceState({}, "", p);
       setPath(p);
+    }, []),
+    /**
+     * ⚠ `history.back()`, NOT `go("/")`. Only the real back restores where you
+     * were: pushing `/` is a NEW entry, so the feed mounts as a forward
+     * navigation, `popSpot` returns nothing and you land at the top — the exact
+     * thing tapping the wordmark already did and that this exists to replace.
+     */
+    back: useCallback(() => {
+      if (depth.current > 0) history.back();
+      else { history.replaceState({}, "", "/"); setPath("/"); }
     }, []),
   };
 }
 
 export default function App() {
-  const { path, screen, go, replace } = useRoute();
+  const { path, screen, go, replace, back } = useRoute();
   /**
    * DERIVED, never stored. A second copy of "which screen am I on" is what let
    * the URL say `/` while a listing detail was still on screen.
@@ -192,6 +231,25 @@ export default function App() {
       // The detail endpoint recomputes these; dropping them left the risk
       // layer blank on every listing opened from the feed or a shared link.
       setSignals(d.signals ?? []); setComps(d.comps ?? []); setMeta(d.meta); setStage(3);
+      /**
+       * ⚠ HISTORY WAS ONLY EVER WRITTEN BY THE PASTE FLOW, WHICH IS WHY THE
+       * LIST WAS ALWAYS EMPTY.
+       *
+       * `pushHist` was called in exactly one place: the `done` handler of the
+       * check stream. So a listing you PASTED was remembered and a listing you
+       * TAPPED IN THE FEED was not — and tapping in the feed is how the app is
+       * actually used. Yish: *"there's no recently viewed section under the
+       * check section because when I click into a listing and go back it
+       * should appear there but it doesn't."*
+       *
+       * Opening a listing is the event worth recording, however you got there,
+       * so it is recorded where the listing arrives rather than on one of the
+       * two routes to it. `pushHist` already dedupes by id and caps at 30.
+       */
+      if (d.listing && d.verdict) {
+        pushHist({ id: screen.id, title: d.listing.title, call: d.verdict.call, at: Date.now() });
+        setHist(readHist());
+      }
     }).finally(() => setBusy(false));
   }, [path]);
 
@@ -290,6 +348,18 @@ export default function App() {
         * here, and the feed gets the entire screen.
         */}
       <header className="topbar">
+        {/**
+          * ⚠ SETTINGS IS THE ONE SCREEN WITH NOWHERE ELSE TO PUT BACK. The
+          * detail screen hangs it on the photo, and Deals / Check / Saved are
+          * roots that the tab bar already reaches. Without this the only way
+          * out of Settings was pressing the gear a second time, which is a
+          * toggle rather than a way back and always landed on the feed.
+          */}
+        {screen.name === "settings" && (
+          <button className="iconbtn backbtn" onClick={back} aria-label="Back">
+            <Back size={20} />
+          </button>
+        )}
         <button className="brand" onClick={() => goTab("deals")}
           aria-label="Assyze home">ass<span>yze</span></button>
         {/* The desktop header nav is GONE: above 1024px the app is a phone
@@ -391,7 +461,7 @@ export default function App() {
                     </form>
 
                     {/**
-                      * RECENTLY CHECKED LIVES HERE NOW.
+                      * RECENTLY VIEWED LIVES HERE NOW.
                       *
                       * It was a section in the deals feed, where it competed
                       * with actual deals and broke the BUY-first ordering —
@@ -402,7 +472,7 @@ export default function App() {
                       */}
                     {hist.length > 0 && (
                       <div className="recent">
-                        <h4>Recently checked</h4>
+                        <h4>Recently viewed</h4>
                         <div className="histlist">
                           {hist.slice(0, 8).map((h) => (
                             <button key={h.id} className="hrow" onClick={() => go(`/c/${h.id}`)}>
@@ -423,8 +493,12 @@ export default function App() {
                     subhead above, where it is read before you spend a paste
                     rather than after one fails. (`.srcs` in styles.css is dead
                     with them — audit commit 6.) */}
+                {/* Back is a DETAIL affordance. During a paste the result
+                    appears in place on the Check screen, and there is nothing
+                    behind it to return to. */}
                 <Report listing={listing} verdict={verdict} signals={signals} comps={comps}
-                  meta={meta} stage={stage} reading={reading} checkId={checkId} />
+                  meta={meta} stage={stage} reading={reading} checkId={checkId}
+                  onBack={screen.name === "detail" ? back : undefined} />
 
                 {ms != null && <div className="timing num">verdict in {ms}ms</div>}
 

@@ -97,6 +97,16 @@ export const Sliders = ({ size = 22, className }: P) =>
 export const Bell = ({ size = 22, className }: P) =>
   svg(size, <><path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6" /><path d="M13.7 20a2 2 0 0 1-3.4 0" /></>, className);
 
+/**
+ * Left arrow — back.
+ *
+ * ⚠ NOT A CHEVRON. The overlay sits on an arbitrary product photo, and a bare
+ * `<` at 1.75 stroke disappears against detail. A shafted arrow keeps a
+ * recognisable silhouette at 20px over anything.
+ */
+export const Back = ({ size = 20, className }: P) =>
+  svg(size, <><path d="M19 12H5" /><path d="m11 18-6-6 6-6" /></>, className);
+
 /** Card — billing. */
 export const Card = ({ size = 22, className }: P) =>
   svg(size, <><rect x="2.5" y="5" width="19" height="14" rx="2.5" /><path d="M2.5 10h19" /><path d="M6 15h3" /></>, className);

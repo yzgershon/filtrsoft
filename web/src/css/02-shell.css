@@ -69,6 +69,13 @@
 .iconbtn:hover { color: var(--ink); background: var(--surface-2); }
 .iconbtn:active { transform: scale(.94); }
 .iconbtn.on { color: var(--brand); background: rgba(0,212,255,.12); }
+/*
+ * The bar's back arrow. Narrower than a full 44px SQUARE because it is the
+ * first thing in the row and the wordmark has to sit beside it, but the TAP
+ * TARGET keeps its full height — the width is what gives, and 40x44 still
+ * clears the minimum in the direction a thumb actually misses.
+ */
+.backbtn { width: 40px; margin-left: -8px; color: var(--ink); }
 
 .scroll {
   flex: 1;

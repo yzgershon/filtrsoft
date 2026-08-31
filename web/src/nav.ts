@@ -242,6 +242,28 @@ export function searchFromFilters(f: Filters): string {
 export const activeFilterCount = (f: Filters): number =>
   (f.q ? 1 : 0) + (f.category ? 1 : 0) + (f.source ? 1 : 0) + (f.maxPrice ? 1 : 0);
 
+/**
+ * How many rows to ask for when RESTORING a feed you are coming back to.
+ *
+ * ⚠ RESTORING A SCROLL OFFSET WITHOUT RESTORING THE ROW COUNT PUTS YOU IN THE
+ * WRONG PLACE, AND SILENTLY.
+ *
+ * The feed pages 60 at a time. Press "Show more" twice, scroll to row 150, open
+ * a listing and come back: the fresh mount fetches 60 rows, which is roughly
+ * 5,000px of page, and a saved offset of 14,000px clamps to the bottom of it.
+ * You land somewhere you have never been, on a screen that looks like the
+ * restore worked.
+ *
+ * So the count travels with the offset and the first request asks for all of it
+ * in one go. `PAGE` is the floor because a saved count is never smaller than
+ * one page, and 200 is the server's own cap on `limit` — asking for more would
+ * be silently truncated, which is the same bug one layer down.
+ */
+export const FEED_PAGE = 60;
+export const FEED_LIMIT_MAX = 200;
+export const restoreLimit = (n: number): number =>
+  Math.min(FEED_LIMIT_MAX, Math.max(FEED_PAGE, Math.floor(n) || FEED_PAGE));
+
 /** The feed request for a whole filter state. */
 export function feedUrl(o: { limit: number; offset: number; hideGone: boolean; filters: Filters }): string {
   const p = new URLSearchParams(searchFromFilters(o.filters).replace(/^\?/, ""));

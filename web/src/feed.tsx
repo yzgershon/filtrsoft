@@ -7,20 +7,23 @@
  * and a utils/ for three pieces of the same feature.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Alert, Again, Bell, Check, Cut, Ghost, Save } from "./icons.tsx";
 import type { Call, FeedItem } from "./types.ts";
 import {
   type Filters, type Quality,
   NO_FILTERS, CATEGORIES, SOURCES, SORTS, sourceLabel,
   filtersFromSearch, searchFromFilters, activeFilterCount, feedUrl,
+  FEED_PAGE, restoreLimit,
 } from "./nav.ts";
 import {
   LABEL, money, ago, readWatch, toggleWatch, readSettings, toast, Thumb,
   SUBKEY, urlB64ToBytes, onOpenFilters, publishFilterCount,
+  popSpot, restoreScroll, setFeedRows,
 } from "./lib.tsx";
 
-export const PAGE = 60;
+/** Re-exported so existing importers keep one name for the page size. */
+export const PAGE = FEED_PAGE;
 
 export function Gcard({ i, saved, onSave, onOpen }: {
   i: FeedItem;
@@ -354,7 +357,17 @@ export function Feed({ onOpen, onWatchChange }: {
   const [offline, setOffline] = useState(() => typeof navigator !== "undefined" && !navigator.onLine);
   const [watch, setWatch] = useState<number[]>(readWatch);
 
-  const load = useCallback((offset: number, f: Filters) => {
+  /**
+   * ⚠ WHERE YOU WERE, RESTORED WHEN THE ROWS LAND — NOT BEFORE.
+   *
+   * Read ONCE, in a lazy initialiser. `useRef(popSpot(...))` would call
+   * `popSpot` on every render and consume the back-navigation flag on the
+   * first one, so the restore would be thrown away before the rows it needs
+   * had arrived. Full reasoning in `lib.tsx`.
+   */
+  const [spot, setSpot] = useState(() => popSpot(location.pathname + location.search));
+
+  const load = useCallback((offset: number, f: Filters, limit = PAGE) => {
     setLoadingMore(offset > 0);
     if (offset === 0) setFailed(false);
     /**
@@ -362,7 +375,7 @@ export function Feed({ onOpen, onWatchChange }: {
      * feed hides delisted rows by default, so the switch has to ASK for them
      * when it is off — `feedUrl` inverts it onto the existing `?gone=1` flag.
      */
-    return fetch(feedUrl({ limit: PAGE, offset, hideGone: readSettings().hideGone, filters: f }))
+    return fetch(feedUrl({ limit, offset, hideGone: readSettings().hideGone, filters: f }))
       .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
       .then((d) => {
         setItems((prev) => (offset === 0 ? (d.items ?? []) : [...(prev ?? []), ...(d.items ?? [])]));
@@ -385,7 +398,24 @@ export function Feed({ onOpen, onWatchChange }: {
    * state rather than the object, which is new on every render.
    */
   const key = searchFromFilters(filters);
-  useEffect(() => { setItems(null); void load(0, filtersFromSearch(key)); }, [load, key]);
+  useEffect(() => {
+    setItems(null);
+    // Coming BACK re-asks for everything that was loaded, in one request. See
+    // `restoreLimit` — an offset saved inside page 3 means nothing against a
+    // feed that just fetched page 1.
+    void load(0, filtersFromSearch(key), spot ? restoreLimit(spot.n) : PAGE);
+  }, [load, key]);
+
+  /**
+   * ⚠ LAYOUT EFFECT, NOT AN EFFECT. `useEffect` runs after paint, so the feed
+   * would render at the top for one frame and then jump — which reads as the
+   * page having scrolled itself rather than as never having moved.
+   */
+  useLayoutEffect(() => {
+    if (!items || !spot) return;
+    restoreScroll(spot.y);
+    setSpot(null);
+  }, [items, spot]);
 
   /**
    * Applying filters PUSHES a history entry, so Back undoes a search rather
@@ -433,6 +463,12 @@ export function Feed({ onOpen, onWatchChange }: {
   const shown = items ?? [];
   const hero = shown[0] ?? null;
   const rest = shown.filter((i) => i.id !== hero?.id);
+
+  /**
+   * Tell the router how much is loaded, so whichever way you leave this screen
+   * the same number of rows comes back with you. See `feedRows` in `lib.tsx`.
+   */
+  useEffect(() => { setFeedRows(shown.length); }, [shown.length]);
 
   /**
    * Tapping a listing OPENS it. It used to promote the card into the hero slot

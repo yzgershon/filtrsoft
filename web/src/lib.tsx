@@ -226,6 +226,123 @@ export function urlB64ToBytes(s: string): ArrayBuffer {
   return out.buffer;
 }
 
+// ------------------------------------------------------------ scroll memory
+/**
+ * WHERE YOU WERE, so Back puts you back there.
+ *
+ * Yish, 2026-08-31: *"the only back button that works is when I click the
+ * assyze logo … but that always brings me back to the top of the homepage, and
+ * that's frustrating if I'm halfway down the listings and click one then go
+ * back."*
+ *
+ * ⚠ THE BROWSER'S OWN `scrollRestoration` CANNOT DO THIS AND THAT IS NOT A
+ * BUG IN THE BROWSER. It restores the offset when the document is restored,
+ * which for this app is a mount with `items === null` and a feed that is 0px
+ * tall. There is nothing to scroll to yet, the attempt clamps to 0, and by the
+ * time 60 cards exist the browser has finished. Restoration has to happen when
+ * the ROWS land, which only the feed knows.
+ *
+ * ⚠ AND THE OFFSET ALONE IS NOT ENOUGH — see `restoreLimit` in nav.ts. A saved
+ * position inside page 3 is meaningless against a feed that just fetched page 1.
+ */
+
+/**
+ * ⚠ WHICH ELEMENT SCROLLS DEPENDS ON THE VIEWPORT, AND BOTH CASES ARE REAL.
+ *
+ * On a phone the DOCUMENT scrolls — deliberately, because that is what makes
+ * momentum and the URL bar behave. Inside the desktop phone frame the app is a
+ * fixed 780px box, so `10-desktop.css` moves the scroller onto `.scroll`.
+ * Writing `scrollTop` on the wrong one of those two is a silent no-op.
+ *
+ * The overflow is READ rather than assumed, so this stays correct if the
+ * breakpoint moves.
+ */
+export function scrollHost(): HTMLElement {
+  const pane = document.querySelector<HTMLElement>(".scroll");
+  if (pane && getComputedStyle(pane).overflowY === "auto") return pane;
+  return (document.scrollingElement as HTMLElement) ?? document.documentElement;
+}
+
+export type Spot = { y: number; n: number };
+const SPOTS = new Map<string, Spot>();
+
+/**
+ * ⚠ ONLY A *BACK* NAVIGATION RESTORES. Tapping the Deals tab, or the wordmark,
+ * is a request to start at the top — restoring there would mean the feed could
+ * never be returned to its beginning without a reload.
+ *
+ * This listener is registered at MODULE SCOPE on purpose: it has to observe
+ * `popstate` before the router's own handler re-renders and mounts the feed,
+ * and a listener added inside a React effect is registered later than one added
+ * at import time.
+ */
+let popNav = false;
+if (typeof addEventListener === "function") {
+  addEventListener("popstate", () => { popNav = true; });
+}
+
+/**
+ * How many rows the feed currently has loaded.
+ *
+ * ⚠ PUBLISHED, NOT PASSED. `go()` lives in the router and has to record the
+ * spot for EVERY way out of the feed — a card, the Settings gear, a share link
+ * — but only the feed knows how many pages are open. Threading a prop into the
+ * router for that would invert the dependency; this is the same module-level
+ * bus as `toast` and the filter count, for the same reason.
+ */
+let rows = 0;
+export const setFeedRows = (n: number) => { rows = n; };
+export const feedRows = () => rows;
+
+/** Leaving a screen forward: write down where we were and how much was loaded. */
+export function rememberSpot(key: string, n: number) {
+  popNav = false;
+  SPOTS.set(key, { y: scrollHost().scrollTop, n });
+}
+
+/**
+ * The saved spot for this key, but ONLY if we arrived here by going back.
+ *
+ * Reading it consumes the pop, not the spot: back → detail → back again must
+ * land in the same place twice.
+ */
+export function popSpot(key: string): Spot | null {
+  if (!popNav) return null;
+  popNav = false;
+  return SPOTS.get(key) ?? null;
+}
+
+/**
+ * Put the scroller back, and keep trying briefly.
+ *
+ * `.gshot` reserves its height with `aspect-ratio`, so the layout is usually
+ * final at first paint and the first write lands. Usually is not always — a
+ * late font, a two-line title, the hero's own image — so it re-applies on the
+ * next frame and once more shortly after.
+ *
+ * ⚠ IT MUST STOP THE MOMENT THE USER TOUCHES ANYTHING. A restore that keeps
+ * firing after someone has started scrolling is the app yanking the page out of
+ * their hand, which is worse than not restoring at all.
+ */
+export function restoreScroll(y: number) {
+  const host = scrollHost();
+  let live = true;
+  const stop = () => { live = false; cleanup(); };
+  const cleanup = () => {
+    removeEventListener("wheel", stop);
+    removeEventListener("touchstart", stop);
+    removeEventListener("keydown", stop);
+  };
+  addEventListener("wheel", stop, { passive: true, once: true });
+  addEventListener("touchstart", stop, { passive: true, once: true });
+  addEventListener("keydown", stop, { once: true });
+
+  const put = () => { if (live) host.scrollTop = y; };
+  put();
+  requestAnimationFrame(put);
+  setTimeout(() => { put(); cleanup(); }, 140);
+}
+
 /**
  * The Filters button lives in the TOP BAR, and the sheet lives in the feed.
  *

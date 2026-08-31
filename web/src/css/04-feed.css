@@ -209,6 +209,40 @@
   backdrop-filter: blur(10px);
 }
 
+/*
+ * Back, on the photo.
+ *
+ * ⚠ `z-index` IS LOAD-BEARING AND SO IS THE ORDER IT IS DECLARED IN.
+ * `.galstrip` is a scroll container full of full-bleed buttons; without a
+ * stacking order above them the arrow is drawn under the first photo and every
+ * tap opens the lightbox instead. It sits INSIDE `.gal`, which is the only
+ * positioned ancestor and is already pulled to the screen edge by its negative
+ * margins — so `left` is measured from the true edge of the image, not from the
+ * page gutter.
+ *
+ * The scrim is the same near-opaque treatment as `.gcall`, for the same reason:
+ * this is a white glyph over an arbitrary product photo, and a translucent
+ * blur alone fails on a bright one.
+ */
+.dback {
+  position: absolute; z-index: 3;
+  top: calc(var(--s3) + var(--safe-t)); left: var(--s3);
+  width: var(--tap); height: var(--tap); border-radius: 999px;
+  display: grid; place-items: center;
+  background: rgba(10,14,23,.72); color: #fff;
+  border: 1px solid rgba(255,255,255,.14);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 10px rgba(0,0,0,.45);
+  transition: background var(--dur) var(--ease), transform 120ms var(--ease);
+}
+.dback:hover { background: rgba(10,14,23,.9); }
+.dback:active { transform: scale(.92); }
+/* No photo, no overlay: the same control, in the flow above the title. */
+.dback.inflow {
+  position: static; margin: var(--s4) 0 0;
+  background: var(--surface-2); border-color: var(--line);
+}
+
 .lbx {
   position: fixed; inset: 0; z-index: 100; background: rgba(4,6,12,.97);
   display: flex; align-items: center;

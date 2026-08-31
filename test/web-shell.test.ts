@@ -12,6 +12,7 @@ import {
   screenOf, tabOf, mergeSettings, clampDrive, feedQuery, checkQuery,
   DEFAULT_SETTINGS, DRIVE_MIN, DRIVE_MAX,
   NO_FILTERS, filtersFromSearch, searchFromFilters, activeFilterCount, feedUrl, sourceLabel,
+  restoreLimit, FEED_PAGE, FEED_LIMIT_MAX,
 } from "../web/src/nav.ts";
 
 describe("screenOf", () => {
@@ -220,5 +221,31 @@ describe("filters in the URL", () => {
     expect(sourceLabel("craigslist")).toBe("Craigslist");
     // An unknown source degrades to its id rather than to blank.
     expect(sourceLabel("gumtree")).toBe("gumtree");
+  });
+});
+
+describe("restoreLimit", () => {
+  /**
+   * Yish, 2026-08-31: *"if I'm halfway down the listings and click one then go
+   * back I want to stay where I am down there."* Restoring the OFFSET without
+   * restoring the row count lands you somewhere you have never been, on a
+   * screen that looks like it worked — the offset simply clamps to the bottom
+   * of a one-page feed.
+   */
+  test("asks for at least a page and never more than the server serves", () => {
+    expect(restoreLimit(0)).toBe(FEED_PAGE);
+    expect(restoreLimit(1)).toBe(FEED_PAGE);
+    expect(restoreLimit(FEED_PAGE)).toBe(FEED_PAGE);
+    expect(restoreLimit(119)).toBe(119);
+    // 200 is `/v1/feed`'s own cap on `limit`. Asking past it is silently
+    // truncated, which is the same bug one layer down.
+    expect(restoreLimit(400)).toBe(FEED_LIMIT_MAX);
+    expect(restoreLimit(FEED_LIMIT_MAX)).toBe(FEED_LIMIT_MAX);
+  });
+
+  test("a missing or nonsense count is a page, not a crash", () => {
+    expect(restoreLimit(NaN)).toBe(FEED_PAGE);
+    expect(restoreLimit(-5)).toBe(FEED_PAGE);
+    expect(restoreLimit(87.6)).toBe(87);
   });
 });
