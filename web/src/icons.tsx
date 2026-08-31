@@ -78,6 +78,21 @@ export const Gear = ({ size = 22, className }: P) =>
 export const Cut = ({ size = 22, className }: P) =>
   svg(size, <><path d="M12 5v13" /><path d="m6.5 12.5 5.5 5.5 5.5-5.5" /></>, className);
 
+/**
+ * Sliders — filters.
+ *
+ * The Filters button borrowed `Cut`, a DOWN ARROW that means "the price
+ * dropped" everywhere else in the app. At 375px the button's label is hidden
+ * to save 60px, so that arrow was the entire control: a filter button that
+ * reads as sort, or download, or "jump to bottom". Two icons for two meanings.
+ */
+export const Sliders = ({ size = 22, className }: P) =>
+  svg(size, <>
+    <path d="M4 6h10" /><path d="M18 6h2" /><circle cx="16" cy="6" r="2" />
+    <path d="M4 12h4" /><path d="M12 12h8" /><circle cx="10" cy="12" r="2" />
+    <path d="M4 18h10" /><path d="M18 18h2" /><circle cx="16" cy="18" r="2" />
+  </>, className);
+
 /** Bell — alerts and saved searches. */
 export const Bell = ({ size = 22, className }: P) =>
   svg(size, <><path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6" /><path d="M13.7 20a2 2 0 0 1-3.4 0" /></>, className);

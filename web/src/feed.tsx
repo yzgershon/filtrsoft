@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Again, Bell, Check, Cut, Ghost, Save } from "./icons.tsx";
+import { Alert, Again, Bell, Check, Cut, Ghost, Save, Sliders } from "./icons.tsx";
 import type { Call, FeedItem } from "./types.ts";
 import {
   type Filters, type Quality,
@@ -485,7 +485,10 @@ export function Feed({ onOpen, onWatchChange }: {
         <Segmented value={quality} onChange={setQuality} options={SEGS} />
         <button className={`filterbtn${nFilters ? " on" : ""}`} onClick={() => setSheet(true)}
           aria-label={nFilters ? `Filters, ${nFilters} active` : "Filters"}>
-          <Cut size={16} />
+          {/* `Sliders`, not `Cut`. Cut is a down arrow meaning "the price
+              dropped" everywhere else, and at 375px the label is hidden so the
+              icon IS the control. */}
+          <Sliders size={16} />
           <span>Filters</span>
           {nFilters > 0 && <em className="num">{nFilters}</em>}
         </button>
