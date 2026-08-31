@@ -20,6 +20,7 @@
  * Widths are 375 / 768 / 1024 / 1440 — phone, tablet, small laptop, desktop.
  */
 import { chromium, devices } from "playwright-core";
+import { auditButtons } from "./button-audit.mjs";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -250,7 +251,17 @@ const detailOpen = (page) => page.evaluate(
   await subs.nth(1).click();
   await page.waitForTimeout(800);
   ok("Alerts sub-tab selects", (await subs.nth(1).getAttribute("aria-selected")) === "true");
-  ok("Alerts renders something", (await page.locator(".sec").first().innerText()).length > 40);
+  /**
+   * ⚠ `.sgroup`, THE ALERTS PANEL ITSELF — NOT `.sec`.
+   *
+   * This used to read `.sec`, which was the Saved screen's WRAPPER, so it
+   * passed on any screen with text on it whether or not the Alerts sub-tab had
+   * rendered anything at all. It only broke when that wrapper stopped being
+   * `.sec` (2026-08-31, because `.sec` carries a 32px top margin meant for the
+   * detail screen's stacked sections), which is how a weak assertion gets
+   * noticed: by failing for the wrong reason.
+   */
+  ok("Alerts renders something", (await page.locator(".sgroup").first().innerText()).length > 40);
   await shot(page, "375-saved-alerts");
 
   await subs.nth(0).click();
@@ -959,6 +970,55 @@ for (const spec of [...PHONES, ...DESKTOPS]) {
     ok(`the frame matches the phone: ${k}`, onDesk[k] === onPhone[k],
       `phone ${onPhone[k]} · desktop ${onDesk[k]}`);
   }
+}
+
+// ---------------------- 13. every button on every surface, measured
+/**
+ * Yish, 2026-08-31: *"make sure there's no button like that and all the buttons
+ * in Assyze are perfect."*
+ *
+ * Four checks per button -- 44px target, children inside the box, ink off a
+ * visible edge, content vertically centred -- and each one is a bug that
+ * shipped past a screenshot review. Details, and the two qualifications that
+ * keep it from crying wolf, are in `button-audit.mjs`.
+ *
+ * WARNING: THE SHEET AND THE LIGHTBOX ARE BEHIND AN INTERACTION, WHICH IS
+ * EXACTLY WHY THEY GO UNLOOKED-AT. They are opened here rather than assumed
+ * fine.
+ */
+{
+  console.log("\nbuttons");
+  const one = (await (await fetch(BASE + "/v1/feed?limit=1")).json()).items?.[0]?.id;
+  const SURFACES = [
+    ["deals", "/", null], ["check", "/check", null],
+    ["saved", "/saved", null], ["settings", "/settings", null],
+    ...(one ? [["detail", "/c/" + one, null]] : []),
+    ["filter sheet", "/", ".filtbtn"],
+    ...(one ? [["lightbox", "/c/" + one, ".galshot"]] : []),
+  ];
+
+  const { ctx, page } = await newPage(PHONE);
+  let seen = 0;
+  const broken = [];
+  for (const [name, path, open] of SURFACES) {
+    await page.goto(BASE + path, { waitUntil: "networkidle", timeout: T });
+    await page.waitForTimeout(900);
+    if (open) {
+      await page.locator(open).first().click();
+      await page.waitForTimeout(600);
+    }
+    const rows = await page.evaluate(auditButtons);
+    seen += rows.length;
+    for (const r of rows) {
+      if (r.problems.length) {
+        broken.push(name + ": ." + r.cls.split(" ")[0] + ' "' + r.label + '" ' + r.problems.join(", "));
+      }
+    }
+  }
+  await ctx.close();
+  ok("every button clears 44px and contains its ink",
+    broken.length === 0,
+    broken.length ? broken.slice(0, 6).join(" | ") : seen + " buttons across " + SURFACES.length + " surfaces");
 }
 
 await browser.close();
