@@ -2476,3 +2476,145 @@ The highest-severity live findings are:
 
 The production frontend build passed. The existing verdict palette, numeric
 hierarchy, two-up mobile cards, and inline icon family should be preserved.
+
+### 17a. Implementation — commits 1 and 2 SHIPPED, measured
+
+Working through the audit in its recommended order: trust and functionality
+first, visual redesign after. Commits 3–6 (accessibility/feedback, the
+responsive shell, marketplace depth, and splitting App.tsx) are still open.
+
+**Commit 1 `31710e8` — discovery and navigation tell the truth.**
+
+- The segment is a SERVER query (`/v1/feed?quality=`), not a client `.filter()`
+  over the first 60 rows. Count, page and pagination now come from one filter
+  model, so they cannot disagree.
+- **RISK is its own segment and is never counted as a deal.** `ready` is BUY
+  only. `INSUFFICIENT_DATA` is reachable ONLY under `all` — it is the largest
+  bucket and the one that can never be acted on.
+- `screenOf(pathname)` is the single derivation of the screen. Back from a
+  detail now tears the detail DOWN rather than only changing the URL.
+
+**Commit `dfbf52c` — the bottom bar had never blurred in Chrome.**
+
+⚠ **Chrome does not support `-webkit-backdrop-filter` at all.** Measured
+against real Chrome: a rule declaring only the alias computes to
+`backdrop-filter: none`.
+
+`styles.css` declared both, standard property FIRST and the alias SECOND. The
+CSS minifier reads that as one property declared twice and keeps the LAST, so
+`.tabbar` and `.gsave` shipped with only the alias. The bottom bar was an
+86%-opacity wash with nothing behind it: at 375px, listing titles and prices
+read straight through the Deals / Check / Saved labels.
+
+**It survived review because the SOURCE was correct the whole time.** Confirm
+this class of bug in the BUILD, never in `styles.css`:
+
+    grep -oE '(^|[;{])(-webkit-)?backdrop-filter:[^;}]*' web/dist/assets/*.css
+
+Every rule must appear with the unprefixed property. **Never hand-write a
+`-webkit-` prefix** — Vite emits them itself, and a hand-written one can only
+reintroduce this.
+
+**Commit 2 `aeacc99` — settings that do nothing are worse than no settings.**
+
+Three controls wrote to `localStorage` and nothing read them. All three are
+wired and each was verified against the running app:
+
+| Control | Mechanism | Measured |
+|---|---|---|
+| Willing to drive | `/v1/checks/:id?drive=N` → `checkStored` | listing 407: 5m → $100 floor · 15m → $135.42 · 25m → $177.08 · 90m → $447.92 |
+| Hide sold/removed | inverted onto the existing `?gone=1` | 387 hidden → 395 shown (8 delisted rows) |
+| Reduce motion | `.no-motion` on the document element | class applied, animation → `1e-06s` |
+
+⚠ **Drive time is a per-REQUEST override, not a stored one.** One verdict row
+per listing cannot hold per-user answers, so writing it back would make the
+feed's precomputed rows wrong for everyone. `checkStored` recomputes from text
+already in the database in about a millisecond, which is what makes the detail
+screen able to honour it at all. Out of range is REJECTED, not clamped
+(`parseDrive`), so a malformed request gets the stored verdict rather than a
+quietly different one — the client clamps to the same 5..90 window.
+
+Information architecture:
+
+- **Alerts moved to Saved**, behind `role="tablist"` Listings/Alerts sub-tabs. A
+  saved search is discovery, not configuration; it was below Billing and Feed
+  settings.
+- **Billing renders nothing while billing is disabled.** The card explaining
+  that paid plans may come later pushed every control that DOES something below
+  the fold.
+- Saved renders its H1 in the empty state too (it used to return early with a
+  bare `<b>`, so the screen had no heading at all), and the empty state has a
+  Browse deals button instead of being a dead end.
+- Future-tense copy is gone. Present tense or nothing.
+
+Fixed while extracting: the detail effect re-matched `/^\/c\/(\d+)$/` — no
+trailing slash — while `screenOf` accepts one, so a PWA deep link to `/c/123/`
+rendered the detail shell and never fetched anything. A blank screen with no
+error.
+
+### 17b. Where the shell's logic lives now, and why
+
+- **`web/src/nav.ts`** — `screenOf`/`tabOf`, settings parsing, `feedQuery`,
+  `checkQuery`, drive clamping. ⚠ **Nothing in it may touch `window`,
+  `document` or `localStorage`**; the moment it does it stops being testable
+  under `bun test`, which is the whole reason it was split out of `App.tsx`.
+- **`src/api/query.ts`** — the segment vocabulary, with the invariant that
+  broke the feed stated as a function:
+
+      segmentCounts(rows)[q] === applyQuality(rows, q).length
+
+  The route derives the counts and the served rows from ONE `priceScoped`
+  population. When those were two separate expressions the control said 20 and
+  the view dead-ended at 13.
+
+### 17c. `bun test` and `ui-verify.mjs` — both are baselines
+
+    bun test                                   90 pass / 0 fail   (was 61)
+    node src/browser/ui-verify.mjs <label>     47 pass / 0 fail
+
+**`ui-verify.mjs` clicks the running app and asserts MEASUREMENTS.** Both bugs
+it was written for are invisible in a screenshot: the hero rendered unstyled for
+a week because a class was renamed on the JSX side only and the inner elements
+still matched, and a count that does not match what is reachable is not
+something a single frame can show. **Trust the selector and the measurement.**
+
+It runs under NODE — Playwright hangs under Bun on this machine (see
+`src/browser/launch.mjs`) — so the split holds: Bun proves the functions, Node
+proves the running app. Point it at a server started with `ASSYZE_CRAWL=off`,
+because a crawl mid-run changes the counts underneath the assertions.
+
+    ASSYZE_CRAWL=off bun run src/api/index.ts &
+    node src/browser/ui-verify.mjs commit2
+
+⚠ **A stale API server on an older engine will overwrite a manual re-score.**
+Seen live: 0.3.23 rows replaced by 0.3.21 thirteen seconds later. Stop the
+server before re-scoring by hand.
+
+What it asserts, at 375 / 768 / 1024 / 1440:
+
+- Back returns to `/`, TEARS THE DETAIL DOWN, and re-lights Deals.
+- A refresh on `/check`, `/saved`, `/settings` stays there and lights the right
+  tab. A detail lights NO tab.
+- **Every segment chip's number equals the rows reachable by pressing Show
+  more**: 3/3, 6/6, 4/4, 387/387. (Count `.grid .gcard` AND `.dealhero` — the
+  top listing is promoted out of the grid, so a grid-only count is short by one
+  and reads as a real failure.)
+- Settings reach the SERVER, not just storage: the feed request carries
+  `gone=1` only when the switch is off, and the detail request carries
+  `drive=90`.
+- The tab bar is `position: fixed` and on screen, and its `backdrop-filter`
+  computes to something other than `none`.
+- No horizontal overflow at any width.
+
+Screenshots land in `docs/ui/<label>/` and are **gitignored** — ~7.6 MB a run,
+and six audit phases would put 45 MB of near-identical PNGs in history forever.
+The assertions are the durable artefact.
+
+### 17d. Baseline measured at 1440px — commit 4's actual job
+
+Desktop today is the phone column stretched: a ~740px content column centred in
+1440 with empty gutters either side, the two-up mobile grid at desktop width,
+and the phone bottom tab bar spanning the full window. Nothing is broken and
+nothing overflows; it is simply a phone layout on a desktop. That is what the
+audit's responsive-shell commit exists to fix, and the screenshots in
+`docs/ui/commit2/` are the before.
