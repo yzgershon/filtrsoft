@@ -348,7 +348,7 @@ export function riskGate(checks: RiskCheck[]): RiskGate {
   if (unresolved.length) {
     return {
       ceiling: "VERIFY", failed, unresolved, inPerson,
-      reason: `${unresolved.map((u) => u.label).join(" and ")} ${unresolved.length === 1 ? "is" : "are"} unverified. An unresolved hard blocker outranks any discount — the downside is the whole value of the item, not a percentage of it.`,
+      reason: `${unresolved.map((u) => u.label).join(" and ")} ${unresolved.length === 1 ? "is" : "are"} unverified. An unresolved hard blocker outranks any discount: the downside is the whole value of the item, not a percentage of it.`,
     };
   }
   return { ceiling: "BUY", failed, unresolved, inPerson, reason: null };

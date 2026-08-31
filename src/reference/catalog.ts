@@ -284,7 +284,7 @@ export const CATALOG: SeedSku[] = [
 
 /** Category-level fallback when no specific SKU matches. */
 export const DEAD_PATTERNS: Array<[RegExp, string]> = [
-  [/\b(psvr|quest [23]|vive|valve index|vr headset|oculus)\b/i, "VR — very hard to resell regardless of price"],
-  [/\b(tesla [pvmk]\d+|cmp \d+hx|nvidia a(100|40|30)\b)/i, "datacenter/mining card — practically no resale market"],
-  [/\bmacbook (pro|air).{0,20}\b20(0\d|1[0-8])\b/i, "pre-2019 Intel Mac — only M-series Apple laptops move"],
+  [/\b(psvr|quest [23]|vive|valve index|vr headset|oculus)\b/i, "VR gear is very hard to resell regardless of price"],
+  [/\b(tesla [pvmk]\d+|cmp \d+hx|nvidia a(100|40|30)\b)/i, "a datacenter or mining card has practically no resale market"],
+  [/\bmacbook (pro|air).{0,20}\b20(0\d|1[0-8])\b/i, "a pre-2019 Intel Mac barely moves; only M-series Apple laptops do"],
 ];

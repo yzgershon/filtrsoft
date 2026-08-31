@@ -290,7 +290,7 @@ export function resolveProductType(title: string, description = ""): ProductType
       kind: head.kind,
       head: head.term,
       reason: techBefore.length
-        ? `"${head.term}" is the head noun — ${techBefore.map((t) => `"${t}"`).join(", ")} only describes what it is FOR`
+        ? `"${head.term}" is the head noun, and ${techBefore.map((t) => `"${t}"`).join(", ")} only describes what it is FOR`
         : `"${head.term}" is the head noun`,
     };
   }

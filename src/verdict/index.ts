@@ -93,6 +93,29 @@ const BULK_LISTING =
 const RESELLER_AD =
   /\bup to \d+\s?(gb|tb)\b|\b(blowout|clearance)\b|\b(spring|summer|fall|winter|holiday|back to school)\b[^.]{0,24}\b(sale|deals?|special)\b|\b(laptop|computer|desktop|pc)\s+(deals?|blowout|sale)\b|\b(laptops|desktops|workstations|tablets|ultrabooks|chromebooks|touchscreens)\b|\b\d+\s+units?\b/i;
 
+/**
+ * ⚠ `best.channel` IS AN INTERNAL ID AND MUST NEVER BE PRINTED.
+ *
+ * Yish, 2026-08-30: *"it will say $625 net on facebook when it says on facebook
+ * because I don't just buy or sell from facebook."* He is right and the bug is
+ * ours, not his reading of it. The `facebook` channel does not mean Facebook
+ * Marketplace: it means A LOCAL CASH SALE, no fees and no postage, which is
+ * equally Craigslist, OfferUp, or a stranger in a parking lot. Naming one
+ * marketplace states a fact about the world that is not true.
+ *
+ * `ebay` genuinely does mean eBay, because the fee and shipping arithmetic
+ * behind it is eBay's.
+ *
+ * Two forms because English needs both: "nets $625 SELLING LOCALLY" and
+ * "$625 net ON EBAY" do not take the same preposition.
+ */
+const CHANNEL_NAME: Record<string, string> = { facebook: "locally", ebay: "on eBay" };
+const CHANNEL_VERB: Record<string, string> = {
+  facebook: "selling it locally", ebay: "selling it on eBay",
+};
+const channelName = (c: string) => CHANNEL_NAME[c] ?? "locally";
+const channelVerb = (c: string) => CHANNEL_VERB[c] ?? "selling it locally";
+
 /** Reader-facing retailer names. "microcenter" is not how anyone says it. */
 const RETAILER_NAME: Record<string, string> = {
   bestbuy: "Best Buy",
@@ -309,7 +332,7 @@ export function buildVerdict(input: {
   if (counterfeit) {
     return {
       ...base, call: "PASS", confidence: "high",
-      headline: "Counterfeit — not a deal at any price.",
+      headline: "Counterfeit. Not a deal at any price.",
       reasoning: counterfeit.evidence,
     };
   }
@@ -332,7 +355,7 @@ export function buildVerdict(input: {
   if (redirect) {
     return {
       ...base, call: "RISK", confidence: "high",
-      headline: "Scam — the listing sends you off-platform.",
+      headline: "Scam. The listing sends you off-platform.",
       reasoning: redirect.evidence,
       questions: [],
     };
@@ -345,7 +368,7 @@ export function buildVerdict(input: {
     return {
       ...base, call: "OUT_OF_SCOPE", confidence: "high",
       headline: "Not a category Assyze judges.",
-      reasoning: "Camera and photo gear is deliberately out of scope — valuation is fine there, but the risk layer (fungus, element separation, focus motor wear, mount play) needs domain knowledge we don't have, and a category we can't audit is one we could be wrong about indefinitely.",
+      reasoning: "Camera and photo gear is deliberately out of scope. Valuation is fine there, but the risk layer (fungus, element separation, focus motor wear, mount play) needs domain knowledge we don't have, and a category we can't audit is one we could be wrong about indefinitely.",
     };
   }
 
@@ -442,7 +465,7 @@ export function buildVerdict(input: {
       // `head.head` is null whenever the title carries no recognised product
       // noun, which is exactly the router/switch case that reaches here via the
       // title fallback above. Name the matched word instead of crashing.
-      reasoning: `That reads as ${(input.title.match(NEVER_OUR_MARKET)?.[0] ?? head.head ?? input.title.match(NOT_OUR_MARKET)?.[0] ?? "peripheral").toLowerCase()} gear. Assyze covers phones, laptops, GPUs, consoles, tablets and PC components — the things with deep enough sold-comp data to price confidently. There are no comps here because nobody has ever asked for any.`,
+      reasoning: `That reads as ${(input.title.match(NEVER_OUR_MARKET)?.[0] ?? head.head ?? input.title.match(NOT_OUR_MARKET)?.[0] ?? "peripheral").toLowerCase()} gear. Assyze covers phones, laptops, GPUs, consoles, tablets and PC components, the things with deep enough sold-comp data to price confidently. There are no comps here because nobody has ever asked for any.`,
     };
   }
 
@@ -458,7 +481,7 @@ export function buildVerdict(input: {
     return {
       ...base, call: "OUT_OF_SCOPE", confidence: "high",
       headline: "Not something Assyze covers.",
-      reasoning: `Nothing in "${input.title.slice(0, 60)}" reads as a device Assyze knows how to price — no recognisable product type and no model number. Assyze covers phones, laptops, GPUs, consoles, tablets and PC components.`,
+      reasoning: `Nothing in "${input.title.slice(0, 60)}" reads as a device Assyze knows how to price: no recognisable product type and no model number. Assyze covers phones, laptops, GPUs, consoles, tablets and PC components.`,
     };
   }
 
@@ -466,7 +489,7 @@ export function buildVerdict(input: {
   if (base.blockers.length) {
     return {
       ...base, call: "RISK", confidence: "high",
-      headline: "Hard blocker — do not proceed on price alone.",
+      headline: "Hard blocker. Do not proceed on price alone.",
       reasoning: base.blockers.join(" "),
       decidingUnknown: "resolve the blocker before considering the price",
       questions: gateQuestions(gate, questions),
@@ -477,7 +500,7 @@ export function buildVerdict(input: {
   if (signals.missingValueFields.length) {
     return {
       ...base, call: "INSUFFICIENT_DATA", confidence: "high",
-      headline: `Can't be valued — ${signals.missingValueFields.join(" and ")} not stated.`,
+      headline: `Can't be valued: ${signals.missingValueFields.join(" and ")} not stated.`,
       reasoning: `The listing never says the ${signals.missingValueFields.join(" or ")}, which is the single biggest driver of value here. Ask before doing anything else.`,
       decidingUnknown: signals.missingValueFields[0],
     };
@@ -506,9 +529,9 @@ export function buildVerdict(input: {
     const unknown = partsVal.parts.filter((p) => p.medianCents == null).map((p) => p.query);
     return {
       ...base, call: "INSUFFICIENT_DATA", confidence: "high",
-      headline: `Specs are known — market prices aren't.`,
-      reasoning: `Identified the full build (${Object.entries(match.attributes).filter(([k]) => ["cpu", "gpu", "ram_gb", "storage_gb"].includes(k)).map(([k, v]) => `${k.replace("_gb", "")} ${v}`).join(", ")}). But the comps archive only has sold prices for ${known.join(", ") || "none of it"} — nothing for ${unknown.join(", ") || "the CPU"}, RAM, motherboard, PSU or case. Pricing a whole machine off one part would be a confident wrong answer, so this stays unpriced until the archive covers more components.`,
-      decidingUnknown: "sold prices for the remaining components (not the specs — those are known)",
+      headline: `Specs are known, market prices aren't.`,
+      reasoning: `Identified the full build (${Object.entries(match.attributes).filter(([k]) => ["cpu", "gpu", "ram_gb", "storage_gb"].includes(k)).map(([k, v]) => `${k.replace("_gb", "")} ${v}`).join(", ")}). But the comps archive only has sold prices for ${known.join(", ") || "none of it"}, and nothing for ${unknown.join(", ") || "the CPU"}, RAM, motherboard, PSU or case. Pricing a whole machine off one part would be a confident wrong answer, so this stays unpriced until the archive covers more components.`,
+      decidingUnknown: "sold prices for the remaining components (not the specs, which are known)",
     };
   }
 
@@ -552,8 +575,8 @@ export function buildVerdict(input: {
     const others = retail.quotes.map((q) => `${q.source} ${$r(q.priceCents)}`).join(", ");
     return {
       ...base, call: "INSUFFICIENT_DATA", confidence: "high",
-      headline: "Our comps disagree with new retail — not pricing this.",
-      reasoning: `The sold comps put this at ${$r(valuation.medianCents)} used, but it sells NEW for ${$r(retail.priceCents)} (${others}). Used cannot be worth more than new, so the ${valuation.compCount} comps behind that median are matching something else — a different capacity, a different variant, or a bundle. Retail is the only number here not derived from our own archive, which is why it can catch this and nothing else can, and more than one retailer agrees on it.`,
+      headline: "Our comps disagree with new retail, so this stays unpriced.",
+      reasoning: `The sold comps put this at ${$r(valuation.medianCents)} used, but it sells NEW for ${$r(retail.priceCents)} (${others}). Used cannot be worth more than new, so the ${valuation.compCount} comps behind that median are matching something else: a different capacity, a different variant, or a bundle. Retail is the only number here not derived from our own archive, which is why it can catch this and nothing else can, and more than one retailer agrees on it.`,
       decidingUnknown: "whether the sold comps are actually this exact model",
     };
   }
@@ -619,8 +642,8 @@ export function buildVerdict(input: {
   if (match.liquidity === "dead" || match.deadReason) {
     return {
       ...money, call: "PASS", confidence: "high",
-      headline: "Won't resell — skip regardless of price.",
-      reasoning: `${match.deadReason ?? "This category is a dead market."} Net would be ${$(net)} on ${best.channel}, but a good price on something that sits is not a deal.`,
+      headline: "Won't resell. Skip regardless of price.",
+      reasoning: `${match.deadReason ?? "This category is a dead market."} It would net ${$(net)} ${channelName(best.channel)}, but a good price on something that sits is not a deal.`,
     };
   }
 
@@ -643,8 +666,8 @@ export function buildVerdict(input: {
     return {
       ...money, call: "PASS",
       confidence: retail.corroborated ? "high" : "medium",
-      headline: `Buy it new instead — ${$(retail.priceCents)} at ${where}.`,
-      reasoning: `Asking ${$(ask)} used, against ${$(retail.priceCents)} for a new one at ${where} ("${retail.title}", seen ${retail.observedAt.slice(0, 10)}). Add sales tax to the new price and it is still the better deal, with a warranty and a return window this has neither of. Nothing about the used market matters here — the seller is competing with a shelf.${retail.corroborated ? ` ${retail.quotes.length} retailers agree on the new price.` : " Only one retailer was checked, so verify the new price before walking away."}`,
+      headline: `Buy it new instead: ${$(retail.priceCents)} at ${where}.`,
+      reasoning: `Asking ${$(ask)} used, against ${$(retail.priceCents)} for a new one at ${where} ("${retail.title}", seen ${retail.observedAt.slice(0, 10)}). Add sales tax to the new price and it is still the better deal, with a warranty and a return window this has neither of. Nothing about the used market matters here. The seller is competing with a shelf.${retail.corroborated ? ` ${retail.quotes.length} retailers agree on the new price.` : " Only one retailer was checked, so verify the new price before walking away."}`,
     };
   }
 
@@ -665,8 +688,8 @@ export function buildVerdict(input: {
   if (ratio > 0 && ratio < 0.6) {
     return {
       ...money, call: "VERIFY", confidence: valuation.confidence,
-      headline: `Priced at ${Math.round(ratio * 100)}% of market — verify before driving.`,
-      reasoning: `Asking ${$(ask)} against ${$(localMarket)} on ${best.channel}, from a ${$(valuation.medianCents)} median across ${valuation.compCount} comps. That gap is the strongest deal signal AND the strongest scam signal; they're the same observation. Resolve why it's cheap first.`,
+      headline: `Priced at ${Math.round(ratio * 100)}% of market. Verify before driving.`,
+      reasoning: `Asking ${$(ask)} against ${$(localMarket)} ${channelName(best.channel)}, from a ${$(valuation.medianCents)} median across ${valuation.compCount} comps. That gap is the strongest deal signal AND the strongest scam signal; they're the same observation. Resolve why it's cheap first.`,
       decidingUnknown: "why it is priced this far below market",
     };
   }
@@ -690,17 +713,33 @@ export function buildVerdict(input: {
         confidence: "high",
         headline: gate.ceiling === "RISK"
           ? `${$(net)} of margin, but a hard blocker is disclosed.`
-          : `${$(net)} of margin — but ${gate.unresolved.length === 1 ? "one thing is" : `${gate.unresolved.length} things are`} unverified.`,
-        reasoning: `${gate.reason} Net would be ${$(net)} on ${best.channel} against a ${$(required)} floor, and that is exactly why this needs settling first — the discount is what makes it tempting.`,
+          : `${$(net)} of margin, but ${gate.unresolved.length === 1 ? "one thing is" : `${gate.unresolved.length} things are`} unverified.`,
+        reasoning: `${gate.reason} It would net ${$(net)} ${channelName(best.channel)}, and that is exactly why this needs settling first: the discount is what makes it tempting.`,
         decidingUnknown: (gate.failed[0] ?? gate.unresolved[0])?.label,
         questions: gateQuestions(gate, questions),
       };
     }
 
+    /**
+     * ⚠ THE HEADLINE STATES THE DEAL, NOT THE SETTING BEHIND IT.
+     *
+     * It used to read *"$625 net on facebook — clears your $135 floor."* Two
+     * things wrong with one sentence, both from Yish on 2026-08-30.
+     *
+     * "on facebook" printed an internal channel id (see CHANNEL_NAME above).
+     * And *"clears your $135 floor"* explains the verdict in terms of a number
+     * he configured rather than the thing he wants to know: it is the app
+     * talking about its own arithmetic. He asked what the listing is worth, not
+     * how it scored against a threshold.
+     *
+     * The floor still decides the CALL, and it is still stated in the reasoning
+     * and shown as its own row in The Numbers, where a number you can change
+     * belongs. It just does not get the headline.
+     */
     return {
       ...money, call: "BUY",
-      headline: `${$(net)} net on ${best.channel} — clears your ${$(required)} floor.`,
-      reasoning: `Median ${$(valuation.medianCents)} across ${valuation.compCount} comps. ${best.channel === "ebay" ? `After ${$(best.feesCents)} fees and ${$(best.shippingCents)} shipping` : "No fees, no shipping, local sale"}, net is ${$(net)} against ${$(required)} required for a ${drive}-minute drive.${riskCleared(gate)}`,
+      headline: `Worth ${$(best.grossCents)}${net > 0 ? `, so you make ${$(net)}` : ""} ${channelName(best.channel)}.`,
+      reasoning: `Median ${$(valuation.medianCents)} across ${valuation.compCount} comps. ${best.channel === "ebay" ? `After ${$(best.feesCents)} fees and ${$(best.shippingCents)} shipping` : "No fees, no shipping, cash on pickup"}, net is ${$(net)} against the ${$(required)} you need to clear for a ${drive}-minute drive.${riskCleared(gate)}`,
       questions,
     };
   }
@@ -708,8 +747,8 @@ export function buildVerdict(input: {
   if (net > 0) {
     return {
       ...money, call: "FAIR",
-      headline: `Only ${$(net)} net — below your ${$(required)} floor.`,
-      reasoning: `Real margin exists but doesn't pay for the trip. Would need roughly ${$(targetOfferCents)} to be worth it.`,
+      headline: `Only ${$(net)} in it, which doesn't pay for the trip.`,
+      reasoning: `Worth about ${$(best.grossCents)} ${channelName(best.channel)} against ${$(ask)} asking, so there is real margin, just not enough to be worth ${drive} minutes each way. Around ${$(targetOfferCents)} would be.`,
     };
   }
 
@@ -718,10 +757,10 @@ export function buildVerdict(input: {
    * none, and saying so anyway is the same class of error as charging them.
    */
   const hasFees = best.feesCents > 0 || best.shippingCents > 0;
-  const where = best.channel === "facebook" ? "selling it locally" : "selling it on eBay";
+  const where = channelVerb(best.channel);
   return {
     ...money, call: "PASS",
-    headline: `Overpriced — ${$(Math.abs(net))} underwater${hasFees ? " after fees" : ""}.`,
+    headline: `Overpriced by ${$(Math.abs(net))}${hasFees ? " once fees are counted" : ""}.`,
     reasoning: `Asking ${$(ask)} against a ${$(valuation.medianCents)} median. Even ${where} it doesn't clear.`,
   };
 }

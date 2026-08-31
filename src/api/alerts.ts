@@ -308,7 +308,7 @@ export async function runAlerts(): Promise<number> {
 
       const ok = await send(s, {
         title: s.label,
-        body: `${r.title.slice(0, 70)} — ${r.price ? `$${Math.round(r.price / 100)}` : "no price"}`,
+        body: `${r.title.slice(0, 70)}, ${r.price ? `$${Math.round(r.price / 100)}` : "no price"}`,
         url: `/c/${r.id}`,
       });
       // Recorded even on failure. A listing that could not be delivered once

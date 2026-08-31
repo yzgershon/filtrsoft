@@ -18,6 +18,10 @@ import {
 } from "../src/sources/ebay.ts";
 import { cardToListing, parseCards, probeVerdict } from "../src/sources/marketplace.ts";
 import { applyQuality, parseDrive, QUALITIES, segmentCounts, withinPrice } from "../src/api/query.ts";
+import { analyze } from "../src/signals/index.ts";
+import { matchSku } from "../src/catalog/match.ts";
+import { buildVerdict } from "../src/verdict/index.ts";
+import { BY_SIGNAL, BY_FIELD, FALLBACK } from "../src/verdict/questions.ts";
 import { parseBestBuy, parseMicroCenter, parseNewegg } from "../src/sources/retail.ts";
 import { normalizeCondition } from "../src/valuation/condition.ts";
 import { storageOf } from "../src/valuation/index.ts";
@@ -736,5 +740,102 @@ describe("parseDrive", () => {
     expect(parseDrive("4")).toBeUndefined();
     expect(parseDrive("91")).toBeUndefined();
     expect(parseDrive("-30")).toBeUndefined();
+  });
+});
+
+/**
+ * ── EVERY WORD THE ENGINE WRITES IS IN YISH'S VOICE ────────────────────────
+ *
+ * A headline, a reason and a seller question all end up either on his screen or
+ * pasted into a message he sends a stranger. Two rules from him, both on
+ * 2026-08-30, and both of them things a source-level grep would miss because
+ * the strings are assembled from templates at runtime:
+ *
+ *   · **No em dashes.** One of his AI tells. It is in CLAUDE.md for everything
+ *     written in his voice, and generated product copy is no exception.
+ *   · **Never name a marketplace for the local channel.** *"it will say $625
+ *     net on facebook ... because I don't just buy or sell from facebook."*
+ *     The `facebook` channel means a LOCAL CASH SALE; printing the id states
+ *     something untrue about where he trades.
+ *
+ * These assert on the ASSEMBLED output, not the source, which is the only place
+ * a template can be caught putting them back.
+ */
+describe("engine copy", () => {
+  const EM_DASH = "—";
+  const price = (n: number) => n * 100;
+
+  /** Runs the real verdict builder over a spread of shapes. */
+  const verdicts = () => {
+    const cases: Array<{ title: string; description: string; askingPriceCents: number | null }> = [
+      { title: "NVIDIA GeForce RTX 4090 Founders Edition 24GB", description: "Works great, local pickup", askingPriceCents: price(1500) },
+      { title: "RTX 3060 12GB Graphics Card Tested and Working", description: "Tested", askingPriceCents: price(400) },
+      { title: "Apple MacBook Pro 14 M1 Pro 16GB 512GB", description: "Good condition", askingPriceCents: price(2000) },
+      { title: "PS5 Disc Edition", description: "Boxed", askingPriceCents: price(700) },
+      { title: "iPhone 13 128GB", description: "Clean", askingPriceCents: price(120) },
+      { title: "Gaming PC", description: "Fast", askingPriceCents: null },
+      { title: "Lot of 12 assorted laptop chargers", description: "Bulk", askingPriceCents: price(60) },
+      { title: "Canon EOS R6 body", description: "Mint", askingPriceCents: price(900) },
+      { title: "Replica Rolex Submariner", description: "AAA quality", askingPriceCents: price(200) },
+    ];
+    return cases.map((c) => {
+      const signals = analyze({
+        source: "craigslist", sourceId: "t", url: "https://boston.craigslist.org/x.html",
+        title: c.title, description: c.description, askingPriceCents: c.askingPriceCents,
+        location: "Newton, MA", postedAt: null, updatedAt: null,
+        // One photo, so ZERO_PHOTOS does not fire on every case and short out
+        // the verdict before the money prose is ever reached.
+        photoUrls: ["https://example.test/a.jpg"], attributes: {}, raw: {},
+      } as never);
+      return buildVerdict({
+        title: c.title, description: c.description,
+        askingPriceCents: c.askingPriceCents, signals,
+        match: matchSku(c.title, c.description),
+      });
+    });
+  };
+
+  test("no verdict ever contains an em dash", () => {
+    for (const v of verdicts()) {
+      const parts = [v.headline, v.reasoning, v.decidingUnknown ?? "", ...(v.questions ?? [])];
+      for (const s of parts) {
+        expect(s).not.toContain(EM_DASH);
+      }
+    }
+  });
+
+  test("no verdict ever names a marketplace for the local channel", () => {
+    // "facebook" is an internal channel id meaning "local cash sale". eBay may
+    // be named, because the fee arithmetic behind that channel really is eBay's.
+    for (const v of verdicts()) {
+      const said = `${v.headline} ${v.reasoning} ${v.decidingUnknown ?? ""}`.toLowerCase();
+      expect(said).not.toContain("facebook");
+      expect(said).not.toContain("craigslist");
+      expect(said).not.toContain("offerup");
+      expect(said).not.toContain("mercari");
+    }
+  });
+
+  test("no seller question contains an em dash", () => {
+    // These get pasted into a message to a real person.
+    for (const bank of [BY_SIGNAL, BY_FIELD, FALLBACK]) {
+      for (const q of Object.values(bank)) expect(q).not.toContain(EM_DASH);
+    }
+  });
+
+  test("a BUY headline leads with the money, not the configured floor", () => {
+    /**
+     * Yish, 2026-08-30, on *"$625 net on facebook — clears your $135 floor"*:
+     * *"I don't like how it relates things to my $ floor."* The floor still
+     * decides the CALL and is still stated in the reasoning and shown as its
+     * own row in The Numbers, where a number you can change belongs. It does
+     * not get the headline.
+     */
+    const buys = verdicts().filter((v) => v.call === "BUY");
+    expect(buys.length).toBeGreaterThan(0);
+    for (const v of buys) {
+      expect(v.headline.toLowerCase()).not.toContain("floor");
+      expect(v.headline).toMatch(/\$[\d,]+/);
+    }
   });
 });

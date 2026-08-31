@@ -383,4 +383,4 @@ export function checkStored(
  * the current version. Exactly the failure this constant was made load-bearing
  * to prevent, two days after writing that down.
  */
-export const ENGINE_VERSION = "0.3.24";
+export const ENGINE_VERSION = "0.3.25";

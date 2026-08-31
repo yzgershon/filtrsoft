@@ -372,7 +372,7 @@ export function analyze(l: RawListing, opts?: { clusterSize?: number; visionText
     if (daysOnMarket > stale) {
       signals.push({
         code: "LONG_ON_MARKET", severity: "medium", polarity: "negative",
-        evidence: `${daysOnMarket} days on ${l.source} (stale past ~${stale}). On Craigslist this often means the listing is simply dead — confirm it's still available before driving.`,
+        evidence: `${daysOnMarket} days on ${l.source} (stale past ~${stale}). On Craigslist this often means the listing is simply dead, so confirm it's still available before driving.`,
       });
     }
   }
@@ -407,7 +407,7 @@ export function analyze(l: RawListing, opts?: { clusterSize?: number; visionText
   if (sellerSophistication <= 0.35) {
     signals.push({
       code: "LOW_SELLER_KNOWLEDGE", severity: "info", polarity: "positive",
-      evidence: "Seller shows little knowledge of what they have. Mispricing is likely — and the direction is random, so this is worth a close look rather than a skip.",
+      evidence: "Seller shows little knowledge of what they have. Mispricing is likely, and the direction is random, so this is worth a close look rather than a skip.",
     });
   }
 
@@ -435,7 +435,7 @@ export function analyze(l: RawListing, opts?: { clusterSize?: number; visionText
   if (recoveredFromPhotos.length) {
     signals.push({
       code: "SPECS_ONLY_IN_PHOTOS", severity: "info", polarity: "positive",
-      evidence: `${recoveredFromPhotos.join(" and ")} readable in the photos but never written in the description. The seller didn't put the value-determining spec in words — that's the low-knowledge pattern that tends to underprice, and it means most buyers scrolling past never saw it.`,
+      evidence: `${recoveredFromPhotos.join(" and ")} readable in the photos but never written in the description. The seller didn't put the value-determining spec in words, and that's the low-knowledge pattern that tends to underprice, and it means most buyers scrolling past never saw it.`,
     });
   }
 
@@ -448,7 +448,7 @@ export function analyze(l: RawListing, opts?: { clusterSize?: number; visionText
   if (COUNTERFEIT.test(l.title)) {
     signals.push({
       code: "COUNTERFEIT", severity: "blocker", polarity: "negative",
-      evidence: `The listing says "${l.title.match(COUNTERFEIT)?.[0]}". That is a counterfeit, not a cheap genuine unit — it has no resale value at any price, and reselling one is fraud. There is no asking price that makes this a deal.`,
+      evidence: `The listing says "${l.title.match(COUNTERFEIT)?.[0]}". That is a counterfeit, not a cheap genuine unit. It has no resale value at any price, and reselling one is fraud. There is no asking price that makes this a deal.`,
     });
   }
 

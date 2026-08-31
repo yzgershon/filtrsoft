@@ -306,7 +306,7 @@ export function netByChannel(
     out.push({
       channel: "ebay", grossCents: grossEbayCents, feesCents: 0, shippingCents: 0,
       netCents: 0, available: false,
-      note: "too bulky to ship economically — local sale only, which caps the buyer pool",
+      note: "too bulky to ship economically, so local sale only, which caps the buyer pool",
     });
   }
 

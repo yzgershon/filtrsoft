@@ -45,7 +45,7 @@ import type { RiskCheck } from "./risk-gates.ts";
  * Signal-driven questions. These reference something the listing actually did,
  * which is what makes them read as specific.
  */
-const BY_SIGNAL: Record<string, string> = {
+export const BY_SIGNAL: Record<string, string> = {
   ZERO_PHOTOS:
     "Could you send a few photos of the actual item, including the ports and any model or serial label?",
   SCREENSHOT_ARTIFACTS:
@@ -53,9 +53,9 @@ const BY_SIGNAL: Record<string, string> = {
   BOOT_SCREEN_ONLY:
     "Could you send a photo of it at the home screen rather than the startup logo?",
   IRREVERSIBLE_PAYMENT:
-    "I'd like to pay cash in person when I collect it — does that work for you?",
+    "I'd like to pay cash in person when I collect it. Does that work for you?",
   SHIPS_ON_LOCAL_MARKET:
-    "I'd rather collect in person than have it shipped — where would we meet?",
+    "I'd rather collect in person than have it shipped. Where would we meet?",
   IMPOSSIBLE_CONNECTOR:
     "Which exact model is it? The cable you mentioned doesn't match that generation.",
   IMPOSSIBLE_SPEC_CLAIM:
@@ -65,7 +65,7 @@ const BY_SIGNAL: Record<string, string> = {
   PORT_DAMAGE: "Could you send close-ups of the ports?",
   GEOGRAPHIC_CONTRADICTION: "Where exactly are you, and where would we meet?",
   NO_DISPLAY_OUTPUT:
-    "This card looks like it has no video outputs — can it actually drive a monitor?",
+    "This card looks like it has no video outputs. Can it actually drive a monitor?",
   LONG_ON_MARKET: "Is this still available, and are you flexible on the price?",
 };
 
@@ -73,7 +73,7 @@ const BY_SIGNAL: Record<string, string> = {
  * Missing-field questions. They NAME the field, so the seller can see you read
  * the listing and noticed what was not in it.
  */
-const BY_FIELD: Record<string, string> = {
+export const BY_FIELD: Record<string, string> = {
   storage: "How much storage does it have exactly?",
   gpu: "Which exact graphics card is in it, and how much VRAM?",
   cpu: "Which exact processor is it? (The full model number, e.g. i7-10700.)",
@@ -86,7 +86,7 @@ const BY_FIELD: Record<string, string> = {
  * listing gave us nothing to be specific about. Not a list: a list is how the
  * old version ended up printing five identical questions on every card.
  */
-const FALLBACK: Partial<Record<Category, string>> = {
+export const FALLBACK: Partial<Record<Category, string>> = {
   phone: "Is it fully paid off and unlocked, with a clean IMEI?",
   tablet: "Is it signed out of iCloud, and will you sign out in front of me?",
   laptop: "Can you boot it to the desktop and send a photo of the About screen?",
