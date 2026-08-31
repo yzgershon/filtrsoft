@@ -405,8 +405,20 @@ const detailOpen = (page) => page.evaluate(
   ok("focus follows the selection", state.focused === state.checked,
     `focus ${state.focused} · checked ${state.checked}`);
 
-  // Saving toasts, and the toast is announced rather than only drawn.
-  await page.locator(".grid .gcard .gsave").first().click();
+  /**
+   * Saving toasts, and the toast is announced rather than only drawn.
+   *
+   * BACK TO THE UNFILTERED FEED FIRST, and take EITHER bookmark. The arrow-key
+   * test above leaves the segment on "Ready", and this assertion used to click
+   * `.grid .gcard .gsave` from there — which passed locally where Ready had 3
+   * rows and hung for 30s against production, where Ready has exactly ONE and
+   * that one is promoted into the hero. A checker whose result depends on how
+   * many deals happen to exist today is not checking the app.
+   */
+  await page.goto(BASE, { waitUntil: "networkidle" });
+  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
+  const bookmark = page.locator(".gsave").first();
+  await bookmark.click();
   await page.waitForTimeout(400);
   const t = await page.evaluate(() => {
     const el = document.querySelector(".toasts");
@@ -414,7 +426,7 @@ const detailOpen = (page) => page.evaluate(
   });
   ok("saving shows a toast", !!t?.text, t?.text ?? "none");
   ok("the toast is announced", t?.live === "polite", String(t?.live));
-  await page.locator(".grid .gcard .gsave").first().click();
+  await bookmark.click();
 
   /**
    * The photo dialog opened with focus still on the button UNDERNEATH it, and
