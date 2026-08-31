@@ -27,6 +27,17 @@ const LABEL = process.argv[2] ?? "run";
 const BASE = process.argv[3] ?? "http://localhost:3177";
 const CHROME = process.env.ASSYZE_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const OUT = join("docs", "ui", LABEL);
+
+/**
+ * A remote host is slower than localhost and the difference is not small: a
+ * cold container has to boot, rank 578 rows and ship a 250 KB bundle before
+ * the first card exists. 20s is comfortable against `localhost:3177` and
+ * marginal against `https://assyze.com`, where it produced one spurious
+ * timeout on an app that was working fine. A checker that fails on latency
+ * teaches you to re-run it rather than read it.
+ */
+const REMOTE = !/localhost|127\.0\.0\.1/.test(BASE);
+const T = REMOTE ? 45000 : 20000;
 /**
  * REAL DEVICE PROFILES, NOT HAND-PICKED WIDTHS.
  *
@@ -139,7 +150,7 @@ const detailOpen = (page) => page.evaluate(
   console.log("\nnavigation");
   const { ctx, page } = await newPage(PHONE);
   await page.goto(BASE, { waitUntil: "networkidle" });
-  await page.waitForSelector(".grid .gcard, .dealhero, .empty", { timeout: 20000 });
+  await page.waitForSelector(".grid .gcard, .dealhero, .empty", { timeout: T });
 
   ok("deals lights the Deals tab", (await litTab(page))?.includes("deals"));
 
@@ -180,7 +191,7 @@ const detailOpen = (page) => page.evaluate(
   console.log("\nsegments");
   const { ctx, page } = await newPage(PHONE);
   await page.goto(BASE, { waitUntil: "networkidle" });
-  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
+  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: T });
 
   const chips = page.locator(".qbar button, .segbar button, [role='radiogroup'] button");
   const n = await chips.count();
@@ -290,7 +301,7 @@ const detailOpen = (page) => page.evaluate(
   const aReqs = [];
   a.page.on("request", (r) => { if (r.url().includes("/v1/feed")) aReqs.push(r.url()); });
   await a.page.goto(BASE, { waitUntil: "networkidle" });
-  await a.page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
+  await a.page.waitForSelector(".grid .gcard, .dealhero", { timeout: T });
   ok("hideGone on does NOT ask for delisted rows", !aReqs.some((u) => u.includes("gone=1")), aReqs[0] ?? "none");
   const hidden = await a.page.evaluate(
     () => fetch("/v1/feed?limit=1&quality=all").then((r) => r.json()).then((d) => d.total));
@@ -300,7 +311,7 @@ const detailOpen = (page) => page.evaluate(
   const bReqs = [];
   b.page.on("request", (r) => { if (r.url().includes("/v1/feed")) bReqs.push(r.url()); });
   await b.page.goto(BASE, { waitUntil: "networkidle" });
-  await b.page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
+  await b.page.waitForSelector(".grid .gcard, .dealhero", { timeout: T });
   ok("hideGone off asks the server for delisted rows", bReqs.some((u) => u.includes("gone=1")), bReqs[0] ?? "none");
   const shown = await b.page.evaluate(
     () => fetch("/v1/feed?limit=1&quality=all&gone=1").then((r) => r.json()).then((d) => d.total));
@@ -311,7 +322,7 @@ const detailOpen = (page) => page.evaluate(
   const checks = [];
   c.page.on("request", (r) => { if (/\/v1\/checks\/\d+/.test(r.url())) checks.push(r.url()); });
   await c.page.goto(BASE, { waitUntil: "networkidle" });
-  await c.page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
+  await c.page.waitForSelector(".grid .gcard, .dealhero", { timeout: T });
   await c.page.locator(".grid .gcard .gopen, .dealhero").first().click();
   await c.page.waitForTimeout(1800);
   ok("the detail carries the drive time", checks.some((u) => u.includes("drive=90")), checks[0] ?? "none");
@@ -328,7 +339,7 @@ const detailOpen = (page) => page.evaluate(
   console.log("\naccessibility");
   const { ctx, page } = await newPage(PHONE);
   await page.goto(BASE, { waitUntil: "networkidle" });
-  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
+  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: T });
 
   /** WCAG relative luminance → contrast ratio, computed in the page. */
   await page.addScriptTag({
@@ -442,7 +453,7 @@ const detailOpen = (page) => page.evaluate(
     ok(`${path} has exactly one H1`, h1s === expect, `${h1s}`);
   }
   await page.goto(BASE, { waitUntil: "networkidle" });
-  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
+  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: T });
   await page.locator(".grid .gcard .gopen, .dealhero").first().click();
   await page.waitForTimeout(1800);
   ok("a detail has exactly one H1", (await page.locator("h1").count()) === 1);
@@ -454,7 +465,7 @@ const detailOpen = (page) => page.evaluate(
   console.log("\nkeyboard and feedback");
   const { ctx, page } = await newPage(1024);
   await page.goto(BASE, { waitUntil: "networkidle" });
-  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
+  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: T });
 
   /**
    * ⚠ ARROWING A RADIOGROUP LEFT FOCUS BEHIND. The checked option moved and
@@ -484,7 +495,7 @@ const detailOpen = (page) => page.evaluate(
    * many deals happen to exist today is not checking the app.
    */
   await page.goto(BASE, { waitUntil: "networkidle" });
-  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
+  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: T });
   const bookmark = page.locator(".gsave").first();
   await bookmark.click();
   await page.waitForTimeout(400);
@@ -560,7 +571,7 @@ const detailOpen = (page) => page.evaluate(
   console.log("\ndiscovery");
   const { ctx, page } = await newPage(PHONE);
   await page.goto(BASE, { waitUntil: "networkidle" });
-  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
+  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: T });
 
   ok("cards name their source",
     /craigslist|facebook|offerup|mercari/i.test(await page.locator(".gloc").first().innerText()),
@@ -624,7 +635,7 @@ const detailOpen = (page) => page.evaluate(
   console.log("\ncomps and offers");
   const { ctx, page } = await newPage(PHONE);
   await page.goto(BASE, { waitUntil: "networkidle" });
-  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
+  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: T });
   await page.locator(".grid .gcard .gopen, .dealhero").first().click();
   await page.waitForTimeout(2200);
 
@@ -672,7 +683,7 @@ for (const spec of [...PHONES, ...DESKTOPS]) {
     await shot(page, `${label}-${name}`);
   }
   await page.goto(BASE, { waitUntil: "networkidle" });
-  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
+  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: T });
 
   // The real CSS width, whatever the descriptor calls the device.
   const w = await page.evaluate(() => window.innerWidth);
@@ -712,7 +723,7 @@ for (const spec of [...PHONES, ...DESKTOPS]) {
     !stress.over || stress.scrollable,
     stress.over ? `overflows ${stress.reach}px, scrollable=${stress.scrollable}` : "fits outright");
   await page.reload({ waitUntil: "networkidle" });
-  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
+  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: T });
 
   /**
    * ⚠ THE COLUMN COUNT IS MEASURED HERE, ON THE FEED, BEFORE OPENING ANYTHING.
