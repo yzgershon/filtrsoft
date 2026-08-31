@@ -2787,7 +2787,10 @@ BYTE-IDENTICAL before and after, 42,853 bytes both times.**
 
     bun test                                   115 pass / 0 fail   (was 61)
     bun run typecheck                            0 errors          (was none run; 165 on first run)
-    node src/browser/ui-verify.mjs <label>     126 pass / 0 fail   (was none)
+    node src/browser/ui-verify.mjs <label>     166 pass / 0 fail   (was none)
+
+⚠ The browser suite drives REAL DEVICE PROFILES, not hand-picked widths — see
+17g for why that distinction cost a shipped bug.
 
 Run the browser suite against a server started with `ASSYZE_CRAWL=off`; a crawl
 mid-run changes the counts underneath the assertions.
@@ -2800,3 +2803,80 @@ bugs.** The one that was not — a contrast reading of 1.99:1 — was the checke
 treating a translucent ancestor background as opaque white; it composites the
 layers now, because a checker that cries wolf makes the next real miss read as
 another false alarm.
+
+### 17g. ⚠ TEST REAL PHONES, NOT CHROME RESIZED INTO A PHONE SHAPE
+
+Yish, 2026-08-31, on the shipped app: *"the ready, verify, risky, all filters
+are squished together."* He was right, and he named the cause: the suite drove
+a desktop browser in a narrow window at widths nobody's phone has.
+
+**`isMobile: true` IS NOT A PHONE.** It sets touch handling and viewport-meta
+behaviour. It does NOT set the user agent or the device pixel ratio. The old
+harness also used `[375, 390, 768, 1024, 1440]` — numbers chosen by hand, not
+measured from any device. His **Galaxy S24 is 360 CSS px at 3x**, narrower than
+anything that was ever under test.
+
+Measured on real Playwright device descriptors, before any change:
+
+| Device | Width | "All 387" chip |
+|---|---|---|
+| iPhone SE | 320 | clipped **62px** past the edge |
+| **Galaxy S24** | **360** | clipped **22px** |
+| iPhone 14 | 390 | **clipped nothing** |
+| Pixel 7 | 412 | clipped 13px (the Filters label appears above 400px) |
+
+**The iPhone 14 row is the whole lesson.** 390 was one of the two widths under
+test and it is the one width in that range where the bug does not appear.
+
+#### Why five commits of assertions could not see it
+
+- The only overflow assertion was `document.documentElement.scrollWidth`. That
+  is a **PAGE-level** measure and read zero on every device, because the
+  overflow was contained inside `.seg` and the document never scrolled.
+- **`scrollWidth` on the control itself would not have worked either.**
+  `.seg button` is `flex: 1`, so the chips stretch to whatever box they are
+  given and `scrollWidth` tracks the container — it reads "fits" at every width
+  while the labels are visibly cut off.
+- ⚠ **The honest measure is each child's right edge against its container's.**
+  That is what `clippedBy()` in `ui-verify.mjs` does.
+
+#### The fix is structural, not a metric tweak
+
+Tightening the padding bought **2px** of headroom at 360px, which is a
+coincidence rather than a fit: the counts are DATA, and 387 becomes 1,204.
+
+- **The Filters button moved to the TOP BAR**, beside Settings, freeing the
+  whole row for the four chips. `.filtbtn`, rendered by `App` and shown only on
+  Deals.
+- Chip padding 8 → 6, gap 6 → 5, badge tightened. **Measured, not chosen. Do
+  not loosen these without re-running the device sweep.**
+- ⚠ **`.seg` SCROLLS RATHER THAN CLIPS.** A 320px screen genuinely cannot fit
+  four labelled chips with four-digit counts at any padding, and the correct
+  behaviour is that everything stays REACHABLE, not that the last one silently
+  disappears. `Segmented` scrolls the selected chip into view, or the one piece
+  of state the control exists to show ends up off-screen.
+
+Splitting one control across two components needs a wire: `lib.tsx` grows the
+same module-level pattern `toast` already uses — the bar publishes "open", the
+feed publishes the active count. Chosen over lifting filter state into `App`
+because the filters already live in the URL and the FEED is the only thing that
+knows the facet counts the sheet renders.
+
+#### The harness now
+
+    const PHONES = ["iPhone SE", "Galaxy S24", "iPhone 14", "Pixel 7"];
+    const DESKTOPS = [768, 1024, 1440];
+    const PHONE = "Galaxy S24";   // every functional block runs on his phone
+
+Playwright's descriptors carry viewport, DPR, UA, touch and mobile together.
+Two new assertions: **no control may clip its own children**, and **four-digit
+counts must stay reachable** (fits outright, or overflows into something
+scrollable).
+
+⚠ **`clippedBy` must skip zero-size and absolutely-positioned children.** A
+`display: none` child reports a rect of all zeros, so a container that does not
+start at x=0 reads as clipping it by exactly its own left offset — a perfectly
+fine 768px top bar reported "104px past the edge" because the hidden desktop
+nav sat at 0 while the centred shell started at 104.
+
+**166 pass / 0 fail** (was 126 on hand-picked widths).
