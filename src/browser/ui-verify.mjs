@@ -249,7 +249,232 @@ const detailOpen = (page) => page.evaluate(
   await c.ctx.close();
 }
 
-// ────────────────────────────────────────────── 6. every width, every screen
+// ───────────────────────────────────────── 6. contrast, targets, semantics
+/**
+ * Everything in this block is a NUMBER the audit named, measured off the
+ * running app. Contrast and hit area are exactly the kind of thing that looks
+ * fine in a screenshot on a bright monitor and is unreadable in a driveway.
+ */
+{
+  console.log("\naccessibility");
+  const { ctx, page } = await newPage(375);
+  await page.goto(BASE, { waitUntil: "networkidle" });
+  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
+
+  /** WCAG relative luminance → contrast ratio, computed in the page. */
+  await page.addScriptTag({
+    content: `window.__ratio = (fg, bg) => {
+      const lum = (c) => {
+        const [r, g, b] = c.match(/[\\d.]+/g).slice(0, 3).map(Number).map((v) => {
+          const s = v / 255;
+          return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      const a = lum(fg), b2 = lum(bg);
+      return (Math.max(a, b2) + 0.05) / (Math.min(a, b2) + 0.05);
+    };`,
+  });
+
+  const contrast = await page.evaluate(() => {
+    /**
+     * ⚠ A TRANSLUCENT BACKGROUND MUST BE COMPOSITED, NOT TREATED AS OPAQUE.
+     *
+     * The first version returned the first non-transparent ancestor colour,
+     * and an ancestor painting `rgba(255,255,255,.09)` was read as WHITE — so
+     * a perfectly legible label measured 1.99:1 and reported as a failure. A
+     * checker that cries wolf is worse than none.
+     *
+     * Walk outwards blending each layer over the next until one is opaque.
+     */
+    const parse = (c) => {
+      const n = (c.match(/[\d.]+/g) || []).map(Number);
+      return { r: n[0] || 0, g: n[1] || 0, b: n[2] || 0, a: n.length > 3 ? n[3] : 1 };
+    };
+    const bgOf = (el) => {
+      const layers = [];
+      for (let n = el.parentElement; n; n = n.parentElement) {
+        const c = parse(getComputedStyle(n).backgroundColor);
+        if (c.a === 0) continue;
+        layers.push(c);
+        if (c.a === 1) break;
+      }
+      let out = layers.pop() || { r: 8, g: 7, b: 10, a: 1 };
+      while (layers.length) {
+        const top = layers.pop();
+        out = {
+          r: top.r * top.a + out.r * (1 - top.a),
+          g: top.g * top.a + out.g * (1 - top.a),
+          b: top.b * top.a + out.b * (1 - top.a),
+          a: 1,
+        };
+      }
+      return `rgb(${out.r}, ${out.g}, ${out.b})`;
+    };
+    const out = [];
+    for (const sel of [".gloc", ".tab .tl", ".sect span", ".sec h4", ".dloc"]) {
+      const el = document.querySelector(sel);
+      if (!el) continue;
+      const cs = getComputedStyle(el);
+      out.push({
+        sel,
+        size: Math.round(parseFloat(cs.fontSize) * 10) / 10,
+        ratio: Math.round(window.__ratio(cs.color, bgOf(el)) * 100) / 100,
+      });
+    }
+    return out;
+  });
+  for (const c of contrast) {
+    ok(`${c.sel} clears 4.5:1`, c.ratio >= 4.5, `${c.ratio}:1 at ${c.size}px`);
+    ok(`${c.sel} is 11px+`, c.size >= 11, `${c.size}px`);
+  }
+
+  /**
+   * ⚠ MEASURE THE BUTTON, NOT THE CIRCLE. The bookmark draws a 30px circle
+   * inside a 44px target on purpose — a 44px circle would be a dinner plate
+   * over the photo.
+   */
+  const targets = await page.evaluate(() => {
+    const out = [];
+    for (const sel of [".gsave", ".tab", ".seg button", ".brand"]) {
+      for (const el of document.querySelectorAll(sel)) {
+        const r = el.getBoundingClientRect();
+        out.push({ sel, w: Math.round(r.width), h: Math.round(r.height) });
+        break;
+      }
+    }
+    return out;
+  });
+  for (const t of targets) {
+    ok(`${t.sel} is a 44px target`, t.w >= 44 && t.h >= 44, `${t.w} x ${t.h}`);
+  }
+
+  /**
+   * `aria-label="Open {title}"` REPLACED the card's contents as its accessible
+   * name, so the price, verdict, profit and location — the entire reason the
+   * card exists — were never announced.
+   */
+  const card = await page.evaluate(() => {
+    const btn = document.querySelector(".grid .gcard .gopen");
+    if (!btn) return null;
+    const id = btn.getAttribute("aria-describedby");
+    const d = id && document.getElementById(id);
+    return { label: btn.getAttribute("aria-label"), desc: d ? d.textContent : null };
+  });
+  ok("a card has an accessible description", !!card?.desc, card?.desc?.slice(0, 60) ?? "none");
+  ok("the description carries the price", /\$\d/.test(card?.desc ?? ""));
+  ok("the description carries the verdict", /BUY|VERIFY|RISK|PASS|FAIR|CAN'T TELL/i.test(card?.desc ?? ""));
+
+  // One H1 per screen, and it has to exist.
+  for (const [path, expect] of [["/", 1], ["/check", 1], ["/saved", 1], ["/settings", 1]]) {
+    await page.goto(BASE + path, { waitUntil: "networkidle" });
+    await page.waitForTimeout(700);
+    const h1s = await page.locator("h1").count();
+    ok(`${path} has exactly one H1`, h1s === expect, `${h1s}`);
+  }
+  await page.goto(BASE, { waitUntil: "networkidle" });
+  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
+  await page.locator(".grid .gcard .gopen, .dealhero").first().click();
+  await page.waitForTimeout(1800);
+  ok("a detail has exactly one H1", (await page.locator("h1").count()) === 1);
+  await ctx.close();
+}
+
+// ───────────────────────────────────────────── 7. keyboard and feedback
+{
+  console.log("\nkeyboard and feedback");
+  const { ctx, page } = await newPage(1024);
+  await page.goto(BASE, { waitUntil: "networkidle" });
+  await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
+
+  /**
+   * ⚠ ARROWING A RADIOGROUP LEFT FOCUS BEHIND. The checked option moved and
+   * DOM focus did not, so focus sat on an element whose tabIndex had just
+   * become -1: the next Tab left the group entirely.
+   */
+  await page.locator(".seg button[aria-checked='true']").focus();
+  const before = await page.evaluate(() => document.activeElement?.dataset?.opt);
+  await page.keyboard.press("ArrowRight");
+  await page.waitForTimeout(600);
+  const state = await page.evaluate(() => ({
+    focused: document.activeElement?.dataset?.opt,
+    checked: document.querySelector(".seg button[aria-checked='true']")?.dataset?.opt,
+  }));
+  ok("arrowing moves the selection", state.checked !== before, `${before} -> ${state.checked}`);
+  ok("focus follows the selection", state.focused === state.checked,
+    `focus ${state.focused} · checked ${state.checked}`);
+
+  // Saving toasts, and the toast is announced rather than only drawn.
+  await page.locator(".grid .gcard .gsave").first().click();
+  await page.waitForTimeout(400);
+  const t = await page.evaluate(() => {
+    const el = document.querySelector(".toasts");
+    return el ? { live: el.getAttribute("aria-live"), text: el.innerText.trim() } : null;
+  });
+  ok("saving shows a toast", !!t?.text, t?.text ?? "none");
+  ok("the toast is announced", t?.live === "polite", String(t?.live));
+  await page.locator(".grid .gcard .gsave").first().click();
+
+  /**
+   * The photo dialog opened with focus still on the button UNDERNEATH it, and
+   * closing dropped focus on the document.
+   */
+  await page.locator(".grid .gcard .gopen, .dealhero").first().click();
+  await page.waitForTimeout(1900);
+  const shots = await page.locator(".galshot").count();
+  if (shots) {
+    await page.locator(".galshot").first().click();
+    await page.waitForTimeout(500);
+    ok("the dialog takes focus on open",
+      await page.evaluate(() => !!document.activeElement?.closest?.(".lbx")),
+      await page.evaluate(() => document.activeElement?.className ?? "?"));
+    ok("the dialog names which photo",
+      /Photo \d+ of \d+/.test(await page.locator(".lbx").getAttribute("aria-label") ?? ""),
+      (await page.locator(".lbx").getAttribute("aria-label")) ?? "none");
+
+    // Tab must not escape the dialog.
+    for (let i = 0; i < 8; i++) await page.keyboard.press("Tab");
+    ok("Tab is trapped inside the dialog",
+      await page.evaluate(() => !!document.activeElement?.closest?.(".lbx")));
+
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(500);
+    ok("Escape closes it", (await page.locator(".lbx").count()) === 0);
+    ok("focus returns to the photo that opened it",
+      await page.evaluate(() => !!document.activeElement?.classList?.contains("galshot")),
+      await page.evaluate(() => document.activeElement?.className ?? "?"));
+  } else {
+    console.log("  \x1b[90mskip\x1b[0m dialog — this listing has no photos");
+  }
+  await ctx.close();
+}
+
+// ─────────────────────────────────────── 8. a failed feed is not an empty feed
+{
+  console.log("\nfailure states");
+  const { ctx, page } = await newPage(375);
+  // Kill the feed request only. Everything else loads, so this is the network
+  // failing under a working app — the case that used to read "Nothing here yet".
+  await page.route("**/v1/feed*", (r) => r.abort());
+  await page.goto(BASE, { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(2500);
+  const body = await page.locator("body").innerText();
+  ok("a dropped feed does NOT claim there are no deals", !/nothing here yet/i.test(body));
+  ok("it says the request failed", /couldn't load|no connection/i.test(body), body.slice(0, 80).replace(/\n/g, " "));
+  const retry = page.getByRole("button", { name: /try again/i });
+  ok("it offers a retry", (await retry.count()) > 0);
+
+  // Let it through and press the retry: the feed must actually come back.
+  await page.unroute("**/v1/feed*");
+  if (await retry.count()) {
+    await retry.first().click();
+    await page.waitForTimeout(2500);
+    ok("retry recovers the feed", (await page.locator(".grid .gcard, .dealhero").count()) > 0);
+  }
+  await ctx.close();
+}
+
+// ────────────────────────────────────────────── 9. every width, every screen
 console.log("\nscreens");
 for (const w of WIDTHS) {
   const { ctx, page } = await newPage(w);

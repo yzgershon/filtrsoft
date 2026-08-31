@@ -169,6 +169,75 @@ function useRoute() {
 
 const PAGE = 60;
 
+// ----------------------------------------------------------------- feedback
+/**
+ * Toasts.
+ *
+ * ⚠ COPY AND SHARE WROTE TO THE CLIPBOARD AND SAID NOTHING. On a phone there
+ * is no clipboard indicator, so the only way to learn whether the tap
+ * registered was to go and paste it somewhere. A tap with no feedback reads as
+ * a broken button, and people tap it again.
+ *
+ * A module-level listener set rather than context, because the callers are
+ * scattered five components deep and threading a prop to each of them is how
+ * the next one gets forgotten. `aria-live="polite"` on the container means a
+ * screen reader announces it without interrupting.
+ */
+type Toast = { id: number; text: string; bad?: boolean };
+let toastSeq = 0;
+const toastListeners = new Set<(t: Toast) => void>();
+export function toast(text: string, bad = false) {
+  const t = { id: ++toastSeq, text, bad };
+  toastListeners.forEach((fn) => fn(t));
+}
+
+function Toaster() {
+  const [items, setItems] = useState<Toast[]>([]);
+  useEffect(() => {
+    const on = (t: Toast) => {
+      setItems((p) => [...p, t]);
+      // 1.8s: long enough to read six words, short enough not to sit over the
+      // next thing you tap.
+      setTimeout(() => setItems((p) => p.filter((x) => x.id !== t.id)), 1800);
+    };
+    toastListeners.add(on);
+    return () => { toastListeners.delete(on); };
+  }, []);
+  return (
+    <div className="toasts" role="status" aria-live="polite">
+      {items.map((t) => (
+        <div className={`toast${t.bad ? " bad" : ""}`} key={t.id}>
+          {t.bad ? <Alert size={14} /> : <Check size={14} />}{t.text}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * ONE share action, not two that do the same thing.
+ *
+ * The header link icon and the bottom "Share" button both wrote the same URL
+ * to the clipboard, neither confirmed, and calling a clipboard write "Share"
+ * is a lie on a phone that has a real share sheet. This uses `navigator.share`
+ * where it exists and falls back to the clipboard where it does not — and says
+ * which one happened.
+ *
+ * A cancelled share sheet throws `AbortError`, which is the user saying no.
+ * Reporting that as a failure would be telling them their own decision broke.
+ */
+export async function shareOrCopy(url: string, title?: string) {
+  if (navigator.share) {
+    try { await navigator.share({ url, title }); return; }
+    catch (e) {
+      if ((e as Error)?.name === "AbortError") return;
+      // Fall through: some browsers advertise share and then refuse it.
+    }
+  }
+  try { await navigator.clipboard.writeText(url); toast("Link copied"); }
+  catch { toast("Couldn't copy the link", true); }
+}
+
 /**
  * A listing thumbnail that fails GRACEFULLY.
  *
@@ -212,10 +281,32 @@ function Gcard({ i, saved, onSave, onOpen }: {
   onOpen: (el: HTMLElement) => void;
 }) {
   const price = i.currentPriceCents ?? i.askingPriceCents;
+  /**
+   * ⚠ `aria-label="Open {title}"` OVERRODE EVERYTHING ELSE ON THE CARD.
+   *
+   * An `aria-label` replaces the element's contents as its accessible name, so
+   * a screen reader announced the title and nothing else — not the verdict, not
+   * the price, not the profit, not whether the listing was gone. Those four are
+   * the entire reason the card exists.
+   *
+   * The label stays the action ("Open …") and the decision data moves to a
+   * visually hidden description, which assistive tech reads AFTER the name.
+   */
+  const descId = `gd${i.id}`;
+  const desc = [
+    LABEL[i.call],
+    money(price),
+    i.priceDropCents ? `dropped ${money(i.priceDropCents)}` : null,
+    i.netProfitCents && i.netProfitCents > 0 ? `${money(i.netProfitCents)} net profit` : null,
+    i.location,
+    ago(i.postedAt),
+    i.gone ? "no longer listed" : null,
+  ].filter(Boolean).join(", ");
+
   return (
     <div className={`gcard${i.gone ? " is-gone" : ""}`}>
       <button className="gopen" onClick={(e) => onOpen(e.currentTarget.closest(".gcard") as HTMLElement)}
-        aria-label={`Open ${i.title}`}>
+        aria-label={`Open ${i.title}`} aria-describedby={descId}>
         <span className="gshot">
           {i.thumb
             ? <Thumb src={i.thumb} />
@@ -241,7 +332,9 @@ function Gcard({ i, saved, onSave, onOpen }: {
           </span>
         </span>
       </button>
-      <button className={`gsave${saved ? " on" : ""}`} onClick={onSave}
+      <span className="vh" id={descId}>{desc}</span>
+      <button className={`gsave${saved ? " on" : ""}`}
+        onClick={() => { onSave(); toast(saved ? "Removed from Saved" : "Saved"); }}
         aria-label={saved ? `Remove ${i.title} from your watchlist` : `Save ${i.title}`}
         aria-pressed={saved}>
         <Save size={16} filled={saved} />
@@ -273,6 +366,13 @@ function Feed({ onOpen, onWatchChange }: {
   const [total, setTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [failed, setFailed] = useState(false);
+  /**
+   * Offline is a DIFFERENT message from a failed request, because the fix is
+   * different: one is "reconnect", the other is "try again". `navigator.onLine`
+   * is only trustworthy in the negative — false means definitely offline — and
+   * that is the only direction this uses it in.
+   */
+  const [offline, setOffline] = useState(() => typeof navigator !== "undefined" && !navigator.onLine);
   const [watch, setWatch] = useState<number[]>(readWatch);
 
   const load = useCallback((offset: number, q: Quality) => {
@@ -303,16 +403,35 @@ function Feed({ onOpen, onWatchChange }: {
   // segment would append onto page 1 of the new one.
   useEffect(() => { setItems(null); void load(0, quality); }, [load, quality]);
 
-  if (!items) return (
-    <div className="sec">
-      <div className="skel" style={{ height: 210, marginBottom: 12, borderRadius: 16 }} />
-      {[0, 1, 2].map((i) => <div className="skel" key={i} style={{ height: 90, marginBottom: 8 }} />)}
-    </div>
-  );
+  // Coming back online retries by itself. Making someone tap Try again for a
+  // connection that already recovered is a step the browser can take for them.
+  useEffect(() => {
+    const up = () => { setOffline(false); setFailed(false); void load(0, quality); };
+    const down = () => setOffline(true);
+    addEventListener("online", up);
+    addEventListener("offline", down);
+    return () => { removeEventListener("online", up); removeEventListener("offline", down); };
+  }, [load, quality]);
 
-  // The server already applied the segment. Filtering again here is what made
-  // the counts lie in the first place.
-  const shown = items;
+  /**
+   * ⚠ THE SEGMENT CONTROL MUST NOT UNMOUNT WHILE ITS OWN RESULTS LOAD.
+   *
+   * Switching segments sets `items` to null, and this used to return the
+   * skeleton from HERE — above `<Segmented>` — so the control you had just
+   * pressed vanished for the length of the fetch and came back rebuilt.
+   *
+   * Two consequences, one visible and one not. Visibly, the chips blink out
+   * every time you use them. Invisibly, KEYBOARD FOCUS DIED with the unmount:
+   * arrowing from All to Ready moved the selection and then dropped focus onto
+   * <body>, so the next arrow key did nothing at all. That is why the
+   * roving-tabindex fix alone did not work — the element being focused no
+   * longer existed a tick later.
+   *
+   * The skeleton is rendered BELOW the control now, and the control keeps its
+   * counts from the previous response, which are the same numbers it will show
+   * when the rows land.
+   */
+  const shown = items ?? [];
   const hero = shown[0] ?? null;
   const rest = shown.filter((i) => i.id !== hero?.id);
 
@@ -363,7 +482,42 @@ function Feed({ onOpen, onWatchChange }: {
     <>
       <Segmented value={quality} onChange={setQuality} options={SEGS} />
 
-      {shown.length === 0 ? (
+      {!items && (
+        <div className="sec" aria-busy="true">
+          <div className="skel" style={{ height: 210, marginBottom: 12, borderRadius: 16 }} />
+          {[0, 1, 2].map((i) => <div className="skel" key={i} style={{ height: 90, marginBottom: 8 }} />)}
+        </div>
+      )}
+
+      {offline && (
+        <div className="offline" role="status">
+          <Alert size={14} />
+          You are offline. This is the last feed that loaded.
+        </div>
+      )}
+
+      {/**
+        * ⚠ A FAILED REQUEST IS NOT AN EMPTY FEED, AND `failed` WAS NEVER
+        * RENDERED.
+        *
+        * `setFailed(true)` has been in the catch since the segment rewrite and
+        * nothing read it, so a dropped connection showed "Nothing here yet" —
+        * telling you the product has no deals when what actually happened is
+        * that the request did not complete. There is a real difference between
+        * those two and only one of them has a retry.
+        */}
+      {!items ? null : failed && shown.length === 0 ? (
+        <div className="errbox" role="alert">
+          <span className="eic"><Alert size={22} /></span>
+          <b>{offline ? "No connection" : "Couldn't load the feed"}</b>
+          <p>{offline
+            ? "Reconnect and try again — nothing was lost."
+            : "The request didn't finish. This is usually the connection, not the deals."}</p>
+          <button className="btn2" onClick={() => { setFailed(false); setItems(null); void load(0, quality); }}>
+            <Again size={15} /> Try again
+          </button>
+        </div>
+      ) : shown.length === 0 ? (
         <div className="empty">
           <Ghost />
           <b>Nothing here yet</b>
@@ -435,9 +589,9 @@ function Feed({ onOpen, onWatchChange }: {
         * no interaction that could reach them. Show more is available for every
         * segment now, until `items.length === total` for THAT segment.
         */}
-      {items.length < total ? (
-        <button className="more" disabled={loadingMore} onClick={() => void load(items.length, quality)}>
-          {loadingMore ? "Loading…" : `Show more — ${items.length} of ${total}`}
+      {items && shown.length < total ? (
+        <button className="more" disabled={loadingMore} onClick={() => void load(shown.length, quality)}>
+          {loadingMore ? "Loading…" : `Show more — ${shown.length} of ${total}`}
         </button>
       ) : null}
     </>
@@ -464,21 +618,48 @@ function Segmented<T extends string>({ value, onChange, options }: {
     if (el) setInd({ left: el.offsetLeft, width: el.offsetWidth });
   }, [value, options.length]);
 
+  /**
+   * ⚠ FOCUS HAS TO MOVE WITH THE SELECTION.
+   *
+   * Arrow keys changed the checked option but left DOM focus on the one you
+   * arrowed away FROM. In a roving-tabindex radiogroup that option's tabIndex
+   * immediately becomes -1, so focus was sitting on an element the keyboard can
+   * no longer reach: the next Tab jumped out of the group, and a screen reader
+   * kept announcing the option that was no longer selected.
+   *
+   * The focus call has to happen AFTER the re-render moves the tabIndex, hence
+   * the pending ref rather than focusing inside `move`.
+   */
+  const pending = useRef<string | null>(null);
+  useEffect(() => {
+    if (!pending.current) return;
+    ref.current?.querySelector<HTMLElement>(`[data-opt="${pending.current}"]`)?.focus();
+    pending.current = null;
+  }, [value]);
+
   const move = (dir: 1 | -1) => {
     const i = options.findIndex((o) => o.id === value);
-    onChange(options[(i + dir + options.length) % options.length].id);
+    const next = options[(i + dir + options.length) % options.length].id;
+    pending.current = next;
+    onChange(next);
   };
 
   return (
     <div className="seg" role="radiogroup" aria-label="Deal quality" ref={ref}>
       <span className="segind" style={{ transform: `translateX(${ind.left - 3}px)`, width: ind.width }} />
       {options.map((o) => (
-        <button key={o.id} role="radio" aria-checked={value === o.id}
+        <button key={o.id} role="radio" aria-checked={value === o.id} data-opt={o.id}
           tabIndex={value === o.id ? 0 : -1}
           onClick={() => onChange(o.id)}
           onKeyDown={(e) => {
-            if (e.key === "ArrowRight") { e.preventDefault(); move(1); }
-            if (e.key === "ArrowLeft") { e.preventDefault(); move(-1); }
+            if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); move(1); }
+            if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); move(-1); }
+            if (e.key === "Home") { e.preventDefault(); pending.current = options[0].id; onChange(options[0].id); }
+            if (e.key === "End") {
+              e.preventDefault();
+              const last = options[options.length - 1].id;
+              pending.current = last; onChange(last);
+            }
           }}>
           {o.label}{o.n > 0 ? <span className="segn num">{o.n}</span> : null}
         </button>
@@ -625,7 +806,9 @@ function Questions({ qs }: { qs: string[] }) {
    * that actually decides it.
    */
   const copyAll = () => {
-    navigator.clipboard.writeText(qs.map((q, i) => `${i + 1}. ${q}`).join("\n"));
+    navigator.clipboard.writeText(qs.map((q, i) => `${i + 1}. ${q}`).join("\n"))
+      .then(() => toast(`${qs.length} question${qs.length === 1 ? "" : "s"} copied`))
+      .catch(() => toast("Couldn't copy", true));
     setCopied(-1);
     setTimeout(() => setCopied(null), 1800);
   };
@@ -646,7 +829,12 @@ function Questions({ qs }: { qs: string[] }) {
             <button
               className={copied === i ? "ok" : ""}
               aria-label={`Copy question ${i + 1}`}
-              onClick={() => { navigator.clipboard.writeText(q); setCopied(i); setTimeout(() => setCopied(null), 1500); }}
+              onClick={() => {
+                navigator.clipboard.writeText(q)
+                  .then(() => toast("Question copied"))
+                  .catch(() => toast("Couldn't copy", true));
+                setCopied(i); setTimeout(() => setCopied(null), 1500);
+              }}
             >{copied === i ? "copied" : "copy"}</button>
           </div>
         ))}
@@ -696,23 +884,96 @@ function Gallery({ urls, onOpen }: { urls: string[]; onOpen: (i: number) => void
 /**
  * Full-screen photo viewer. Escape and a visible close button both dismiss —
  * a lightbox you can only leave by guessing at a gesture is a trap.
+ *
+ * ── WHAT WAS WRONG WITH IT (audit §16) ─────────────────────────────────────
+ *
+ * It opened with focus still on the Photo button UNDERNEATH it, Tab walked
+ * straight out into the page behind, and closing dropped focus onto the
+ * document — so a keyboard user who opened a photo had to tab from the top of
+ * the app to get back to where they were. `aria-modal` claimed a trap that did
+ * not exist.
+ *
+ * Three things fix it and all three are load-bearing:
+ *
+ *   · Focus Close on open, and RESTORE focus to the trigger on close. The
+ *     trigger is captured at mount because by the time the effect cleans up,
+ *     `document.activeElement` is `<body>`.
+ *   · Trap Tab and Shift+Tab across the dialog's own focusables.
+ *   · ArrowLeft/ArrowRight move between photos, and the current one is
+ *     announced as "Photo 2 of 6" — a strip you can only swipe is a phone-only
+ *     control.
  */
 function Lightbox({ urls, start, onClose }: { urls: string[]; start: number; onClose: () => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  const strip = useRef<HTMLDivElement>(null);
+  const [at, setAt] = useState(start);
+  const total = urls.length;
+
+  const goTo = useCallback((n: number) => {
+    const i = Math.max(0, Math.min(total - 1, n));
+    setAt(i);
+    strip.current?.children[i]?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [total]);
+
   useEffect(() => {
-    const on = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    addEventListener("keydown", on);
+    // Captured NOW: on cleanup, activeElement is <body>, not the trigger.
+    const opener = document.activeElement as HTMLElement | null;
+    const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { removeEventListener("keydown", on); document.body.style.overflow = ""; };
-  }, [onClose]);
+    box.current?.querySelector<HTMLElement>(".lbxclose")?.focus();
+
+    const on = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); onClose(); return; }
+      if (e.key === "ArrowRight") { e.preventDefault(); setAt((n) => Math.min(total - 1, n + 1)); return; }
+      if (e.key === "ArrowLeft") { e.preventDefault(); setAt((n) => Math.max(0, n - 1)); return; }
+      if (e.key !== "Tab") return;
+      const f = box.current?.querySelectorAll<HTMLElement>("button:not(:disabled)");
+      if (!f?.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    addEventListener("keydown", on);
+    return () => {
+      removeEventListener("keydown", on);
+      document.body.style.overflow = prevOverflow;
+      opener?.focus?.();
+    };
+  }, [onClose, total]);
+
+  // Keyboard paging scrolls the strip; the strip's own scroll updates the count.
+  useEffect(() => {
+    strip.current?.children[at]?.scrollIntoView({ inline: "center", block: "nearest" });
+    // `at` only — running on every render would fight a swipe mid-gesture.
+  }, [at]);
 
   return (
-    <div className="lbx" role="dialog" aria-modal="true" aria-label="Photos">
+    <div className="lbx" role="dialog" aria-modal="true" aria-label={`Photo ${at + 1} of ${total}`} ref={box}>
       <button className="lbxclose" onClick={onClose} aria-label="Close photos">✕</button>
-      <div className="lbxstrip">
+      {total > 1 && (
+        <>
+          <button className="lbxnav prev" onClick={() => goTo(at - 1)} disabled={at === 0}
+            aria-label="Previous photo">‹</button>
+          <button className="lbxnav next" onClick={() => goTo(at + 1)} disabled={at === total - 1}
+            aria-label="Next photo">›</button>
+        </>
+      )}
+      <div className="lbxstrip" ref={strip}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          setAt(Math.round(el.scrollLeft / el.clientWidth));
+        }}>
         {urls.map((u, n) => (
-          <img key={n} src={u} alt="" ref={(el) => { if (el && n === start) el.scrollIntoView({ inline: "center" }); }} />
+          <img key={n} src={u} alt={`Photo ${n + 1} of ${total}`}
+            /**
+             * Only the neighbours load eagerly. Preloading all 20 on a listing
+             * with full-size photos is megabytes nobody asked for, on a phone
+             * that is probably on cellular in someone's driveway.
+             */
+            loading={Math.abs(n - start) <= 1 ? "eager" : "lazy"} />
         ))}
       </div>
+      {total > 1 && <div className="lbxcount num">{at + 1} / {total}</div>}
     </div>
   );
 }
@@ -877,7 +1138,10 @@ function Report({ listing, verdict, signals, meta, stage, reading, checkId }: {
       )}
 
       <div className="lh rise">
-        <h2>{listing.title}</h2>
+        {/* The listing IS the page here, so its title is the H1. It was an H2
+            under no H1 at all, which leaves a screen reader's outline starting
+            at level 2 with nothing above it. */}
+        <h1>{listing.title}</h1>
         <div className="meta">
           <span className="price num">{money(listing.askingPriceCents)}</span>
           <span className="facts">
@@ -1412,12 +1676,12 @@ export default function App() {
           aria-label="Assyze home">ass<span>yze</span></button>
         <div className="spacer" />
 
-        {checkId && (
-          <button className="iconbtn" aria-label="Copy link to this verdict"
-            onClick={() => navigator.clipboard.writeText(`${location.origin}/c/${checkId}`)}>
-            <Link size={19} />
-          </button>
-        )}
+        {/*
+          * The header's copy-link icon is GONE. It performed the same clipboard
+          * write as the labelled Share button lower down, confirmed nothing, and
+          * an unlabelled icon is the worse of the two to keep. Audit S11: keep
+          * one action.
+          */}
         <button className={`iconbtn ${screen.name === "settings" ? "on" : ""}`}
           aria-label="Settings" aria-pressed={screen.name === "settings"}
           onClick={() => goTab(screen.name === "settings" ? "deals" : "settings")}>
@@ -1464,6 +1728,15 @@ export default function App() {
                   */}
                 {!listing && (
                   <>
+                    {/* Every screen needs exactly one H1. This one had none —
+                        it opened straight onto an orange button, so a screen
+                        reader landing here was told nothing about where it was,
+                        and the supported sources were only ever explained by
+                        failing. */}
+                    <div className="feedhead">
+                      <h1>Check a listing</h1>
+                      <p>Paste a Craigslist link and get the number it is actually worth, before you drive.</p>
+                    </div>
                     <button className="paste" onClick={pasteAndCheck} disabled={busy}>
                       <Clip size={18} />
                       {busy ? "Checking…" : "Paste link and check"}
@@ -1512,16 +1785,11 @@ export default function App() {
 
                 {error && <div className="alert" role="alert">{error}</div>}
 
-                {/**
-                  * Sources are stated UP FRONT rather than as an error.
-                  *
-                  * Pasting an OfferUp link used to look like the app was broken.
-                  * `badUrl` accepts Craigslist only, so the screen says so before
-                  * you spend a paste on it — and the greyed chips are also the
-                  * roadmap, which is honest about what is coming.
-                  */}
-
-
+                {/* The source chips this comment used to describe were deleted
+                    long ago; the statement they carried now lives in the H1's
+                    subhead above, where it is read before you spend a paste
+                    rather than after one fails. (`.srcs` in styles.css is dead
+                    with them — audit commit 6.) */}
                 <Report listing={listing} verdict={verdict} signals={signals}
                   meta={meta} stage={stage} reading={reading} checkId={checkId} />
 
@@ -1529,7 +1797,8 @@ export default function App() {
 
                 {checkId && (
                   <div className="actions">
-                    <button className="btn2" onClick={() => navigator.clipboard.writeText(`${location.origin}/c/${checkId}`)}>
+                    <button className="btn2"
+                      onClick={() => shareOrCopy(`${location.origin}/c/${checkId}`, listing?.title)}>
                       <Link /> Share
                     </button>
                     <button className="btn2" onClick={() => { reset(); setUrl(""); go("/"); }}>
@@ -1556,6 +1825,7 @@ export default function App() {
           </main>
 
           <Tabbar tab={tab} go={goTab} savedCount={savedCount} />
+          <Toaster />
     </div>
   );
 }
