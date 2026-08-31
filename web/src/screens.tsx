@@ -69,13 +69,19 @@ export function Watchlist({ onOpen, onWatchChange, onBrowse }: {
    * anyone a reason to come back.
    */
   return (
-    <div className="sec">
+    /**
+     * ⚠ NOT `.sec`. That class carries `margin-top: var(--s6)` for the DETAIL
+     * screen's stacked sections, and using it as a plain screen wrapper added
+     * 32px of dead space above the badge on Saved and on Settings — measured as
+     * the difference between those two screens and Deals, which does not wrap.
+     */
+    <div className="screen">
       <div className="feedhead">
         <span className="eyebrow alt">Watchlist</span>
         <h1>Your <span className="g">saved</span></h1>
         <p>
           {items === null ? "Loading…"
-            : items.length === 0 ? "Listings you bookmark, and alerts for searches you save."
+            : items.length === 0 ? "Bookmarks, and alerts for searches you save."
             : news.length ? news.join(" · ")
             : `${items.length} saved, nothing changed yet.`}
         </p>
@@ -531,7 +537,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
   const [cleared, setCleared] = useState(false);
 
   return (
-    <div className="sec settings">
+    <div className="screen">
       <div className="feedhead">
         <span className="eyebrow mute">Preferences</span>
         <h1>Your <span className="g">settings</span></h1>

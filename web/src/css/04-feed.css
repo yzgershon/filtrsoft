@@ -6,9 +6,15 @@
  */
 
 /* ===================================================================== feed */
-.feedhead { padding: var(--s5) 0 var(--s4); }
-.feedhead h1 { font-size: 26px; line-height: 1.15; letter-spacing: normal; margin: 0 0 6px; font-weight: 700; }
-.feedhead p { margin: 0; color: var(--ink-2); font-size: 14px; }
+/*
+ * ⚠ `.feedhead` IS DEFINED IN 08-polish.css AND NOWHERE ELSE.
+ *
+ * It used to be declared here as well, and the two halves were tangled rather
+ * than one simply winning: this block owned `margin-top` and `font-weight`
+ * while the later one owned the size and the bottom margin, so reading either
+ * on its own told you the wrong metrics. The density pass (2026-08-31) is the
+ * kind of change that has to be made in one place.
+ */
 
 .chips { display: flex; gap: var(--s2); overflow-x: auto; padding-bottom: var(--s3); scrollbar-width: none; }
 .chips::-webkit-scrollbar { display: none; }
@@ -97,12 +103,17 @@
  * off the end. iPhone SE 62px, Pixel 7 13px. An iPhone 14 at 390px clipped
  * nothing, which is why hand-picked 375/390 widths never caught it.
  *
- * 6px padding and a 5px gap, with the count badge tightened to match, clears it
+ * 5px padding and a 5px gap, with the count badge tightened to match, clears it
  * on every phone profile including four-digit counts. Do not loosen these
  * without re-running the device measurement in `src/browser/ui-verify.mjs`.
+ *
+ * ⚠ 6px WAS ENOUGH FOR "READY" AND IS NOT ENOUGH FOR "BUY IT". Renaming that
+ * one chip (2026-08-31) added a character and put iPhone SE 3px into overflow —
+ * which the control absorbs by scrolling rather than clipping, so it would have
+ * gone unnoticed. One pixel off each side of four chips buys back eight.
  */
 .seg button {
-  position: relative; z-index: 1; flex: 1; min-height: 44px; padding: 0 6px;
+  position: relative; z-index: 1; flex: 1; min-height: 44px; padding: 0 5px;
   border-radius: var(--r-pill);
   touch-action: manipulation;
   display: flex; align-items: center; justify-content: center; gap: 5px;
@@ -144,18 +155,15 @@
   transition: border-color var(--dur) var(--ease), transform var(--dur-exit) var(--ease);
 }
 .dealhero:active { transform: scale(.99); }
-.dealhero.v-BUY {
-  background: linear-gradient(155deg, rgba(0,255,136,.08), transparent 60%), var(--surface);
-  border-color: rgba(0,255,136,.26);
-}
-.dealhero.v-VERIFY, .dealhero.v-RISK {
-  background: linear-gradient(155deg, rgba(0,212,255,.08), transparent 60%), var(--surface);
-  border-color: rgba(0,212,255,.26);
-}
-.dealhero.v-FAIR {
-  background: linear-gradient(155deg, rgba(123,97,255,.08), transparent 60%), var(--surface);
-  border-color: rgba(123,97,255,.24);
-}
+/*
+ * ⚠ THE PER-VERDICT HERO TINTS LIVE IN 08-polish.css, NOT HERE.
+ *
+ * There were four blocks at this spot doing the same job with hardcoded hexes,
+ * fully overridden by the `color-mix` version later in the cascade — dead, and
+ * actively misleading: they lumped VERIFY in with RISK and painted both cyan,
+ * so anyone reading this file learned the wrong colour for a verdict that is
+ * now amber. One rule, one place.
+ */
 .hshot {
   position: relative; display: block; aspect-ratio: 16/10; background: var(--surface-2);
 }

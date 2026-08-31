@@ -396,7 +396,7 @@ export default function App() {
                       The demo repeats this exact rhythm in every section. */}
                   <span className="eyebrow buy"><i />Live deals</span>
                   <h1>Worth <span className="g">driving for</span></h1>
-                  <p>Only listings the engine actually verified. Newest and best first.</p>
+                  <p>Only what the engine verified, best first.</p>
                 </div>
                 {settings.askOutcomes && ask && (
                   <OutcomePrompt h={ask} onDone={() => setAsk(null)} />
@@ -438,7 +438,7 @@ export default function App() {
                     <div className="feedhead">
                       <span className="eyebrow">Link checker</span>
                       <h1>Check a <span className="g">listing</span></h1>
-                      <p>Paste a Craigslist link and get the number it is actually worth, before you drive.</p>
+                      <p>Get what a listing is really worth, before you drive.</p>
                     </div>
                     <button className="paste" onClick={pasteAndCheck} disabled={busy}>
                       <Clip size={18} />

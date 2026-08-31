@@ -165,6 +165,18 @@
   /* The demo transitions on `all .2s ease` and `all .3s ease`. */
   --dur: 200ms;
   --dur-slow: 300ms;
+  /*
+   * ⚠ `--dur-exit` WAS USED IN 04-feed.css AND DEFINED NOWHERE, which is worse
+   * than it sounds. An undefined custom property makes the WHOLE declaration
+   * guaranteed-invalid, so `.dealhero`'s transition — including the
+   * `border-color` half that was written correctly — computed to `none`. The
+   * feed hero has had no transitions at all. Exactly the `--ink-1` bug again,
+   * found the same way: a sweep for `var(--x)` with no matching `--x:`.
+   *
+   * The value follows Material's exit-shorter-than-enter rule, at ~65% of
+   * `--dur`.
+   */
+  --dur-exit: 130ms;
   --ease: ease;
 
   --safe-t: env(safe-area-inset-top, 0px);

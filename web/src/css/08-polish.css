@@ -301,18 +301,32 @@ body::before {
 /*
  * THE FEED GETS TO THE DEALS FASTER.
  *
- * 26px headline plus a two-line paragraph plus a filter row is 320px of chrome
- * before the first listing on a 390px screen — most of the first view spent
- * explaining the page rather than being it. The subtitle earns its place on a
- * first visit and nowhere after, so it is smaller and the block is tighter.
+ * ⚠ THIS BLOCK HAS BEEN CUT TWICE AND THE SECOND CUT IS THE REAL ONE.
+ *
+ * Yish, 2026-08-31: *"there's just too much wasted space at the top of the app
+ * … 'Live deals', 'Worth driving for', 'Only listings the engine actually
+ * verified. Newest and best first.' takes up almost half the page, which isn't
+ * good."*
+ *
+ * Measured on his Galaxy S24 before this: the head alone was **158px** and the
+ * first section title sat at **291px of 780 — 37% of the screen** spent saying
+ * what the screen is instead of being it. A 32px headline is a LANDING-PAGE
+ * headline, and this is a screen inside an app you have already opened.
+ *
+ * The demo's rhythm survives intact, because the rhythm was never the problem:
+ * badge, headline with one gradient accent word, muted subtitle. It is the
+ * SCALE that was wrong. 25px headline, 12px badge, and a subtitle written short
+ * enough to hold one line at 360px — a second line here costs 18px on every
+ * screen forever, which is why the copy changed rather than the max-width.
  */
-.feedhead { padding: var(--s4) 0 var(--s3); }
+.feedhead { padding: var(--s3) 0 var(--s2); }
+.feedhead p { margin: 0; }
 /*
  * ⚠ LETTER-SPACING IS NORMAL. The demo does not track its headings tight;
  * -.035em is a different typographic voice and it fought Space Grotesk, whose
  * own metrics are already fairly narrow.
  */
-.feedhead h1 { font-size: 32px; letter-spacing: normal; margin-bottom: 8px; line-height: 1.1; }
+.feedhead h1 { font-size: 25px; letter-spacing: normal; margin: 0 0 4px; line-height: 1.12; font-weight: 700; }
 
 /*
  * ⚠ THE PILL BADGE IS THE DEMO'S SECTION RHYTHM, AND IT REPEATS EXACTLY.
@@ -327,11 +341,14 @@ body::before {
  */
 .eyebrow {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 14px; margin-bottom: var(--s3);
+  /* The demo measures 6px/14px at 14px type. Scaled with the headline, not
+     kept at the demo's size beside a headline seven points smaller than the
+     demo's — a badge that outweighs its own heading reads as a mistake. */
+  padding: 4px 11px; margin-bottom: var(--s2);
   border-radius: var(--r-pill);
   background: var(--surface);
   border: 1px solid color-mix(in srgb, currentColor 26%, var(--line));
-  color: var(--brand); font-size: 13px; font-weight: 500;
+  color: var(--brand); font-size: 12px; font-weight: 500;
   backdrop-filter: blur(var(--blur));
   /* The demo's glow, at the badge's own hue. `currentColor` means the four
      variants below need no shadow of their own. */
@@ -365,7 +382,15 @@ body::before {
   width: 6px; height: 6px; border-radius: 50%; background: currentColor;
   animation: glowpulse 2s cubic-bezier(.4,0,.6,1) infinite;
 }
-.feedhead p { font-size: 13px; color: var(--ink-3); max-width: 34ch; }
+/*
+ * ⚠ ONE LINE. `max-width: 34ch` wrapped it to two on a 360px phone, which is
+ * 18px of every screen spent on a sentence you read once. The copy is short
+ * enough to fit instead; the clamp is a backstop, not the mechanism.
+ */
+.feedhead p {
+  font-size: 12.5px; color: var(--ink-3); line-height: 1.45;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 
 /*
  * THE LISTING PRICE AND THE VERDICT BELONG TOGETHER.

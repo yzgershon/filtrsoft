@@ -501,7 +501,15 @@ export function Feed({ onOpen, onWatchChange }: {
   useEffect(() => onOpenFilters(() => setSheet(true)), []);
 
   const SEGS: Array<{ id: Quality; label: string; n: number }> = [
-    { id: "ready", label: "Ready", n: segments.ready ?? 0 },
+    /**
+     * ⚠ "BUY IT", NOT "READY". Yish, 2026-08-31: *"change the ready tag in the
+     * filter bar to Buy it."* The card on a BUY listing has said "BUY IT" since
+     * the feed existed (`LABEL.BUY`), so the segment that collects them was the
+     * one place in the app calling that verdict something else. The segment id
+     * stays `ready` because it is a URL and a server query — this is a label,
+     * not a rename.
+     */
+    { id: "ready", label: "Buy it", n: segments.ready ?? 0 },
     { id: "verify", label: "Verify", n: segments.verify ?? 0 },
     { id: "risky", label: "Risky", n: segments.risky ?? 0 },
     { id: "all", label: "All", n: segments.all ?? 0 },
