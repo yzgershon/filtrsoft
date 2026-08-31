@@ -71,7 +71,7 @@ export function Watchlist({ onOpen, onWatchChange, onBrowse }: {
   return (
     <div className="sec">
       <div className="feedhead">
-        <span className="eyebrow">Watchlist</span>
+        <span className="eyebrow alt">Watchlist</span>
         <h1>Your <span className="g">saved</span></h1>
         <p>
           {items === null ? "Loading…"
@@ -533,7 +533,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
   return (
     <div className="sec settings">
       <div className="feedhead">
-        <span className="eyebrow">Preferences</span>
+        <span className="eyebrow mute">Preferences</span>
         <h1>Your <span className="g">settings</span></h1>
       </div>
 

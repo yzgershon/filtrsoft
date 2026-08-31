@@ -119,7 +119,22 @@
    * IT", "RISKY") and an icon. Do not drop those labels to save space.
    */
   --buy: #00ff88;
-  --verify: #00d4ff;
+  /*
+   * ⚠ VERIFY IS AMBER, NOT THE DEMO'S CYAN, AND THE REASON IS THAT CYAN IS
+   * ALREADY THE BRAND.
+   *
+   * Yish, 2026-08-31: *"if it's a buy it's green, verify is yellow, pass is
+   * black still, and risky is red."* That is the traffic light, and it is the
+   * right call for a reason beyond familiarity: `--brand` is #00d4ff, so a
+   * cyan VERIFY was the same colour as the wordmark, the segment indicator,
+   * the primary CTA and the focus ring. The one palette entry that carries a
+   * JUDGEMENT was indistinguishable from ordinary chrome.
+   *
+   * Amber restores green -> amber -> red as a readable progression and leaves
+   * cyan to mean "Assyze" rather than "check this one". #ffc53d measures
+   * 12.4:1 on --bg and 5.6:1 as ink on a 92%-opaque chip over a white photo.
+   */
+  --verify: #ffc53d;
   --risk: #ff4757;
   --fair: #7b61ff;
   --pass: #94a3b8;

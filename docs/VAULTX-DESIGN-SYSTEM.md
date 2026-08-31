@@ -93,11 +93,19 @@ rather than being dropped:
 | Verdict | Was | Now | Why |
 |---|---|---|---|
 | BUY | `#34d399` | **`#00FF88`** | the demo's success green |
-| VERIFY | `#ff8a3d` | **`#00D4FF`** | the demo's primary cyan |
+| VERIFY | `#ff8a3d` | **`#FFC53D`** | amber — see the note below |
 | RISK | `#f87171` | **`#FF4757`** | the demo's danger red |
 | FAIR | `#60a5fa` | **`#7B61FF`** | the demo's secondary purple |
 | PASS | `#fbbf24` | **`#94A3B8`** | muted: priced and rejected is not a warning |
 | Can't tell | `#a78bfa` | **`#64748B`** | quieter still |
+
+⚠ **VERIFY IS THE ONE VALUE HERE THAT IS NOT THE DEMO'S.** It was mapped to
+the demo's primary cyan, which is also `--brand`: the wordmark, the segment
+indicator, the CTA and the focus ring. So the one palette entry that carries a
+JUDGEMENT rendered in the same colour as ordinary chrome. Yish, 2026-08-31:
+*"if it's a buy it's green, verify is yellow, pass is black still, and risky is
+red."* Amber restores green → amber → red as a progression and gives cyan back
+to the brand.
 
 ⚠ **BUY green and RISK red are a colour-blind-unsafe pair on their own.** They
 are safe here because every verdict is also a WORD on screen ("BUY IT",

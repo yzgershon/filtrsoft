@@ -38,7 +38,7 @@
 .v-BUY    { color: var(--buy);     border-color: rgba(0,255,136,.32);  background: linear-gradient(180deg, rgba(0,255,136,.09), transparent 58%), var(--surface); }
 .v-FAIR   { color: var(--fair);    border-color: rgba(123,97,255,.32);  background: linear-gradient(180deg, rgba(123,97,255,.09), transparent 58%), var(--surface); }
 .v-PASS   { color: var(--pass);    border-color: rgba(148,163,184,.32);  background: linear-gradient(180deg, rgba(148,163,184,.09), transparent 58%), var(--surface); }
-.v-VERIFY { color: var(--verify);  border-color: rgba(0,212,255,.34);  background: linear-gradient(180deg, rgba(0,212,255,.1), transparent 58%), var(--surface); }
+.v-VERIFY { color: var(--verify);  border-color: rgba(255,197,61,.34);  background: linear-gradient(180deg, rgba(255,197,61,.1), transparent 58%), var(--surface); }
 .v-RISK   { color: var(--risk);    border-color: rgba(255,71,87,.34); background: linear-gradient(180deg, rgba(255,71,87,.1), transparent 58%), var(--surface); }
 .v-INSUFFICIENT_DATA, .v-OUT_OF_SCOPE { color: var(--unknown); border-color: var(--line); background: var(--surface); }
 
