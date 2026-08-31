@@ -3356,6 +3356,20 @@ which is what makes the ENGINE_VERSION bump enough: production re-scores with
 the new handling immediately instead of waiting on paid re-analysis. The
 PROMPT_VERSION bump only affects newly analysed listings.
 
+### 18i. Known nuance: the detail screen mixes a STORED verdict with LIVE signals
+
+`/v1/checks/:id` returns the **stored** verdict payload but recomputes signals
+through `checkStored` on every request, and only swaps in the fresh verdict when
+the caller passes `?drive=`. Both halves are deliberate — the feed and the detail
+must agree on the call, and "what's flagged" has to be current — but it means
+the flags on screen can disagree with the questions beside them when a listing's
+text has changed since it was last scored.
+
+Measured 2026-08-31 across 40 listings: **39 identical, 1 different**, and the
+next re-score fixes it. Rare and self-correcting, so it is written down rather
+than fixed. Do not spend an afternoon on "why do the flags not match the
+questions" without checking this first.
+
 ### 18g. OPEN, NOT ACTED ON: 77% of the feed cannot be priced
 
 *"There's only 1 buy out of 578 listings."* Measured across all 708 production
