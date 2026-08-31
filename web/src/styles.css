@@ -1494,3 +1494,151 @@ body::before {
   z-index: 2; text-align: center; color: var(--ink-2); font-size: 13px; font-weight: 600;
 }
 @media (max-width: 560px) { .lbxnav { display: none; } }
+
+/*
+ * Header navigation.
+ *
+ * ⚠ THIS BLOCK MUST STAY ABOVE THE 1024px MEDIA QUERY. `display: none` here and
+ * `display: flex` in the media query are the SAME specificity, so source order
+ * decides — declared after, the base rule wins at every width and the desktop
+ * nav is invisible on a desktop while every other rule in the same block
+ * (shell width, gutters, columns) applies normally. That is a failure that
+ * reads as "the component did not mount".
+ */
+.hnav { display: none; align-items: center; gap: 2px; }
+.hnavlink {
+  display: flex; align-items: center; gap: 7px;
+  height: 40px; padding: 0 14px; border-radius: 999px;
+  color: var(--ink-2); font-size: 14px; font-weight: 600;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.hnavlink:hover { color: var(--ink); background: var(--surface-2); }
+.hnavlink.on { color: var(--brand); background: rgba(255,138,61,.12); }
+.hnavn {
+  min-width: 18px; padding: 1px 5px; border-radius: 999px;
+  background: var(--surface-3); color: var(--ink);
+  font-size: 11px; font-weight: 700; text-align: center;
+}
+.hnavlink.on .hnavn { background: var(--brand); color: var(--on-brand); }
+
+/* ==================================================== the desktop shell (>=1024) */
+/*
+ * ⚠ AT 1440px THIS APP WAS A 560px PHONE COLUMN WITH A BOTTOM BAR STRETCHED
+ * ACROSS THE WHOLE WINDOW — three tab targets 480px wide each, and two-thirds
+ * of the screen empty. Audit §6: the single strongest reason the live site
+ * reads as unfinished on a desktop.
+ *
+ * The breakpoint is 1024px, not 768. A tablet in portrait is 768 wide and is
+ * held like a phone: bottom navigation is still the right answer there, and a
+ * three-item header row across 768px would put the nav further from the hand
+ * than it already is. The audit's own numbers say "desktop at 1024 and above".
+ *
+ * Everything below is layout only. No colour, type scale or component shape
+ * changes at any width — a desktop that looks like a different product is a
+ * second product to maintain.
+ */
+@media (min-width: 1024px) {
+  .app { max-width: 1180px; }
+
+  /* 24px at 1024, 32px at 1280+ (audit §6). */
+  .topbar, .scroll { padding-left: 24px; padding-right: 24px; }
+
+  .topbar {
+    height: 64px; padding-top: 0; padding-bottom: 0;
+    gap: var(--s4);
+  }
+
+  /* The bottom bar is a phone control. It is REPLACED, not merely hidden:
+     `.hnav` below carries the same three destinations. */
+  .tabbar { display: none; }
+  .scroll { padding-bottom: var(--s6); }
+
+  .hnav { display: flex; }
+
+  /*
+   * FOUR COLUMNS WITH 16px GAPS. The two-up grid is a phone decision — twice
+   * the listings for the same scrolling on a 390px screen. At 1180px two
+   * columns would be 570px wide each, which is a card the size of the whole
+   * phone layout.
+   */
+  .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+
+  /* The headline does not need to grow with the window; 34ch of subtitle at
+     30px is already a comfortable measure. */
+  .feedhead { padding-top: var(--s5); }
+
+  /*
+   * ⚠ TWO PHONE COMPONENTS THAT MUST NOT SIMPLY GET WIDER.
+   *
+   * The segment control is `flex: 1` per chip, which is right on a 390px screen
+   * — four equal thumb targets across the width. At 1180px it made four 295px
+   * buttons with the label floating in the middle of each, which reads as a
+   * table header rather than a control.
+   *
+   * The hero is `aspect-ratio: 16/10`, so at 1180px wide it was 738px TALL and
+   * filled the entire viewport: one listing, no feed, and the four-column grid
+   * beneath it invisible until you scrolled a full screen. The card keeps its
+   * full width — it is still the headline — but the PHOTO is capped, and the
+   * cap is a height rather than a narrower card so the numbers underneath stay
+   * where the eye already expects them.
+   */
+  .seg { width: fit-content; min-width: 420px; }
+  .seg button { flex: 0 1 auto; padding: 0 var(--s4); }
+
+  /*
+   * THE HERO TURNS SIDEWAYS: 7 photo / 5 decision (audit §6).
+   *
+   * A 16/10 photo across 1116px is 700px tall — one listing, no feed, and the
+   * four-column grid invisible until you scroll a full screen. Capping the
+   * HEIGHT instead just crops a portrait photo to a letterbox slot and throws
+   * away the product.
+   *
+   * The DOM does not change: `.hshot` (with its overlaid call and title) takes
+   * the left column across both rows, and the numbers and the reason stack on
+   * the right. The photo keeps 16/10 in a 7fr column, which is about the size
+   * it has on a phone.
+   */
+  .dealhero {
+    display: grid; grid-template-columns: 7fr 5fr;
+    /*
+     * Two equal rows with the price at the BOTTOM of the first and the reason
+     * at the TOP of the second puts the pair on the card's midline without a
+     * wrapper element. `align-content: center` cannot do it: `.hshot` spans
+     * both rows and defines the height, so there is no free space for the
+     * container to distribute.
+     */
+    grid-template-rows: 1fr 1fr;
+  }
+  .dealhero .hshot { grid-row: 1 / 3; }
+  .dealhero .hnums { align-self: end; padding-right: var(--s5); }
+  .dealhero .hwhy { align-self: start; padding-right: var(--s5); }
+  /* The photo's bottom scrim exists to carry the title over the image; it must
+     not fade into a card edge that is no longer beneath it. */
+  .dealhero .hshot { border-radius: var(--r-lg) 0 0 var(--r-lg); overflow: hidden; }
+
+  /*
+   * THE DETAIL IS TWO COLUMNS: photos left, the decision right, and the
+   * decision STICKS. On a phone you scroll from the photo to the verdict; on a
+   * desktop there is room to have both, and the whole product is the number
+   * next to the picture.
+   *
+   * `align-items: start` is load-bearing — a stretched grid item is as tall as
+   * the row, and `position: sticky` inside a full-height box has nothing to
+   * stick within, so the column would simply never move.
+   */
+  .dtop {
+    display: grid; grid-template-columns: 56fr 44fr; gap: var(--s5);
+    align-items: start;
+  }
+  .dtop > .gal { margin: 0; }
+  .dside { position: sticky; top: 80px; }
+  .dside > :first-child { margin-top: 0; }
+
+  /* The lightbox is the one place that should use the whole window. */
+  .lbx { padding: 0; }
+}
+
+@media (min-width: 1280px) {
+  .topbar, .scroll { padding-left: 32px; padding-right: 32px; }
+}
+

@@ -27,7 +27,8 @@ const LABEL = process.argv[2] ?? "run";
 const BASE = process.argv[3] ?? "http://localhost:3177";
 const CHROME = process.env.ASSYZE_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const OUT = join("docs", "ui", LABEL);
-const WIDTHS = [375, 768, 1024, 1440];
+// 390 is the audit's iPhone-14 width; the rest are the four it names.
+const WIDTHS = [375, 390, 768, 1024, 1440];
 
 mkdirSync(OUT, { recursive: true });
 
@@ -485,27 +486,111 @@ for (const w of WIDTHS) {
   }
   await page.goto(BASE, { waitUntil: "networkidle" });
   await page.waitForSelector(".grid .gcard, .dealhero", { timeout: 20000 });
+
+  /**
+   * ⚠ THE COLUMN COUNT IS MEASURED HERE, ON THE FEED, BEFORE OPENING ANYTHING.
+   *
+   * The detail has no `.grid`, so measuring it after the click reported "0
+   * columns" at every width — a passing layout reading as a broken one.
+   */
+  const cols = await page.evaluate(() => {
+    const g = document.querySelector(".grid");
+    return g ? (getComputedStyle(g).gridTemplateColumns.match(/px/g) || []).length : null;
+  });
+  const wantCols = w >= 1024 ? 4 : w >= 520 ? 3 : 2;
+  ok(`${w}px: the feed grid is ${wantCols} columns`, cols === wantCols, `${cols}`);
+
   await page.locator(".grid .gcard .gopen, .dealhero").first().click();
   await page.waitForTimeout(1800);
   await shot(page, `${w}-detail`);
 
   /**
-   * The bottom bar must be ON SCREEN, not at the end of the scroll content.
-   * That was the original bug: `position: absolute` inside a fake phone frame
-   * meant reaching it required scrolling past 285 listings.
+   * The decision column has to sit BESIDE the photos and STICK. A stretched
+   * grid item is as tall as its row, and `position: sticky` inside a
+   * full-height box has nothing to stick within — it would simply never move,
+   * which looks identical to working until you scroll.
    */
-  const bar = await page.evaluate(() => {
-    const el = document.querySelector(".tabbar");
-    if (!el) return null;
-    const r = el.getBoundingClientRect();
+  const two = await page.evaluate(() => {
+    const top = document.querySelector(".dtop");
+    const side = document.querySelector(".dside");
+    const gal = document.querySelector(".dtop .gal");
+    if (!top || !side || !gal) return null;
+    const s = side.getBoundingClientRect(), g = gal.getBoundingClientRect();
     return {
-      bottom: Math.round(r.bottom), h: Math.round(r.height), vh: window.innerHeight,
-      pos: getComputedStyle(el).position,
+      cols: (getComputedStyle(top).gridTemplateColumns.match(/px/g) || []).length,
+      sideLeft: Math.round(s.left), galRight: Math.round(g.right),
+      sticky: getComputedStyle(side).position,
+      align: getComputedStyle(top).alignItems,
+      rowH: Math.round(top.getBoundingClientRect().height),
+      sideH: Math.round(s.height), galH: Math.round(g.height),
     };
   });
-  if (bar) {
-    ok(`${w}px: the tab bar is on screen`, bar.pos === "fixed" && bar.bottom <= bar.vh + 2,
-      `${bar.pos} bottom=${bar.bottom} vh=${bar.vh} h=${bar.h}`);
+  if (two) {
+    if (w >= 1024) {
+      ok(`${w}px: the detail is two columns`, two.cols === 2, `${two.cols}`);
+      ok(`${w}px: the decision sits beside the photos`, two.sideLeft >= two.galRight - 2,
+        `gallery ends ${two.galRight}, decision starts ${two.sideLeft}`);
+      ok(`${w}px: the decision column sticks`, two.sticky === "sticky", two.sticky);
+      /**
+       * ⚠ ASSERT `align-items: start`, NOT "the column is shorter".
+       *
+       * A stretched grid item is as tall as its row, and `position: sticky`
+       * inside a full-height box has nothing to stick within — it never moves,
+       * which looks identical to working until you scroll. That is what this
+       * guards.
+       *
+       * Whether the decision column is the SHORTER one is a property of the
+       * listing, not the layout: measured here it is the taller (837 vs a
+       * 400px gallery at 1024), so sticky is inert on this listing and becomes
+       * live on a listing with more photos. Demanding it be shorter would fail
+       * on real content that is perfectly laid out.
+       */
+      ok(`${w}px: neither column is force-stretched`, two.align === "start", two.align);
+    } else {
+      ok(`${w}px: the detail is one column`, two.cols <= 1, `${two.cols}`);
+    }
+  }
+
+  /**
+   * ⚠ EXACTLY ONE NAV IS VISIBLE AT ANY WIDTH.
+   *
+   * Both render and CSS picks: the bottom bar is a phone control, the header
+   * row is the desktop one. Two visible navs would be two answers to "where am
+   * I"; zero would be an app you cannot leave the current screen from.
+   */
+  const nav = await page.evaluate(() => {
+    const seen = (sel) => {
+      const el = document.querySelector(sel);
+      if (!el) return null;
+      const cs = getComputedStyle(el);
+      if (cs.display === "none" || cs.visibility === "hidden") return null;
+      const r = el.getBoundingClientRect();
+      return { bottom: Math.round(r.bottom), h: Math.round(r.height), pos: cs.position };
+    };
+    const shell = document.querySelector(".app");
+    const pad = shell ? getComputedStyle(document.querySelector(".scroll")) : null;
+    return {
+      tabbar: seen(".tabbar"), hnav: seen(".hnav"),
+      vh: window.innerHeight,
+      shellW: shell ? Math.round(shell.getBoundingClientRect().width) : 0,
+      padL: pad ? Math.round(parseFloat(pad.paddingLeft)) : 0,
+    };
+  });
+  ok(`${w}px: exactly one nav is visible`, !!nav.tabbar !== !!nav.hnav,
+    `tabbar ${nav.tabbar ? "on" : "off"} · header ${nav.hnav ? "on" : "off"}`);
+
+  if (w >= 1024) {
+    ok(`${w}px: the shell is capped at 1180`, nav.shellW === Math.min(1180, w),
+      `${nav.shellW}px`);
+    ok(`${w}px: gutters are ${w >= 1280 ? 32 : 24}px`, nav.padL === (w >= 1280 ? 32 : 24), `${nav.padL}px`);
+    ok(`${w}px: the desktop nav is in the header`, !!nav.hnav && nav.hnav.pos !== "fixed",
+      nav.hnav ? nav.hnav.pos : "missing");
+  } else {
+    // The original bug: `position: absolute` inside a fake phone frame meant
+    // reaching the bar required scrolling past 285 listings.
+    ok(`${w}px: the tab bar is fixed and on screen`,
+      !!nav.tabbar && nav.tabbar.pos === "fixed" && nav.tabbar.bottom <= nav.vh + 2,
+      nav.tabbar ? `${nav.tabbar.pos} bottom=${nav.tabbar.bottom} vh=${nav.vh}` : "missing");
   }
 
   /**
@@ -518,10 +603,12 @@ for (const w of WIDTHS) {
    * is asserted against the computed style of the running app.
    */
   const blur = await page.evaluate(() => {
+    // Above 1024 the bottom bar is display:none, so the header is the glass.
     const el = document.querySelector(".tabbar");
-    return el ? getComputedStyle(el).backdropFilter : null;
+    const use = el && getComputedStyle(el).display !== "none" ? el : document.querySelector(".topbar");
+    return use ? getComputedStyle(use).backdropFilter : null;
   });
-  if (blur !== null) ok(`${w}px: the tab bar blurs what is behind it`, blur !== "none", blur);
+  if (blur !== null) ok(`${w}px: the chrome blurs what is behind it`, blur !== "none", blur);
 
   // No horizontal scroll at any width. A 2px overflow is a broken layout.
   const over = await page.evaluate(

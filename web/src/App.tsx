@@ -613,10 +613,35 @@ function Segmented<T extends string>({ value, onChange, options }: {
   const ref = useRef<HTMLDivElement>(null);
   const [ind, setInd] = useState({ left: 0, width: 0 });
 
+  /**
+   * ⚠ THE INDICATOR MUST RE-MEASURE WHEN THE CHIPS RESIZE, NOT ONLY WHEN THE
+   * SELECTION CHANGES.
+   *
+   * This ran on `[value, options.length]` alone, which was survivable while
+   * every chip was `flex: 1` and therefore the same width whatever it said. The
+   * desktop shell makes them content-sized, and then two things move them
+   * without changing either dependency: the COUNTS arriving after the first
+   * fetch ("All" -> "All 387" is wider), and the window resizing across the
+   * 1024px breakpoint.
+   *
+   * Both left the orange pill sitting under a chip that was not the selected
+   * one — a control actively pointing at the wrong answer, which is worse than
+   * no indicator at all. A ResizeObserver on the group catches every case,
+   * including a font that loads late.
+   */
   useEffect(() => {
-    const el = ref.current?.querySelector<HTMLElement>('[aria-checked="true"]');
-    if (el) setInd({ left: el.offsetLeft, width: el.offsetWidth });
-  }, [value, options.length]);
+    const box = ref.current;
+    if (!box) return;
+    const measure = () => {
+      const el = box.querySelector<HTMLElement>('[aria-checked="true"]');
+      if (el) setInd({ left: el.offsetLeft, width: el.offsetWidth });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(box);
+    for (const b of box.querySelectorAll("button")) ro.observe(b);
+    return () => ro.disconnect();
+  }, [value, options]);
 
   /**
    * ⚠ FOCUS HAS TO MOVE WITH THE SELECTION.
@@ -1132,73 +1157,87 @@ function Report({ listing, verdict, signals, meta, stage, reading, checkId }: {
 
   return (
     <>
-      <Gallery urls={listing.photoUrls ?? []} onOpen={setLbx} />
-      {lbx !== null && (
-        <Lightbox urls={listing.photoUrls} start={lbx} onClose={() => setLbx(null)} />
-      )}
+      {/**
+        * ⚠ `.dtop` IS A PLAIN WRAPPER ON A PHONE AND A TWO-COLUMN GRID FROM
+        * 1024px. Photos left, the decision right, and the decision STICKS.
+        *
+        * On a phone you scroll from the photo down to the verdict, which is
+        * correct — there is only one column. On a desktop there is room to have
+        * both at once, and "the number next to the picture" is the entire
+        * product. Everything that is READING rather than DECIDING — questions,
+        * flags, comps, provenance — stays full width below.
+        */}
+      <div className="dtop">
+        <Gallery urls={listing.photoUrls ?? []} onOpen={setLbx} />
+        {lbx !== null && (
+          <Lightbox urls={listing.photoUrls} start={lbx} onClose={() => setLbx(null)} />
+        )}
 
-      <div className="lh rise">
-        {/* The listing IS the page here, so its title is the H1. It was an H2
-            under no H1 at all, which leaves a screen reader's outline starting
-            at level 2 with nothing above it. */}
-        <h1>{listing.title}</h1>
-        <div className="meta">
-          <span className="price num">{money(listing.askingPriceCents)}</span>
-          <span className="facts">
-            {[listing.location, ago(listing.postedAt)].filter(Boolean).join(" · ")}
-          </span>
-        </div>
+        <div className="dside">
+          <div className="lh rise">
+            {/* The listing IS the page here, so its title is the H1. It was an H2
+                under no H1 at all, which leaves a screen reader's outline starting
+                at level 2 with nothing above it. */}
+            <h1>{listing.title}</h1>
+            <div className="meta">
+              <span className="price num">{money(listing.askingPriceCents)}</span>
+              <span className="facts">
+                {[listing.location, ago(listing.postedAt)].filter(Boolean).join(" · ")}
+              </span>
+            </div>
 
-        {/**
-          * The link to the original is a PRIMARY action, not a footnote.
-          *
-          * It was a 12px text link buried under the price. Every path through
-          * this screen ends at the real listing — to message the seller, to
-          * check the photos again, to see whether it is still up — so it gets
-          * a full-width target that says which site it goes to.
-          */}
-        <a className="origin" href={listing.url} target="_blank" rel="noopener noreferrer">
-          <Link size={15} />
-          <span>Open on {src}</span>
-          <span className="arrow" aria-hidden="true">↗</span>
-        </a>
-      </div>
+            {/**
+              * The link to the original is a PRIMARY action, not a footnote.
+              *
+              * It was a 12px text link buried under the price. Every path through
+              * this screen ends at the real listing — to message the seller, to
+              * check the photos again, to see whether it is still up — so it gets
+              * a full-width target that says which site it goes to.
+              */}
+            <a className="origin" href={listing.url} target="_blank" rel="noopener noreferrer">
+              <Link size={15} />
+              <span>Open on {src}</span>
+              <span className="arrow" aria-hidden="true">↗</span>
+            </a>
+          </div>
 
-      {verdict ? (
-        <div className={`verdict verdictcard v-${verdict.call} rise`} role="status" aria-live="polite">
-          <span className="vbadge">
-            {verdict.call === "BUY" ? <Check size={13} /> : verdict.call === "RISK" ? <Alert size={13} /> : <Info size={13} />}
-            {LABEL[verdict.call]}
-          </span>
-          <h3>{verdict.headline}</h3>
-          <p>{verdict.reasoning}</p>
-          {verdict.decidingUnknown && (
-            <div className="settles"><b>What settles it:</b> {verdict.decidingUnknown}</div>
+          {verdict ? (
+            <div className={`verdict verdictcard v-${verdict.call} rise`} role="status" aria-live="polite">
+              <span className="vbadge">
+                {verdict.call === "BUY" ? <Check size={13} /> : verdict.call === "RISK" ? <Alert size={13} /> : <Info size={13} />}
+                {LABEL[verdict.call]}
+              </span>
+              <h3>{verdict.headline}</h3>
+              <p>{verdict.reasoning}</p>
+              {verdict.decidingUnknown && (
+                <div className="settles"><b>What settles it:</b> {verdict.decidingUnknown}</div>
+              )}
+            </div>
+          ) : (
+            <div className="verdict v-INSUFFICIENT_DATA" aria-busy="true">
+              <div className="skel" style={{ height: 12, width: 76, marginBottom: 14 }} />
+              <div className="skel" style={{ height: 18, width: "68%", marginBottom: 10 }} />
+              <div className="skel" style={{ height: 13, width: "92%", marginBottom: 6 }} />
+              <div className="skel" style={{ height: 13, width: "55%" }} />
+            </div>
           )}
-        </div>
-      ) : (
-        <div className="verdict v-INSUFFICIENT_DATA" aria-busy="true">
-          <div className="skel" style={{ height: 12, width: 76, marginBottom: 14 }} />
-          <div className="skel" style={{ height: 18, width: "68%", marginBottom: 10 }} />
-          <div className="skel" style={{ height: 13, width: "92%", marginBottom: 6 }} />
-          <div className="skel" style={{ height: 13, width: "55%" }} />
-        </div>
-      )}
 
-      {reading > 0 && (
-        <div className="reading" role="status" aria-live="polite">
-          <span className="spin" aria-hidden="true" />
-          Reading {reading} photo{reading === 1 ? "" : "s"} — sellers often put the specs in an image
-        </div>
-      )}
+          {reading > 0 && (
+            <div className="reading" role="status" aria-live="polite">
+              <span className="spin" aria-hidden="true" />
+              Reading {reading} photo{reading === 1 ? "" : "s"} — sellers often put the specs in an image
+            </div>
+          )}
 
-      {stage < 3 && (
-        <div className="prog" aria-hidden="true">
-          {[0, 1, 2].map((i) => <span className={`step ${stage > i ? "on" : ""}`} key={i}><i /></span>)}
-        </div>
-      )}
+          {stage < 3 && (
+            <div className="prog" aria-hidden="true">
+              {[0, 1, 2].map((i) => <span className={`step ${stage > i ? "on" : ""}`} key={i}><i /></span>)}
+            </div>
+          )}
 
-      {verdict && <Numbers v={verdict} ask={listing?.askingPriceCents ?? null} />}
+          {verdict && <Numbers v={verdict} ask={listing?.askingPriceCents ?? null} />}
+        </div>
+      </div>
       {verdict?.retail && <Ceiling r={verdict.retail} />}
       {verdict?.riskChecks?.length ? <Blockers checks={verdict.riskChecks} /> : null}
       <Flags signals={signals} />
@@ -1367,38 +1406,82 @@ type Tab = "deals" | "check" | "saved" | "you" | "settings";
  * it is somewhere you go twice a year, and spending a quarter of the toolbar on
  * it would cost the same room the watchlist needs. It lives in the top bar.
  */
+type NavId = "deals" | "check" | "saved";
+
+/**
+ * THREE DESTINATIONS. "You" was a primary tab holding four read-only server
+ * defaults and the words "Editing these is coming" (audit §13). Its one real
+ * number lives under Settings -> Your numbers, so the tab was spending a
+ * quarter of the bar on a screen with nothing to do.
+ *
+ * Three items also give each one more room, which is what the 44px targets in
+ * the accessibility pass need.
+ */
+const NAV: Array<[NavId, string]> = [
+  ["deals", "Deals"], ["check", "Check"], ["saved", "Saved"],
+];
+const navIcon = (id: NavId, on: boolean, size: number) =>
+  id === "deals" ? <Grid size={size} />
+    : id === "check" ? <Scan size={size} />
+      : <Save size={size} filled={on} />;
+
 function Tabbar({ tab, go, savedCount }: {
-  tab: "deals" | "check" | "saved" | null;
-  go: (t: "deals" | "check" | "saved" | "settings") => void;
+  tab: NavId | null;
+  go: (t: NavId | "settings") => void;
   savedCount: number;
 }) {
-  /**
-   * THREE DESTINATIONS. "You" was a primary tab holding four read-only server
-   * defaults and the words "Editing these is coming" — audit §13. Its one
-   * real number lives under Settings -> Your numbers, so the tab was spending
-   * a quarter of the bar on a screen with nothing to do.
-   *
-   * Three items also give each one more room, which is what the 44px target
-   * work in the accessibility pass needs.
-   */
-  const items: Array<["deals" | "check" | "saved", string, React.ReactNode]> = [
-    ["deals", "Deals", <Grid size={21} />],
-    ["check", "Check", <Scan size={21} />],
-    ["saved", "Saved", <Save size={21} filled={tab === "saved"} />],
-  ];
   return (
     <nav className="tabbar" aria-label="Main">
-      {items.map(([id, label, icon]) => (
+      {NAV.map(([id, label]) => (
         <button key={id} className={`tab${tab === id ? " on" : ""}`}
           aria-current={tab === id ? "page" : undefined}
           onClick={() => go(id)}>
           <span className="ti">
-            {icon}
+            {navIcon(id, tab === id, 21)}
             {id === "saved" && savedCount > 0
               ? <span className="tdot" aria-hidden="true">{savedCount > 9 ? "9+" : savedCount}</span>
               : null}
           </span>
           <span className="tl">{label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+/**
+ * The same three destinations, in the header, for desktop.
+ *
+ * ⚠ BOTH NAVS RENDER AND CSS PICKS ONE. At 1440px the app was a 560px phone
+ * column with a bottom bar stretched across the whole window, each target 475px
+ * wide — the single strongest reason the site read as unfinished on a desktop.
+ *
+ * They are two elements rather than one that moves, because the bottom bar is a
+ * fixed overlay with a safe-area inset and the header row is in normal flow;
+ * one element cannot be both without a container query per property. The list
+ * and the icons come from the SAME `NAV` constant, so a fourth destination
+ * cannot appear in one and not the other.
+ *
+ * `aria-hidden` is deliberately NOT used to hide the inactive one — the CSS
+ * `display: none` already removes it from the accessibility tree, and marking
+ * the visible one hidden at the wrong breakpoint would silence the real nav.
+ */
+function HeaderNav({ tab, go, savedCount }: {
+  tab: NavId | null;
+  go: (t: NavId | "settings") => void;
+  savedCount: number;
+}) {
+  return (
+    <nav className="hnav" aria-label="Main">
+      {NAV.map(([id, label]) => (
+        <button key={id} className={`hnavlink${tab === id ? " on" : ""}`}
+          aria-current={tab === id ? "page" : undefined}
+          onClick={() => go(id)}>
+          {navIcon(id, tab === id, 17)}
+          <span>{label}</span>
+          {id === "saved" && savedCount > 0
+            ? <span className="hnavn num">{savedCount > 99 ? "99+" : savedCount}</span>
+            : null}
         </button>
       ))}
     </nav>
@@ -1674,6 +1757,7 @@ export default function App() {
       <header className="topbar">
         <button className="brand" onClick={() => goTab("deals")}
           aria-label="Assyze home">ass<span>yze</span></button>
+        <HeaderNav tab={tab} go={goTab} savedCount={savedCount} />
         <div className="spacer" />
 
         {/*
