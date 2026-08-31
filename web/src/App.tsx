@@ -17,7 +17,7 @@ import {
 import { Feed } from "./feed.tsx";
 import { Report } from "./detail.tsx";
 import {
-  OutcomePrompt, SettingsScreen, Tabbar, HeaderNav, Watchlist,
+  OutcomePrompt, SettingsScreen, Tabbar, Watchlist,
 } from "./screens.tsx";
 /**
  * Routing, settings and the feed query live in `nav.ts` because they are the
@@ -292,7 +292,9 @@ export default function App() {
       <header className="topbar">
         <button className="brand" onClick={() => goTab("deals")}
           aria-label="Assyze home">ass<span>yze</span></button>
-        <HeaderNav tab={tab} go={goTab} savedCount={savedCount} />
+        {/* The desktop header nav is GONE: above 1024px the app is a phone
+            in a frame (10-desktop.css), so there is no wide bar to put it
+            in. It lived in commit 6017540. */}
         <div className="spacer" />
 
         {/*

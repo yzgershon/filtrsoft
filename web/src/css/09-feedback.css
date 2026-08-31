@@ -89,29 +89,3 @@
   z-index: 2; text-align: center; color: var(--ink-2); font-size: 13px; font-weight: 600;
 }
 @media (max-width: 560px) { .lbxnav { display: none; } }
-
-/*
- * Header navigation.
- *
- * ⚠ THIS BLOCK MUST STAY ABOVE THE 1024px MEDIA QUERY. `display: none` here and
- * `display: flex` in the media query are the SAME specificity, so source order
- * decides — declared after, the base rule wins at every width and the desktop
- * nav is invisible on a desktop while every other rule in the same block
- * (shell width, gutters, columns) applies normally. That is a failure that
- * reads as "the component did not mount".
- */
-.hnav { display: none; align-items: center; gap: 2px; }
-.hnavlink {
-  display: flex; align-items: center; gap: 7px;
-  height: 40px; padding: 0 14px; border-radius: 999px;
-  color: var(--ink-2); font-size: 14px; font-weight: 600;
-  transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
-}
-.hnavlink:hover { color: var(--ink); background: var(--surface-2); }
-.hnavlink.on { color: var(--brand); background: rgba(255,138,61,.12); }
-.hnavn {
-  min-width: 18px; padding: 1px 5px; border-radius: 999px;
-  background: var(--surface-3); color: var(--ink);
-  font-size: 11px; font-weight: 700; text-align: center;
-}
-.hnavlink.on .hnavn { background: var(--brand); color: var(--on-brand); }

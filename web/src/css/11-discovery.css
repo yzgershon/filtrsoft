@@ -195,11 +195,12 @@
   font-size: 12px; color: var(--ink-3); line-height: 1.5;
 }
 
-@media (min-width: 1024px) {
-  /* The sheet becomes a centred dialog; a bottom sheet is a thumb gesture. */
-  .sheetwrap { align-items: center; }
-  .sheet { border-radius: var(--r-xl); max-height: 80dvh; }
-}
+/*
+ * The sheet used to become a centred dialog above 1024px. It does not any more:
+ * above 1024px the app is a PHONE in a frame (10-desktop.css), so a bottom
+ * sheet is still a bottom sheet and centring it would put a desktop dialog
+ * inside a phone.
+ */
 
 /*
  * The Filters button in the top bar.

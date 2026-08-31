@@ -180,44 +180,6 @@ export function Tabbar({ tab, go, savedCount }: {
   );
 }
 
-/**
- * The same three destinations, in the header, for desktop.
- *
- * ⚠ BOTH NAVS RENDER AND CSS PICKS ONE. At 1440px the app was a 560px phone
- * column with a bottom bar stretched across the whole window, each target 475px
- * wide — the single strongest reason the site read as unfinished on a desktop.
- *
- * They are two elements rather than one that moves, because the bottom bar is a
- * fixed overlay with a safe-area inset and the header row is in normal flow;
- * one element cannot be both without a container query per property. The list
- * and the icons come from the SAME `NAV` constant, so a fourth destination
- * cannot appear in one and not the other.
- *
- * `aria-hidden` is deliberately NOT used to hide the inactive one — the CSS
- * `display: none` already removes it from the accessibility tree, and marking
- * the visible one hidden at the wrong breakpoint would silence the real nav.
- */
-export function HeaderNav({ tab, go, savedCount }: {
-  tab: NavId | null;
-  go: (t: NavId | "settings") => void;
-  savedCount: number;
-}) {
-  return (
-    <nav className="hnav" aria-label="Main">
-      {NAV.map(([id, label]) => (
-        <button key={id} className={`hnavlink${tab === id ? " on" : ""}`}
-          aria-current={tab === id ? "page" : undefined}
-          onClick={() => go(id)}>
-          {navIcon(id, tab === id, 17)}
-          <span>{label}</span>
-          {id === "saved" && savedCount > 0
-            ? <span className="hnavn num">{savedCount > 99 ? "99+" : savedCount}</span>
-            : null}
-        </button>
-      ))}
-    </nav>
-  );
-}
 
 /**
  * "What happened with this one?"

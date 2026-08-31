@@ -1,127 +1,141 @@
 /**
- * Header navigation and everything that changes at 1024px and above.
+ * The app is a phone, including on a desktop.
  *
  * Part of the ordered set imported by `styles.css`. ⚠ The cascade is the
  * import order there, not the alphabet.
  */
 
-/* ==================================================== the desktop shell (>=1024) */
+/* ═══════════════════════════════════════════ the phone, on a desk (>=1024) */
 /*
- * ⚠ AT 1440px THIS APP WAS A 560px PHONE COLUMN WITH A BOTTOM BAR STRETCHED
- * ACROSS THE WHOLE WINDOW — three tab targets 480px wide each, and two-thirds
- * of the screen empty. Audit §6: the single strongest reason the live site
- * reads as unfinished on a desktop.
+ * Yish, 2026-08-31: *"on desktop when I go to assyze.com it looks goofy because
+ * it's meant for mobile ... have an outline of a phone and then assyze inside
+ * with the exact dimensions of the real app so they both reflect the same
+ * thing."*
  *
- * The breakpoint is 1024px, not 768. A tablet in portrait is 768 wide and is
- * held like a phone: bottom navigation is still the right answer there, and a
- * three-item header row across 768px would put the nav further from the hand
- * than it already is. The audit's own numbers say "desktop at 1024 and above".
+ * ⚠ THIS REPLACES THE WIDE DESKTOP SHELL, IT DOES NOT SIT BESIDE IT. The 1180px
+ * shell with header navigation, a four-column grid and a two-column detail was
+ * built in commit 6017540 and is superseded by his call after using the live
+ * site. Both cannot exist: one of them has to decide what 1440px means. If it is
+ * ever wanted back, that commit is the whole of it.
  *
- * Everything below is layout only. No colour, type scale or component shape
- * changes at any width — a desktop that looks like a different product is a
- * second product to maintain.
+ * ── WHY THIS IS NOT THE FAKE PHONE FRAME THAT WAS DELETED ──────────────────
+ *
+ * There WAS a device mock here before, and it shipped to real phones: it was
+ * gated at >= 880px, which a tablet and a large phone in landscape both clear,
+ * so the app arrived on Yish's phone as a desktop site pretending to be mobile
+ * — two-finger scroll, pinch zoom, tiny text. Three things keep that from
+ * happening again:
+ *
+ *   · **1024px, not 880.** No phone reaches it in either orientation.
+ *   · **Nothing outside this block changes.** Every rule here is additive and
+ *     scoped to the media query; the phone layout is the DEFAULT and is what
+ *     runs everywhere else, untouched.
+ *   · **The frame is the containing block for `position: fixed`.** `transform`
+ *     does that. Without it the tab bar, the filter sheet and the lightbox
+ *     resolve against the VIEWPORT and span the whole desktop window while the
+ *     phone sits in the middle of them — which is the single most likely way to
+ *     get this wrong, and it looks broken rather than subtly off.
  */
 @media (min-width: 1024px) {
-  .app { max-width: 1180px; }
-
-  /* 24px at 1024, 32px at 1280+ (audit §6). */
-  .topbar, .scroll { padding-left: 24px; padding-right: 24px; }
-
-  .topbar {
-    height: 64px; padding-top: 0; padding-bottom: 0;
-    gap: var(--s4);
+  /*
+   * The desk. Cooler and flatter than the app so the phone reads as an object
+   * sitting on something, rather than as a panel that happens to be inset.
+   */
+  html { background: #060508; }
+  body {
+    min-height: 100dvh; height: auto;
+    display: grid; place-items: center;
+    padding: 24px 0;
+  }
+  body::before {
+    background:
+      radial-gradient(90% 55% at 50% 0%, rgba(255,138,61,.07), transparent 62%),
+      radial-gradient(70% 45% at 50% 100%, rgba(96,165,250,.05), transparent 60%),
+      #060508;
   }
 
-  /* The bottom bar is a phone control. It is REPLACED, not merely hidden:
-     `.hnav` below carries the same three destinations. */
-  .tabbar { display: none; }
-  .scroll { padding-bottom: var(--s6); }
-
-  .hnav { display: flex; }
-
   /*
-   * FOUR COLUMNS WITH 16px GAPS. The two-up grid is a phone decision — twice
-   * the listings for the same scrolling on a 390px screen. At 1180px two
-   * columns would be 570px wide each, which is a card the size of the whole
-   * phone layout.
+   * ⚠ 360 x 780 IS HIS GALAXY S24, DELIBERATELY, AND IT IS CSS PIXELS.
+   *
+   * "The exact dimensions of the real app" means the desktop view has to be a
+   * true preview of the device he actually uses — same width, so the same
+   * things wrap in the same places, and the same height, so the same amount is
+   * above the fold. A generic 393x852 would be a different phone and would
+   * disagree with his in exactly the way this change exists to remove.
    */
-  .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
-
-  /* The headline does not need to grow with the window; 34ch of subtitle at
-     30px is already a comfortable measure. */
-  .feedhead { padding-top: var(--s5); }
-
-  /*
-   * ⚠ TWO PHONE COMPONENTS THAT MUST NOT SIMPLY GET WIDER.
-   *
-   * The segment control is `flex: 1` per chip, which is right on a 390px screen
-   * — four equal thumb targets across the width. At 1180px it made four 295px
-   * buttons with the label floating in the middle of each, which reads as a
-   * table header rather than a control.
-   *
-   * The hero is `aspect-ratio: 16/10`, so at 1180px wide it was 738px TALL and
-   * filled the entire viewport: one listing, no feed, and the four-column grid
-   * beneath it invisible until you scrolled a full screen. The card keeps its
-   * full width — it is still the headline — but the PHOTO is capped, and the
-   * cap is a height rather than a narrower card so the numbers underneath stay
-   * where the eye already expects them.
-   */
-  .seg { width: fit-content; min-width: 420px; }
-  .seg button { flex: 0 1 auto; padding: 0 var(--s4); }
-
-  /*
-   * THE HERO TURNS SIDEWAYS: 7 photo / 5 decision (audit §6).
-   *
-   * A 16/10 photo across 1116px is 700px tall — one listing, no feed, and the
-   * four-column grid invisible until you scroll a full screen. Capping the
-   * HEIGHT instead just crops a portrait photo to a letterbox slot and throws
-   * away the product.
-   *
-   * The DOM does not change: `.hshot` (with its overlaid call and title) takes
-   * the left column across both rows, and the numbers and the reason stack on
-   * the right. The photo keeps 16/10 in a 7fr column, which is about the size
-   * it has on a phone.
-   */
-  .dealhero {
-    display: grid; grid-template-columns: 7fr 5fr;
+  .app {
+    width: 360px;
+    height: 780px;
+    min-height: 0;
+    max-width: none;
+    margin: 0;
+    overflow: hidden;
+    border-radius: 40px;
+    border: 10px solid #0d0c11;
+    background: var(--bg);
     /*
-     * Two equal rows with the price at the BOTTOM of the first and the reason
-     * at the TOP of the second puts the pair on the card's midline without a
-     * wrapper element. `align-content: center` cannot do it: `.hshot` spans
-     * both rows and defines the height, so there is no free space for the
-     * container to distribute.
+     * ⚠ LOAD-BEARING, AND NOT FOR THE VISUAL. A transform makes this element
+     * the containing block for `position: fixed` descendants, which is what
+     * keeps the tab bar, the filter sheet, the toasts and the lightbox INSIDE
+     * the phone instead of spanning the desktop window behind it.
+     *
+     * `scale(1)` is a no-op at full size; the height breakpoints below change
+     * only the number, so the containment holds at every size.
      */
-    grid-template-rows: 1fr 1fr;
+    transform: scale(1);
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,.06),
+      0 30px 70px -20px rgba(0,0,0,.9),
+      0 0 90px -30px rgba(255,138,61,.18);
   }
-  .dealhero .hshot { grid-row: 1 / 3; }
-  .dealhero .hnums { align-self: end; padding-right: var(--s5); }
-  .dealhero .hwhy { align-self: start; padding-right: var(--s5); }
-  /* The photo's bottom scrim exists to carry the title over the image; it must
-     not fade into a card edge that is no longer beneath it. */
-  .dealhero .hshot { border-radius: var(--r-lg) 0 0 var(--r-lg); overflow: hidden; }
+
+  /* The phone's own lit ground. `body::before` is the DESK now. */
+  .app::before {
+    content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(120% 60% at 50% -10%, rgba(255,138,61,.10), transparent 60%),
+      radial-gradient(100% 50% at 10% 100%, rgba(96,165,250,.06), transparent 60%),
+      var(--bg);
+  }
 
   /*
-   * THE DETAIL IS TWO COLUMNS: photos left, the decision right, and the
-   * decision STICKS. On a phone you scroll from the photo to the verdict; on a
-   * desktop there is room to have both, and the whole product is the number
-   * next to the picture.
-   *
-   * `align-items: start` is load-bearing — a stretched grid item is as tall as
-   * the row, and `position: sticky` inside a full-height box has nothing to
-   * stick within, so the column would simply never move.
+   * ⚠ THE SCROLLER MOVES FROM THE DOCUMENT TO THE APP. On a phone the page
+   * itself scrolls, which is what makes momentum and the URL bar behave; inside
+   * a fixed-height frame there is nothing for the document to scroll, so the
+   * content pane has to be the scroller or the feed is 780px tall and stops.
    */
-  .dtop {
-    display: grid; grid-template-columns: 56fr 44fr; gap: var(--s5);
-    align-items: start;
-  }
-  .dtop > .gal { margin: 0; }
-  .dside { position: sticky; top: 80px; }
-  .dside > :first-child { margin-top: 0; }
+  .scroll { overflow-y: auto; overscroll-behavior: contain; }
+  .scroll::-webkit-scrollbar { width: 0; }
 
-  /* The lightbox is the one place that should use the whole window. */
-  .lbx { padding: 0; }
+  /*
+   * ⚠ VIEWPORT MEDIA QUERIES MISFIRE INSIDE THE FRAME AND MUST BE UNDONE HERE.
+   *
+   * A media query asks the WINDOW, which is 1440px, while the app is living in
+   * a 360px box. Every `min-width` rule written for a wide screen therefore
+   * fires inside a phone: three feed columns squeezed into 360px, a filter
+   * sheet centred as a dialog when it should rise from the bottom edge.
+   *
+   * These are the ones that exist today. ⚠ ANY NEW `@media (min-width: ...)`
+   * RULE ABOVE 360px NEEDS A COUNTERPART HERE, or it will render inside the
+   * phone and only on desktop, which is the hardest kind of bug to notice.
+   */
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sheetwrap { align-items: flex-end; }
+  .sheet { border-radius: var(--r-xl) var(--r-xl) 0 0; max-height: 86%; }
+  .lbxnav { display: none; }
 }
 
-@media (min-width: 1280px) {
-  .topbar, .scroll { padding-left: 32px; padding-right: 32px; }
-}
+/*
+ * A 780px phone plus its bezel and padding needs about 850px of window. Laptops
+ * routinely have less, so the frame SCALES rather than being cut off or pushing
+ * the desk into a scrollbar.
+ *
+ * ⚠ SCALING, NOT RESIZING. The app stays exactly 360 x 780 CSS pixels at every
+ * step, so the layout is identical to his phone and the preview stays honest;
+ * only the number of screen pixels it is drawn with changes. Resizing the frame
+ * would reflow it into a layout no device has.
+ */
+@media (min-width: 1024px) and (max-height: 899px) { .app { transform: scale(.92); } }
+@media (min-width: 1024px) and (max-height: 829px) { .app { transform: scale(.85); } }
+@media (min-width: 1024px) and (max-height: 759px) { .app { transform: scale(.78); } }
+@media (min-width: 1024px) and (max-height: 699px) { .app { transform: scale(.71); } }

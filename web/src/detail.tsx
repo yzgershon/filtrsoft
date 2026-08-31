@@ -377,8 +377,22 @@ export function Lightbox({ urls, start, onClose }: { urls: string[]; start: numb
       if (e.key === "ArrowRight") { e.preventDefault(); setAt((n) => Math.min(total - 1, n + 1)); return; }
       if (e.key === "ArrowLeft") { e.preventDefault(); setAt((n) => Math.max(0, n - 1)); return; }
       if (e.key !== "Tab") return;
-      const f = box.current?.querySelectorAll<HTMLElement>("button:not(:disabled)");
-      if (!f?.length) return;
+      /**
+       * ⚠ THE TRAP MUST ONLY COUNT WHAT THE BROWSER WILL ACTUALLY FOCUS.
+       *
+       * `button:not(:disabled)` matches `display: none` buttons too, and the
+       * prev/next controls are hidden below 560px. On a phone the list was
+       * therefore [close, hidden-next]: the trap believed `last` was the next
+       * button, the wrap condition never fired because focus can never land
+       * there, and Tab walked straight out of the dialog into the page behind.
+       *
+       * `getClientRects().length` is the honest test — it is zero for anything
+       * `display: none`, and unlike `offsetParent` it is not fooled by a
+       * `position: fixed` ancestor, which this dialog has.
+       */
+      const f = [...(box.current?.querySelectorAll<HTMLElement>("button:not(:disabled)") ?? [])]
+        .filter((el) => el.getClientRects().length > 0);
+      if (!f.length) return;
       const first = f[0], last = f[f.length - 1];
       if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
@@ -411,7 +425,16 @@ export function Lightbox({ urls, start, onClose }: { urls: string[]; start: numb
       <div className="lbxstrip" ref={strip}
         onScroll={(e) => {
           const el = e.currentTarget;
-          setAt(Math.round(el.scrollLeft / el.clientWidth));
+          /**
+           * ⚠ CLAMP. An index outside the range is never a right answer, and
+           * this one reached "Photo 14 of 10": a stray scroll while focus was
+           * elsewhere divided by a clientWidth that no longer matched the
+           * slide. Bounding it costs nothing and makes the label incapable of
+           * lying about how many photos there are.
+           */
+          if (!el.clientWidth) return;
+          const n = Math.round(el.scrollLeft / el.clientWidth);
+          setAt(Math.max(0, Math.min(total - 1, n)));
         }}>
         {urls.map((u, n) => (
           <img key={n} src={u} alt={`Photo ${n + 1} of ${total}`}

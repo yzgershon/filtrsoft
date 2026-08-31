@@ -735,7 +735,15 @@ for (const spec of [...PHONES, ...DESKTOPS]) {
     const g = document.querySelector(".grid");
     return g ? (getComputedStyle(g).gridTemplateColumns.match(/px/g) || []).length : null;
   });
-  const wantCols = w >= 1024 ? 4 : w >= 520 ? 3 : 2;
+  /**
+   * ⚠ ABOVE 1024 THE APP IS 360px WIDE INSIDE A FRAME, SO IT IS TWO COLUMNS.
+   *
+   * A media query asks the WINDOW, not the frame, so every `min-width` rule
+   * written for a wide screen fires inside the phone unless it is undone in
+   * 10-desktop.css. Three columns squeezed into 360px is what that looks
+   * like, and it is only visible on a desktop.
+   */
+  const wantCols = w >= 1024 ? 2 : w >= 520 ? 3 : 2;
   ok(`${label}: the feed grid is ${wantCols} columns`, cols === wantCols, `${cols} at ${w}px @${dpr}x`);
 
   await page.locator(".grid .gcard .gopen, .dealhero").first().click();
@@ -764,7 +772,7 @@ for (const spec of [...PHONES, ...DESKTOPS]) {
     };
   });
   if (two) {
-    if (w >= 1024) {
+    if (false) {
       ok(`${label}: the detail is two columns`, two.cols === 2, `${two.cols}`);
       ok(`${label}: the decision sits beside the photos`, two.sideLeft >= two.galRight - 2,
         `gallery ends ${two.galRight}, decision starts ${two.sideLeft}`);
@@ -785,16 +793,18 @@ for (const spec of [...PHONES, ...DESKTOPS]) {
        */
       ok(`${label}: neither column is force-stretched`, two.align === "start", two.align);
     } else {
+      // One column everywhere: above 1024 the app is a phone in a frame,
+      // so there is no wide viewport for a two-column detail to use.
       ok(`${label}: the detail is one column`, two.cols <= 1, `${two.cols}`);
     }
   }
 
   /**
-   * ⚠ EXACTLY ONE NAV IS VISIBLE AT ANY WIDTH.
+   * ⚠ THE BOTTOM BAR IS THE ONLY NAV, AT EVERY SIZE.
    *
-   * Both render and CSS picks: the bottom bar is a phone control, the header
-   * row is the desktop one. Two visible navs would be two answers to "where am
-   * I"; zero would be an app you cannot leave the current screen from.
+   * There used to be a desktop header row above 1024px. It is gone: the app
+   * renders inside a 360x780 phone frame on a desktop now, and there is no
+   * wide bar to put it in.
    */
   const nav = await page.evaluate(() => {
     const seen = (sel) => {
@@ -814,15 +824,55 @@ for (const spec of [...PHONES, ...DESKTOPS]) {
       padL: pad ? Math.round(parseFloat(pad.paddingLeft)) : 0,
     };
   });
-  ok(`${label}: exactly one nav is visible`, !!nav.tabbar !== !!nav.hnav,
+  ok(`${label}: the bottom bar is the only nav`, !!nav.tabbar && !nav.hnav,
     `tabbar ${nav.tabbar ? "on" : "off"} · header ${nav.hnav ? "on" : "off"}`);
 
   if (w >= 1024) {
-    ok(`${label}: the shell is capped at 1180`, nav.shellW === Math.min(1180, w),
-      `${nav.shellW}px`);
-    ok(`${label}: gutters are ${w >= 1280 ? 32 : 24}px`, nav.padL === (w >= 1280 ? 32 : 24), `${nav.padL}px`);
-    ok(`${label}: the desktop nav is in the header`, !!nav.hnav && nav.hnav.pos !== "fixed",
-      nav.hnav ? nav.hnav.pos : "missing");
+    /**
+     * ⚠ THE DESKTOP VIEW IS A PHONE, AND IT MUST BE HIS PHONE.
+     *
+     * Yish: *"the exact dimensions of the real app so they both reflect the
+     * same thing."* The assertion is therefore literal — 360 x 780 CSS px,
+     * a Galaxy S24 — not "narrow enough to look mobile". A frame that was
+     * 393 wide would be a different phone and would wrap text differently
+     * from the device he is holding, which is the whole thing this exists
+     * to prevent.
+     */
+    const f = await page.evaluate(() => {
+      const a = document.querySelector(".app");
+      const r = a.getBoundingClientRect();
+      const inside = (sel) => {
+        const el = document.querySelector(sel);
+        if (!el) return null;
+        const b = el.getBoundingClientRect();
+        if (b.width === 0 && b.height === 0) return null;
+        return b.left >= r.left - 1 && b.right <= r.right + 1
+            && b.top >= r.top - 1 && b.bottom <= r.bottom + 1;
+      };
+      return {
+        cssW: a.offsetWidth, cssH: a.offsetHeight,
+        framed: getComputedStyle(a).transform !== "none",
+        scroller: getComputedStyle(document.querySelector(".scroll")).overflowY,
+        tab: inside(".tabbar"), toasts: inside(".toasts"),
+      };
+    });
+    ok(`${label}: the frame is his phone, 360x780`, f.cssW === 360 && f.cssH === 780,
+      `${f.cssW}x${f.cssH}`);
+    /**
+     * ⚠ WITHOUT A TRANSFORM, `position: fixed` RESOLVES TO THE VIEWPORT.
+     * The tab bar, the filter sheet, the toasts and the lightbox would then
+     * span the whole desktop window while the phone sits in the middle of
+     * them. This is the single most likely way to get the frame wrong.
+     */
+    ok(`${label}: the frame contains fixed children`, f.framed,
+      f.framed ? "transform present" : "NO transform: fixed children escape");
+    ok(`${label}: the tab bar is inside the phone`, f.tab === true, String(f.tab));
+    ok(`${label}: toasts are inside the phone`, f.toasts !== false, String(f.toasts));
+    /**
+     * A fixed-height frame has nothing for the document to scroll, so the
+     * content pane has to be the scroller or the feed stops at 780px.
+     */
+    ok(`${label}: the content pane scrolls`, /auto|scroll/.test(f.scroller), f.scroller);
   } else {
     // The original bug: `position: absolute` inside a fake phone frame meant
     // reaching the bar required scrolling past 285 listings.

@@ -6,16 +6,19 @@
  */
 
 /* ================================================================== shell
-   NO FAKE PHONE FRAME.
+   THIS IS THE PHONE LAYOUT, AND IT IS THE ONLY LAYOUT.
 
-   This used to render the app inside a 393x852 device mock at >= 880px, with a
-   "Shown at iPhone 16 size" caption under it. That was a dev affordance, and it
-   shipped: on Yish's phone the app read as a desktop site pretending to be
-   mobile — two-finger scroll, pinch zoom, tiny text.
+   Full-bleed on a phone, capped at 560px on anything wider. Above 1024px it is
+   put inside a 360x780 device frame by `10-desktop.css` — same rules, same
+   measurements, just drawn on a desk. Nothing here changes for that.
 
-   The app is now simply responsive. Full-bleed on a phone; on a wide screen the
-   column is centred and capped, which is what a mobile-first layout should do
-   at desktop width anyway.
+   ⚠ A DEVICE MOCK LIVED HERE BEFORE AND IT SHIPPED TO REAL PHONES. It was
+   gated at >= 880px, which a tablet and a large phone in landscape both clear,
+   so the app arrived on Yish's phone as a desktop site pretending to be mobile:
+   two-finger scroll, pinch zoom, tiny text. The frame in `10-desktop.css` is
+   gated at 1024px, which no phone reaches in either orientation, and it is
+   purely additive — every rule in this file is what a real device gets,
+   untouched.
    ========================================================================== */
 .app {
   display: flex;
