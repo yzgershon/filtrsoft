@@ -18,6 +18,7 @@ import { checkListing, checkStored, ENGINE_VERSION, type Stage } from "../engine
 import { handlePush } from "./push.ts";
 import {
   applyDiscovery, applyQuality, parseDrive, parseFilters, segmentCounts, sortFeed,
+  newSegmentCounts, parseSeen,
 } from "./query.ts";
 import { detectCategory } from "../signals/index.ts";
 import { handleDeletionChallenge, handleDeletionNotice, deletionEndpoint, deletionConfigured } from "./ebay-deletion.ts";
@@ -596,6 +597,14 @@ app.get("/v1/feed", (c) => {
   const rows = db().query(`
     SELECT l.id, l.title, l.url, l.asking_price_cents, l.location, l.posted_at, l.source,
            l.delisted_at, l.delist_reason, l.last_price_cents, l.last_seen,
+           -- captured_at: when WE first pulled the row, which is what the
+           -- per-segment NEW badges count. Deliberately NOT posted_at (the
+           -- seller's clock, often absent) and deliberately NOT the verdict
+           -- timestamp, which every ENGINE_VERSION bump rewrites. Reasoning
+           -- in newSegmentCounts, ./query.ts.
+           -- (Line comments, not block comments: a backtick in a JS template
+           --  literal ends the string, and every identifier here wants one.)
+           l.captured_at,
            v.call, v.confidence, v.payload,
            (SELECT url FROM listing_photos p WHERE p.listing_id = l.id ORDER BY position LIMIT 1) thumb,
            EXISTS(SELECT 1 FROM listing_thumbs t WHERE t.listing_id = l.id) has_thumb,
@@ -685,6 +694,8 @@ app.get("/v1/feed", (c) => {
        */
       category: detectCategory(r.title ?? "", ""),
       askingPriceCents: r.asking_price_cents, location: r.location, postedAt: r.posted_at,
+      /** Read only by `newSegmentCounts`; harmless on the wire. */
+      capturedAt: r.captured_at,
       thumb: thumbUrl(r), call: r.call, confidence: r.confidence,
       headline: v?.headline ?? null,
       netProfitCents: v?.netProfitCents ?? null,
@@ -738,6 +749,14 @@ app.get("/v1/feed", (c) => {
   const filtered = applyQuality(scoped, quality);
   const items = filtered.slice(offset, offset + limit);
   const segments = segmentCounts(scoped);
+  /**
+   * ⚠ COUNTED OVER `scoped`, THE SAME POPULATION AS `segments`.
+   *
+   * A badge is a promise that tapping the chip shows you those rows. Counting
+   * over the unfiltered set would put "3 new" on a search that returns none —
+   * the same unreachable-number lie the segment rewrite existed to remove.
+   */
+  const segmentsNew = newSegmentCounts(scoped, parseSeen(c.req.query("since")));
 
   /**
    * ⚠ WHEN THE FEED LAST MOVED, AND HOW MUCH — because "when should I look?"
@@ -774,6 +793,20 @@ app.get("/v1/feed", (c) => {
     limit,
     quality,
     segments,
+    /**
+     * New-since-you-looked, per segment, for the chip badges.
+     *
+     * ⚠ `segmentsNew.all` EXCLUDES CAN'T-TELLS while `segments.all` includes
+     * them, so `segmentsNew[q] <= segments[q]` holds but the two are NOT the
+     * same filter. Reasoning is on `NEW_NEVER_COUNTED` in ./query.ts.
+     */
+    segmentsNew,
+    /**
+     * ⚠ THE WATERMARK CLOCK, AND THE CLIENT MUST STORE THIS RATHER THAN ITS
+     * OWN `Date.now()`. A phone whose clock runs fast would otherwise write a
+     * future watermark and report zero new listings permanently.
+     */
+    serverNow: new Date().toISOString(),
     filters,
     /**
      * The facets that actually have rows behind them, counted over the
@@ -794,6 +827,83 @@ app.get("/v1/feed", (c) => {
     freshCount,
     crawlEveryMs: Number(process.env.ASSYZE_CRAWL_INTERVAL_MS ?? 3 * 60 * 1000),
   });
+});
+
+/**
+ * ─────────────────────────────────────────────────────────────── /v1/pulse
+ *
+ * "Has a deal landed in the last minute?" — the query behind the in-app alert.
+ *
+ * ⚠ BUY ONLY BY DEFAULT, AND THAT IS THE FEATURE. Measured 2026-09-01: BUY
+ * arrives **0.7 times a day**, VERIFY 2.3, and the feed as a whole ~130. An
+ * alert on everything is an interruption every eleven minutes and would be
+ * switched off the same day; an alert that fires five times a week is one you
+ * look at every time. `?verify=1` opts into the second tier.
+ *
+ * ⚠ IT IS A SEPARATE ENDPOINT FROM THE FEED ON PURPOSE. This runs every 60
+ * seconds per open tab. The feed ranks 1,200 rows, parses a verdict JSON for
+ * each and counts five segments; this reads at most a handful of rows through
+ * an indexed date comparison and returns a few hundred bytes.
+ *
+ * ⚠ `RISK` IS NEVER ALERTED. A scam landing is not news you interrupt someone
+ * for, and `NEVER_IN_ALL` already keeps those out of the default feed.
+ */
+app.get("/v1/pulse", (c) => {
+  const now = new Date().toISOString();
+  const since = c.req.query("since");
+  /**
+   * ⚠ NO WATERMARK MEANS NO ALERTS, NOT ALL OF THEM.
+   *
+   * The client stamps `pulseAt` from THIS response on first load, so a fresh
+   * tab starts level. Defaulting to "everything" would open the app with three
+   * toasts for listings that have been sitting there since yesterday — the
+   * exact failure `alerts.ts` documents for saved searches ("gets notifications
+   * turned off within a minute of being turned on").
+   */
+  const cut = since && Number.isFinite(Date.parse(since)) ? since : null;
+  if (!cut) return c.json({ now, items: [] });
+
+  const calls = c.req.query("verify") === "1" ? ["BUY", "VERIFY"] : ["BUY"];
+  const rows = db().query(`
+    SELECT l.id, l.title, l.asking_price_cents, l.source, v.call,
+           (SELECT url FROM listing_photos p WHERE p.listing_id = l.id ORDER BY position LIMIT 1) thumb,
+           EXISTS(SELECT 1 FROM listing_thumbs t WHERE t.listing_id = l.id) has_thumb
+    FROM listings l
+    JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
+    WHERE l.delisted_at IS NULL
+      AND l.captured_at > ?
+      AND v.call IN (${calls.map(() => "?").join(",")})
+    -- ⚠ BUY FIRST, *THEN* RECENCY, AND THE ORDER IS LOAD-BEARING.
+    --
+    -- The banner names items[0] and this query is capped. Ordering by time
+    -- alone, a tick that brought five MacBook VERIFYs and one RTX 4090 BUY
+    -- pushed the BUY out of the result set entirely: the one alert worth
+    -- interrupting him for silently became a laptop. Measured against the live
+    -- database the moment verify=1 was switched on. (No backticks in here:
+    -- one ends the JS template literal and the SQL stops being a string.)
+    --
+    -- The cap is 20 rather than 5 for the same reason — it also feeds the
+    -- "N new deals" count, and a cap of 5 would under-report every busy tick.
+    ORDER BY CASE v.call WHEN 'BUY' THEN 0 ELSE 1 END, l.captured_at DESC
+    LIMIT 20
+  `).all(cut, ...calls) as any[];
+
+  /**
+   * ⚠ HIS OWN LABEL WINS HERE TOO. A listing he personally marked RISKY must
+   * not then alert him as a BUY — the override is the strongest signal in the
+   * product and ignoring it on the one surface that interrupts him would be
+   * the loudest possible place to get it wrong.
+   */
+  const overrides = loadOverrides(c.req.query("ref"));
+  const items = rows
+    .map((r) => applyOverride({
+      id: r.id, title: r.title, call: r.call,
+      askingPriceCents: r.asking_price_cents,
+      source: r.source, thumb: thumbUrl(r),
+    }, overrides))
+    .filter((i) => calls.includes(i.call));
+
+  return c.json({ now, items });
 });
 
 /** A previously-run check, by listing id. Shareable permalink target. */

@@ -132,6 +132,40 @@
 }
 .seg button[aria-checked="true"] .segn { background: rgba(0,0,0,.22); }
 
+/*
+ * ⚠ NEW-SINCE-YOU-LOOKED. A SECOND badge beside `.segn`, not a replacement.
+ *
+ * `.segn` is how many exist, this is how many arrived. Swapping one for the
+ * other would make "All 704" read "All 6" and the feed would appear to have
+ * shrunk to nothing overnight.
+ *
+ * ⚠ IT IS FILLED, NOT OUTLINED, AND IT IS THE ONE COLOUR EXCEPTION ON THIS
+ * SCREEN. Everywhere else the verdict hue is reserved for the verdict — but
+ * here the badge IS the verdict, and a solid green 1 on Buy it is meant to be
+ * findable across a room. Rarity is what buys it that licence: BUY lands 0.7
+ * times a day, VERIFY 2.3, and the All badge deliberately does not count
+ * can't-tells (`NEW_NEVER_COUNTED`) or it would never go dark.
+ *
+ * `--tone` comes from `.t-*`, so a new segment needs no new rule here.
+ */
+.segnew {
+  font-size: 10px; font-weight: 800; line-height: 1;
+  padding: 3px 5px; border-radius: 999px;
+  min-width: 17px; text-align: center;
+  background: var(--tone); color: #06121b;
+  box-shadow: 0 0 0 1.5px var(--surface-2), 0 2px 8px rgba(0,0,0,.4);
+  animation: segpop 260ms var(--ease);
+}
+/* The muted tone is the only one dark enough to need light ink on it. */
+.segnew.t-mute { color: var(--ink); background: color-mix(in srgb, var(--ink-3) 55%, transparent); }
+.seg button[aria-checked="true"] .segnew { box-shadow: 0 0 0 1.5px rgba(0,0,0,.28); }
+@keyframes segpop {
+  from { transform: scale(.5); opacity: 0 }
+  to   { transform: none; opacity: 1 }
+}
+/* One count is enough when a chip carries both. Free the horizontal space. */
+.seg button .segnew + .segn, .seg button .segn + .segnew { margin-left: 3px; }
+
 /* Section headers — Codex's rule: never mix weak calls under one promise. */
 .sect { display: flex; align-items: baseline; gap: var(--s2); margin: var(--s4) 0 var(--s2); }
 .sect h3 {
@@ -372,23 +406,53 @@
    money is overlaid on the photo rather than sitting in a column — a card this
    narrow has no room for both a price column and a readable title.
    ========================================================================== */
+/*
+ * ⚠ THE GRID BREAKS OUT OF `.scroll`'s 16px PADDING, and the outer gutter is
+ * set to EXACTLY the inner gap.
+ *
+ * Yish, 2026-09-01: *"make the listings go more border to border in the app
+ * and also minimize the space between the two listings that are side by side."*
+ *
+ * Measured on a 360px phone: the old 16px padding + 8px gap gave 160px cards.
+ * At 6px/6px they are 171px — 7% wider, so about 14% more PHOTO, which is the
+ * only thing on the card anyone scans.
+ *
+ * Gutter == gap is not a coincidence to be tidied away later. When they differ,
+ * the two columns sit in visibly unequal amounts of white and the grid reads as
+ * misaligned even though every card is the same width.
+ *
+ * The negative margin (not a `.scroll` override) keeps this local to the feed:
+ * Saved, Check and Settings still want their 16px, and a shared padding change
+ * would silently reflow all four screens.
+ */
 .grid {
+  --feed-gutter: 6px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--s2);
+  gap: var(--feed-gutter);
+  margin-inline: calc(-1 * (var(--s4) - var(--feed-gutter)));
 }
 @media (min-width: 520px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* "Denser grid" in Settings. Three columns on a phone, four once there is room. */
+.grid.dense { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (min-width: 520px) { .grid.dense { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 
 /*
- * 18px on a 172px card, deliberately rounder than Facebook Marketplace's ~8px.
- * It is the one shape decision that reads as "an app" rather than "a web grid"
- * at a glance, so it does not ride on --r-lg where a later tweak elsewhere
- * could quietly flatten it.
+ * ⚠ 10px, DOWN FROM 18px. Yish, 2026-09-01: *"unround the corners a little so
+ * they are a little more square but they have a tiny bit of roundness."*
+ *
+ * The 18px was chosen to read as "an app" rather than "a web grid". At the new
+ * tighter gutter that argument inverts: a big radius on cards sitting 6px apart
+ * eats the corners of the photo, which is the content. 10px still reads as a
+ * card and gives the image back its edges.
+ *
+ * Not on --r-lg, for the original reason: a token tweak elsewhere must not
+ * silently reshape the feed.
  */
 .gcard {
   display: flex; flex-direction: column; text-align: left; min-width: 0;
   background: var(--surface); border: 1px solid var(--line);
-  border-radius: 18px; overflow: hidden; padding: 0;
+  border-radius: 10px; overflow: hidden; padding: 0;
   transition: border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
 }
 .gcard:hover { border-color: var(--surface-3); }
@@ -420,14 +484,59 @@
 .gprice { font-size: 17px; font-weight: 800; letter-spacing: -.02em; color: #fff; }
 .gnet { font-size: 11.5px; font-weight: 700; color: var(--buy); }
 
-.gbody { padding: var(--s2) 10px 10px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+/*
+ * ⚠ THE TEXT BLOCK IS COMPRESSED SO THE PHOTO CAN GROW. Yish, 2026-09-01:
+ * *"make the title and platform and location more compact ... really maximize
+ * the image as much as possible."*
+ *
+ * 21px came off the body: padding 8/10/10 -> 5/7/7, the row gap 3 -> 1, and
+ * line-height 1.3 -> 1.2. **No information was removed to get there** except
+ * the listed-ago string, which moved onto the photo as `.gage` — the title
+ * still wraps to two lines and the source and location still both print.
+ * Cutting the title to one line would have saved more and cost the ability to
+ * tell two similar listings apart, which is what the line is for.
+ */
+.gbody { padding: 5px 7px 7px; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .gbody b {
-  font-size: 12.5px; font-weight: 600; line-height: 1.3;
+  font-size: 12.5px; font-weight: 600; line-height: 1.2;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
+/*
+ * ⚠ 11px IS A FLOOR, NOT A PREFERENCE. `ui-verify` fails this line below it.
+ * Compacting the card by shrinking type is the cheap move and the wrong one —
+ * this is the smallest text in the app and it carries the source and the town.
+ * The 21px this block gave up came from PADDING and LINE-HEIGHT instead, which
+ * costs nobody anything.
+ */
 .gloc {
-  font-size: 11px; color: var(--ink-3);
+  font-size: 11px; color: var(--ink-3); line-height: 1.3;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/*
+ * ⚠ HOW LONG THE LISTING HAS BEEN UP — translucent, bottom-right on the photo.
+ *
+ * `margin-left: auto` is what puts it hard right; it is a flex item in
+ * `.gstats` rather than its own absolute overlay precisely so it can never
+ * land on top of the price or the profit chip. See the comment in feed.tsx.
+ *
+ * ⚠ NO VERDICT COLOUR, EVER. The card's rule is that colour means the call and
+ * nothing else, so a green "20 Min" would compete with the one signal the card
+ * carries. It earns attention by being ABSENT on anything over three days old
+ * (`listedAge`), not by being bright.
+ *
+ * The blur is doing real work: this is white text over an arbitrary product
+ * photo, and a flat 45% black fails on a picture of a white GPU box.
+ */
+.gage {
+  margin-left: auto; align-self: center;
+  flex: none; padding: 2px 5px; border-radius: 4px;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .02em;
+  color: rgba(255,255,255,.92);
+  background: rgba(10,14,23,.5);
+  border: 1px solid rgba(255,255,255,.16);
+  backdrop-filter: blur(6px);
+  white-space: nowrap;
 }
 
 /* ==========================================================================

@@ -29,6 +29,7 @@ import { buildQuestions } from "../src/verdict/questions.ts";
 import {
   applyDiscovery, applyQuality, matchesSearch, NO_FILTERS, parseDrive, parseFilters,
   QUALITIES, segmentCounts, sortFeed, withinPrice,
+  newSegmentCounts, parseSeen,
 } from "../src/api/query.ts";
 import { analyze } from "../src/signals/index.ts";
 import { matchSku } from "../src/catalog/match.ts";
@@ -1342,5 +1343,85 @@ describe("feed discovery", () => {
   test("the server caps the search the same way the client does", () => {
     const long = "a".repeat(500);
     expect(parseFilters((k) => (k === "q" ? long : undefined)).q.length).toBe(80);
+  });
+});
+
+
+describe("new-since-you-looked counts", () => {
+  const iso = (minsAgo: number) => new Date(Date.now() - minsAgo * 60_000).toISOString();
+  const WATERMARK = iso(60);
+
+  const rows = [
+    { call: "BUY", capturedAt: iso(10) },                  // new
+    { call: "BUY", capturedAt: iso(600) },                 // old
+    { call: "VERIFY", capturedAt: iso(5) },                // new
+    { call: "RISK", capturedAt: iso(5) },                  // new, risky only
+    { call: "PASS", capturedAt: iso(5) },                  // new
+    { call: "FAIR", capturedAt: iso(600) },                // old
+    { call: "INSUFFICIENT_DATA", capturedAt: iso(5) },     // new, but never counted in `all`
+    { call: "INSUFFICIENT_DATA", capturedAt: iso(2) },     // ditto
+  ];
+
+  const seenAll = Object.fromEntries(QUALITIES.map((q) => [q, WATERMARK]));
+
+  test("counts only rows captured after that segment's watermark", () => {
+    const n = newSegmentCounts(rows, seenAll);
+    expect(n.ready).toBe(1);    // one of the two BUYs is new
+    expect(n.verify).toBe(1);
+    expect(n.risky).toBe(1);
+    expect(n.browse).toBe(1);   // the new PASS; the FAIR is old
+  });
+
+  /**
+   * ⚠ THE HEADLINE RULE. Yish, 2026-09-01: *"exclude the cant tells in the all
+   * category."* 549 of 704 live rows are `INSUFFICIENT_DATA`, so counting them
+   * makes the All badge a permanently-lit three-digit number — wallpaper, which
+   * trains the eye past the Buy-it badge beside it.
+   */
+  test("the all badge excludes can't-tells even though the all SEGMENT serves them", () => {
+    const n = newSegmentCounts(rows, seenAll);
+    // New rows in `all`: BUY, VERIFY, PASS, and two INSUFFICIENT_DATA. Only 3 count.
+    expect(n.all).toBe(3);
+    // ...while the segment itself still serves every one of them.
+    expect(applyQuality(rows, "all").filter((r) => r.call === "INSUFFICIENT_DATA").length).toBe(2);
+  });
+
+  /**
+   * A device that has never opened Risky must not be greeted with "26 new".
+   * That is the inventory wearing a notification badge.
+   */
+  test("no watermark means zero, never everything", () => {
+    const n = newSegmentCounts(rows, {});
+    for (const q of QUALITIES) expect(n[q]).toBe(0);
+  });
+
+  test("a badge can never exceed its own segment count", () => {
+    const n = newSegmentCounts(rows, seenAll);
+    const total = segmentCounts(rows);
+    for (const q of QUALITIES) expect(n[q]).toBeLessThanOrEqual(total[q]!);
+  });
+
+  /** A row with no capture time cannot be proven new, so it is not claimed as new. */
+  test("an undated row is never counted", () => {
+    const n = newSegmentCounts([{ call: "BUY", capturedAt: null }], seenAll);
+    expect(n.ready).toBe(0);
+  });
+
+  describe("parseSeen", () => {
+    test("round-trips the segments it recognises", () => {
+      const seen = parseSeen(JSON.stringify({ ready: WATERMARK, verify: WATERMARK }));
+      expect(seen.ready).toBe(WATERMARK);
+      expect(seen.verify).toBe(WATERMARK);
+      expect(seen.risky).toBeUndefined();
+    });
+
+    /** Garbage in the query string must degrade to "no badges", never throw. */
+    test("junk yields no watermarks rather than an exception", () => {
+      expect(parseSeen("not json")).toEqual({});
+      expect(parseSeen("[1,2,3]")).toEqual({});
+      expect(parseSeen(undefined)).toEqual({});
+      expect(parseSeen(JSON.stringify({ ready: "yesterday" }))).toEqual({});
+      expect(parseSeen(JSON.stringify({ nonsense: WATERMARK }))).toEqual({});
+    });
   });
 });

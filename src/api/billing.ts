@@ -66,8 +66,34 @@ export function ensureBillingTables() {
     )`);
 }
 
+/**
+ * ─────────────────────────────────────────────────────────── the owner tier
+ *
+ * Yish, 2026-09-01: *"you can turn on the stripe payment and add the plans
+ * section (mine will always be the best one)."*
+ *
+ * `ASSYZE_OWNER_REF` is his device ref, set as an env var on the server. That
+ * device reads as the top tier for good: no checkout, no subscription, no
+ * expiry.
+ *
+ * ⚠ IT IS AN ENV VAR AND NOT A CLIENT-SIDE `if`, and the difference matters.
+ * The ref travels in a query string, so a UI-only check would mean anyone who
+ * read the JS could grant themselves the paid tier by typing his ref — and
+ * every one of his API responses carries it. Deciding it server-side keeps the
+ * entitlement a fact about the server's configuration rather than a claim the
+ * client makes about itself.
+ *
+ * ⚠ IT IS ALSO NOT A ROW IN `entitlements`. A row would be silently
+ * overwritten by any webhook that later mentions the same ref (a cancellation,
+ * a failed payment on a card he tested with), and he would lose access to his
+ * own product for a reason no screen could explain.
+ */
+const OWNER_REF = () => (process.env.ASSYZE_OWNER_REF ?? "").trim();
+export const isOwner = (ref: string) => Boolean(ref) && ref === OWNER_REF();
+
 /** `active` and `trialing` are the only states that grant access. */
 export function entitlementFor(ref: string): { active: boolean; status: string; until: string | null } {
+  if (isOwner(ref)) return { active: true, status: "owner", until: null };
   ensureBillingTables();
   const row = db().query("SELECT status, current_period_end FROM entitlements WHERE ref=?").get(ref) as
     { status: string; current_period_end: string | null } | null;
@@ -102,11 +128,27 @@ function upsert(ref: string, patch: {
 
 export function handleBillingStatus(c: Context) {
   const ref = (c.req.query("ref") ?? "").trim();
+  const owner = isOwner(ref);
+  /**
+   * ⚠ THE OWNER IS ANSWERED BEFORE THE `billingEnabled()` GATE. His tier is a
+   * property of the ref, not of whether a Stripe price happens to be
+   * configured — otherwise unsetting `STRIPE_PRICE_ID` would silently demote
+   * him to Free on his own app.
+   */
+  if (owner) {
+    return c.json({
+      enabled: billingEnabled(), plan: "owner", active: true,
+      status: "owner", until: null, owner: true,
+    });
+  }
   if (!billingEnabled()) {
-    return c.json({ enabled: false, plan: "free", active: false, reason: "no paid plan configured" });
+    return c.json({
+      enabled: false, plan: "free", active: false, owner: false,
+      reason: "no paid plan configured",
+    });
   }
   const e = ref ? entitlementFor(ref) : { active: false, status: "none", until: null };
-  return c.json({ enabled: true, plan: e.active ? "pro" : "free", ...e });
+  return c.json({ enabled: true, plan: e.active ? "pro" : "free", owner: false, ...e });
 }
 
 export async function handleCheckout(c: Context) {

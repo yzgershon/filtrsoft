@@ -14,6 +14,7 @@ import {
   readSettings, writeSettings, pendingOutcome, shareOrCopy, toast,
   openFilters, onFilterCount, rememberSpot, feedRows, deviceRef,
   onFreshness, freshnessLine, type Freshness,
+  DealBanner, publishDealAlert,
 } from "./lib.tsx";
 import { Feed } from "./feed.tsx";
 import { Report } from "./detail.tsx";
@@ -102,6 +103,74 @@ function useRoute() {
   };
 }
 
+/**
+ * Poll for deals that land while the app is open, and raise the banner.
+ *
+ * ⚠ ONLY WHILE THE TAB IS VISIBLE. A backgrounded PWA polling every minute
+ * forever is a battery complaint with a feature attached, and the answer is
+ * worthless anyway — nobody is looking. `visibilitychange` starts and stops it,
+ * and coming back to the foreground fires one immediately rather than waiting
+ * out the interval, because returning to the app is exactly when you want to
+ * know.
+ *
+ * ⚠ THE FIRST RESPONSE ONLY SETS THE CLOCK. On a cold start `pulseAt` is null,
+ * the server is told nothing, and it deliberately returns no items — so opening
+ * the app never greets you with three banners for listings that have been
+ * sitting there since yesterday. That is the same rule `alerts.ts` documents
+ * for saved searches, and the reason it exists is that violating it gets
+ * notifications switched off within a minute of being switched on.
+ *
+ * ⚠ THE WATERMARK ADVANCES ON EVERY TICK, INCLUDING A TICK THAT ALERTED. Not
+ * advancing it re-announces the same listing every 60 seconds until it falls
+ * out of the window.
+ */
+const PULSE_MS = 60_000;
+
+function useDealPulse(enabled: boolean, verify: boolean, onDeal: (items: any[]) => void) {
+  /**
+   * Refs, not deps. Rebuilding the interval whenever a setting or the callback
+   * identity changes would reset the 60-second cycle on every render, and a
+   * timer that keeps restarting is a timer that never fires.
+   */
+  const since = useRef<string | null>(null);
+  const cb = useRef(onDeal);
+  cb.current = onDeal;
+  const wantVerify = useRef(verify);
+  wantVerify.current = verify;
+
+  useEffect(() => {
+    if (!enabled) return;
+    let stopped = false;
+    let timer: number | undefined;
+
+    const tick = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const p = new URLSearchParams({ ref: deviceRef() });
+        if (since.current) p.set("since", since.current);
+        if (wantVerify.current) p.set("verify", "1");
+        const d = await (await fetch(`/v1/pulse?${p}`)).json();
+        if (stopped) return;
+        // Advance FIRST: an exception in the callback must not make the same
+        // listing alert again on the next tick.
+        const first = since.current === null;
+        since.current = d.now ?? since.current;
+        if (!first && Array.isArray(d.items) && d.items.length) cb.current(d.items);
+      } catch { /* offline; the next tick tries again */ }
+    };
+
+    const onVis = () => { if (document.visibilityState === "visible") void tick(); };
+    void tick();
+    timer = setInterval(tick, PULSE_MS) as unknown as number;
+    addEventListener("visibilitychange", onVis);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+      removeEventListener("visibilitychange", onVis);
+    };
+  }, [enabled]);
+}
+
 export default function App() {
   const { path, screen, go, replace, back } = useRoute();
   /**
@@ -145,6 +214,22 @@ export default function App() {
   useEffect(() => onFilterCount(setFilterCount), []);
   const [crawl, setCrawl] = useState<Freshness | null>(null);
   useEffect(() => onFreshness(setCrawl), []);
+  /**
+   * ⚠ THE NEWEST DEAL NAMES ITSELF; THE REST ARE A COUNT. `/v1/pulse` returns
+   * newest-first, so `items[0]` is the one worth putting a title and a price
+   * on. Announcing all five would stack five cards over the feed for an event
+   * that happens five times a WEEK — the volume is the reason this can afford
+   * to be loud, and stacking is how it would stop being.
+   */
+  useDealPulse(settings.alerts, settings.alertVerify, useCallback((items: any[]) => {
+    const top = items[0];
+    publishDealAlert({
+      id: top.id, title: top.title, call: top.call,
+      askingPriceCents: top.askingPriceCents ?? null,
+      thumb: top.thumb ?? null,
+      more: items.length,
+    });
+  }, []));
   const es = useRef<EventSource | null>(null);
   const field = useRef<HTMLInputElement | null>(null);
 
@@ -550,6 +635,15 @@ export default function App() {
           </main>
 
           <Tabbar tab={tab} go={goTab} savedCount={savedCount} />
+          {/**
+            * ⚠ THE BANNER IS MOUNTED AT THE SHELL, NOT INSIDE THE FEED. A deal
+            * landing while he is on Saved, on Check or halfway down a listing
+            * is exactly when an alert earns its keep; scoping it to the Deals
+            * screen would silence it everywhere it matters most.
+            */}
+          <DealBanner
+            onOpen={(id) => go(`/c/${id}`)}
+            onSegment={() => go("/?quality=ready")} />
           <Toaster />
     </div>
   );

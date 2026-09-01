@@ -61,6 +61,28 @@ export interface Settings {
   askOutcomes: boolean;
   /** Stamps the one-shot 15 -> 20 default migration. See `mergeSettings`. */
   driveVersion?: number;
+
+  // ── the in-app alert ──────────────────────────────────────────────────
+  /**
+   * The top-of-screen popup when a deal lands while the app is open.
+   *
+   * ⚠ THERE IS NO `alertBuy` SWITCH AND THAT IS DELIBERATE. BUY arrives 0.7
+   * times a day; an alert that rare has no volume problem to solve, and a
+   * master switch beside it is just a way to turn the product off by accident.
+   * `alerts` is the master, `alertVerify` adds the 2.3/day tier.
+   */
+  alerts: boolean;
+  alertVerify: boolean;
+
+  // ── feed presentation ─────────────────────────────────────────────────
+  /**
+   * The translucent age tag on the card photo. On by default; anything older
+   * than three days never carries one whatever this says (`listedAge`).
+   */
+  showAge: boolean;
+  /** Verdict chip on the photo. Off = photo-only cards. */
+  showCall: boolean;
+  compact: boolean;
 }
 
 export const SETTINGS_KEY = "assyze:settings";
@@ -79,6 +101,11 @@ export const DEFAULT_SETTINGS: Settings = {
   hideGone: true,
   reduceMotion: false,
   askOutcomes: true,
+  alerts: true,
+  alertVerify: false,
+  showAge: true,
+  showCall: true,
+  compact: false,
 };
 
 /**
@@ -302,14 +329,68 @@ export const restoreLimit = (n: number): number =>
   Math.min(FEED_LIMIT_MAX, Math.max(FEED_PAGE, Math.floor(n) || FEED_PAGE));
 
 /** The feed request for a whole filter state. */
+// ──────────────────────────────────────────────── what you have already seen
+
+/**
+ * The per-segment "last looked at" watermarks behind the chip badges.
+ *
+ * ⚠ ONE WATERMARK PER SEGMENT, NOT ONE FOR THE APP. Viewing Risky must not
+ * clear the Buy-it badge. A single watermark would mean the rarest and most
+ * valuable signal in the product (0.7 BUYs a day) gets wiped by glancing at
+ * the noisiest tab, which is the one thing the badges exist to prevent.
+ *
+ * ⚠ AND THE VALUES ARE SERVER TIMESTAMPS, echoed back from `serverNow`. Never
+ * `Date.now()` — a phone running four minutes fast writes a future watermark
+ * and then reports zero new listings forever, with nothing on screen to
+ * explain why. Same reason `parseSeen` exists server-side.
+ */
+export const SEEN_KEY = "assyze:seen";
+
+export type Seen = Partial<Record<Quality, string>>;
+
+export function readSeen(): Seen {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SEEN_KEY) || "{}");
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const out: Seen = {};
+    for (const q of QUALITIES) {
+      const v = parsed[q];
+      if (typeof v === "string" && Number.isFinite(Date.parse(v))) out[q] = v;
+    }
+    return out;
+  } catch { return {}; }
+}
+
+/**
+ * Stamp one segment as seen.
+ *
+ * ⚠ MONOTONIC. A response that arrives out of order (page 2 of a slow request
+ * landing after page 1 of a newer one) must never walk the watermark
+ * BACKWARDS, or listings you have already looked at reappear as new.
+ */
+export function markSeen(q: Quality, at: string): Seen {
+  const seen = readSeen();
+  const prev = seen[q];
+  if (prev && Date.parse(prev) >= Date.parse(at)) return seen;
+  const next = { ...seen, [q]: at };
+  try { localStorage.setItem(SEEN_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+  return next;
+}
+
 export function feedUrl(o: {
-  limit: number; offset: number; hideGone: boolean; filters: Filters; ref?: string;
+  limit: number; offset: number; hideGone: boolean; filters: Filters; ref?: string; seen?: Seen;
 }): string {
   const p = new URLSearchParams(searchFromFilters(o.filters).replace(/^\?/, ""));
   p.set("limit", String(o.limit));
   p.set("offset", String(o.offset));
   p.set("quality", o.filters.quality);
   if (!o.hideGone) p.set("gone", "1");
+  /**
+   * The watermarks, so the server can count what is new PER SEGMENT. Sent as
+   * JSON rather than four params because the set of segments is `QUALITIES`
+   * and adding one should not mean touching this function.
+   */
+  if (o.seen && Object.keys(o.seen).length) p.set("since", JSON.stringify(o.seen));
   /**
    * ⚠ THE FEED NEEDS THE REF OR AN OVERRIDE ONLY WORKS ON THE DETAIL SCREEN.
    * The server moves a relabelled listing between segments and recounts the

@@ -239,8 +239,14 @@ const detailOpen = (page) => page.evaluate(
   const h1 = ((await page.locator("h1").first().textContent()) ?? "").trim();
   ok("Saved always has an H1", h1.length > 0 && /saved/i.test(h1), h1 || "none");
 
+  /**
+   * ⚠ THREE, NOT TWO. This asserted 2 and went on failing after Purchases
+   * shipped as a third sub-tab — a checker that is wrong about the app teaches
+   * you to skim its output, which is how the next REAL failure gets ignored.
+   */
   const subs = page.locator(".subtabs button");
-  ok("Saved has Listings/Alerts sub-tabs", (await subs.count()) === 2);
+  ok("Saved has Listings/Alerts/Purchases sub-tabs", (await subs.count()) === 3,
+    `${await subs.count()} tabs`);
   ok("Listings is selected first", (await subs.nth(0).getAttribute("aria-selected")) === "true");
 
   if (await page.locator(".empty").count()) {

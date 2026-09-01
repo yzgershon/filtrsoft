@@ -118,3 +118,24 @@ export const Back = ({ size = 20, className }: P) =>
 /** Card — billing. */
 export const Card = ({ size = 22, className }: P) =>
   svg(size, <><rect x="2.5" y="5" width="19" height="14" rx="2.5" /><path d="M2.5 10h19" /><path d="M6 15h3" /></>, className);
+
+/** Cross — dismiss. */
+export const Cross = ({ size = 16, className }: P) =>
+  svg(size, <><path d="M6 6l12 12" /><path d="M18 6 6 18" /></>, className);
+
+/** Star — the plan tier marker. */
+export const Star = ({ size = 18, className, filled }: P & { filled?: boolean }) =>
+  svg(size, <path d="m12 3.6 2.6 5.3 5.8.85-4.2 4.1 1 5.75L12 16.9l-5.2 2.7 1-5.75-4.2-4.1 5.8-.85Z"
+    fill={filled ? "currentColor" : "none"} />, className);
+
+/** Trash — destructive. */
+export const Trash = ({ size = 18, className }: P) =>
+  svg(size, <><path d="M4 7h16" /><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7" /><path d="M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12" /></>, className);
+
+/** Phone — the install / device group. */
+export const Phone = ({ size = 18, className }: P) =>
+  svg(size, <><rect x="6" y="2.5" width="12" height="19" rx="2.5" /><path d="M10.5 18.5h3" /></>, className);
+
+/** Sparkle — appearance. */
+export const Spark = ({ size = 18, className }: P) =>
+  svg(size, <><path d="M12 3v4M12 17v4M3 12h4M17 12h4" /><path d="m6.3 6.3 2.5 2.5M15.2 15.2l2.5 2.5M17.7 6.3l-2.5 2.5M8.8 15.2l-2.5 2.5" /></>, className);

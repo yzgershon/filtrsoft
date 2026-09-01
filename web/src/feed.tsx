@@ -14,10 +14,10 @@ import {
   type Filters, type Quality,
   NO_FILTERS, CATEGORIES, SOURCES, SORTS, sourceLabel,
   filtersFromSearch, searchFromFilters, activeFilterCount, feedUrl,
-  FEED_PAGE, restoreLimit,
+  FEED_PAGE, restoreLimit, readSeen, markSeen,
 } from "./nav.ts";
 import {
-  LABEL, money, ago, readWatch, toggleWatch, readSettings, toast, Thumb,
+  LABEL, money, ago, listedAge, readWatch, toggleWatch, readSettings, toast, Thumb,
   SUBKEY, urlB64ToBytes, onOpenFilters, publishFilterCount,
   popSpot, restoreScroll, setFeedRows, deviceRef, publishFreshness,
 } from "./lib.tsx";
@@ -54,6 +54,18 @@ export function Gcard({ i, saved, onSave, onOpen }: {
     i.gone ? "no longer listed" : null,
   ].filter(Boolean).join(", ");
 
+  /**
+   * The photo's age tag — "20 Min", "4 Hrs", "2 Days", or nothing.
+   *
+   * ⚠ THE SCREEN-READER DESCRIPTION ABOVE KEEPS `ago()` RATHER THAN THIS. The
+   * tag is a glanceable shorthand that goes silent past three days to stay
+   * meaningful; a description is under no such pressure, and "listed 12 days
+   * ago" is real information. Hiding it from assistive tech to match a visual
+   * density decision would trade their information for nobody's benefit.
+   */
+  const cfg = readSettings();
+  const age = cfg.showAge ? listedAge(i.postedAt) : null;
+
   return (
     <div className={`gcard${i.gone ? " is-gone" : ""}`}>
       <button className="gopen" onClick={(e) => onOpen(e.currentTarget.closest(".gcard") as HTMLElement)}
@@ -68,10 +80,18 @@ export function Gcard({ i, saved, onSave, onOpen }: {
             * comes back to him as the engine's — which erases the one thing the
             * control exists to record: which listings he has actually checked
             * himself. See `api/overrides.ts`.
+            *
+            * ⚠ WHICH IS WHY THE CHIP CAN BE HIDDEN AND HIS OWN LABEL CANNOT.
+            * `showCall` turns the engine's verdict off for a cleaner photo
+            * grid; a listing HE relabelled keeps its chip regardless, because
+            * silently dropping that marker would erase his own record with no
+            * way to tell the setting had done it.
             */}
-          <span className={`gcall b-${i.call}${i.overriddenFrom ? " mine" : ""}`}>
-            {LABEL[i.call]}{i.overriddenFrom ? <i aria-hidden="true">•</i> : null}
-          </span>
+          {(cfg.showCall || i.overriddenFrom) && (
+            <span className={`gcall b-${i.call}${i.overriddenFrom ? " mine" : ""}`}>
+              {LABEL[i.call]}{i.overriddenFrom ? <i aria-hidden="true">•</i> : null}
+            </span>
+          )}
           {i.gone ? <span className="gghost">Gone</span> : null}
           <span className="gstats">
             <span className="num gprice">{money(price)}</span>
@@ -80,6 +100,22 @@ export function Gcard({ i, saved, onSave, onOpen }: {
               : i.netProfitCents && i.netProfitCents > 0
                 ? <span className="num gnet">+{money(i.netProfitCents)}</span>
                 : null}
+            {/**
+              * ⚠ HOW LONG IT HAS BEEN UP, BOTTOM-RIGHT ON THE PHOTO — and it
+              * is a FLEX ITEM IN `.gstats`, not a second absolutely-positioned
+              * overlay.
+              *
+              * Bottom-right is where the net-profit chip already grows to. Two
+              * independently-positioned overlays on a 171px card collide the
+              * moment a price is four digits and a profit is three, and the
+              * collision is invisible until it happens on a listing that
+              * matters. `margin-left: auto` puts it hard right and lets
+              * flexbox guarantee what a `right: 8px` could only hope for.
+              *
+              * Silent past three days — see `listedAge`. That is what stops it
+              * being a column and keeps it a signal.
+              */}
+            {age && <span className="gage">{age}</span>}
           </span>
         </span>
         <span className="gbody">
@@ -96,8 +132,15 @@ export function Gcard({ i, saved, onSave, onOpen }: {
               * the audit gives: the VERDICT colour stays the only colour that
               * means anything, so a brand palette here would compete with the
               * one signal the card exists to carry.
+              *
+              * ⚠ `ago(i.postedAt)` IS GONE FROM THIS LINE ON PURPOSE — it is
+              * the photo's age tag now. Yish, 2026-09-01: *"we can get rid of
+              * the listed x ago tag on the homepage that comes after the
+              * listing location because we will now have that as a see through
+              * image overlay."* Keeping both would print the same fact twice on
+              * one card, and this line is the one that has to fit in 171px.
               */}
-            {[sourceLabel(i.source), i.location, ago(i.postedAt)].filter(Boolean).join(" · ")}
+            {[sourceLabel(i.source), i.location].filter(Boolean).join(" · ")}
           </span>
         </span>
       </button>
@@ -354,6 +397,8 @@ export function Feed({ onOpen, onWatchChange }: {
   const [sheet, setSheet] = useState(false);
   const [facets, setFacets] = useState<{ category?: Record<string, number>; source?: Record<string, number> }>({});
   const [segments, setSegments] = useState<Record<string, number>>({});
+  /** New-since-you-looked, per segment. Drives the chip badges. */
+  const [newCounts, setNewCounts] = useState<Record<string, number>>({});
   const [total, setTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -390,13 +435,34 @@ export function Feed({ onOpen, onWatchChange }: {
      * the engine's calls and the engine's chip counts while the same listing's
      * own page shows his. See `api/overrides.ts`.
      */
-    return fetch(feedUrl({ limit, offset, hideGone: readSettings().hideGone, filters: f, ref: deviceRef() }))
+    /**
+     * ⚠ THE WATERMARKS GO OUT WITH THE REQUEST AND ARE READ BEFORE IT, not
+     * after. `markSeen` below moves the one for the segment being viewed, so
+     * reading them inside `.then` would send the value we are about to write
+     * and every badge would be permanently zero.
+     */
+    const seen = readSeen();
+    return fetch(feedUrl({ limit, offset, hideGone: readSettings().hideGone, filters: f, ref: deviceRef(), seen }))
       .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
       .then((d) => {
         setItems((prev) => (offset === 0 ? (d.items ?? []) : [...(prev ?? []), ...(d.items ?? [])]));
         setSegments(d.segments ?? {});
+        setNewCounts(d.segmentsNew ?? {});
         setFacets(d.facets ?? {});
         setTotal(d.total ?? 0);
+        /**
+         * ⚠ SEEING A SEGMENT CLEARS ONLY THAT SEGMENT'S BADGE, and only on the
+         * FIRST page. Two consequences worth stating:
+         *
+         * Viewing All does NOT clear Buy it, even though All contains the
+         * BUYs. Over-clearing costs a 0.7-per-day event; under-clearing costs
+         * one redundant glance, so it errs the cheap way.
+         *
+         * And the stamp is `d.serverNow`, never `Date.now()` — a phone whose
+         * clock runs fast would write a future watermark and then report zero
+         * new listings for good, with nothing on screen to explain it.
+         */
+        if (offset === 0 && d.serverNow) markSeen(f.quality, d.serverNow);
         publishFreshness({
           at: d.lastCrawl?.started_at ?? null,
           fresh: d.freshCount ?? 0,
@@ -520,7 +586,7 @@ export function Feed({ onOpen, onWatchChange }: {
   useEffect(() => { publishFilterCount(nFilters); }, [nFilters]);
   useEffect(() => onOpenFilters(() => setSheet(true)), []);
 
-  const SEGS: Array<{ id: Quality; label: string; n: number }> = [
+  const SEGS: Array<{ id: Quality; label: string; n: number; fresh: number; tone: string }> = [
     /**
      * ⚠ "BUY IT", NOT "READY". Yish, 2026-08-31: *"change the ready tag in the
      * filter bar to Buy it."* The card on a BUY listing has said "BUY IT" since
@@ -529,10 +595,10 @@ export function Feed({ onOpen, onWatchChange }: {
      * stays `ready` because it is a URL and a server query — this is a label,
      * not a rename.
      */
-    { id: "ready", label: "Buy it", n: segments.ready ?? 0 },
-    { id: "verify", label: "Verify", n: segments.verify ?? 0 },
-    { id: "risky", label: "Risky", n: segments.risky ?? 0 },
-    { id: "all", label: "All", n: segments.all ?? 0 },
+    { id: "ready", label: "Buy it", n: segments.ready ?? 0, fresh: newCounts.ready ?? 0, tone: "buy" },
+    { id: "verify", label: "Verify", n: segments.verify ?? 0, fresh: newCounts.verify ?? 0, tone: "verify" },
+    { id: "risky", label: "Risky", n: segments.risky ?? 0, fresh: newCounts.risky ?? 0, tone: "risk" },
+    { id: "all", label: "All", n: segments.all ?? 0, fresh: newCounts.all ?? 0, tone: "mute" },
   ];
 
   const GROUPS: Array<{ label: string; note: string; tone: string; calls: Call[] }> = [
@@ -714,7 +780,7 @@ export function Feed({ onOpen, onWatchChange }: {
                   * squeezing the title to nothing, and a price over its own
                   * product reads faster than a price in a column anyway.
                   */}
-                <div className="grid">
+                <div className={`grid${readSettings().compact ? " dense" : ""}`}>
                   {list.map((i) => (
                     <Gcard key={i.id} i={i} saved={watch.includes(i.id)}
                       onSave={() => { const n = toggleWatch(i.id); setWatch(n); onWatchChange(n.length); }}
@@ -756,7 +822,7 @@ export function Feed({ onOpen, onWatchChange }: {
  */
 export function Segmented<T extends string>({ value, onChange, options }: {
   value: T; onChange: (v: T) => void;
-  options: Array<{ id: T; label: string; n: number }>;
+  options: Array<{ id: T; label: string; n: number; fresh?: number; tone?: string }>;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [ind, setInd] = useState({ left: 0, width: 0 });
@@ -843,7 +909,40 @@ export function Segmented<T extends string>({ value, onChange, options }: {
               pending.current = last; onChange(last);
             }
           }}>
-          {o.label}{o.n > 0 ? <span className="segn num">{o.n}</span> : null}
+          {/**
+            * ⚠ ONE NUMBER PER CHIP. The total hides while a NEW badge is up,
+            * and this is a measured fix, not a taste call.
+            *
+            * Two counts per chip overflowed the control at every phone width —
+            * 61px past the edge on his 360px S24 — and `.seg` scrolls to keep
+            * the SELECTED chip visible, so the one it pushed off screen was
+            * "Buy it": the rarest and most valuable tab in the app, hidden by
+            * the feature meant to draw attention to it.
+            *
+            * Which number survives is the actionable one. "2 new" beats "5
+            * total" on a tab you are deciding whether to open, and tapping it
+            * clears the badge and brings the total straight back.
+            */}
+          {o.label}{o.n > 0 && !(o.fresh ?? 0) ? <span className="segn num">{o.n}</span> : null}
+          {/**
+            * ⚠ HOW MANY ARRIVED SINCE YOU LAST LOOKED AT *THIS* CHIP, and it
+            * is a SECOND number beside the inventory count rather than a
+            * replacement for it. They answer different questions — "how many
+            * are there" and "how many are new" — and a control that swapped
+            * one for the other would make the feed appear to shrink to 3.
+            *
+            * Tinted per segment, and that is the one place a colour other
+            * than the verdict's is allowed on this screen: it IS the verdict,
+            * which is exactly what makes a green 1 on Buy it worth crossing a
+            * room for. Measured arrival rates are why the badge can be loud —
+            * BUY lands 0.7 times a day. See `newSegmentCounts` in the API.
+            */}
+          {(o.fresh ?? 0) > 0 && (
+            <span className={`segnew t-${o.tone ?? "mute"}`}
+              aria-label={`${o.fresh} new since you last looked`}>
+              {o.fresh! > 99 ? "99+" : o.fresh}
+            </span>
+          )}
         </button>
       ))}
     </div>

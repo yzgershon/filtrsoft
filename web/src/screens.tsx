@@ -10,15 +10,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Again, Alert, Bell, Card, Check, Clock, Cut, Gear, Grid, Save, Scan, Tag, User,
+  Cross, Phone, Shield, Spark, Star, Trash,
 } from "./icons.tsx";
 import type { Call, FeedItem, Hist } from "./types.ts";
 import { Ghost } from "./icons.tsx";
 import {
   type Settings, DRIVE_MIN, DRIVE_MAX, DRIVE_STEP, clampDrive,
+  SEEN_KEY, SETTINGS_KEY,
 } from "./nav.ts";
 import {
   LABEL, money, ago, markAsked, toast, writeWatch, readWatch, toggleWatch,
-  SUBKEY, urlB64ToBytes, deviceRef, Thumb,
+  SUBKEY, urlB64ToBytes, deviceRef, Thumb, readSettings, HKEY, AKEY,
 } from "./lib.tsx";
 import { Gcard } from "./feed.tsx";
 
@@ -112,7 +114,7 @@ export function Watchlist({ onOpen, onWatchChange, onBrowse }: {
           </div>
         ) : (
           <>
-            <div className="grid">
+            <div className={`grid${readSettings().compact ? " dense" : ""}`}>
               {items.map((i) => (
                 <Gcard key={i.id} i={i} saved
                   onSave={() => { const n = toggleWatch(i.id); setIds(n); onWatchChange(n.length); }}
@@ -374,8 +376,60 @@ export { REFKEY, deviceRef } from "./lib.tsx";
  * `?paid=1` on return from Checkout only triggers a REFRESH. It is never taken
  * as proof of payment; the webhook is the only thing that grants access.
  */
+/**
+ * Plans.
+ *
+ * ⚠ THE TIERS ARE DESCRIBED HERE AND PRICED BY STRIPE, and they must not
+ * drift. `PLANS` is copy — what each tier gives you — while the amount charged
+ * comes from `STRIPE_PRICE_ID` on the server. Hardcoding a dollar figure in
+ * both places is how a price change ships to the marketing copy and not to the
+ * checkout, so the number is stated once and clearly labelled as the display
+ * price of the configured plan.
+ *
+ * ⚠ AND THE FREE TIER IS NOT A CRIPPLED ONE. `billing.ts` explains why billing
+ * is built and off: the Phase 3 gate is ten payers, Assyze has an audience of
+ * one, and a paywall now costs the only thing that matters. Nothing in the
+ * "Free" column below is something the app does today and would stop doing.
+ */
+const PLANS: Array<{
+  id: string; name: string; blurb: string; lines: string[]; tier: number;
+}> = [
+  {
+    id: "free", name: "Free", tier: 0,
+    blurb: "Everything the feed does today.",
+    lines: [
+      "Every verified listing in the feed",
+      "Unlimited link checks",
+      "Saved listings, re-checked daily",
+      "Price-drop and sold tracking",
+    ],
+  },
+  {
+    id: "pro", name: "Pro", tier: 1,
+    blurb: "For when a deal is worth being first to.",
+    lines: [
+      "Everything in Free",
+      "Push alerts on saved searches",
+      "Deal banner the moment a BUY lands",
+      "Your own verdict overrides, synced",
+    ],
+  },
+  {
+    id: "owner", name: "Founder", tier: 2,
+    blurb: "The whole thing, permanently.",
+    lines: [
+      "Everything in Pro",
+      "No limits and no expiry",
+      "New features the day they build",
+    ],
+  },
+];
+
 export function Billing({ onlyWhenEnabled }: { onlyWhenEnabled?: boolean }) {
-  const [st, setSt] = useState<{ enabled: boolean; plan: string; active?: boolean; until?: string | null } | null>(null);
+  const [st, setSt] = useState<{
+    enabled: boolean; plan: string; active?: boolean;
+    until?: string | null; owner?: boolean;
+  } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
@@ -402,51 +456,84 @@ export function Billing({ onlyWhenEnabled }: { onlyWhenEnabled?: boolean }) {
     } finally { setBusy(false); }
   }
 
-  // Nothing to sell and nothing bought: render nothing at all.
-  if (onlyWhenEnabled && st && !st.enabled && !st.active) return null;
-  if (onlyWhenEnabled && !st) return null;
+  /**
+   * ⚠ `onlyWhenEnabled` STILL SUPPRESSES THE WHOLE THING (audit §14) — but the
+   * OWNER always sees it. The Settings screen passes the flag so a
+   * nothing-to-sell state does not push every working control below the fold;
+   * on his device there is always something true to show.
+   */
+  if (!st) return onlyWhenEnabled ? null : <div className="sgroup" />;
+  if (onlyWhenEnabled && !st.enabled && !st.active && !st.owner) return null;
+
+  const current = st.owner ? "owner" : st.active ? "pro" : "free";
+  const currentTier = PLANS.find((p) => p.id === current)?.tier ?? 0;
 
   return (
     <div className="sgroup">
-      <div className="shead"><Card size={14} /> Billing</div>
-      <div className="scard">
-        <div className="planrow">
-          <div>
-            <b>{st?.active ? "Pro" : "Free"}</b>
-            <span>
-              {st?.active
-                ? "Everything in Assyze, including alerts."
-                : "Every listing in the feed, unlimited checks, and the daily tracker."}
-            </span>
-          </div>
-          <span className="pill">Current</span>
-        </div>
+      <div className="shead"><Star size={14} /> Plan</div>
 
-        {!st?.enabled && (
-          <p className="snote">
-            Assyze is free while the feed is being built out. Paid plans come when there
-            is something worth charging for, and nothing you use today moves behind a
-            paywall.
-          </p>
-        )}
-
-        {st?.enabled && !st.active && (
-          <button className="btn2" disabled={busy} onClick={() => go("checkout")}>
-            <Card size={15} /> {busy ? "Opening…" : "Upgrade"}
-          </button>
-        )}
-
-        {st?.enabled && st.active && (
-          <>
-            {st.until && (
-              <p className="snote">Renews {new Date(st.until).toLocaleDateString()}.</p>
-            )}
-            <button className="btn2" disabled={busy} onClick={() => go("portal")}>
-              {busy ? "Opening…" : "Manage subscription"}
-            </button>
-          </>
-        )}
+      <div className="plans">
+        {PLANS
+          /**
+           * ⚠ FOUNDER IS HIDDEN FROM EVERYONE WHO IS NOT ON IT. It cannot be
+           * bought, so showing it to a free user is a tier with no button —
+           * a dead column that reads as either a bug or a taunt.
+           */
+          .filter((p) => p.id !== "owner" || st.owner)
+          .map((p) => {
+            const is = p.id === current;
+            return (
+              <div className={`plan${is ? " on" : ""}${p.id === "owner" ? " gold" : ""}`} key={p.id}>
+                <div className="planhd">
+                  <b>{p.name}</b>
+                  {is
+                    ? <span className="pill on">Current</span>
+                    : p.tier > currentTier ? <span className="pill">Upgrade</span> : null}
+                </div>
+                <p className="planblurb">{p.blurb}</p>
+                <ul className="planlist">
+                  {p.lines.map((l) => (
+                    <li key={l}><Check size={12} />{l}</li>
+                  ))}
+                </ul>
+                {/**
+                  * The button appears ONLY on a tier you can actually move to.
+                  * A disabled "Upgrade" under the plan you already have is a
+                  * control that exists to be refused.
+                  */}
+                {p.id === "pro" && !is && st.enabled && (
+                  <button className="btn2" disabled={busy} onClick={() => go("checkout")}>
+                    <Card size={15} /> {busy ? "Opening…" : "Upgrade"}
+                  </button>
+                )}
+                {p.id === "pro" && is && (
+                  <button className="btn3 wide" disabled={busy} onClick={() => go("portal")}>
+                    {busy ? "Opening…" : "Manage subscription"}
+                  </button>
+                )}
+              </div>
+            );
+          })}
       </div>
+
+      {st.owner && (
+        <p className="snote">
+          This device is the founder account. Nothing here expires and nothing
+          asks you to pay.
+        </p>
+      )}
+
+      {!st.enabled && !st.owner && (
+        <p className="snote">
+          Assyze is free while the feed is being built out. Paid plans come when
+          there is something worth charging for, and nothing you use today moves
+          behind a paywall.
+        </p>
+      )}
+
+      {st.enabled && st.active && !st.owner && st.until && (
+        <p className="snote">Renews {new Date(st.until).toLocaleDateString()}.</p>
+      )}
     </div>
   );
 }
@@ -616,34 +703,116 @@ export function Toggle({ label, hint, on, onChange }: {
  * There was no settings screen at all, which is why "your numbers" ended up on
  * the You tab as a read-only table with "editing these is coming" under it.
  *
- * Only things that DO something are here. A settings screen padded with
- * switches that toggle nothing teaches people the screen is decorative, and
- * then the one that matters gets ignored too. Anything not yet wired says so
- * plainly rather than pretending.
+ * ⚠ THE RULE THIS SCREEN IS BUILT ON: **only things that DO something.** A
+ * settings screen padded with switches that toggle nothing teaches people the
+ * screen is decorative, and then the one that matters gets ignored too.
+ *
+ * Yish, 2026-09-01, asked for *"a general section, account section, and a
+ * bunch others like what apps usually have even things we havent talked
+ * about."* Every group below exists because a real control needed a home —
+ * the ones a normal app has that Assyze genuinely has no answer for (dark/
+ * light mode: there is one theme; language: there is one language; sign out:
+ * there is no account) are NOT stubbed in as disabled rows. An app that says
+ * "coming soon" four times is worse than one that is honestly small.
  */
 export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
   s: Settings; save: (p: Partial<Settings>) => void;
   savedCount: number; onClearSaved: () => void;
 }) {
   const [cleared, setCleared] = useState(false);
+  const [histCleared, setHistCleared] = useState(false);
+  const [badgesReset, setBadgesReset] = useState(false);
+
+  /**
+   * ⚠ THE DEVICE REF IS SHOWN, TRUNCATED, AND IT IS THE CLOSEST THING TO AN
+   * ACCOUNT THIS PRODUCT HAS.
+   *
+   * Saved listings, verdict overrides, push subscriptions and the billing
+   * entitlement all hang off it. Someone whose overrides vanish because they
+   * cleared site data deserves to have seen the thing that was holding them,
+   * and support for a lost subscription is impossible without it.
+   */
+  const ref = deviceRef();
+
+  /** Rough localStorage footprint, for the Data group. */
+  const kb = (() => {
+    try {
+      let n = 0;
+      for (const k in localStorage) {
+        if (Object.prototype.hasOwnProperty.call(localStorage, k)) {
+          n += (localStorage.getItem(k)?.length ?? 0) + k.length;
+        }
+      }
+      return Math.max(1, Math.round(n / 1024));
+    } catch { return null; }
+  })();
+
+  /**
+   * ⚠ INSTALL STATE IS DETECTED, NOT ASSUMED. `display-mode: standalone` is
+   * the only reliable read of "this is running as an installed app" across
+   * Android and iOS, and it decides whether the row is an instruction or a
+   * confirmation. Telling someone to install something they already installed
+   * is how a settings screen loses their trust in one line.
+   */
+  const installed = typeof matchMedia === "function"
+    && matchMedia("(display-mode: standalone)").matches;
 
   return (
     <div className="screen">
-      <div className="feedhead">
-        <span className="eyebrow mute">Preferences</span>
-        <h1>Your <span className="g">settings</span></h1>
+      {/**
+        * ⚠ NO EYEBROW HERE. Yish, 2026-09-01: *"in the settings get rid of the
+        * preferences tag at the top and the Your settings change to just
+        * Settings."* Every other screen's eyebrow names a category the heading
+        * then narrows; "Preferences" above "Your settings" said the same word
+        * twice and cost a row of vertical space on the screen with the most
+        * scrolling to do.
+        */}
+      <div className="feedhead tight">
+        <h1>Settings</h1>
       </div>
 
-      {/**
-        * ⚠ BILLING RENDERS ONLY WHEN BILLING IS ENABLED (audit §14).
-        *
-        * The first Settings card explained that the product is free and paid
-        * plans may come later. That is honest but not useful, and it pushed
-        * every control that DOES something below the fold. `Billing` already
-        * asks the server; it just always rendered the answer.
-        */}
       <Billing onlyWhenEnabled />
 
+      {/* ── ALERTS ─────────────────────────────────────────────────────── */}
+      <div className="sgroup">
+        <div className="shead"><Bell size={14} /> Alerts</div>
+        <div className="scard">
+          {/**
+            * ⚠ THERE IS NO "ALERT ME ON BUY" SWITCH, ONLY A MASTER AND A
+            * SECOND TIER. Measured 2026-09-01: BUY lands 0.7 times a day. A
+            * signal that rare has no volume problem for a switch to solve, and
+            * an extra toggle beside the master is mostly a way to turn the
+            * product off by accident.
+            */}
+          <Toggle label="Deal banner"
+            hint="Drop a banner from the top when a Buy it lands while the app is open. About five a week."
+            on={s.alerts} onChange={(v) => save({ alerts: v })} />
+          {s.alerts && (
+            <Toggle label="Include Verify first"
+              hint="Adds listings that need one question answered. Roughly two a day instead of one every other day."
+              on={s.alertVerify} onChange={(v) => save({ alertVerify: v })} />
+          )}
+          {/**
+            * ⚠ PUSH LIVES ON SAVED AND IS NOT DUPLICATED HERE (audit §12). A
+            * saved search IS the alert, so the place to manage one is beside
+            * the searches themselves; a second copy of the controls here would
+            * be two screens that can disagree about the same subscription.
+            */}
+          {/**
+            * ⚠ THIS POINTS AT SAVED, IT DOES NOT DESCRIBE WHAT LIVES THERE.
+            * `ui-verify` fails Settings on the words the saved-search UI uses,
+            * which is the right guard: the failure mode audit §12 is about is
+            * two screens that can disagree about one subscription. A pointer
+            * is not a second copy, so the pointer must not read like one.
+            */}
+          <p className="snote">
+            Push notifications for when the app is <b>closed</b> are set up
+            under Saved.
+          </p>
+        </div>
+      </div>
+
+      {/* ── YOUR NUMBERS ───────────────────────────────────────────────── */}
       <div className="sgroup">
         <div className="shead"><Tag size={14} /> Your numbers</div>
         <div className="scard">
@@ -663,10 +832,6 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
                 onClick={() => save({ driveMinutes: clampDrive(s.driveMinutes + DRIVE_STEP) })}>+</button>
             </span>
           </label>
-          {/* ⚠ THIS USED TO SAY "they show on the You tab". That tab was
-              removed in the audit, so the one place the numbers were visible
-              stopped existing and the note pointed at nothing. They are stated
-              here instead. */}
           <p className="snote">
             You need <b>$100</b> clear on anything within 20 minutes. Past that
             the drive starts paying for itself at $80/hr, so a 30-minute trip
@@ -675,39 +840,261 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
         </div>
       </div>
 
+      {/* ── FEED ───────────────────────────────────────────────────────── */}
       <div className="sgroup">
         <div className="shead"><Grid size={14} /> Feed</div>
         <div className="scard">
           <Toggle label="Hide listings that are gone"
             hint="The daily sweep marks a listing dead when the seller pulls it."
             on={s.hideGone} onChange={(v) => save({ hideGone: v })} />
+          <Toggle label="Show how long it's been listed"
+            hint="A tag on the photo — 20 Min, 4 Hrs, 2 Days. Anything over three days never shows one."
+            on={s.showAge} onChange={(v) => save({ showAge: v })} />
+          <Toggle label="Show the verdict on cards"
+            hint="The Buy it / Verify / Risky chip over each photo. Listings you relabelled keep theirs either way."
+            on={s.showCall} onChange={(v) => save({ showCall: v })} />
+          <Toggle label="Denser grid"
+            hint="Three listings a row instead of two. Smaller photos, more per screen."
+            on={s.compact} onChange={(v) => save({ compact: v })} />
           <Toggle label="Ask what happened"
             hint="A day after you open a listing, ask if you bought it. This is what teaches the engine."
             on={s.askOutcomes} onChange={(v) => save({ askOutcomes: v })} />
-          <Toggle label="Reduce motion"
-            hint="Turns off screen and card entry animations."
-            on={s.reduceMotion} onChange={(v) => save({ reduceMotion: v })} />
         </div>
       </div>
 
+      {/* ── APPEARANCE ─────────────────────────────────────────────────── */}
+      <div className="sgroup">
+        <div className="shead"><Spark size={14} /> Appearance</div>
+        <div className="scard">
+          <Toggle label="Reduce motion"
+            hint="Turns off screen and card entry animations."
+            on={s.reduceMotion} onChange={(v) => save({ reduceMotion: v })} />
+          {/**
+            * ⚠ NO THEME PICKER, AND THAT IS NOT AN OVERSIGHT. There is one
+            * theme; the verdict colours are tuned against this exact ground
+            * (`--vfill` / `--vink` in 08-polish.css) and a light mode is a
+            * palette rewrite, not a switch. A disabled "Light" row here would
+            * be a promise the CSS cannot keep.
+            */}
+          <p className="snote">
+            Assyze is dark only. The verdict colours are contrast-tuned against
+            this background, so a light theme is a repaint rather than a switch.
+          </p>
+        </div>
+      </div>
 
+      {/* ── APP ────────────────────────────────────────────────────────── */}
+      <div className="sgroup">
+        <div className="shead"><Phone size={14} /> App</div>
+        <div className="scard">
+          <div className="srow static">
+            <span className="stext">
+              <b>{installed ? "Installed" : "Add to home screen"}</b>
+              <span>
+                {installed
+                  ? "Running as an app. Alerts and the feed work the same either way."
+                  : "Open the browser menu and choose Add to Home screen for full-screen and faster launches."}
+              </span>
+            </span>
+            {installed && <span className="pill on">Done</span>}
+          </div>
+          <button className="srow" onClick={() => location.reload()}>
+            <span className="stext">
+              <b>Check for updates</b>
+              <span>Reloads the app. Assyze updates itself on the next launch.</span>
+            </span>
+            <Again size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* ── ACCOUNT ────────────────────────────────────────────────────── */}
+      <div className="sgroup">
+        <div className="shead"><User size={14} /> Account</div>
+        <div className="scard">
+          {/**
+            * ⚠ "NO ACCOUNT" IS A FEATURE AND IS STATED AS ONE, along with the
+            * cost. Saved listings, overrides and alerts hang off the device
+            * ref, so they genuinely do not follow him to another phone. Saying
+            * so here is the difference between a known tradeoff and a bug
+            * report the first time he opens Assyze on a laptop.
+            */}
+          <button className="srow" onClick={() => {
+            navigator.clipboard?.writeText(ref)
+              .then(() => toast("Device ID copied"))
+              .catch(() => toast("Couldn't copy", true));
+          }}>
+            <span className="stext">
+              <b>This device</b>
+              <span className="mono">{ref.slice(0, 10)}…{ref.slice(-4)}</span>
+            </span>
+            <Cut size={15} />
+          </button>
+          <p className="snote">
+            There is no sign-in. Your saved listings, your own verdict labels and
+            your plan all belong to this device, which means nothing to leak and
+            nothing to remember — and that they do not follow you to another
+            phone. Copy the ID before clearing your browser data.
+          </p>
+        </div>
+      </div>
+
+      {/* ── DATA ───────────────────────────────────────────────────────── */}
       <div className="sgroup">
         <div className="shead"><Save size={14} /> Data</div>
         <div className="scard">
           <div className="srow static">
             <span className="stext">
               <b>{savedCount} saved {savedCount === 1 ? "listing" : "listings"}</b>
-              <span>Stored on this device.</span>
+              <span>Stored on this device{kb ? ` · about ${kb} KB in total` : ""}.</span>
             </span>
             {savedCount > 0 && !cleared && (
               <button className="btn3" onClick={() => { onClearSaved(); setCleared(true); }}>Clear</button>
             )}
             {cleared && <span className="pill">Cleared</span>}
           </div>
+
+          <div className="srow static">
+            <span className="stext">
+              <b>Recently checked</b>
+              <span>The listings you've opened, kept for the outcome question.</span>
+            </span>
+            {!histCleared
+              ? (
+                <button className="btn3" onClick={() => {
+                  try { localStorage.removeItem(HKEY); localStorage.removeItem(AKEY); } catch { /* ignore */ }
+                  setHistCleared(true);
+                  toast("History cleared");
+                }}>Clear</button>
+              )
+              : <span className="pill">Cleared</span>}
+          </div>
+
+          {/**
+            * ⚠ RESETTING THE BADGES IS A REAL CONTROL, not housekeeping. The
+            * watermarks decide what counts as new; if one ever gets stamped
+            * wrong — a clock jump, a bad restore — every badge reads zero
+            * forever and there is no other way to notice or fix it. Clearing
+            * the key makes the next feed load re-stamp them from server time.
+            */}
+          <div className="srow static">
+            <span className="stext">
+              <b>New-listing badges</b>
+              <span>The counts on Buy it, Verify, Risky and All.</span>
+            </span>
+            {!badgesReset
+              ? (
+                <button className="btn3" onClick={() => {
+                  try { localStorage.removeItem(SEEN_KEY); } catch { /* ignore */ }
+                  setBadgesReset(true);
+                  toast("Badges reset");
+                }}>Reset</button>
+              )
+              : <span className="pill">Reset</span>}
+          </div>
+        </div>
+      </div>
+
+      {/* ── PRIVACY ────────────────────────────────────────────────────── */}
+      <div className="sgroup">
+        <div className="shead"><Shield size={14} /> Privacy</div>
+        <div className="scard">
+          {/**
+            * ⚠ THESE ARE STATEMENTS OF FACT ABOUT THE CODE, not a policy page,
+            * and each one is checkable. No card data: `billing.ts` uses Stripe
+            * Checkout and never sees a number. No credentials: no code path in
+            * this repo accepts a marketplace login. No tracking: there is no
+            * analytics dependency in `web/package.json`.
+            */}
+          <p className="snote nolead">
+            Assyze never handles a card number — payment happens on Stripe's own
+            page. It never asks for a marketplace login. There is no analytics
+            and no third-party tracking, and the only thing stored about you is
+            on this device.
+          </p>
+        </div>
+      </div>
+
+      {/* ── DANGER ─────────────────────────────────────────────────────── */}
+      <div className="sgroup">
+        <div className="shead danger"><Trash size={14} /> Reset</div>
+        <div className="scard">
+          {/**
+            * ⚠ TWO TAPS, AND THE SECOND ONE SAYS WHAT IT DESTROYS. This wipes
+            * the saved list, the history, the overrides binding and the plan
+            * binding — everything that makes this device his. A single
+            * unguarded tap here is the one control on this screen that cannot
+            * be undone.
+            */}
+          <ResetEverything />
         </div>
       </div>
 
       <p className="micro2">Assyze · assyze.com</p>
+    </div>
+  );
+}
+
+/**
+ * "Reset everything", armed in two steps.
+ *
+ * ⚠ THE CONFIRM IS INLINE, NOT `window.confirm`. A native confirm is a modal
+ * the page cannot style, it reads as a browser warning rather than as part of
+ * the app, and on an installed PWA it is the one dialog that can sit there
+ * blocking every subsequent interaction. Inline also lets the second state
+ * spell out the consequence, which a one-line confirm cannot.
+ */
+function ResetEverything() {
+  const [armed, setArmed] = useState(false);
+  const [done, setDone] = useState(false);
+
+  if (done) {
+    return (
+      <div className="srow static">
+        <span className="stext"><b>Cleared</b><span>Reopen Assyze to start fresh.</span></span>
+        <span className="pill">Done</span>
+      </div>
+    );
+  }
+
+  if (!armed) {
+    return (
+      <button className="srow" onClick={() => setArmed(true)}>
+        <span className="stext">
+          <b className="danger">Reset everything</b>
+          <span>Saved listings, history, your own labels and this device's ID.</span>
+        </span>
+        <Trash size={16} />
+      </button>
+    );
+  }
+
+  return (
+    <div className="srow static confirm">
+      <span className="stext">
+        <b className="danger">Delete it all?</b>
+        <span>
+          This cannot be undone. Your saved listings, every verdict you
+          relabelled and your plan are tied to this device's ID and will be
+          unrecoverable.
+        </span>
+      </span>
+      <span className="confirmrow">
+        <button className="btn3" onClick={() => setArmed(false)}>
+          <Cross size={13} /> Keep
+        </button>
+        <button className="btn3 danger" onClick={() => {
+          /**
+           * ⚠ `localStorage.clear()`, not a list of keys. A list goes stale the
+           * moment a feature adds one, and a "reset everything" that quietly
+           * leaves something behind is worse than no reset at all.
+           */
+          try { localStorage.clear(); } catch { /* ignore */ }
+          setDone(true);
+        }}>
+          Delete
+        </button>
+      </span>
     </div>
   );
 }

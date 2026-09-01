@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { Alert, Check, Ghost } from "./icons.tsx";
+import { Alert, Check, Cross, Ghost } from "./icons.tsx";
 import type { Call, Hist } from "./types.ts";
 import { mergeSettings, DEFAULT_SETTINGS, SETTINGS_KEY, type Settings } from "./nav.ts";
 
@@ -18,6 +18,52 @@ export const ago = (iso: string | null) => {
   const d = Math.floor((Date.now() - Date.parse(iso)) / 86_400_000);
   return d <= 0 ? "listed today" : d === 1 ? "listed yesterday" : `listed ${d} days ago`;
 };
+
+/**
+ * How long ago it was LISTED, for the tag on the card photo — or `null`.
+ *
+ * ⚠ IT GOES QUIET PAST THREE DAYS, AND THAT IS THE ENTIRE POINT.
+ *
+ * Yish, 2026-09-01: *"anything that was listed for more than 3 days doesnt
+ * have the tag at all this way not every post has a tag because theres no
+ * point of a 22 days tag on a listing."*
+ *
+ * A tag on every card is a column, not a signal. Because most of the feed is
+ * older than three days, the tag appearing at all is what carries the meaning:
+ * it marks the listings still worth racing for. `"20 Min"` on a 4090 is the
+ * most valuable string in this app.
+ *
+ * ⚠ NO COLOUR ON IT, however tempting a green "20 Min" looks. The card's rule
+ * is that VERDICT colour is the only colour that means anything (see `.gloc`
+ * in feed.tsx); a second coloured badge on the same photo competes with the
+ * one signal the card exists to carry.
+ *
+ * `postedAt` is the SELLER's clock, not ours — a listing we crawled a minute
+ * ago may have been up for a week, and racing for that one is how you drive to
+ * something already sold. Null when the source never gave a date, which is
+ * most of Facebook; no date means no tag rather than a guessed one.
+ */
+export function listedAge(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const ms = Date.now() - Date.parse(iso);
+  if (!Number.isFinite(ms)) return null;
+  // A future timestamp is a bad parse or a seller's timezone, not a listing
+  // from tomorrow. Clamp rather than print "-3 Hrs".
+  const mins = Math.max(0, Math.floor(ms / 60_000));
+  if (mins < 60) return `${Math.max(1, mins)} Min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} ${hrs === 1 ? "Hr" : "Hrs"}`;
+  const days = Math.floor(hrs / 24);
+  /**
+   * ⚠ THE CUTOFF IS "THE LABEL WOULD HAVE TO SAY 4", NOT "72 HOURS EXACTLY".
+   * `"3 Days"` therefore covers the whole fourth day, the way `"2 Days"` covers
+   * the third. Cutting at 72.0h would make `"3 Days"` renderable for a
+   * one-hour window in its entire life — a label in the vocabulary he asked for
+   * that nobody would ever see. Pinned in `web-shell.test.ts`.
+   */
+  if (days > 3) return null;
+  return `${days} ${days === 1 ? "Day" : "Days"}`;
+}
 export const LABEL: Record<Call, string> = {
   BUY: "Buy it", FAIR: "Fair price", PASS: "Pass", VERIFY: "Verify first",
   RISK: "Risky", INSUFFICIENT_DATA: "Can't tell", OUT_OF_SCOPE: "Not covered",
@@ -136,6 +182,96 @@ export function Toaster() {
           {t.bad ? <Alert size={14} /> : <Check size={14} />}{t.text}
         </div>
       ))}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------- deal alerts
+/**
+ * The banner that drops from the top when a deal lands while the app is open.
+ *
+ * ⚠ IT IS NOT A `toast()`, AND THE DIFFERENCE IS THE POINT. A toast is
+ * bottom-anchored, un-tappable, gone in 1.8s and confirms something YOU just
+ * did. This announces something the CRAWLER did, has to be tappable, and has
+ * to survive long enough to be tapped. Two behaviours, two components.
+ *
+ * ⚠ ONE BANNER AT A TIME, NEWEST WINS. Stacking these turns a good tick into a
+ * wall of cards over the feed; the banner names the newest listing and counts
+ * the rest.
+ */
+export type DealAlert = {
+  id: number; title: string; call: Call;
+  askingPriceCents: number | null; thumb: string | null;
+  /** How many landed in the same tick, including this one. */
+  more: number;
+};
+const alertListeners = new Set<(a: DealAlert) => void>();
+export const publishDealAlert = (a: DealAlert) => alertListeners.forEach((fn) => fn(a));
+export function onDealAlert(fn: (a: DealAlert) => void) {
+  alertListeners.add(fn);
+  return () => { alertListeners.delete(fn); };
+}
+
+export function DealBanner({ onOpen, onSegment }: {
+  onOpen: (id: number) => void;
+  onSegment: () => void;
+}) {
+  const [a, setA] = useState<DealAlert | null>(null);
+  const [leaving, setLeaving] = useState(false);
+
+  useEffect(() => onDealAlert((next) => { setLeaving(false); setA(next); }), []);
+
+  /**
+   * ⚠ 9 SECONDS, AND THE TIMER RESTARTS ON EACH NEW ALERT.
+   *
+   * A toast can be 1.8s because it only confirms. This one asks for a decision
+   * — read the title, read the price, decide whether to tap — and it fires
+   * about five times a week, so there is no cost to letting it sit. Keyed on
+   * `a?.id` so a second deal landing does not inherit the first one's
+   * remaining time and vanish half-read.
+   */
+  useEffect(() => {
+    if (!a) return;
+    const t = setTimeout(() => setLeaving(true), 9000);
+    const gone = setTimeout(() => setA(null), 9200);
+    return () => { clearTimeout(t); clearTimeout(gone); };
+  }, [a?.id]);
+
+  if (!a) return null;
+  const many = a.more > 1;
+
+  return (
+    /**
+     * ⚠ THE `b-*` VERDICT CLASS GOES ON THE ROOT, not on the dot it colours.
+     * `--vc` is a custom property and those inherit DOWNWARDS only, so setting
+     * it on a child leaves the border, the tint and the kicker still hardcoded
+     * green — and a VERIFY alert would arrive dressed as a BUY, which is the
+     * one thing this banner must never do.
+     */
+    <div className={`dealbanner b-${a.call}${leaving ? " out" : ""}`} role="status" aria-live="polite">
+      <button className="dbmain" onClick={() => {
+        setA(null);
+        // One deal names itself and goes straight there. Several would be a
+        // guess about which one he meant, so they go to the segment.
+        if (many) onSegment(); else onOpen(a.id);
+      }}>
+        <span className="dbshot">
+          {a.thumb ? <img src={a.thumb} alt="" loading="lazy" /> : <Ghost size={18} />}
+        </span>
+        <span className="dbtext">
+          <span className="dbkick">
+            <i className="dbdot" aria-hidden="true" />
+            {many ? `${a.more} new deals` : `New ${LABEL[a.call]}`}
+          </span>
+          <b>{many ? `${a.title} and ${a.more - 1} more` : a.title}</b>
+        </span>
+        {!many && a.askingPriceCents != null && (
+          <span className="dbprice num">{money(a.askingPriceCents)}</span>
+        )}
+      </button>
+      <button className="dbx" onClick={() => setA(null)} aria-label="Dismiss">
+        <Cross size={14} />
+      </button>
     </div>
   );
 }

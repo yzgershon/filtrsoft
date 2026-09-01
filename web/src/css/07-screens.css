@@ -53,25 +53,102 @@
 .stepper button:disabled { opacity: .4; }
 .stepper .num { min-width: 42px; text-align: center; font-size: 14px; font-weight: 700; }
 
-.planrow { display: flex; align-items: center; gap: var(--s3); padding: var(--s4); }
-.planrow > div { flex: 1; min-width: 0; }
-.planrow b { display: block; font-size: 16px; margin-bottom: 3px; }
-.planrow span { color: var(--ink-2); font-size: 12.5px; line-height: 1.45; }
 .pill {
   flex: none; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  color: var(--ink-3); background: rgba(255,255,255,.05);
+  border: 1px solid var(--line);
+}
+/* The tier you are ON. Everything else is an offer, and offers are quiet. */
+.pill.on {
   color: var(--buy); background: color-mix(in srgb, var(--buy) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--buy) 35%, transparent);
+  border-color: color-mix(in srgb, var(--buy) 35%, transparent);
 }
 .snote {
   margin: 0; padding: 0 var(--s4) var(--s4);
   color: var(--ink-3); font-size: 12.5px; line-height: 1.55;
 }
+/* A note that is the card's ONLY content has no row above it to sit under. */
+.snote.nolead { padding-top: var(--s4); }
 .scard .btn2 { margin: 0 var(--s4) var(--s4); }
 .btn3 {
   flex: none; padding: 7px 12px; border-radius: 9px;
   border: 1px solid var(--line); background: var(--surface-2);
   color: var(--ink-2); font-size: 12.5px; font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  /* 44px, per the touch-target rule `button-audit.mjs` enforces. 34px looked
+     tidier beside a text row and is the size that gets mis-tapped. */
+  min-height: var(--tap); touch-action: manipulation;
 }
+.btn3.wide { width: calc(100% - var(--s4) * 2); margin: 0 var(--s4) var(--s4); justify-content: center; }
+
+/* ================================================================== plans */
+/*
+ * ⚠ A COLUMN PER TIER, NOT A ROW PER TIER. `.planrow` (the old single "Free /
+ * Current" strip) is GONE — with three tiers the row form gives every plan the
+ * same visual weight and no room for what it actually includes, which is the
+ * only reason anyone reads a pricing section.
+ *
+ * They STACK rather than sitting side by side. Assyze is a 360px-wide phone
+ * app; three columns of feature bullets at 110px each is a comparison nobody
+ * can read. Stacked, each plan gets the full width and the "Current" pill is
+ * what does the comparing.
+ */
+.plans { display: flex; flex-direction: column; gap: var(--s2); }
+.plan {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-lg); padding: var(--s4);
+}
+/* The tier you are on gets the brand edge. One highlight, or none of them read. */
+.plan.on {
+  border-color: color-mix(in srgb, var(--buy) 38%, transparent);
+  background: color-mix(in srgb, var(--surface) 92%, var(--buy) 8%);
+}
+.plan.gold.on {
+  border-color: color-mix(in srgb, var(--verify) 42%, transparent);
+  background: color-mix(in srgb, var(--surface) 91%, var(--verify) 9%);
+}
+.planhd { display: flex; align-items: center; gap: var(--s2); margin-bottom: 3px; }
+.planhd b { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+.planhd .pill { margin-left: auto; }
+.planblurb { margin: 0 0 10px; color: var(--ink-2); font-size: 12.5px; line-height: 1.45; }
+.planlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.planlist li {
+  display: flex; align-items: flex-start; gap: 7px;
+  font-size: 12.5px; line-height: 1.4; color: var(--ink-2);
+}
+/* The tick is a bullet, not a status. Muted so the text carries the meaning. */
+.planlist li svg { flex: none; margin-top: 2px; color: var(--ink-3); }
+.plan.on .planlist li svg { color: var(--buy); }
+.plan.gold.on .planlist li svg { color: var(--verify); }
+.plan .btn2, .plan .btn3.wide { width: 100%; margin: var(--s3) 0 0; justify-content: center; }
+
+/* ============================================================== settings misc */
+/* The device ID. Tabular so the truncation lands in the same place every time. */
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px !important; letter-spacing: .02em;
+}
+/*
+ * ⚠ DESTRUCTIVE CONTROLS ARE THE ONE PLACE THE RISK COLOUR IS ALLOWED OUTSIDE
+ * A VERDICT. It is the same argument the verdict chips make: red means "this
+ * one can hurt you", and a reset that wipes his overrides qualifies.
+ */
+.shead.danger, .danger { color: var(--risk); }
+.btn3.danger {
+  color: var(--risk);
+  border-color: color-mix(in srgb, var(--risk) 40%, transparent);
+  background: color-mix(in srgb, var(--risk) 12%, transparent);
+}
+/* The armed state stacks: the consequence needs the full width to be read. */
+.srow.confirm { flex-direction: column; align-items: stretch; gap: var(--s3); }
+.confirmrow { display: flex; gap: var(--s2); }
+.confirmrow .btn3 { flex: 1; justify-content: center; }
+
+/*
+ * Settings is the one screen whose heading has no eyebrow above it, so it
+ * needs the space the eyebrow used to occupy.
+ */
+.feedhead.tight { padding-top: var(--s4); }
 
 /* ============================================================ ask outcome */
 .ask {

@@ -36,6 +36,98 @@
 .toast.bad { color: var(--risk); border-color: color-mix(in srgb, var(--risk) 40%, transparent); }
 @keyframes toastin { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
 
+/* ============================================================= deal banner */
+/*
+ * The banner that drops from the top when a deal lands while the app is open.
+ *
+ * ⚠ IT IS NOT A `.toast`, AND THE GEOMETRY IS WHY. A toast is a bottom pill
+ * that confirms something YOU did and is gone in 1.8s; this announces
+ * something the CRAWLER did, has to be TAPPABLE, and has to survive long
+ * enough to be read and decided on. Top, because that is where a notification
+ * comes from on both platforms he uses, and because the bottom is already
+ * occupied by the tab bar and the toasts.
+ *
+ * ⚠ IT MUST CLEAR THE STATUS BAR AND THE NOTCH. `--safe-t` — without it the
+ * first line sits under the clock on his S24 in standalone PWA mode, which is
+ * only visible once it is installed, i.e. after it ships.
+ *
+ * ⚠ z-index 70 puts it ABOVE the toasts (60) deliberately. If both fire at
+ * once, the thing worth $600 wins over "Saved".
+ */
+.dealbanner {
+  position: fixed; z-index: 70;
+  top: calc(var(--safe-t) + 8px); left: 8px; right: 8px;
+  margin-inline: auto; max-width: 460px;
+  display: flex; align-items: stretch; gap: 0;
+  background: color-mix(in srgb, var(--surface-2) 92%, var(--vc, var(--buy)) 8%);
+  border: 1px solid color-mix(in srgb, var(--vc, var(--buy)) 34%, var(--line));
+  border-radius: 14px; overflow: hidden;
+  box-shadow: 0 12px 32px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.3);
+  animation: dbin 260ms var(--ease);
+}
+/*
+ * Exit is faster than entry (150 vs 260). An arrival should feel like it
+ * settles; a dismissal should feel like it got out of the way.
+ */
+.dealbanner.out { animation: dbout 150ms var(--ease) forwards; }
+@keyframes dbin {
+  from { opacity: 0; transform: translateY(-14px) scale(.97) }
+  to   { opacity: 1; transform: none }
+}
+@keyframes dbout {
+  from { opacity: 1; transform: none }
+  to   { opacity: 0; transform: translateY(-10px) }
+}
+
+/* The whole row is the target; the X is the only thing carved out of it. */
+.dbmain {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 4px 8px 8px; text-align: left;
+  background: none; border: 0; color: inherit; cursor: pointer;
+}
+.dbmain:active { background: rgba(255,255,255,.05); }
+
+.dbshot {
+  flex: none; width: 42px; height: 42px; border-radius: 8px; overflow: hidden;
+  background: var(--surface-3); display: grid; place-items: center; color: var(--ink-3);
+}
+.dbshot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.dbtext { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.dbkick {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--vc, var(--buy));
+}
+/* `--vc` is set by the `.b-*` class on `.dealbanner` (08-polish.css owns those),
+   so a VERIFY alert comes through amber without this file knowing what a
+   verdict is. Custom properties inherit down, which is why the class is on the
+   root rather than on this dot. */
+.dbdot { width: 6px; height: 6px; border-radius: 99px; background: var(--vc, var(--buy)); flex: none; }
+.dbtext b {
+  font-size: 13px; font-weight: 600; line-height: 1.25;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dbprice { flex: none; font-size: 15px; font-weight: 800; letter-spacing: -.02em; }
+
+/*
+ * 44px, per the touch-target rule — and it is a SIBLING of `.dbmain`, not a
+ * child. Nesting a button inside a button is invalid HTML and the inner one's
+ * click still bubbles to the outer, so dismissing would also open the listing.
+ */
+.dbx {
+  flex: none; width: 40px; align-self: stretch; min-height: var(--tap);
+  display: grid; place-items: center;
+  background: none; border: 0; border-left: 1px solid var(--line);
+  color: var(--ink-3); cursor: pointer;
+}
+.dbx:active { background: rgba(255,255,255,.06); }
+
+@media (prefers-reduced-motion: reduce) {
+  .dealbanner, .dealbanner.out { animation: none; }
+}
+
 /* ============================================================ offline / error */
 /*
  * ⚠ A FAILED FETCH IS NOT AN EMPTY FEED.

@@ -92,6 +92,99 @@ export function segmentCounts<T extends Scoped>(priceScoped: T[]): Record<string
   return out;
 }
 
+// ─────────────────────────────────────────────── what is NEW since you looked
+
+/**
+ * How many rows in each segment arrived since this device last viewed it.
+ *
+ * ⚠ "NEW" MEANS `captured_at`, NEVER THE VERDICT'S TIMESTAMP, AND THIS IS THE
+ * WHOLE DESIGN.
+ *
+ * `reverdictStale` re-scores the ENTIRE feed on every `ENGINE_VERSION` bump —
+ * three of those shipped in the last week alone. Keyed on when a verdict was
+ * written, one bump would light every badge in the app with the full 700-row
+ * inventory, and a badge that cries wolf once is a badge nobody reads again.
+ * `listings.captured_at` is when the row first entered the database and is
+ * stable across every re-score.
+ *
+ * The cost, stated so nobody "fixes" it later: a listing that flips PASS -> BUY
+ * on a re-score does NOT badge. That is a real miss, and it is the safe
+ * direction. Recording the first time a listing landed on each CALL is the
+ * proper fix and needs a column; this needs nothing.
+ */
+export interface Fresh extends Scoped {
+  capturedAt?: string | null;
+}
+
+/**
+ * ⚠ THE `all` BADGE EXCLUDES CAN'T-TELLS, WHICH IS **NOT** WHAT THE `all`
+ * SEGMENT ITSELF DOES. That divergence is deliberate and measured.
+ *
+ * Yish, 2026-09-01: *"exclude the cant tells in the all category so ~20 a day
+ * for that category."*
+ *
+ * `all` takes ~130 new rows a day and 549 of its 704 live rows are
+ * `INSUFFICIENT_DATA` — listings the engine could not price, which by
+ * definition cannot be acted on. Counting them makes the All badge a
+ * permanently-lit three-digit number, which is not a notification, it is
+ * wallpaper: it trains the eye to skip the whole control, including the Buy-it
+ * badge beside it that fires 0.7 times a day and is the entire point.
+ *
+ * Excluding them puts All at ~20/day. The segment still SERVES them, so
+ * nothing is hidden — this only decides what gets counted as worth telling him
+ * about.
+ */
+const NEW_NEVER_COUNTED: Record<string, string[]> = {
+  all: ["INSUFFICIENT_DATA"],
+};
+
+/**
+ * Per-segment watermarks, as sent by the client.
+ *
+ * ⚠ THESE ARE SERVER TIMESTAMPS ROUND-TRIPPING, NOT THE PHONE'S CLOCK. The
+ * feed hands back `serverNow` and the client stores THAT as the watermark. A
+ * device four minutes fast would otherwise report zero new listings forever,
+ * with nothing on screen to explain why.
+ */
+export type Seen = Record<string, string | null>;
+
+/**
+ * Parse `?since=` into a watermark per segment.
+ *
+ * Bad JSON yields NO watermarks rather than throwing, and a segment with no
+ * watermark counts ZERO rather than everything — a device that has never
+ * looked at Risky should not be greeted with "26 new", which is just the
+ * inventory wearing a notification badge.
+ */
+export function parseSeen(raw: string | undefined): Seen {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const out: Seen = {};
+    for (const q of QUALITIES) {
+      const v = parsed[q];
+      if (typeof v === "string" && Number.isFinite(Date.parse(v))) out[q] = v;
+    }
+    return out;
+  } catch { return {}; }
+}
+
+export function newSegmentCounts<T extends Fresh>(priceScoped: T[], seen: Seen): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const q of QUALITIES) {
+    const since = seen[q];
+    if (!since) { out[q] = 0; continue; }
+    const cut = Date.parse(since);
+    const excluded = NEW_NEVER_COUNTED[q] ?? [];
+    out[q] = applyQuality(priceScoped, q).filter((r) =>
+      !excluded.includes(r.call) &&
+      r.capturedAt != null &&
+      (Date.parse(r.capturedAt) || 0) > cut).length;
+  }
+  return out;
+}
+
 /**
  * The drive time from `?drive=`, or undefined for "use the stored verdict".
  *

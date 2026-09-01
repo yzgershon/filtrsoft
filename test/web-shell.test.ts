@@ -14,6 +14,7 @@ import {
   NO_FILTERS, filtersFromSearch, searchFromFilters, activeFilterCount, feedUrl, sourceLabel,
   restoreLimit, FEED_PAGE, FEED_LIMIT_MAX,
 } from "../web/src/nav.ts";
+import { listedAge } from "../web/src/lib.tsx";
 
 describe("screenOf", () => {
   test("maps every primary route", () => {
@@ -281,5 +282,77 @@ describe("restoreLimit", () => {
     expect(restoreLimit(NaN)).toBe(FEED_PAGE);
     expect(restoreLimit(-5)).toBe(FEED_PAGE);
     expect(restoreLimit(87.6)).toBe(87);
+  });
+});
+
+
+/**
+ * The age tag on the card photo.
+ *
+ * ⚠ THE VALUABLE CASE IS THE `null`, not the formatting. Yish, 2026-09-01:
+ * *"anything that was listed for more than 3 days doesnt have the tag at all
+ * this way not every post has a tag."* A tag on every card is a column; a tag
+ * on a few is a signal, and most of the feed is older than three days.
+ */
+describe("listedAge", () => {
+  const agoIso = (ms: number) => new Date(Date.now() - ms).toISOString();
+  const MIN = 60_000, HR = 60 * MIN, DAY = 24 * HR;
+
+  test("minutes under an hour", () => {
+    expect(listedAge(agoIso(20 * MIN))).toBe("20 Min");
+    expect(listedAge(agoIso(59 * MIN))).toBe("59 Min");
+  });
+
+  /** Never "0 Min" — a listing that just landed still has an age. */
+  test("floors at one minute rather than zero", () => {
+    expect(listedAge(agoIso(3_000))).toBe("1 Min");
+    expect(listedAge(agoIso(0))).toBe("1 Min");
+  });
+
+  test("hours, singular at one", () => {
+    expect(listedAge(agoIso(HR))).toBe("1 Hr");
+    expect(listedAge(agoIso(4 * HR))).toBe("4 Hrs");
+    expect(listedAge(agoIso(23 * HR))).toBe("23 Hrs");
+  });
+
+  test("days, singular at one", () => {
+    expect(listedAge(agoIso(DAY))).toBe("1 Day");
+    expect(listedAge(agoIso(2 * DAY))).toBe("2 Days");
+    expect(listedAge(agoIso(3 * DAY))).toBe("3 Days");
+  });
+
+  /**
+   * ⚠ THE CUTOFF IS "THE LABEL WOULD HAVE TO SAY 4", NOT "72 HOURS EXACTLY".
+   *
+   * `"3 Days"` covers the whole fourth day (72h–95:59), the same way `"2 Days"`
+   * covers the third. Cutting at exactly 72.0 hours would leave `"3 Days"`
+   * displayable for a one-hour window in its entire life — a label in the
+   * vocabulary Yish asked for that essentially never renders.
+   */
+  test("three days covers the whole fourth day", () => {
+    expect(listedAge(agoIso(3 * DAY + HR))).toBe("3 Days");
+    expect(listedAge(agoIso(3 * DAY + 23 * HR))).toBe("3 Days");
+  });
+
+  test("goes silent once it would have to say four — the whole point of the tag", () => {
+    expect(listedAge(agoIso(4 * DAY))).toBeNull();
+    expect(listedAge(agoIso(22 * DAY))).toBeNull();
+  });
+
+  /**
+   * Facebook often gives no post date at all. No date means no tag, never a
+   * guessed one — the tag's only job is to mark what is worth racing for, and a
+   * fabricated "1 Min" would send him after a week-old listing.
+   */
+  test("no date and bad dates produce no tag", () => {
+    expect(listedAge(null)).toBeNull();
+    expect(listedAge(undefined)).toBeNull();
+    expect(listedAge("")).toBeNull();
+    expect(listedAge("not a date")).toBeNull();
+  });
+
+  /** A seller's timezone can put a listing in the future. Clamp, never "-3 Hrs". */
+  test("a future timestamp clamps instead of going negative", () => {
+    expect(listedAge(new Date(Date.now() + 3 * HR).toISOString())).toBe("1 Min");
   });
 });
