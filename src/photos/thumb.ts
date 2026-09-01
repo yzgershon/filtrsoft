@@ -284,6 +284,15 @@ export function pruneThumbs(): { deleted: number; freedBytes: number; keptBytes:
  * a re-push updates it, so a listing whose photo url was just re-signed goes
  * back to the front of the queue.
  *
+ * ⚠ AND IT ASKS ONLY FOR WHAT THE PRUNE WILL KEEP.
+ *
+ * Measured on production: 1,929 thumbnails and 33.5 MB against a feed of ~700
+ * listings. The query only excluded DELISTED rows, so the backfill worked
+ * through the whole 2,900-row history — fetching, encoding and storing images
+ * for listings older than 28 days that `pruneThumbs` then threw away on the
+ * next sweep. Self-correcting, and still a few thousand pointless requests and
+ * three times the disk it needs. The window here and in the prune must agree.
+ *
  * ⚠ AND IT MUST STAY SMALL PER TICK. This is network I/O inside the loop that
  * also crawls and scores. 25 at 6-wide is a couple of seconds; it drains a
  * thousand-listing backlog over about two hours of ticks, which is the right
@@ -297,6 +306,11 @@ export async function backfillThumbs(limit = 25): Promise<{ cached: number; miss
     JOIN listings l ON l.id = p.listing_id
     WHERE p.position = 0
       AND l.delisted_at IS NULL
+      /* THE SAME WINDOW THE PRUNE USES -- see the note above backfillThumbs.
+         A backtick inside this template literal would terminate the SQL, which
+         is why nothing in here is quoted. */
+      AND (l.posted_at IS NULL
+           OR julianday('now') - julianday(l.posted_at) <= ${THUMB_KEEP_DAYS})
       AND NOT EXISTS(SELECT 1 FROM listing_thumbs t WHERE t.listing_id = p.listing_id)
       /* Spent its retry budget on THIS url. A re-crawl changes the url and the
          budget resets, which is the only way a dead signature comes back. */
