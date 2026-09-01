@@ -24,6 +24,7 @@ import {
 import {
   MoreScreen, NotificationsScreen, AccountScreen, HowScreen,
 } from "./more.tsx";
+import { Landing, AuthScreen, type Providers, type Account } from "./landing.tsx";
 
 /**
  * Screens the bottom bar cannot reach, and which therefore must carry a Back
@@ -188,8 +189,72 @@ function useDealPulse(enabled: boolean, verify: boolean, onDeal: (items: any[]) 
   }, [enabled]);
 }
 
+/**
+ * ─────────────────────────────────────────────────────────── the auth gate
+ *
+ * Three states, and the middle one matters as much as the other two:
+ *
+ *   · `loading`  — we have not asked the server yet. Renders NOTHING, because
+ *                  flashing the marketing page at a signed-in user for 200ms
+ *                  on every launch is the same class of bug as the Check-screen
+ *                  flash he reported, and more jarring.
+ *   · `out`      — marketing site, or the signup/signin screen.
+ *   · `in`       — the app.
+ *
+ * ⚠ THE SERVER IS THE AUTHORITY, NOT LOCALSTORAGE. Caching "signed in" locally
+ * would show the whole app shell to someone whose session expired, and every
+ * request inside it would 401 — a broken app rather than a sign-in prompt.
+ * `/v1/auth/me` is one request on launch and it is the truth.
+ */
+function useAuth() {
+  const [state, setState] = useState<"loading" | "in" | "out">("loading");
+  const [user, setUser] = useState<Account | null>(null);
+  const [providers, setProviders] = useState<Providers | null>(null);
+
+  /**
+   * ⚠ ONLY A REAL ANSWER FROM THE SERVER MOVES THIS OUT OF `loading`.
+   *
+   * "The request failed" and "you are signed out" are different facts and the
+   * first must never be rendered as the second — a 429, a dropped connection
+   * or a cold container would otherwise dump a signed-in user onto the
+   * marketing page mid-session. `ui-verify` hit exactly this: ten browser
+   * contexts from one address tripped the rate limit and the app decided
+   * everyone was logged out.
+   *
+   * So: retry a failure once, briefly, and only treat a 200 with `user: null`
+   * as signed-out. A second failure leaves it on `loading` rather than
+   * guessing, which shows a blank frame instead of a wrong screen.
+   */
+  const refresh = useCallback((attempt = 0) => {
+    fetch("/v1/auth/me")
+      .then(async (r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      })
+      .then((d) => {
+        setProviders(d.providers ?? null);
+        setUser(d.user ?? null);
+        setState(d.user ? "in" : "out");
+      })
+      .catch(() => {
+        if (attempt < 1) setTimeout(() => refresh(attempt + 1), 1200);
+      });
+  }, []);
+
+  useEffect(() => { refresh(); }, [refresh]);
+  return { state, user, providers, setUser, setState, refresh };
+}
+
 export default function App() {
   const { path, screen, go, replace, back } = useRoute();
+  const auth = useAuth();
+  /**
+   * Which signed-out screen is showing. Kept in state rather than the URL:
+   * `/signin` would be a real route that a signed-IN user could land on, and
+   * then the router would owe an answer for a screen that must not exist for
+   * them.
+   */
+  const [authMode, setAuthMode] = useState<"none" | "signup" | "signin">("none");
   /**
    * DERIVED, never stored. A second copy of "which screen am I on" is what let
    * the URL say `/` while a listing detail was still on screen.
@@ -461,6 +526,49 @@ export default function App() {
   }
 
   const fresh = !listing && !busy;
+
+  /**
+   * ⚠ THE GATE RETURNS BEFORE THE APP SHELL IS BUILT AT ALL, rather than
+   * wrapping it in a conditional further down. A signed-out visitor must not
+   * mount the feed, the pulse poller or the tab bar — not because it would
+   * look wrong (the server 401s everything anyway) but because a poller
+   * hammering a 401 every sixty seconds is a real bug hiding behind a correct
+   * screen.
+   */
+  if (auth.state === "loading") {
+    // Deliberately blank. See `useAuth`: a flash of the marketing page at a
+    // signed-in user on every launch is worse than 200ms of nothing.
+    return <div className="app boot" aria-busy="true" />;
+  }
+
+  if (auth.state === "out") {
+    return authMode === "none"
+      ? (
+        <Landing
+          onStart={() => setAuthMode("signup")}
+          onSignIn={() => setAuthMode("signin")} />
+      )
+      : (
+        <AuthScreen
+          mode={authMode}
+          providers={auth.providers}
+          onMode={setAuthMode}
+          onBack={() => setAuthMode("none")}
+          onDone={(u) => {
+            auth.setUser(u);
+            auth.setState("in");
+            setAuthMode("none");
+            /**
+             * ⚠ LAND ON THE FEED, NOT ON WHATEVER THE URL SAYS. Someone who
+             * arrived on a shared `/c/842` link and then signed up should see
+             * the listing they came for — but the common case is `/`, and
+             * pushing a route here would put a signed-out URL in the history
+             * behind them.
+             */
+            toast(`Signed in as ${u.name || u.email}`);
+          }} />
+      );
+  }
 
   return (
     <div className="app">
@@ -746,7 +854,15 @@ export default function App() {
             )}
 
             {screen.name === "account" && (
-              <AccountScreen go={go} savedCount={savedCount} />
+              <AccountScreen go={go} savedCount={savedCount} user={auth.user}
+                onSignedOut={() => {
+                  auth.setUser(null);
+                  auth.setState("out");
+                  setAuthMode("none");
+                  // Back to `/` so the next sign-in does not resume onto a
+                  // deep link from the previous account.
+                  history.replaceState({}, "", "/");
+                }} />
             )}
 
             {screen.name === "how" && <HowScreen />}

@@ -224,10 +224,13 @@ function when(at: number): string {
  * avatar and a "Sign in" button that does nothing. When accounts land, the
  * identity at the top of this screen changes and the rows below it do not.
  */
-export function AccountScreen({ go, savedCount }: {
+export function AccountScreen({ go, savedCount, user, onSignedOut }: {
   go: (p: string) => void; savedCount: number;
+  user: { email: string; name: string | null; avatarUrl: string | null; createdAt: string } | null;
+  onSignedOut: () => void;
 }) {
   const [plan, setPlan] = useState<{ plan: string; owner?: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
   const ref = deviceRef();
 
   useEffect(() => {
@@ -243,10 +246,29 @@ export function AccountScreen({ go, savedCount }: {
       </div>
 
       <div className="acchead">
-        <div className="accav" aria-hidden="true"><User size={26} /></div>
+        <div className="accav" aria-hidden="true">
+          {/* A provider avatar when there is one; the glyph is the fallback,
+              never a coloured initial that could belong to anyone. */}
+          {user?.avatarUrl
+            ? <img src={user.avatarUrl} alt="" referrerPolicy="no-referrer" />
+            : <User size={26} />}
+        </div>
+        {/**
+          * ⚠ NEVER THE SAME STRING TWICE. Name is optional at signup, so
+          * `name || email` on top with `email` underneath printed the address
+          * on both lines for anyone who skipped it — which reads as a bug in
+          * the first screen a new account sees. With no name, the email IS the
+          * identity and the second line says something else.
+          */}
         <div className="accid">
-          <b>This device</b>
-          <span className="mono">{ref.slice(0, 10)}…{ref.slice(-4)}</span>
+          <b>{user?.name || user?.email || "This device"}</b>
+          <span className={user ? "accsub" : "mono"}>
+            {user
+              ? (user.name
+                ? user.email
+                : `Joined ${new Date(user.createdAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}`)
+              : `${ref.slice(0, 10)}…${ref.slice(-4)}`}
+          </span>
         </div>
         <span className={`pill${plan?.owner || plan?.plan === "pro" ? " on" : ""}`}>{planName}</span>
       </div>
@@ -287,6 +309,37 @@ export function AccountScreen({ go, savedCount }: {
             onClick={() => go("/settings")} />
         </div>
       </div>
+
+      {user && (
+        <div className="sgroup">
+          <div className="scard">
+            {/**
+              * ⚠ SIGNING OUT DELETES THE SESSION ROW SERVER-SIDE, which is why
+              * this is a request and not a `localStorage.clear()`. A cookie the
+              * browser throws away is still a valid session to anyone who
+              * captured it.
+              *
+              * The saved listings and the device ref stay: they belong to the
+              * browser, and wiping them on sign-out would make signing out
+              * destructive in a way nobody expects. "Reset everything" in
+              * Settings is the control that does that, and it says so.
+              */}
+            <button className="srow" disabled={busy} onClick={async () => {
+              setBusy(true);
+              try {
+                await fetch("/v1/auth/signout", { method: "POST" });
+                onSignedOut();
+              } catch { toast("Couldn't sign out", true); }
+              finally { setBusy(false); }
+            }}>
+              <span className="stext">
+                <b className="danger">{busy ? "Signing out…" : "Sign out"}</b>
+                <span>Your saved listings stay on this device.</span>
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

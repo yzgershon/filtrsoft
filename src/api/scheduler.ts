@@ -37,6 +37,7 @@ import { sweep } from "../tracker/index.ts";
 import { prunePhotos } from "../photos/index.ts";
 import { pruneThumbs, backfillThumbs } from "../photos/thumb.ts";
 import { runAlerts } from "./alerts.ts";
+import { pruneSessions } from "./auth.ts";
 import { checkStored, ENGINE_VERSION } from "../engine/index.ts";
 import { db, now } from "../db/index.ts";
 import { storeVerdict } from "../db/verdicts.ts";
@@ -547,6 +548,15 @@ function startSweepLoop() {
       if (t.deleted) {
         console.log(`pruned ${t.deleted} thumbnails (${(t.freedBytes / 1048576).toFixed(1)} MB freed, ${(t.keptBytes / 1048576).toFixed(1)} MB held)`);
       }
+      /**
+       * ⚠ EXPIRED SESSIONS ARE DELETED HERE, NOT ON READ. `currentUser` runs
+       * on every authenticated request, and putting a DELETE on that path
+       * means taking a SQLite write lock during a burst of reads. The rows are
+       * already unusable — the session query filters on `expires_at` — so this
+       * is housekeeping, not enforcement, and it belongs on the slow loop.
+       */
+      const sessions = pruneSessions();
+      if (sessions) console.log(`pruned ${sessions} expired session(s)`);
       console.log(
         `sweep done in ${Math.round((Date.now() - t0) / 1000)}s — ` +
         `${st.stillUp} still up, ${st.delisted} delisted, ${st.priceMoves} price moves`,

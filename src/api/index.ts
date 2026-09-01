@@ -29,6 +29,10 @@ import {
 import {
   handleBillingStatus, handleCheckout, handlePortal, handleWebhook, billingEnabled,
 } from "./billing.ts";
+import {
+  handleSignup, handleSignin, handleSignout, handleMe, handleGoogle, handleApple,
+  currentUser, authProviders, pruneSessions,
+} from "./auth.ts";
 import { getEconomics } from "../valuation/index.ts";
 import { db, DB_PATH } from "../db/index.ts";
 import { getThumb, thumbStats, pruneThumbs, THUMBS_OFF } from "../photos/thumb.ts";
@@ -82,6 +86,55 @@ app.use("/v1/checks/*", async (c, next) => {
 app.use("/v1/checks", async (c, next) => {
   const { ok, retryAfter } = rateLimit(clientKey(c.req.raw.headers));
   if (!ok) return c.json({ error: "too many requests" }, 429, { "Retry-After": String(retryAfter) });
+  await next();
+});
+
+/**
+ * ────────────────────────────────────────────────────── the sign-in wall
+ *
+ * Yish, 2026-09-01: *"right now anyone who goes to assyze.com can just have
+ * full access to all the deals."*
+ *
+ * ⚠ ENFORCED HERE, NOT IN THE UI. A React route that hides the feed is a
+ * decoration: the data is one `curl` away, and the whole point of this change
+ * is that the deals are the asset. So the gate is a middleware over the DATA
+ * paths and the client is simply the thing that gets 401s.
+ *
+ * ⚠ IT IS A PREFIX LIST, AND EVERY ENTRY IS DELIBERATE:
+ *
+ *   · `/v1/health` stays open — it is the platform's liveness probe, and
+ *     gating it makes every deploy fail its healthcheck. It exposes counts,
+ *     never listings.
+ *   · `/v1/auth/*` stays open, or nobody could ever sign in.
+ *   · `/v1/billing/webhook` stays open because STRIPE calls it, not a browser;
+ *     it is authenticated by its own signature.
+ *   · `/v1/ebay/deletion` stays open for the same reason — eBay calls it.
+ *   · `/v1/thumb/:id` stays open: it is an <img> src, and a cookie-gated image
+ *     that 401s renders as a broken photo rather than a sign-in prompt.
+ *
+ * Everything else — the feed, checks, the watchlist, purchases, the pulse,
+ * saved searches — is the product, and the product now needs an account.
+ */
+const PUBLIC_PREFIXES = [
+  "/v1/health",
+  "/v1/auth/",
+  "/v1/billing/webhook",
+  "/v1/ebay/deletion",
+  "/v1/thumb/",
+  "/v1/landing",
+];
+
+app.use("/v1/*", async (c, next) => {
+  const path = new URL(c.req.url).pathname;
+  if (PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(p))) return next();
+  if (!currentUser(c)) {
+    /**
+     * 401 with a machine-readable reason. The client turns this into "your
+     * session expired, sign in again" rather than the generic failure banner,
+     * which otherwise reads as the server being down.
+     */
+    return c.json({ error: "sign in to use Assyze", auth: "required" }, 401);
+  }
   await next();
 });
 
@@ -171,6 +224,8 @@ app.get("/v1/health", (c) => {
      */
     archive: archiveStatus(),
     billing: { enabled: billingEnabled() },
+    /** Which sign-in methods are configured. Never the ids themselves. */
+    auth: (() => { const a = authProviders(); return { password: a.password, google: a.google, apple: a.apple }; })(),
     /**
      * ⚠ THE THUMBNAIL CACHE REPORTS ITS OWN SIZE, AND IT DOES SO BECAUSE THE
      * LAST TIME THIS PROJECT PUT IMAGES ON THE VOLUME IT FILLED UP AND TOOK
@@ -345,6 +400,71 @@ app.delete("/v1/searches/:id", handleDeleteSearch);
  * is a server-to-server callback from Stripe, and rate-limiting it by client
  * IP would drop legitimate retries during exactly the burst that matters.
  */
+/**
+ * ─────────────────────────────────────────────────────────────────── accounts
+ *
+ * ⚠ THESE ARE THE ONLY UNAUTHENTICATED WRITE PATHS IN THE APP, so they carry
+ * the same rate limit as the check endpoints. Sign-in has its own per-account
+ * lock on top (`signinBlocked`); this one bounds signup floods, which nothing
+ * else would.
+ */
+app.use("/v1/auth/*", async (c, next) => {
+  /**
+   * ⚠ `/v1/auth/me` IS EXEMPT, AND LEAVING IT IN WAS A REAL BUG.
+   *
+   * `me` is a READ and it runs on every single app launch and every reload —
+   * it is how the shell decides whether to render the app or the marketing
+   * page. Behind a 20/minute bucket, a few refreshes (or two people on one
+   * office IP) get a 429, `useAuth` treats the failed request as signed-out,
+   * and a signed-in user is thrown onto the landing page with no explanation.
+   *
+   * Caught by `ui-verify`, which opens ~10 browser contexts from one address
+   * and started failing on the sixth. The limit belongs on the endpoints that
+   * MINT sessions, which is what an attacker would hammer; a session lookup
+   * costs one indexed SELECT.
+   */
+  if (new URL(c.req.url).pathname.replace(/\/$/, "") === "/v1/auth/me") return next();
+  const { ok, retryAfter } = rateLimit(clientKey(c.req.raw.headers));
+  if (!ok) return c.json({ error: "too many requests" }, 429, { "Retry-After": String(retryAfter) });
+  await next();
+});
+/**
+ * Public counts for the marketing page.
+ *
+ * ⚠ COUNTS ONLY. NEVER A LISTING, NEVER A TITLE, NEVER A PRICE. The entire
+ * point of the sign-in wall is that the deals are the asset, so the page that
+ * sells them must be able to say how many there are without handing one over.
+ *
+ * ⚠ AND THE LANDING PAGE MUST NOT INVENT THESE. Hardcoding "18,000 sold
+ * prices" into the copy is wrong within a week and silently makes every other
+ * claim on the page suspect, which is expensive for a page whose whole job is
+ * to be believed.
+ */
+app.get("/v1/landing", (c) => {
+  try {
+    const comps = (db().query("SELECT COUNT(*) n FROM comps").get() as { n: number }).n;
+    const skus = (db().query("SELECT COUNT(*) n FROM skus").get() as { n: number }).n;
+    const listings = (db().query(`
+      SELECT COUNT(*) n FROM listings l
+      JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
+      WHERE l.delisted_at IS NULL AND v.call NOT IN ('OUT_OF_SCOPE')
+        AND (l.posted_at IS NULL OR l.posted_at >= date('now', '-28 days'))
+    `).get() as { n: number }).n;
+    return c.json({ comps, skus, listings });
+  } catch {
+    // The page drops the numbers rather than printing zeros, which would read
+    // as a dead product.
+    return c.json({});
+  }
+});
+
+app.post("/v1/auth/signup", handleSignup);
+app.post("/v1/auth/signin", handleSignin);
+app.post("/v1/auth/signout", handleSignout);
+app.post("/v1/auth/google", handleGoogle);
+app.post("/v1/auth/apple", handleApple);
+app.get("/v1/auth/me", handleMe);
+
 app.get("/v1/billing/status", handleBillingStatus);
 app.post("/v1/billing/checkout", handleCheckout);
 app.post("/v1/billing/portal", handlePortal);

@@ -83,13 +83,14 @@ describe("tabOf", () => {
    * fails — which is the whole point of the check.
    */
   test("no path can light a tab it does not belong to", () => {
-    const HUB: Record<string, string> = { settings: "more", how: "more" };
+    type Tab = NonNullable<ReturnType<typeof tabOf>>;
+    const HUB: Partial<Record<string, Tab>> = { settings: "more", how: "more" };
     const paths = ["/", "/check", "/saved", "/more", "/settings", "/how",
       "/notifications", "/account", "/c/9", "/junk"];
     for (const p of paths) {
       const s = screenOf(p);
       const t = tabOf(s);
-      if (t !== null) expect(t).toBe(HUB[s.name] ?? s.name);
+      if (t !== null) expect(t).toBe(HUB[s.name] ?? (s.name as Tab));
     }
   });
 });

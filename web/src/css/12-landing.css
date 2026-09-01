@@ -1,0 +1,412 @@
+/**
+ * The marketing site and the auth screens.
+ *
+ * ⚠ THIS IS THE ONE PART OF ASSYZE THAT IS NOT A PHONE APP, and the geometry
+ * has to say so. `10-desktop.css` puts the APP inside a 360px phone frame above
+ * 1024px, which is right for a tool you use one-handed and completely wrong for
+ * a page whose job is to convince a stranger on a laptop. So the landing owns
+ * its own width, and `.mk` deliberately sits outside `.app`.
+ *
+ * ⚠ IT REUSES THE APP'S TOKENS, NOT A SECOND PALETTE. Same `--buy`, same
+ * `--brand`, same `--surface` ladder, same verdict classes on the mock cards.
+ * A landing page painted in its own colours is how a product ends up looking
+ * like two products, and the first thing a new user does is cross the seam.
+ *
+ * Last in the import order (see `styles.css`), so nothing here can be silently
+ * overridden by a later partial.
+ */
+
+/* ================================================================== shell */
+.mk {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 20px calc(var(--safe-b) + 40px);
+  color: var(--ink);
+}
+
+/* ==================================================================== nav */
+.mknav {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: calc(var(--safe-t) + 16px) 0 8px;
+  position: sticky; top: 0; z-index: 20;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(16px) saturate(1.3);
+}
+.mknavr { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.mkbrand {
+  font-size: 21px; font-weight: 800; letter-spacing: -.03em; color: var(--ink);
+}
+.mkbrand span {
+  background: var(--grad); -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.mkbrand.sm { font-size: 15px; }
+.mklink {
+  background: none; border: 0; color: var(--ink-2);
+  font-size: 14px; font-weight: 600; padding: 10px 6px;
+  min-height: var(--tap); cursor: pointer;
+}
+.mklink:hover { color: var(--ink); }
+
+/* The one primary action on the page, and it looks like it everywhere. */
+.mkcta {
+  border: 0; border-radius: var(--r-pill); cursor: pointer;
+  background: var(--grad); color: var(--on-brand);
+  font-size: 15px; font-weight: 700; letter-spacing: -.01em;
+  padding: 0 22px; min-height: 48px;
+  box-shadow: 0 6px 20px rgba(0,212,255,.22);
+  transition: transform 120ms var(--ease), box-shadow 120ms var(--ease);
+}
+.mkcta:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(0,212,255,.3); }
+.mkcta:active { transform: none; }
+.mkcta.sm { min-height: 40px; padding: 0 16px; font-size: 13.5px; }
+.mkcta.wide { width: 100%; }
+.mkghost {
+  background: var(--surface-2); color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--r-pill);
+  font-size: 15px; font-weight: 600; padding: 0 20px; min-height: 48px; cursor: pointer;
+}
+.mkghost:hover { border-color: var(--surface-3); }
+
+/* =================================================================== hero */
+.mkhero { padding: 44px 0 8px; text-align: center; }
+.mkpill {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 13px; border-radius: 999px;
+  background: color-mix(in srgb, var(--buy) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--buy) 32%, transparent);
+  color: var(--buy); font-size: 12px; font-weight: 700;
+  letter-spacing: .04em; text-transform: uppercase;
+}
+.mkpill i {
+  width: 6px; height: 6px; border-radius: 99px; background: var(--buy);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--buy) 60%, transparent);
+  animation: mkpulse 2s ease-out infinite;
+}
+@keyframes mkpulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--buy) 55%, transparent) }
+  70%  { box-shadow: 0 0 0 7px transparent }
+  100% { box-shadow: 0 0 0 0 transparent }
+}
+.mkhero h1 {
+  margin: 20px 0 0;
+  font-size: clamp(34px, 8vw, 62px);
+  line-height: 1.04; letter-spacing: -.035em; font-weight: 800;
+}
+.mkhero h1 .g {
+  background: var(--grad); -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.mksub {
+  margin: 18px auto 0; max-width: 620px;
+  color: var(--ink-2); font-size: 16px; line-height: 1.6;
+}
+.mkactions {
+  display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
+  margin-top: 26px;
+}
+
+/* The stat strip. Tabular figures so the three columns cannot jitter. */
+.mkstats {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 10px; margin-top: 40px;
+  padding: 20px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
+.mkstats div { text-align: center; }
+.mkstats b {
+  display: block; font-size: clamp(20px, 5vw, 30px); font-weight: 800;
+  letter-spacing: -.03em; color: var(--ink);
+}
+.mkstats span {
+  display: block; margin-top: 4px;
+  color: var(--ink-3); font-size: 11.5px; line-height: 1.4;
+}
+
+/* ============================================================== the phone */
+.mkshot {
+  display: grid; grid-template-columns: 1fr; gap: 32px;
+  align-items: center; padding: 60px 0;
+}
+@media (min-width: 860px) {
+  .mkshot { grid-template-columns: 320px 1fr; gap: 56px; }
+}
+/*
+ * A DRAWN mockup, not a screenshot.
+ *
+ * ⚠ A PNG of the feed would carry real listings, real prices and a real
+ * seller's photo onto a public marketing page — someone else's copyrighted
+ * image, on a commercial site, going stale the moment the feed moves. This is
+ * built from the app's own tokens and verdict classes, so it cannot drift out
+ * of date and it belongs to us.
+ */
+.mkphone {
+  width: 300px; margin: 0 auto;
+  background: var(--bg); border: 1px solid var(--line);
+  border-radius: 26px; padding: 12px 10px 16px;
+  box-shadow: 0 30px 70px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.04);
+}
+.mkphonebar { padding: 4px 4px 10px; }
+.mkseg {
+  display: flex; gap: 3px; padding: 3px; margin-bottom: 10px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md);
+  font-size: 11px; font-weight: 700;
+}
+.mkseg span {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;
+  padding: 7px 4px; border-radius: 999px; color: var(--ink-3); white-space: nowrap;
+}
+.mkseg span.on { background: var(--grad); color: var(--on-brand); }
+.mkseg i {
+  font-style: normal; min-width: 15px; padding: 1px 4px; border-radius: 999px;
+  background: var(--buy); color: #04140b; font-size: 9.5px; font-weight: 800;
+}
+.mkseg i.v { background: var(--verify); color: #1a1200; }
+.mkseg i.r { background: var(--risk); color: #fff; }
+
+.mkcards { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.mkcard {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; overflow: hidden;
+}
+.mkcardshot {
+  position: relative; aspect-ratio: 1/1;
+  background: linear-gradient(145deg, var(--surface-3), var(--surface-2));
+}
+.mkcall {
+  position: absolute; top: 5px; left: 5px;
+  font-size: 8px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
+  padding: 3px 5px; border-radius: 4px;
+  background: var(--vfill); color: var(--vink);
+}
+.mkage {
+  position: absolute; right: 5px; bottom: 5px;
+  font-size: 8.5px; font-weight: 700; padding: 2px 4px; border-radius: 4px;
+  background: rgba(10,14,23,.55); color: rgba(255,255,255,.9);
+  border: 1px solid rgba(255,255,255,.16);
+}
+.mkprice {
+  position: absolute; left: 6px; bottom: 5px;
+  font-size: 13px; font-weight: 800; color: #fff; letter-spacing: -.02em;
+}
+.mkprice em { font-style: normal; font-size: 9.5px; color: var(--buy); margin-left: 4px; }
+.mkcardtitle {
+  display: block; padding: 5px 7px 7px;
+  font-size: 10px; font-weight: 600; line-height: 1.25; color: var(--ink-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.mkshottext h2, .mkhow h2, .mkproof h2, .mkalerts h2, .mktrust h2, .mkclose h2 {
+  margin: 0 0 12px; font-size: clamp(24px, 5vw, 34px);
+  font-weight: 800; letter-spacing: -.03em; line-height: 1.15;
+}
+.mkshottext p { margin: 0 0 16px; color: var(--ink-2); font-size: 15px; line-height: 1.6; }
+.mkticks { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+.mkticks li {
+  display: flex; align-items: flex-start; gap: 9px;
+  color: var(--ink-2); font-size: 14px; line-height: 1.45;
+}
+.mkticks svg { flex: none; margin-top: 3px; color: var(--buy); }
+
+/* ==================================================================== how */
+.mkhow { padding: 56px 0; text-align: center; }
+.mksteps {
+  display: grid; gap: 12px; margin-top: 28px; text-align: left;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 700px) { .mksteps { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1000px) { .mksteps { grid-template-columns: repeat(4, 1fr); } }
+.mkstep {
+  padding: 20px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+}
+.mkstepn {
+  display: grid; place-items: center;
+  width: 28px; height: 28px; border-radius: 999px; margin-bottom: 12px;
+  background: color-mix(in srgb, var(--brand) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent);
+  color: var(--brand); font-size: 13px; font-weight: 800;
+}
+.mkstep b { display: block; font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+.mkstep p { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 1.55; }
+
+/* ================================================================== proof */
+.mkproof { padding: 40px 0; text-align: center; }
+.mkcase {
+  max-width: 520px; margin: 24px auto 0; text-align: left;
+  padding: 22px;
+  background: color-mix(in srgb, var(--surface) 90%, var(--buy) 10%);
+  border: 1px solid color-mix(in srgb, var(--buy) 30%, transparent);
+  border-radius: var(--r-lg);
+}
+.mkcasehd { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.mkcasetag {
+  padding: 4px 10px; border-radius: 999px;
+  background: color-mix(in srgb, var(--buy) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--buy) 38%, transparent);
+  color: var(--buy); font-size: 10.5px; font-weight: 800;
+  letter-spacing: .05em; text-transform: uppercase;
+}
+.mkcasedate { margin-left: auto; color: var(--ink-3); font-size: 12px; }
+.mkcase b { display: block; font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+.mkcase p { margin: 0 0 16px; color: var(--ink-2); font-size: 14px; line-height: 1.55; }
+.mkcasenums { display: flex; gap: 10px; }
+.mkcasenums div {
+  flex: 1; padding: 12px; border-radius: var(--r-md);
+  background: var(--surface-2); border: 1px solid var(--line); text-align: center;
+}
+.mkcasenums span { display: block; color: var(--ink-3); font-size: 11px; margin-bottom: 4px; }
+.mkcasenums b { font-size: 19px; font-weight: 800; margin: 0; letter-spacing: -.02em; }
+.mkcasenums .win { border-color: color-mix(in srgb, var(--buy) 40%, transparent); }
+.mkcasenums .win b { color: var(--buy); }
+/*
+ * ⚠ THE DISCLAIMER IS NOT FINE PRINT AND IS NOT STYLED LIKE IT. One real flip
+ * is one real flip; presenting it as a typical result would be an earnings
+ * claim this business cannot substantiate. Readable size, normal ink.
+ */
+.mkdisclaim {
+  max-width: 520px; margin: 14px auto 0;
+  color: var(--ink-3); font-size: 12.5px; line-height: 1.55;
+}
+
+/* ================================================================= alerts */
+.mkalerts {
+  padding: 44px 24px; margin: 20px 0; text-align: center;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+}
+.mkalerticon {
+  display: inline-grid; place-items: center;
+  width: 48px; height: 48px; border-radius: 999px; margin-bottom: 14px;
+  background: color-mix(in srgb, var(--brand) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 36%, transparent);
+  color: var(--brand);
+}
+.mkalerts p { margin: 0 auto; max-width: 520px; color: var(--ink-2); font-size: 15px; line-height: 1.6; }
+
+/* ================================================================== trust */
+.mktrust { padding: 56px 0; text-align: center; }
+.mktrustgrid {
+  display: grid; gap: 12px; margin-top: 26px; text-align: left;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 700px) { .mktrustgrid { grid-template-columns: repeat(2, 1fr); } }
+.mktrustgrid > div {
+  padding: 18px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+}
+.mktrustgrid svg { color: var(--buy); margin-bottom: 10px; }
+.mktrustgrid b { display: block; font-size: 15px; font-weight: 700; margin-bottom: 5px; }
+.mktrustgrid span { display: block; color: var(--ink-2); font-size: 13px; line-height: 1.55; }
+
+/* ================================================================== close */
+.mkclose {
+  padding: 60px 24px; text-align: center;
+  border-top: 1px solid var(--line);
+}
+.mkclose p { margin: 0 0 22px; color: var(--ink-2); font-size: 15px; }
+.mkfoot {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 24px 0; border-top: 1px solid var(--line);
+  color: var(--ink-3); font-size: 12.5px;
+}
+.mkfoot span:last-child { margin-left: auto; }
+
+/* =================================================================== auth */
+/*
+ * ⚠ THE AUTH SCREEN IS NARROW ON EVERY WIDTH. A 1080px-wide sign-in form is a
+ * 1080px-wide reading line for two fields; the page is a task, not a document.
+ */
+.auth {
+  position: relative;
+  max-width: 400px; margin: 0 auto;
+  padding: calc(var(--safe-t) + 52px) 20px calc(var(--safe-b) + 40px);
+}
+.authback {
+  position: absolute; top: calc(var(--safe-t) + 12px); right: 14px;
+  width: var(--tap); height: var(--tap); border-radius: 999px;
+  display: grid; place-items: center;
+  background: var(--surface-2); border: 1px solid var(--line);
+  color: var(--ink-2); cursor: pointer;
+}
+.authhd { text-align: center; margin-bottom: 26px; }
+.authhd h1 {
+  margin: 18px 0 8px; font-size: 27px; font-weight: 800; letter-spacing: -.03em;
+}
+.authhd p { margin: 0; color: var(--ink-2); font-size: 14px; line-height: 1.55; }
+
+.authprov { display: grid; gap: 10px; justify-items: center; }
+/* Google renders its own button into this box; it needs a real width to lay
+   out against, and centring it keeps it aligned with the form below. */
+.gbtn { min-height: 44px; display: grid; place-items: center; width: 100%; }
+.gbtn > div { margin: 0 auto; }
+.applebtn {
+  width: 100%; min-height: 44px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: #fff; color: #000; border: 0;
+  font-size: 14.5px; font-weight: 600; cursor: pointer;
+}
+.applebtn:disabled { opacity: .6; }
+
+.authdiv {
+  display: flex; align-items: center; gap: 12px;
+  margin: 22px 0; color: var(--ink-3); font-size: 12px;
+}
+.authdiv::before, .authdiv::after {
+  content: ""; flex: 1; height: 1px; background: var(--line);
+}
+
+.authform { display: grid; gap: 16px; }
+.authfield { display: grid; gap: 7px; }
+.authfield > span {
+  font-size: 12.5px; font-weight: 650; color: var(--ink-2);
+  display: flex; align-items: baseline; gap: 6px;
+}
+.authfield > span em { font-style: normal; color: var(--ink-3); font-weight: 500; }
+.authfield input {
+  width: 100%; padding: 13px 14px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-md); color: var(--ink);
+  /* ⚠ 16px MINIMUM. iOS zooms the whole viewport on focus for anything
+     smaller, and the page never zooms back out. */
+  font-size: 16px;
+  transition: border-color var(--dur) var(--ease);
+}
+.authfield input:focus {
+  outline: none; border-color: color-mix(in srgb, var(--brand) 60%, transparent);
+}
+.authpw { position: relative; display: block; }
+.authpw input { padding-right: 66px; }
+.authshow {
+  position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
+  min-height: 36px; padding: 0 11px; border-radius: 8px;
+  background: none; border: 0; color: var(--ink-3);
+  font-size: 12.5px; font-weight: 650; cursor: pointer;
+}
+.authshow:hover { color: var(--ink); }
+.authhint { display: block; color: var(--ink-3); font-size: 11.5px; font-style: normal; }
+
+.autherr {
+  display: flex; align-items: center; gap: 8px;
+  padding: 11px 13px; border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--risk) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--risk) 34%, transparent);
+  color: var(--risk); font-size: 13px; font-weight: 600;
+}
+.autherr svg { flex: none; }
+
+.authswap { margin: 20px 0 0; text-align: center; color: var(--ink-2); font-size: 13.5px; }
+.authswap button {
+  background: none; border: 0; padding: 4px; cursor: pointer;
+  color: var(--brand); font-size: 13.5px; font-weight: 700;
+}
+.authlegal {
+  margin: 22px 0 0; text-align: center;
+  color: var(--ink-3); font-size: 11.5px; line-height: 1.55;
+}
+
+/* The blank frame shown while `/v1/auth/me` is in flight. See `useAuth`. */
+.app.boot { min-height: 100dvh; background: var(--bg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .mkpill i { animation: none; }
+  .mkcta:hover { transform: none; }
+}

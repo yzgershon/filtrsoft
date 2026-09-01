@@ -80,6 +80,58 @@ const ok = (name, cond, detail = "") => {
 const browser = await chromium.launch({ executablePath: CHROME, headless: true });
 
 /**
+ * ─────────────────────────────────────────── SIGN IN BEFORE ANYTHING ELSE
+ *
+ * The app is behind an account as of 2026-09-01, so every context this suite
+ * opens would otherwise land on the marketing page and fail 170 assertions
+ * about a feed it never reached.
+ *
+ * ⚠ IT SIGNS IN OVER THE REAL API AND REUSES THE REAL COOKIE. The alternative
+ * — an env flag that disables auth for tests — means the suite verifies a
+ * configuration that never ships, and the sign-in wall itself would be the one
+ * thing never exercised. This way the wall is load-bearing in the test run too:
+ * if auth breaks, this fails first and says so.
+ *
+ * The account is created on first run and reused after. Against production
+ * that is a real account, which is why the address is obviously a test one.
+ */
+const TEST_EMAIL = process.env.ASSYZE_TEST_EMAIL ?? "ui-verify@assyze.test";
+const TEST_PASSWORD = process.env.ASSYZE_TEST_PASSWORD ?? "ui verify harness passphrase";
+
+async function signInCookie() {
+  const post = (path, body) => fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  let res = await post("/v1/auth/signin", { email: TEST_EMAIL, password: TEST_PASSWORD });
+  if (res.status === 401) {
+    res = await post("/v1/auth/signup", { email: TEST_EMAIL, password: TEST_PASSWORD, name: "UI Verify" });
+  }
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`could not sign in for the test run (${res.status}): ${body.slice(0, 160)}`);
+  }
+  /**
+   * `getSetCookie()` rather than `get("set-cookie")`: a single header lookup
+   * joins multiple cookies with a comma, and an `Expires=` date contains a
+   * comma too — so the naive read produces a token with half a date glued to
+   * it and a sign-in that silently does nothing.
+   */
+  const raw = res.headers.getSetCookie?.() ?? [res.headers.get("set-cookie") ?? ""];
+  for (const line of raw) {
+    const m = /(?:^|;\s*)assyze_session=([^;]+)/.exec(line);
+    if (m) return m[1];
+  }
+  throw new Error("signed in but no session cookie came back");
+}
+
+const SESSION = await signInCookie();
+const { hostname: COOKIE_DOMAIN } = new URL(BASE);
+console.log(`signed in as ${TEST_EMAIL}`);
+
+/**
  * Settings live in localStorage, so each run starts from a known state.
  *
  * `spec` is either a device NAME from Playwright's registry (real UA, DPR,
@@ -90,6 +142,17 @@ async function newPage(spec, settings) {
     ? { ...devices[spec] }
     : { viewport: { width: spec, height: 900 }, deviceScaleFactor: 2 };
   const ctx = await browser.newContext(opts);
+  /**
+   * Every context gets the session, or it lands on the marketing page. Set on
+   * the CONTEXT rather than via a sign-in click per test: the suite opens ~10
+   * contexts and driving a form in each would add ten round trips to prove
+   * something one dedicated assertion should own.
+   */
+  await ctx.addCookies([{
+    name: "assyze_session", value: SESSION,
+    domain: COOKIE_DOMAIN, path: "/",
+    httpOnly: true, secure: BASE.startsWith("https"), sameSite: "Lax",
+  }]);
   await ctx.addInitScript((s) => {
     if (s) localStorage.setItem("assyze:settings", JSON.stringify(s));
   }, settings ?? null);

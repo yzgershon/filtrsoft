@@ -365,3 +365,81 @@ CREATE TABLE IF NOT EXISTS verdict_overrides (
   PRIMARY KEY (device_ref, listing_id)
 );
 CREATE INDEX IF NOT EXISTS idx_overrides_listing ON verdict_overrides(listing_id);
+
+/*
+ * ─────────────────────────────────────────────────────────────── ACCOUNTS
+ *
+ * Yish, 2026-09-01: *"right now anyone who goes to assyze.com can just have
+ * full access to all the deals so lets add some personalization and security."*
+ *
+ * ⚠ THE DEVICE REF DOES NOT GO AWAY, IT GETS ADOPTED. Saved listings, verdict
+ * overrides and the billing entitlement are all keyed on `device_ref` today,
+ * and a sign-in that orphaned them would erase his own labels at the exact
+ * moment he was told the product got more personal. `account_devices` links a
+ * ref to a user, so the existing tables keep working unchanged and the account
+ * becomes the thing that owns the refs.
+ */
+CREATE TABLE IF NOT EXISTS users (
+  id            INTEGER PRIMARY KEY,
+  -- Stored lowercased and trimmed; UNIQUE is what makes "already registered"
+  -- a database fact rather than a race between two signup requests.
+  email         TEXT NOT NULL UNIQUE,
+  -- NULL for accounts created purely through Google or Apple. Such an account
+  -- has no password to guess, which is a feature; "forgot password" for one of
+  -- those has to send them back to the provider, not offer a reset.
+  password_hash TEXT,
+  name          TEXT,
+  avatar_url    TEXT,
+  created_at    TEXT NOT NULL,
+  last_seen_at  TEXT
+);
+
+/*
+ * One row per external identity. A user can hold several: signing in with
+ * Google and later with Apple on the same verified email lands on ONE account
+ * rather than silently creating a second one that has none of your saved work.
+ */
+CREATE TABLE IF NOT EXISTS identities (
+  provider   TEXT NOT NULL,          -- google | apple
+  subject    TEXT NOT NULL,          -- the provider's stable user id ("sub")
+  user_id    INTEGER NOT NULL REFERENCES users(id),
+  email      TEXT,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (provider, subject)
+);
+CREATE INDEX IF NOT EXISTS idx_identities_user ON identities(user_id);
+
+/*
+ * ⚠ OPAQUE RANDOM TOKENS IN A TABLE, NOT JWTs, and the reason is revocation.
+ * A signed token cannot be withdrawn before it expires without a
+ * denylist — which is a session table with extra steps. Signing out, "sign out
+ * everywhere", and a stolen-laptop story all need a DELETE, so the row IS the
+ * session.
+ *
+ * The token is never logged and never appears in a URL; it lives in an
+ * httpOnly cookie so page JavaScript cannot read it either.
+ */
+CREATE TABLE IF NOT EXISTS sessions (
+  token      TEXT PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  user_agent TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+
+/*
+ * Which devices belong to which account.
+ *
+ * ⚠ A REF IS CLAIMED BY THE FIRST ACCOUNT THAT SIGNS IN ON IT AND IS NOT
+ * REASSIGNED. Two people sharing a phone would otherwise pull each other's
+ * overrides across on every switch. `PRIMARY KEY (device_ref)` makes that a
+ * constraint rather than a convention.
+ */
+CREATE TABLE IF NOT EXISTS account_devices (
+  device_ref TEXT PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_account_devices_user ON account_devices(user_id);

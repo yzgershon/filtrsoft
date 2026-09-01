@@ -47,6 +47,7 @@ import {
   visionReservationMicros,
 } from "../src/vision/budget.ts";
 import { evaluateRisk, riskGate, inPersonConditions } from "../src/verdict/risk-gates.ts";
+import { passwordProblem, readCookie, PASSWORD_MIN } from "../src/api/auth.ts";
 
 describe("hard-blocker gate", () => {
   /**
@@ -1434,5 +1435,68 @@ describe("new-since-you-looked counts", () => {
       expect(parseSeen(JSON.stringify({ ready: "yesterday" }))).toEqual({});
       expect(parseSeen(JSON.stringify({ nonsense: WATERMARK }))).toEqual({});
     });
+  });
+});
+
+
+/**
+ * ── ACCOUNTS ───────────────────────────────────────────────────────────────
+ *
+ * The pure half. Hashing, sessions and token verification need a database or a
+ * network and are exercised end-to-end by `ui-verify`, which now signs in over
+ * the real API before it can test anything at all.
+ */
+describe("password rules", () => {
+  /**
+   * ⚠ LENGTH ONLY, NO COMPOSITION RULES. "One uppercase, one digit, one
+   * symbol" produces `Password1!` — which is in every cracking dictionary —
+   * while rejecting the long passphrase that would actually be strong. NIST
+   * dropped composition requirements for exactly this reason.
+   */
+  test("twelve characters is the bar, and a passphrase clears it", () => {
+    expect(passwordProblem("correct horse battery")).toBeNull();
+    expect(PASSWORD_MIN).toBe(12);
+  });
+
+  test("short passwords are refused with the reason", () => {
+    expect(passwordProblem("short")).toMatch(/at least 12/);
+    expect(passwordProblem("elevenchars")).toMatch(/at least 12/);   // 11
+    expect(passwordProblem("twelvechars!")).toBeNull();              // 12
+  });
+
+  test("a missing or non-string password is refused, never crashed on", () => {
+    expect(passwordProblem(undefined)).toBeTruthy();
+    expect(passwordProblem("")).toBeTruthy();
+    expect(passwordProblem(12345678901234)).toBeTruthy();
+    expect(passwordProblem(null)).toBeTruthy();
+  });
+
+  /** A megabyte of password is a free CPU burn against an argon2id hash. */
+  test("an absurdly long password is refused", () => {
+    expect(passwordProblem("a".repeat(201))).toMatch(/too long/);
+    expect(passwordProblem("a".repeat(200))).toBeNull();
+  });
+});
+
+describe("readCookie", () => {
+  test("finds the session among others", () => {
+    expect(readCookie("a=1; assyze_session=abc123; b=2", "assyze_session")).toBe("abc123");
+    expect(readCookie("assyze_session=solo", "assyze_session")).toBe("solo");
+  });
+
+  /**
+   * ⚠ A PREFIX MATCH WOULD BE A SESSION-CONFUSION BUG. `other_assyze_session`
+   * is a different cookie and must not answer for ours.
+   */
+  test("matches the whole name, not a prefix or a suffix", () => {
+    expect(readCookie("other_assyze_session=nope", "assyze_session")).toBeNull();
+    expect(readCookie("assyze_session_x=nope", "assyze_session")).toBeNull();
+  });
+
+  test("tolerates whitespace, missing values and no header at all", () => {
+    expect(readCookie("  assyze_session = spaced ", "assyze_session")).toBe("spaced");
+    expect(readCookie("broken; assyze_session=ok", "assyze_session")).toBe("ok");
+    expect(readCookie(undefined, "assyze_session")).toBeNull();
+    expect(readCookie("", "assyze_session")).toBeNull();
   });
 });
