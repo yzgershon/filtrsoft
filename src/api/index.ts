@@ -179,6 +179,29 @@ app.get("/v1/health", (c) => {
      * number here is the difference between noticing at 20 MB and noticing at
      * the disk limit. See `photos/thumb.ts` for the bounds that keep it small.
      */
+    /**
+     * ⚠ WHEN THE DELISTING SWEEP LAST RAN, because it starved for days without
+     * a single surface saying so.
+     *
+     * Its first run was scheduled from BOOT, not from the last sweep, so on a
+     * service that deploys often every restart pushed it further out and a
+     * deploy inside the window reset it again. Production had marked 7 of 725
+     * listings delisted while every log line said the loop had started. One
+     * number here is the difference between noticing and not.
+     */
+    sweep: (() => {
+      try {
+        const r = db().query(
+          "SELECT started_at, seen, probed, delisted FROM sweeps ORDER BY id DESC LIMIT 1",
+        ).get() as any;
+        if (!r) return { lastAt: null, hoursAgo: null };
+        return {
+          lastAt: r.started_at,
+          hoursAgo: Math.round((Date.now() - Date.parse(r.started_at)) / 3600_000),
+          seen: r.seen, probed: r.probed, delisted: r.delisted,
+        };
+      } catch { return { error: "unavailable" }; }
+    })(),
     thumbs: THUMBS_OFF ? { enabled: false } : (() => {
       try {
         const t = thumbStats();
@@ -447,6 +470,76 @@ const thumbUrl = (r: { id: number; has_thumb?: number; thumb?: string | null }) 
 app.post("/v1/checks/:id/override", handleSetOverride);
 app.delete("/v1/checks/:id/override", handleClearOverride);
 
+/**
+ * Everything he has bought with Assyze's help.
+ *
+ * Yish, 2026-08-31: *"add a section in Assyze where it shows all of my
+ * purchases with the help of assyze."*
+ *
+ * ⚠ IT JOINS THE PRICE HE PAID TO WHAT THE ENGINE SAID IT WAS WORTH, and that
+ * pairing is the whole feature. A list of things you bought is a receipt; a
+ * list of what you paid against what the engine valued them at is the product
+ * scoring itself in public. The first row in this table is an i9-12900K he
+ * talked down from $200 to $170 against a $287 median — and the engine had
+ * called it FAIR, "doesn't pay for the trip". Both numbers belong on screen.
+ *
+ * ⚠ NOT SCOPED TO A DEVICE REF, unlike overrides. `outcomes` predates the ref
+ * and has no column for it, and a purchase is not a public write — it comes
+ * from the outcome prompt, which only someone using the app ever sees. Adding
+ * scoping later means a migration, not a redesign.
+ */
+app.get("/v1/purchases", (c) => {
+  const rows = db().query(`
+    SELECT o.id, o.listing_id, o.action, o.purchase_price_cents, o.notes, o.created_at,
+           o.sold_price_cents, o.sold_channel, o.sold_at,
+           l.title, l.url, l.source, l.location, l.asking_price_cents,
+           v.call, v.payload,
+           EXISTS(SELECT 1 FROM listing_thumbs t WHERE t.listing_id = l.id) has_thumb,
+           (SELECT url FROM listing_photos p WHERE p.listing_id = l.id ORDER BY position LIMIT 1) thumb
+      FROM outcomes o
+      JOIN listings l ON l.id = o.listing_id
+      LEFT JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
+     WHERE o.action = 'bought'
+     ORDER BY o.created_at DESC
+     LIMIT 200
+  `).all() as any[];
+
+  const items = rows.map((r) => {
+    const v = r.payload ? JSON.parse(r.payload) : null;
+    const paid = r.purchase_price_cents ?? r.asking_price_cents ?? null;
+    /**
+     * What it is worth is the LOCAL number, not the eBay gross. Every headline
+     * in this app quotes the channel he actually uses, and a purchases screen
+     * that quoted a bigger number than the listing did would be the one place
+     * the product flattered itself.
+     */
+    const local = (v?.channels ?? []).find((ch: any) => ch.channel === "facebook" && ch.available);
+    const worth = local?.netCents ?? v?.valuation?.medianCents ?? null;
+    return {
+      id: r.id, listingId: r.listing_id, title: r.title, url: r.url,
+      source: r.source, location: r.location,
+      thumb: r.has_thumb ? `/v1/thumb/${r.listing_id}` : r.thumb ?? null,
+      askingPriceCents: r.asking_price_cents,
+      paidCents: paid,
+      worthCents: worth,
+      marginCents: worth != null && paid != null ? worth - paid : null,
+      engineCall: r.call ?? null,
+      soldPriceCents: r.sold_price_cents ?? null,
+      soldChannel: r.sold_channel ?? null,
+      soldAt: r.sold_at ?? null,
+      notes: r.notes ?? null,
+      boughtAt: r.created_at,
+    };
+  });
+
+  const spent = items.reduce((a, i) => a + (i.paidCents ?? 0), 0);
+  const worth = items.reduce((a, i) => a + (i.worthCents ?? 0), 0);
+  return c.json({
+    items,
+    summary: { count: items.length, spentCents: spent, worthCents: worth, marginCents: worth - spent },
+  });
+});
+
 app.get("/v1/thumb/:id", (c) => {
   const id = Number(c.req.param("id"));
   if (!Number.isInteger(id) || id <= 0) return c.text("bad id", 400);
@@ -646,7 +739,28 @@ app.get("/v1/feed", (c) => {
   const items = filtered.slice(offset, offset + limit);
   const segments = segmentCounts(scoped);
 
+  /**
+   * ⚠ WHEN THE FEED LAST MOVED, AND HOW MUCH — because "when should I look?"
+   * had no answer anywhere in the product.
+   *
+   * Yish, 2026-08-31: *"I want to understand better when new listings get added
+   * to Assyze because I want to know when to look at Assyze, and eventually it
+   * would be great if new listings were being added like every 5 minutes."*
+   *
+   * It ALREADY runs every three minutes (`ASSYZE_CRAWL_INTERVAL_MS`, scheduler
+   * line 45). The gap was never the cadence, it was that nothing on screen said
+   * so — `lastCrawl` has been in this response the whole time and no component
+   * ever read it. A crawler you cannot see is one you assume is broken.
+   *
+   * `freshCount` is the number that actually answers his question: not when a
+   * crawl ran, but how much it FOUND. A tick that adds nothing is not a reason
+   * to open the app.
+   */
   const lastCrawl = db().query("SELECT started_at, analysed FROM crawls ORDER BY id DESC LIMIT 1").get() as any;
+  const freshCount = (db().query(
+    `SELECT COUNT(*) n FROM listings
+      WHERE delisted_at IS NULL AND captured_at >= datetime('now', '-1 hour')`,
+  ).get() as { n: number }).n;
 
   return c.json({
     items,
@@ -676,6 +790,9 @@ app.get("/v1/feed", (c) => {
         .map((k) => [k, ranked.filter((i) => i.call === k).length]),
     ),
     lastCrawl: lastCrawl ?? null,
+    /** New listings in the last hour, and how often the crawler runs. */
+    freshCount,
+    crawlEveryMs: Number(process.env.ASSYZE_CRAWL_INTERVAL_MS ?? 3 * 60 * 1000),
   });
 });
 

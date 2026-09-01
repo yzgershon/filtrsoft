@@ -389,6 +389,45 @@ export function onOpenFilters(fn: () => void) {
   return () => { openListeners.delete(fn); };
 }
 
+/**
+ * Feed -> the head: when the crawler last ran and what it found.
+ *
+ * ⚠ SAME BUS AS THE FILTER COUNT, AND FOR THE SAME REASON. The feedhead is
+ * rendered by `App` and the numbers arrive in the FEED's response, so either
+ * `App` learns to fetch the feed (a second request for data it already has) or
+ * the feed publishes. Yish: *"I want to understand better when new listings get
+ * added because I want to know when to look at Assyze."*
+ */
+export type Freshness = { at: string | null; fresh: number; everyMs: number };
+const freshListeners = new Set<(f: Freshness) => void>();
+export const publishFreshness = (f: Freshness) => freshListeners.forEach((fn) => fn(f));
+export function onFreshness(fn: (f: Freshness) => void) {
+  freshListeners.add(fn);
+  return () => { freshListeners.delete(fn); };
+}
+
+/**
+ * "Checked 2 min ago · 12 new in the last hour".
+ *
+ * ⚠ IT REPLACES THE SUBTITLE RATHER THAN SITTING BELOW IT. The static line
+ * ("Only what the engine verified, best first.") is read once and never again;
+ * this is useful every single visit. Adding a row would undo the density pass
+ * that just took 51px off the top of every screen.
+ */
+export function freshnessLine(f: Freshness | null): string | null {
+  if (!f?.at) return null;
+  const mins = Math.max(0, Math.round((Date.now() - Date.parse(f.at)) / 60000));
+  const when = mins < 1 ? "just now" : mins === 1 ? "1 min ago" : `${mins} min ago`;
+  const every = Math.round(f.everyMs / 60000);
+  // No new listings is worth saying plainly — it is the answer to "should I
+  // open this", and dressing it up as activity is how a status line stops
+  // being read.
+  const found = f.fresh > 0
+    ? `${f.fresh} new in the last hour`
+    : `nothing new yet, checking every ${every} min`;
+  return `Checked ${when} · ${found}`;
+}
+
 /** Feed -> top bar: how many filters are on, for the badge. */
 export const publishFilterCount = (n: number) => countListeners.forEach((fn) => fn(n));
 export function onFilterCount(fn: (n: number) => void) {

@@ -134,7 +134,21 @@ const SWEEP_ON = (process.env.ASSYZE_SWEEP ?? "on").toLowerCase() !== "off";
  * listings simply stay live until the next sweep, so the backlog drains over
  * several days instead of arriving as one spike.
  */
-const SWEEP_PROBE_LIMIT = Number(process.env.ASSYZE_SWEEP_PROBE ?? 60);
+/**
+ * ⚠ RAISED 60 -> 150 ON 2026-08-31, AND THE CAP IS STILL THE POINT.
+ *
+ * Measured: a sweep sees ~660 listings in the search pages against ~990 live,
+ * so ~330 are candidates for an individual probe and only 60 got one. At a
+ * daily cadence that is a five-day drain on a backlog that grows every day —
+ * which is why production had marked 7 of 725 delisted and Yish was looking at
+ * listings that had already sold.
+ *
+ * 150 in one daily pass is still far below anything a marketplace would notice,
+ * and the burst reasoning that set 60 stands: unprobed listings simply stay
+ * live until tomorrow, so the backlog drains over days rather than arriving as
+ * one spike.
+ */
+const SWEEP_PROBE_LIMIT = Number(process.env.ASSYZE_SWEEP_PROBE ?? 150);
 
 let running = false;
 let sweeping = false;
@@ -463,15 +477,44 @@ export function startCrawlLoop() {
  * delay a crawl or vice versa. `sweeping` and `running` are separate flags so
  * they can overlap; they touch different rows and SQLite serialises the writes.
  *
- * The first sweep waits 10 minutes. On a cold container the crawl is the thing
- * that makes the feed non-empty, and sweeping a database that is still filling
- * spends requests re-checking listings we just fetched.
+ * ⚠ THE FIRST RUN IS SCHEDULED FROM THE LAST SWEEP, NOT FROM BOOT, AND THAT IS
+ * A BUG FIX, NOT A REFINEMENT.
+ *
+ * It used to be a flat `setTimeout(tick, 10 minutes)` on every start, with the
+ * 24-hour interval only re-armed AFTER a run. Nothing persisted when the last
+ * sweep happened. So on a service that deploys often — and this one deployed
+ * about fifteen times in five hours on 2026-08-31 — every restart pushed the
+ * first sweep ten minutes into the future, and a deploy landing inside that
+ * window reset it again. **The sweep can starve indefinitely while every log
+ * line says the loop started.**
+ *
+ * The evidence: local sweeps ran on 08-27, 08-29 and 08-31 against a DAILY
+ * interval, and production had marked **7 of 725** listings delisted. Yish:
+ * *"there's a bunch of listings on Assyze that are sold already, so once
+ * something is sold it should get removed."* He was looking at the symptom of a
+ * timer that could never fire.
+ *
+ * The `sweeps` table has recorded `started_at` all along and nothing read it.
+ *
+ * A cold container still gets a short head start, because the crawl is what
+ * makes the feed non-empty and sweeping a database that is still filling spends
+ * requests re-checking listings we just fetched. But 90 seconds, not ten
+ * minutes, and only when we are not already overdue.
  */
 function startSweepLoop() {
-  const FIRST_MS = 10 * 60_000;
+  const last = db()
+    .query("SELECT started_at FROM sweeps ORDER BY id DESC LIMIT 1")
+    .get() as { started_at: string } | null;
+  const since = last ? Date.now() - Date.parse(last.started_at) : Infinity;
+  const overdue = since >= SWEEP_INTERVAL_MS;
+  const FIRST_MS = overdue
+    ? 90_000
+    : Math.max(90_000, SWEEP_INTERVAL_MS - since);
   console.log(
     `sweep loop: every ${Math.round(SWEEP_INTERVAL_MS / 3600_000)}h, ` +
-    `probe cap ${SWEEP_PROBE_LIMIT}, first run in ${Math.round(FIRST_MS / 60000)}m`,
+    `probe cap ${SWEEP_PROBE_LIMIT}, ` +
+    `last ${last ? `${Math.round(since / 3600_000)}h ago` : "never"}, ` +
+    `first run in ${Math.round(FIRST_MS / 60000)}m`,
   );
 
   const tick = async () => {

@@ -13,6 +13,7 @@ import {
   LABEL, Toaster, pushHist, readHist, readAsked, readWatch, writeWatch,
   readSettings, writeSettings, pendingOutcome, shareOrCopy, toast,
   openFilters, onFilterCount, rememberSpot, feedRows, deviceRef,
+  onFreshness, freshnessLine, type Freshness,
 } from "./lib.tsx";
 import { Feed } from "./feed.tsx";
 import { Report } from "./detail.tsx";
@@ -142,6 +143,8 @@ export default function App() {
   const [reloadAt, setReloadAt] = useState(0);
   const [filterCount, setFilterCount] = useState(0);
   useEffect(() => onFilterCount(setFilterCount), []);
+  const [crawl, setCrawl] = useState<Freshness | null>(null);
+  useEffect(() => onFreshness(setCrawl), []);
   const es = useRef<EventSource | null>(null);
   const field = useRef<HTMLInputElement | null>(null);
 
@@ -401,7 +404,14 @@ export default function App() {
                       The demo repeats this exact rhythm in every section. */}
                   <span className="eyebrow buy"><i />Live deals</span>
                   <h1>Worth <span className="g">driving for</span></h1>
-                  <p>Only what the engine verified, best first.</p>
+                  {/**
+                    * ⚠ THE FRESHNESS LINE REPLACES THE SUBTITLE, IT DOES NOT
+                    * JOIN IT. The static copy is read once; "checked 2 min ago,
+                    * 12 new in the last hour" is useful every visit. A second
+                    * row would undo the density pass that just took 51px off
+                    * the top of every screen. Falls back until the feed lands.
+                    */}
+                  <p>{freshnessLine(crawl) ?? "Only what the engine verified, best first."}</p>
                 </div>
                 {settings.askOutcomes && ask && (
                   <OutcomePrompt h={ask} onDone={() => setAsk(null)} />

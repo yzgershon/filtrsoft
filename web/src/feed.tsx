@@ -19,7 +19,7 @@ import {
 import {
   LABEL, money, ago, readWatch, toggleWatch, readSettings, toast, Thumb,
   SUBKEY, urlB64ToBytes, onOpenFilters, publishFilterCount,
-  popSpot, restoreScroll, setFeedRows, deviceRef,
+  popSpot, restoreScroll, setFeedRows, deviceRef, publishFreshness,
 } from "./lib.tsx";
 
 /** Re-exported so existing importers keep one name for the page size. */
@@ -397,6 +397,11 @@ export function Feed({ onOpen, onWatchChange }: {
         setSegments(d.segments ?? {});
         setFacets(d.facets ?? {});
         setTotal(d.total ?? 0);
+        publishFreshness({
+          at: d.lastCrawl?.started_at ?? null,
+          fresh: d.freshCount ?? 0,
+          everyMs: d.crawlEveryMs ?? 180000,
+        });
       })
       /**
        * A failed fetch is NOT an empty feed. Rendering "Nothing here yet" for a

@@ -152,3 +152,58 @@
   content: ""; position: absolute; left: 12px; top: 15px;
   width: 7px; height: 7px; border-radius: 2px; border: 1.5px solid var(--ink-3);
 }
+
+/* ═════════════════════════════════════════════════ purchases — the scoreboard
+ *
+ * Yish, 2026-08-31: *"add a section in Assyze where it shows all of my
+ * purchases with the help of assyze and make it have good ui."*
+ *
+ * ⚠ THE SUM LEADS. A list of things you bought is a receipt; the reason to open
+ * this screen is the total — what you spent against what it is worth. Four
+ * figures on one glass row, the last one accented because it is the answer.
+ */
+.buysum {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-lg); overflow: hidden;
+  backdrop-filter: blur(var(--blur));
+  margin-bottom: var(--s4);
+}
+.buysum > div { padding: 12px 6px; text-align: center; }
+.buysum span {
+  display: block; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-3); margin-bottom: 3px;
+}
+.buysum b { font-size: 15px; font-weight: 700; letter-spacing: -.02em; }
+/* The one that answers the question gets the tint, the same way `.kv.hi` does
+   on the money panel. */
+.buysumhi { background: color-mix(in srgb, var(--buy) 8%, transparent); }
+
+.buys { display: flex; flex-direction: column; gap: var(--s2); }
+.buy {
+  display: flex; gap: var(--s3); align-items: center; text-decoration: none;
+  padding: 10px; border-radius: var(--r-md);
+  background: var(--surface); border: 1px solid var(--line);
+  backdrop-filter: blur(var(--blur));
+  transition: border-color var(--dur) var(--ease), transform var(--dur-exit) var(--ease);
+}
+.buy:hover { border-color: var(--surface-3); }
+.buy:active { transform: scale(.99); }
+.buyshot {
+  flex: none; width: 62px; height: 62px; border-radius: var(--r-sm); overflow: hidden;
+  background: var(--surface-2); display: grid; place-items: center; color: var(--ink-3);
+}
+.buyshot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.buybody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.buybody b {
+  font-size: 13.5px; font-weight: 600; line-height: 1.3;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.buynums { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+.buypaid { font-size: 17px; font-weight: 800; letter-spacing: -.02em; }
+.buynums s { font-size: 12px; color: var(--ink-3); text-decoration-thickness: 1px; }
+.buymargin { font-size: 12.5px; font-weight: 700; }
+.buymeta { font-size: 11.5px; color: var(--ink-3); }
+/* ⚠ `.b-*` sets --vc for the verdict chips; here only the INK is wanted, on a
+   surface that already has its own background. */
+.buymeta em { font-style: normal; font-weight: 600; color: var(--vc, var(--ink-2)); }

@@ -12,12 +12,13 @@ import {
   Again, Alert, Bell, Card, Check, Clock, Cut, Gear, Grid, Save, Scan, Tag, User,
 } from "./icons.tsx";
 import type { Call, FeedItem, Hist } from "./types.ts";
+import { Ghost } from "./icons.tsx";
 import {
   type Settings, DRIVE_MIN, DRIVE_MAX, DRIVE_STEP, clampDrive,
 } from "./nav.ts";
 import {
   LABEL, money, ago, markAsked, toast, writeWatch, readWatch, toggleWatch,
-  SUBKEY, urlB64ToBytes, deviceRef,
+  SUBKEY, urlB64ToBytes, deviceRef, Thumb,
 } from "./lib.tsx";
 import { Gcard } from "./feed.tsx";
 
@@ -27,7 +28,7 @@ export function Watchlist({ onOpen, onWatchChange, onBrowse }: {
   /** The empty state needs a way out. Audit §"Saved and Alerts". */
   onBrowse: () => void;
 }) {
-  const [sub, setSub] = useState<"listings" | "alerts">("listings");
+  const [sub, setSub] = useState<"listings" | "alerts" | "bought">("listings");
   const [ids, setIds] = useState<number[]>(readWatch);
   const [items, setItems] = useState<FeedItem[] | null>(null);
   const [summary, setSummary] = useState<{ dropped: number; gone: number }>({ dropped: 0, gone: 0 });
@@ -92,6 +93,11 @@ export function Watchlist({ onOpen, onWatchChange, onBrowse }: {
           onClick={() => setSub("listings")}>Listings{items?.length ? ` (${items.length})` : ""}</button>
         <button role="tab" aria-selected={sub === "alerts"} className={sub === "alerts" ? "on" : ""}
           onClick={() => setSub("alerts")}>Alerts</button>
+        {/* Purchases live under Saved because Saved is "your stuff", and a
+            fourth bottom-nav item would cost the other three the room the 44px
+            targets need. */}
+        <button role="tab" aria-selected={sub === "bought"} className={sub === "bought" ? "on" : ""}
+          onClick={() => setSub("bought")}>Bought</button>
       </div>
 
       {sub === "listings" && (
@@ -120,7 +126,99 @@ export function Watchlist({ onOpen, onWatchChange, onBrowse }: {
       )}
 
       {sub === "alerts" && <Alerts />}
+      {sub === "bought" && <Purchases />}
     </div>
+  );
+}
+
+/**
+ * What Assyze has actually bought him.
+ *
+ * Yish, 2026-08-31: *"add a section in Assyze where it shows all of my
+ * purchases with the help of assyze and make it have good ui."*
+ *
+ * ⚠ THE PAIRING IS THE FEATURE, NOT THE LIST. A list of things you bought is a
+ * receipt. What you PAID beside what the engine said it was WORTH is the
+ * product keeping score in public, and it is the only screen where the app can
+ * be wrong in front of you. The first row is an i9-12900K he talked from $200
+ * down to $170 against a $287 median — on a listing the engine had called FAIR,
+ * "doesn't pay for the trip". Both numbers are on screen, including that one.
+ *
+ * ⚠ `engineCall` IS SHOWN EVEN WHEN IT DISAGREES. Hiding a FAIR on something he
+ * bought and did well on would make this a trophy cabinet; the disagreements
+ * are the rows worth reading.
+ */
+export function Purchases() {
+  type Buy = {
+    id: number; listingId: number; title: string; source: string;
+    thumb: string | null; paidCents: number | null; worthCents: number | null;
+    marginCents: number | null; engineCall: Call | null; askingPriceCents: number | null;
+    boughtAt: string; notes: string | null;
+  };
+  const [d, setD] = useState<{ items: Buy[]; summary: any } | null>(null);
+
+  useEffect(() => {
+    fetch("/v1/purchases").then((r) => r.json()).then(setD).catch(() => setD({ items: [], summary: null }));
+  }, []);
+
+  if (!d) return <div>{[0, 1].map((i) => <div className="skel" key={i} style={{ height: 88, marginBottom: 8 }} />)}</div>;
+
+  if (!d.items.length) {
+    return (
+      <div className="empty">
+        <span className="eic"><Tag size={26} /></span>
+        <b>Nothing bought yet</b>
+        <p>When you buy something you found here, answer "what happened with this one?" and it lands on this page with what you paid against what it was worth.</p>
+      </div>
+    );
+  }
+
+  const s = d.summary;
+  return (
+    <>
+      {/* The scoreboard first: the sum is the reason to open this screen. */}
+      <div className="buysum">
+        <div><span>Bought</span><b className="num">{s.count}</b></div>
+        <div><span>Spent</span><b className="num">{money(s.spentCents)}</b></div>
+        <div><span>Worth</span><b className="num">{money(s.worthCents)}</b></div>
+        <div className="buysumhi">
+          <span>Ahead</span>
+          <b className={`num ${s.marginCents >= 0 ? "pos" : "neg"}`}>
+            {s.marginCents >= 0 ? "+" : ""}{money(s.marginCents)}
+          </b>
+        </div>
+      </div>
+
+      <div className="buys">
+        {d.items.map((b) => (
+          <a className="buy" key={b.id} href={`/c/${b.listingId}`}>
+            <span className="buyshot">
+              {b.thumb ? <Thumb src={b.thumb} size={20} /> : <span className="noimg"><Ghost size={20} /></span>}
+            </span>
+            <span className="buybody">
+              <b>{b.title}</b>
+              <span className="buynums">
+                <span className="num buypaid">{money(b.paidCents)}</span>
+                {/* Asking price shown ONLY when he beat it — a strike-through
+                    equal to what he paid is noise. */}
+                {b.askingPriceCents && b.paidCents && b.askingPriceCents > b.paidCents
+                  ? <s className="num">{money(b.askingPriceCents)}</s> : null}
+                {b.marginCents != null && (
+                  <span className={`num buymargin ${b.marginCents >= 0 ? "pos" : "neg"}`}>
+                    {b.marginCents >= 0 ? "+" : ""}{money(b.marginCents)}
+                  </span>
+                )}
+              </span>
+              <span className="buymeta">
+                {b.worthCents != null ? `worth ${money(b.worthCents)}` : "not priced"}
+                {b.engineCall ? <> · engine said <em className={`b-${b.engineCall}`}>{LABEL[b.engineCall]}</em></> : null}
+              </span>
+            </span>
+          </a>
+        ))}
+      </div>
+      <p className="micro2">Recorded when you answer "what happened with this one?"</p>
+    </>
   );
 }
 
