@@ -55,6 +55,35 @@ export function namedCatalogBrand(title: string, brands: string[]): string | nul
   return best?.brand ?? null;
 }
 
+/**
+ * The base model, without its variant suffix. `9800x3d` and `9800x` share
+ * `ryzen 7 9800`; `3080 ti` and `3080` share `rtx 3080`.
+ */
+const CPU_BASE = /^(?:i[3579][- ]\d{4,5}|ryzen \d \d{4}|m[1-9])/;
+const GPU_BASE = /^(?:rtx|gtx|rx)\s?\d{3,4}/;
+
+/**
+ * Of every mention of the SAME model, the fullest spelling.
+ *
+ * ⚠ IT KEEPS THE FIRST MODEL AND ONLY LENGTHENS IT, which is what makes this
+ * safe. A listing can legitimately name two chips ("upgraded from an i5-9400 to
+ * an i7-12700K") and simply taking the longest string anywhere would pick
+ * whichever happened to have more characters. The base of the FIRST match
+ * decides which product this is; later mentions may only add a suffix to it.
+ *
+ * Suffixes only ever ADD — X3D, Ti, Super, XT, K, KF. No variant's full name is
+ * shorter than its base, so "longest wins within a base" is not a heuristic, it
+ * is the complete rule.
+ */
+export function fullestVariant(matches: string[], base: RegExp): string {
+  if (!matches.length) return "";
+  const baseOf = (s: string) => s.match(base)?.[0] ?? s;
+  const want = baseOf(matches[0]);
+  return matches
+    .filter((m) => baseOf(m) === want)
+    .reduce((best, m) => (m.length > best.length ? m : best), matches[0]);
+}
+
 /** Attributes that change value materially, pulled straight from text. */
 export function extractAttributes(text: string): Record<string, string | number> {
   const a: Record<string, string | number> = {};
@@ -114,11 +143,35 @@ export function extractAttributes(text: string): Record<string, string | number>
     if (all.length) a.storage_gb = Math.max(...all);
   }
 
-  const cpu = t.match(/\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d \d{4}[a-z0-9]*|m[1-9](?:\s(?:pro|max|ultra))?)\b/);
-  if (cpu) a.cpu = cpu[1].trim();
+  /**
+   * ⚠ THE FULLEST SPELLING, NOT THE FIRST ONE. `.match()` returns the first
+   * hit, and on a marketplace the first mention is the TITLE — which truncates.
+   *
+   * Found 2026-08-31 on a Craigslist build titled "… RTX 5080 / Ryzen 7 9800X"
+   * whose description said "AMD Ryzen 7 9800X3D". The regex handles `9800x3d`
+   * perfectly; it never saw it, because `9800x` appeared sixty characters
+   * earlier. The engine recorded `cpu: "ryzen 7 9800x"`, found no SKU, could
+   * not price the CPU, and the build fell to 0.42 coverage — under the 0.55
+   * gate — and came back "Specs are known, market prices aren't."
+   *
+   * ⚠ AND THE DANGEROUS CASE IS THE ONE THAT DOES MATCH. A 9800X3D priced as a
+   * 9800X, or a 3080 Ti as a 3080, is a confident wrong number rather than no
+   * number — the variant trap `variants.ts` guards on the SKU side and HANDOFF
+   * §5 records as a known limitation. This closes the attribute half of it.
+   */
+  const cpu = fullestVariant(
+    [...t.matchAll(/\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d \d{4}[a-z0-9]*|m[1-9](?:\s(?:pro|max|ultra))?)\b/g)]
+      .map((m) => m[1].trim()),
+    CPU_BASE,
+  );
+  if (cpu) a.cpu = cpu;
 
-  const gpu = t.match(/\b((?:rtx|gtx|rx)\s?\d{3,4}\s?(?:ti|super|xt)?)\b/);
-  if (gpu) a.gpu = gpu[1].replace(/\s+/g, " ").trim();
+  const gpu = fullestVariant(
+    [...t.matchAll(/\b((?:rtx|gtx|rx)\s?\d{3,4}\s?(?:ti|super|xt)?)\b/g)]
+      .map((m) => m[1].replace(/\s+/g, " ").trim()),
+    GPU_BASE,
+  );
+  if (gpu) a.gpu = gpu;
 
   // Model year only. Exclude dates the seller mentions in passing ("reset on
   // 8/12/2026", "installed 7/8/2026") and anything at or past the current year.

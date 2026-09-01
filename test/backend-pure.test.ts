@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { parseModel } from "../src/catalog/derive.ts";
+import { extractAttributes, fullestVariant } from "../src/catalog/match.ts";
+import { parseOfferUpDetail, offerUpDescription } from "../src/sources/marketplace.ts";
 import { namedCatalogBrand } from "../src/catalog/match.ts";
 import { isUnsupportedPrinter, resolveCategory, resolveProductType } from "../src/signals/product-type.ts";
 import type { ProductKind } from "../src/signals/product-type.ts";
@@ -165,6 +167,130 @@ describe("vision budget ledger", () => {
  * app", which a photo of Task Manager is covered in. So it fired at HIGH
  * severity on exactly the listings a diligent seller produces.
  */
+/**
+ * The fullest spelling of a model, not the first one seen.
+ *
+ * Yish, 2026-08-31, on a Craigslist build the engine refused to price:
+ * *"the description gives all the exact components so I don't know how it
+ * failed."* The title read "... RTX 5080 / Ryzen 7 9800X" and the description
+ * "AMD Ryzen 7 9800X3D". `.match()` returns the FIRST hit and the title comes
+ * first, so the engine recorded a chip that does not exist, found no SKU, and
+ * dropped the build to 0.42 coverage -- under the gate that stops a whole
+ * machine being priced off one component.
+ */
+/**
+ * OfferUp item pages carry a description and a spec table. We were reading
+ * neither.
+ *
+ * ⚠ **OFFERUP AND MERCARI HAD 0% DESCRIPTION COVERAGE — 161 LIVE LISTINGS WITH
+ * NOTHING BUT A TITLE**, measured 2026-08-31 against 1% for Craigslist. A
+ * search CARD has no description and nothing ever opened the item page for
+ * text, so "Can't be valued: gpu and cpu not stated" was true of the title and
+ * false of the listing. `ou:photos` was already visiting every one of those
+ * pages for the gallery.
+ *
+ * The text below was CAPTURED off a real listing, not invented.
+ */
+describe("offerup detail text", () => {
+  /**
+   * Captured off a real OfferUp item page. Held as LINES rather than one
+   * escaped literal so the fixture reads the way the page does, and so no
+   * `\n` can be lost the next time this file is edited through a shell.
+   */
+  const PAGE = [
+    "$100", "", "$110", "macbook air", "",
+    "Last updated 14 days ago in Acton, MA", "",
+    "Description", "", "works well lightly used no issues", "",
+    "Details", "",
+    "Condition", "", "Used (normal wear)", "",
+    "Screen Size", "", "13-13.9 in", "",
+    "Model", "", "macbook air", "",
+    "Type", "", "Notebook/Laptop", "",
+    "Additional details", "", "RAM Size", "", "1-19 GB", "",
+    "Skip Advertisement", "Item location map",
+  ].join("\n");
+
+  test("the description and the spec table both come out", () => {
+    const d = parseOfferUpDetail(PAGE);
+    expect(d.description).toBe("works well lightly used no issues");
+    expect(d.details["screen size"]).toBe("13-13.9 in");
+    expect(d.details["model"]).toBe("macbook air");
+    expect(d.details["type"]).toBe("Notebook/Laptop");
+  });
+
+  /**
+   * ⚠ THE TABLE IS FLATTENED INTO TEXT ON PURPOSE. `extractAttributes` and the
+   * signal layer read free text, so structured data has to be written back as
+   * "key: value" lines to reach them at all.
+   */
+  test("the stored description carries the specs, minus the condition chip", () => {
+    const out = offerUpDescription(parseOfferUpDetail(PAGE));
+    expect(out).toContain("works well lightly used no issues");
+    expect(out).toContain("model: macbook air");
+    // `condition` is already a first-class signal; repeating it as prose would
+    // give the text layer a second, weaker copy to disagree with.
+    expect(out).not.toContain("condition:");
+  });
+
+  test("a page with no description yields nothing rather than guessing", () => {
+    expect(parseOfferUpDetail("").description).toBe("");
+    expect(parseOfferUpDetail(["Home", "Electronics", "Sold by", "Rushi"].join("\n")).description).toBe("");
+    expect(offerUpDescription({ description: "", details: {} })).toBe("");
+  });
+
+  test("the table stops at the end of the table", () => {
+    const d = parseOfferUpDetail(PAGE);
+    // "Related searches" and everything past the boundary must not become specs.
+    expect(Object.keys(d.details)).not.toContain("skip advertisement");
+    expect(Object.keys(d.details)).not.toContain("item location map");
+  });
+});
+
+describe("variant suffixes survive a truncated title", () => {
+  const cpu = (s: string) => extractAttributes(s).cpu ?? null;
+  const gpu = (s: string) => extractAttributes(s).gpu ?? null;
+
+  test("the description's X3D beats the title's truncation", () => {
+    expect(cpu("Gaming PC - RTX 5080 / Ryzen 7 9800X  CPU: AMD Ryzen 7 9800X3D (8-core)"))
+      .toBe("ryzen 7 9800x3d");
+  });
+
+  /**
+   * HANDOFF §5: *"KNOWN LIMITATION: 'RTX 3080 Ti' passes an `rtx 3080` query."*
+   * The Ti is materially more valuable, so reading one as the other is a
+   * confident wrong number rather than no number.
+   */
+  test("the Ti is not dropped when the title omits it", () => {
+    expect(gpu("Gaming PC RTX 3080 build  GPU: RTX 3080 Ti 12GB")).toBe("rtx 3080 ti");
+    expect(gpu("RTX 4070 Super gaming pc")).toBe("rtx 4070 super");
+  });
+
+  /**
+   * ⚠ THE SAFETY RULE. A listing can name two different chips, and "longest
+   * string anywhere" would pick whichever happened to have more characters.
+   * The FIRST match decides which product this is; later mentions may only
+   * lengthen THAT one.
+   */
+  test("two different chips: the first still wins", () => {
+    expect(cpu("upgraded from an i5-9400 to an i7-12700K")).toBe("i5-9400");
+    expect(cpu("i7-12700 build, actually an i7-12700KF")).toBe("i7-12700kf");
+  });
+
+  test("nothing to lengthen is left exactly as it was", () => {
+    expect(cpu("Ryzen 7 7800X3D gaming pc")).toBe("ryzen 7 7800x3d");
+    expect(cpu("no processor mentioned here")).toBeNull();
+    expect(gpu("no card mentioned here")).toBeNull();
+  });
+
+  test("fullestVariant keeps the first base and only lengthens it", () => {
+    const B = /^(?:rtx|gtx|rx)\s?\d{3,4}/;
+    expect(fullestVariant([], B)).toBe("");
+    expect(fullestVariant(["rtx 3080", "rtx 3080 ti"], B)).toBe("rtx 3080 ti");
+    // A different base is ignored entirely, however long it is.
+    expect(fullestVariant(["rtx 3080", "rtx 4090 super"], B)).toBe("rtx 3080");
+  });
+});
+
 describe("a spec screen is proof, not a scam tell", () => {
   const V = (over: Record<string, unknown> = {}) => ({
     components: {}, facts: [], specScreens: [], lockScreen: false,

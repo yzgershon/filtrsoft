@@ -147,7 +147,19 @@ try {
        * whatever the fallback page was showing.
        */
       const title = await page.title().catch(() => "");
-      emit({ type: "photos", id: item.id, url: item.url, finalUrl: page.url(), title, urls });
+      /**
+       * ⚠ THE PAGE TEXT COMES BACK TOO, AND IT IS FREE.
+       *
+       * OfferUp and Mercari had 0% description coverage — 161 live listings
+       * with nothing but a title, because a SEARCH CARD has no description and
+       * nothing ever opened the item page for text. This visit is already
+       * happening for the photos. The parsing is `parseOfferUpDetail` in
+       * TypeScript, where a layout change is a fixture fix.
+       */
+      const text = await page.evaluate(
+        () => ((document.querySelector("main") || document.body).innerText || "").slice(0, 4000),
+      ).catch(() => "");
+      emit({ type: "photos", id: item.id, url: item.url, finalUrl: page.url(), title, urls, text });
     } catch (e) {
       emit({ type: "photos", id: item.id, url: item.url, finalUrl: "", title: "", urls: [], error: String(e && e.message ? e.message : e) });
     }

@@ -204,6 +204,95 @@ export function bestPhotos(urls: string[], max = 20): string[] {
   return order.slice(0, max).map((id) => best.get(id)!.url);
 }
 
+/* ───────────────────────────── OfferUp detail text: the description and specs
+ *
+ * ⚠ **OFFERUP AND MERCARI HAD 0% DESCRIPTION COVERAGE — 161 LIVE LISTINGS WITH
+ * NOTHING BUT A TITLE.** Measured 2026-08-31 against 1% for Craigslist and 0%
+ * for Facebook. `cardToListing` sets `description: ""` because a SEARCH CARD
+ * has no description, and nothing ever opened the item page for text.
+ *
+ * That is a third of everything the engine cannot price. "Can't be valued: gpu
+ * and cpu not stated" is true of a title, and false of the listing — the specs
+ * were sitting on a page we were already visiting for photos.
+ *
+ * The page reads:
+ *
+ *     Description
+ *     <the seller's text>
+ *     Details
+ *     Condition      Used (normal wear)
+ *     RAM Size       1-19 GB
+ *     Model          macbook air
+ *     ...
+ *
+ * so BOTH halves are worth taking. The Details block is structured spec data of
+ * exactly the kind `missingValueFields` complains about.
+ */
+const OU_DETAIL_END = /^(Skip Advertisement|Item location map|Related searches|Similar items|Additional details)$/i;
+
+export interface OfferUpDetail {
+  description: string;
+  /** The Details table, lowercased keys, verbatim values. */
+  details: Record<string, string>;
+}
+
+/**
+ * Pull the description and the Details table out of an OfferUp item page.
+ *
+ * ⚠ PURE, AND PARSED FROM `innerText` RATHER THAN THE DOM. OfferUp's class
+ * names are hashed and change without notice; the visible text does not. Same
+ * split as every other parser here — the worker stays dumb, a layout change is
+ * a fixture fix rather than another browser session.
+ */
+export function parseOfferUpDetail(text: string): OfferUpDetail {
+  const lines = (text ?? "").split(/\r?\n/).map((l) => l.trim());
+  const out: OfferUpDetail = { description: "", details: {} };
+
+  const dStart = lines.findIndex((l) => /^description$/i.test(l));
+  if (dStart >= 0) {
+    const body: string[] = [];
+    for (let i = dStart + 1; i < lines.length; i++) {
+      const l = lines[i];
+      if (/^details$/i.test(l) || OU_DETAIL_END.test(l)) break;
+      if (l) body.push(l);
+    }
+    out.description = body.join(" ").trim();
+  }
+
+  /**
+   * The table is rendered as alternating label / value lines with blanks
+   * between, so pairs are taken from the NON-EMPTY lines. A label with no value
+   * after it is dropped rather than paired with the next label.
+   */
+  const tStart = lines.findIndex((l) => /^details$/i.test(l));
+  if (tStart >= 0) {
+    const rows = lines.slice(tStart + 1).filter(Boolean);
+    for (let i = 0; i + 1 < rows.length; i += 2) {
+      if (OU_DETAIL_END.test(rows[i])) break;
+      const k = rows[i].toLowerCase();
+      const v = rows[i + 1];
+      // A "key" longer than a label is prose that ran into the table.
+      if (k.length > 32 || OU_DETAIL_END.test(v)) break;
+      out.details[k] = v;
+    }
+  }
+  return out;
+}
+
+/**
+ * The description we should STORE for an OfferUp listing.
+ *
+ * The Details table is appended in plain "Key: value" form because that is what
+ * `extractAttributes` and the signal layer already read — they parse free text,
+ * so structured data has to be flattened into text to reach them at all.
+ */
+export function offerUpDescription(d: OfferUpDetail): string {
+  const specs = Object.entries(d.details)
+    .filter(([k]) => !/^(condition)$/.test(k))
+    .map(([k, v]) => `${k}: ${v}`);
+  return [d.description, ...specs].filter(Boolean).join("\n").trim();
+}
+
 export function cardToListing(c: MarketCard): RawListing {
   return {
     source: c.source,
@@ -241,7 +330,7 @@ export function cardToListing(c: MarketCard): RawListing {
 export type MarketEvent =
   | { type: "log"; msg: string }
   | { type: "cards"; source: Marketplace; query: string; lines: string[]; links: Array<{ href: string; text: string; photo?: string }> }
-  | { type: "photos"; id: number; url: string; finalUrl: string; title: string; urls: string[]; error?: string }
+  | { type: "photos"; id: number; url: string; finalUrl: string; title: string; urls: string[]; text?: string; error?: string }
   | { type: "probe"; id: number; url: string; finalUrl: string; text: string; title?: string; error?: string }
   | { type: "error"; msg: string }
   | { type: "done"; stats: Record<string, unknown> };

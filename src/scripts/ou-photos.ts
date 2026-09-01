@@ -19,6 +19,7 @@
  */
 import {
   runMarketWorker, bestPhotos, photoArea, OU_MIN_EDGE,
+  parseOfferUpDetail, offerUpDescription,
 } from "../sources/marketplace.ts";
 import { db, now } from "../db/index.ts";
 
@@ -62,8 +63,9 @@ const insPhoto = db().query(
    VALUES ($lid,$url,$pos,$now)`,
 );
 const setCount = db().query("UPDATE listings SET photo_count=$n WHERE id=$id");
+const setDesc = db().query("UPDATE listings SET description=$d WHERE id=$id");
 
-let fixed = 0, empty = 0, gone = 0, failed = 0, photos = 0;
+let fixed = 0, empty = 0, gone = 0, failed = 0, photos = 0, described = 0;
 
 for await (const ev of runMarketWorker("offerup", {
   photosFor: work.map((r) => ({ id: r.id, url: r.url })),
@@ -99,6 +101,24 @@ for await (const ev of runMarketWorker("offerup", {
     continue;
   }
 
+  /**
+   * ⚠ THE DESCRIPTION IS WRITTEN EVEN WHEN THERE ARE NO USABLE PHOTOS, and
+   * that ordering is the point.
+   *
+   * OfferUp listings arrive with `description: ""` — a search card has none —
+   * so 151 live listings were unpriceable purely for want of text the engine
+   * could read. "Can't be valued: gpu and cpu not stated" was true of the title
+   * and false of the listing. A gallery we could not parse does not make the
+   * specs any less real, and returning early on the photos would throw them
+   * away.
+   */
+  const detail = parseOfferUpDetail(ev.text ?? "");
+  const desc = offerUpDescription(detail);
+  if (desc) {
+    described++;
+    if (!has("dry")) setDesc.run({ $d: desc, $id: ev.id });
+  }
+
   const best = bestPhotos(ev.urls);
   if (!best.length) {
     empty++;
@@ -123,6 +143,7 @@ for await (const ev of runMarketWorker("offerup", {
 
 console.log(
   `\n${fixed} listing(s) now carry ${photos} full-size photo(s)` +
+  `${described ? ` · ${described} gained a description` : ""}` +
   `${empty ? ` · ${empty} had none` : ""}${gone ? ` · ${gone} bounced` : ""}${failed ? ` · ${failed} failed` : ""}`,
 );
 if (fixed && !has("dry")) {
