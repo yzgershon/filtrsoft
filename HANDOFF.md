@@ -3370,6 +3370,76 @@ next re-score fixes it. Rare and self-correcting, so it is written down rather
 than fixed. Do not spend an afternoon on "why do the flags not match the
 questions" without checking this first.
 
+### 18j. ⚠ WHY "CAN'T TELL" IS 77%, MEASURED PROPERLY THIS TIME
+
+Yish, 2026-08-31: *"I NEED YOU TO CHANGE ALMOST ALL OF THE CANT TELL LISTINGS TO
+EITHER PASS, FAIR, RISKY, VERIFY, or BUY ... this was a cant tell listing and it
+was hidden from me and its a pretty good deal."*
+
+⚠ **IT CANNOT BE DONE BY LOOSENING A GATE, AND §1 IS THE REASON.** *"Missing a
+deal costs nothing. Sending someone 45 minutes to a scam ends the brand."*
+Converting an unpriced listing to a call it cannot support is a confident wrong
+answer, which is the one failure this product is built to avoid. What follows is
+where the 489 actually come from and which ones are genuinely recoverable.
+
+Measured over every live listing inside the 28-day window:
+
+| | reason | what it needs |
+|---|---|---|
+| **287** | "Can't be valued: `<spec>` not stated" | the seller never said |
+| **136** | "Couldn't identify the exact model" | the long tail — see §7 |
+| **48** | "No recent sold comps for this model" | **`bun run ebay:comps`** |
+| 9 | Custom build, too few component comps | comps |
+| 8 | "Specs are known, market prices aren't" | comps |
+
+Of 111 builds where the engine DID resolve a parts list, only **13 CPUs and 12
+GPUs** failed to price. The parts pipeline is working; the catalog is what is
+thin.
+
+#### The two real bugs behind his listing, both fixed
+
+**The truncated title won.** Title `"… RTX 5080 / Ryzen 7 9800X"`, description
+`"AMD Ryzen 7 9800X3D"`. `.match()` returns the FIRST hit and the title comes
+first, so the engine recorded a chip that does not exist, found no SKU, and the
+build fell to 0.42 coverage — under the 0.55 gate. **86 of 600 live listings had
+their CPU or GPU corrected** by taking the fullest spelling instead. It also
+closes the attribute half of §5's `RTX 3080 Ti` limitation.
+
+**OfferUp and Mercari had 0% description coverage — 161 listings with nothing
+but a title**, against 1% empty for Craigslist and 0% for Facebook. A search
+CARD has no description and nothing ever opened the item page for text. That is
+a third of everything unpriced, and `ou:photos` was already visiting every one
+of those pages for the gallery.
+
+#### ⚠ GATE 4b IS CORRECT. DO NOT REMOVE IT.
+
+`verdict/index.ts` refuses a parts valuation below **0.55 coverage**. On his
+listing that meant discarding a computed median of $2,233.72.
+
+That looks wrong and is not. `ROLE_VALUE_WEIGHT` puts the GPU at 0.42, so a
+GPU-only valuation extrapolates a whole machine from ONE component using a fixed
+weight — and this build has an X870E board, a 1000W PSU, an O11 Vision case, a
+360 AIO and six wireless RGB fans, so its non-GPU share is far above typical.
+Calling it "overpriced at $2,600" off the card alone would be exactly the
+confident wrong answer the gate exists to stop.
+
+⚠ **`PRICEABLE_ROLES` IS ONLY gpu/cpu/ram/storage, so maximum achievable
+coverage is 0.82.** The gate needs GPU + CPU (0.64) at minimum. That is
+reachable — it just needs the CPU to price, which is why the truncation bug
+mattered so much and why the missing `Ryzen 7 9800X3D` SKU is the remaining
+blocker on that specific listing.
+
+#### What actually moves the number, in order
+
+1. **`bun run ebay:comps`** — 48 listings are matched and waiting on comps, and
+   every part the catalog gains lifts builds over the coverage gate. Needs his
+   eBay login. **This is the single highest-value thing left in the product.**
+2. **OfferUp descriptions** — shipped; run `bun run ou:photos --all`.
+3. **The scope gate** — junk still reaches a verdict (§18g): PS2 games, a phone
+   case, a CRT TV, a Cisco PSU. Cheapest win, needs an `ENGINE_VERSION` bump.
+4. **NOT a looser matcher.** §7: 39 hand-written laptop SKUs moved the unmatched
+   count 125 → 132.
+
 ### 18g. OPEN, NOT ACTED ON: 77% of the feed cannot be priced
 
 *"There's only 1 buy out of 578 listings."* Measured across all 708 production
@@ -3398,6 +3468,10 @@ The 545, by the reason the verdict itself gives:
 | **51** | **"No recent sold comps for this model"** |
 | 9 | Custom build, not enough component comps |
 | 9 | Specs known, market prices aren't |
+
+⚠ **THE BREAKDOWN ABOVE WAS A FIRST PASS. §18j MEASURES IT PROPERLY** — by the
+reason each verdict gives, with the two bugs behind it found and fixed. Read
+that one; this section is kept for the headline number and the argument.
 
 Two things stand out and neither has been done:
 
