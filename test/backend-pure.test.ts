@@ -1010,8 +1010,19 @@ describe("screenOf / tabOf", () => {
     expect(tabOf(screenOf("/"))).toBe("deals");
     expect(tabOf(screenOf("/check"))).toBe("check");
     expect(tabOf(screenOf("/saved"))).toBe("saved");
-    // Settings is reachable but is not a bottom-bar destination.
-    expect(tabOf(screenOf("/settings"))).toBeNull();
+    expect(tabOf(screenOf("/more"))).toBe("more");
+    /**
+     * ⚠ SETTINGS LIGHTS **MORE** AS OF 2026-09-01, and this assertion used to
+     * say `toBeNull()`. That was correct while Settings hung off a gear in the
+     * top bar; it now lives inside the More hub, so the bar must stay lit on
+     * the tab you used to get there. A dark bar on a screen you reached FROM
+     * the bar reads as having left the app.
+     */
+    expect(tabOf(screenOf("/settings"))).toBe("more");
+    expect(tabOf(screenOf("/how"))).toBe("more");
+    // The top-bar screens still belong to no tab: they are not reached from it.
+    expect(tabOf(screenOf("/notifications"))).toBeNull();
+    expect(tabOf(screenOf("/account"))).toBeNull();
   });
 });
 

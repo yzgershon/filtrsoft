@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Again, Alert, Bell, Card, Check, Clock, Cut, Gear, Grid, Save, Scan, Tag, User,
-  Cross, Phone, Shield, Spark, Star, Trash,
+  Cross, Dots, Phone, Shield, Spark, Star, Trash,
 } from "./icons.tsx";
 import type { Call, FeedItem, Hist } from "./types.ts";
 import { Ghost } from "./icons.tsx";
@@ -30,7 +30,20 @@ export function Watchlist({ onOpen, onWatchChange, onBrowse }: {
   /** The empty state needs a way out. Audit §"Saved and Alerts". */
   onBrowse: () => void;
 }) {
-  const [sub, setSub] = useState<"listings" | "alerts" | "bought">("listings");
+  /**
+   * ⚠ THE SUB-TAB IS DEEP-LINKABLE via `?sub=`, because the More hub now
+   * points straight at Alerts and Purchases. Without this, "Purchases" in More
+   * would land on Saved's Listings tab and leave the user to find the right
+   * sub-tab themselves — which is exactly the burial that putting them in More
+   * was meant to undo.
+   *
+   * Read once, in a lazy initialiser: it seeds the tab, it does not own it, so
+   * tapping another sub-tab afterwards must not be overridden on re-render.
+   */
+  const [sub, setSub] = useState<"listings" | "alerts" | "bought">(() => {
+    const q = new URLSearchParams(location.search).get("sub");
+    return q === "alerts" ? "alerts" : q === "purchases" || q === "bought" ? "bought" : "listings";
+  });
   const [ids, setIds] = useState<number[]>(readWatch);
   const [items, setItems] = useState<FeedItem[] | null>(null);
   const [summary, setSummary] = useState<{ dropped: number; gone: number }>({ dropped: 0, gone: 0 });
@@ -240,28 +253,28 @@ export type Tab = "deals" | "check" | "saved" | "you" | "settings";
  * `position: fixed` with `env(safe-area-inset-bottom)` this time, so it sits
  * above the home indicator rather than under it.
  *
- * FOUR ITEMS, ALL REAL DESTINATIONS. Settings is deliberately NOT among them —
- * it is somewhere you go twice a year, and spending a quarter of the toolbar on
- * it would cost the same room the watchlist needs. It lives in the top bar.
- */
-type NavId = "deals" | "check" | "saved";
-
-/**
- * THREE DESTINATIONS. "You" was a primary tab holding four read-only server
- * defaults and the words "Editing these is coming" (audit §13). Its one real
- * number lives under Settings -> Your numbers, so the tab was spending a
- * quarter of the bar on a screen with nothing to do.
+ * ⚠ FOUR ITEMS AS OF 2026-09-01, AND THE FOURTH IS **MORE**, NOT SETTINGS.
  *
- * Three items also give each one more room, which is what the 44px targets in
- * the accessibility pass need.
+ * Yish: *"the settings button will move to the taskbar at the bottom and
+ * instead of it just being the settings button it will change to a more button
+ * where settings will be one of the options along with other options."*
+ *
+ * The old note here argued Settings did not deserve a quarter of the bar, and
+ * that argument still holds — which is exactly why the tab is More. It is a hub
+ * over Settings, Account, Notifications, Purchases, Alerts and the explainer,
+ * three of which were previously reachable only by knowing that a sub-tab of
+ * Saved existed. Four items still clear 44px at 320px; five would not.
  */
+type NavId = "deals" | "check" | "saved" | "more";
+
 export const NAV: Array<[NavId, string]> = [
-  ["deals", "Deals"], ["check", "Check"], ["saved", "Saved"],
+  ["deals", "Deals"], ["check", "Check"], ["saved", "Saved"], ["more", "More"],
 ];
 export const navIcon = (id: NavId, on: boolean, size: number) =>
   id === "deals" ? <Grid size={size} />
     : id === "check" ? <Scan size={size} />
-      : <Save size={size} filled={on} />;
+      : id === "saved" ? <Save size={size} filled={on} />
+        : <Dots size={size} />;
 
 export function Tabbar({ tab, go, savedCount }: {
   tab: NavId | null;
@@ -321,7 +334,7 @@ export function OutcomePrompt({ h, onDone }: { h: Hist; onDone: () => void }) {
   };
 
   if (sent) {
-    return <div className="ask done"><Check size={15} /> {sent}. Thanks — that trains the engine.</div>;
+    return <div className="ask done"><Check size={15} /> {sent}. Thanks, that trains the engine.</div>;
   }
 
   return (
@@ -674,7 +687,7 @@ export function Alerts() {
             </p>
             <button className="btn2" onClick={async () => {
               const r = await (await fetch(`/v1/push/test?subId=${subId}`, { method: "POST" })).json();
-              setNote(r.sent ? "Sent — check your notifications." : r.error ?? "Couldn't send.");
+              setNote(r.sent ? "Sent. Check your notifications." : r.error ?? "Couldn't send.");
             }}>Send a test notification</button>
           </>
         )}
@@ -848,7 +861,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
             hint="The daily sweep marks a listing dead when the seller pulls it."
             on={s.hideGone} onChange={(v) => save({ hideGone: v })} />
           <Toggle label="Show how long it's been listed"
-            hint="A tag on the photo — 20 Min, 4 Hrs, 2 Days. Anything over three days never shows one."
+            hint="A tag on the photo: 20 Min, 4 Hrs, 2 Days. Anything over three days never shows one."
             on={s.showAge} onChange={(v) => save({ showAge: v })} />
           <Toggle label="Show the verdict on cards"
             hint="The Buy it / Verify / Risky chip over each photo. Listings you relabelled keep theirs either way."
@@ -933,7 +946,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
           <p className="snote">
             There is no sign-in. Your saved listings, your own verdict labels and
             your plan all belong to this device, which means nothing to leak and
-            nothing to remember — and that they do not follow you to another
+            nothing to remember, and that they do not follow you to another
             phone. Copy the ID before clearing your browser data.
           </p>
         </div>
@@ -1007,7 +1020,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
             * analytics dependency in `web/package.json`.
             */}
           <p className="snote nolead">
-            Assyze never handles a card number — payment happens on Stripe's own
+            Assyze never handles a card number. Payment happens on Stripe's own
             page. It never asks for a marketplace login. There is no analytics
             and no third-party tracking, and the only thing stored about you is
             on this device.

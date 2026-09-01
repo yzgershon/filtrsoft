@@ -703,7 +703,7 @@ export function Feed({ onOpen, onWatchChange }: {
           <span className="eic"><Alert size={22} /></span>
           <b>{offline ? "No connection" : "Couldn't load the feed"}</b>
           <p>{offline
-            ? "Reconnect and try again — nothing was lost."
+            ? "Reconnect and try again. Nothing was lost."
             : "The request didn't finish. This is usually the connection, not the deals."}</p>
           <button className="btn2" onClick={() => { setFailed(false); setItems(null); void load(0, filters); }}>
             <Again size={15} /> Try again
@@ -805,7 +805,7 @@ export function Feed({ onOpen, onWatchChange }: {
 
       {items && shown.length < total ? (
         <button className="more" disabled={loadingMore} onClick={() => void load(shown.length, filters)}>
-          {loadingMore ? "Loading…" : `Show more — ${shown.length} of ${total}`}
+          {loadingMore ? "Loading…" : `Show more · ${shown.length} of ${total}`}
         </button>
       ) : null}
     </>

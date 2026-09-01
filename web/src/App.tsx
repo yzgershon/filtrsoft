@@ -7,20 +7,29 @@
  * `nav.ts` where `bun test` can pin them without a DOM.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Back, Clip, Gear, Link, Again, Sliders } from "./icons.tsx";
+import { Back, Bell, Clip, Link, Again, Sliders, User } from "./icons.tsx";
 import type { Comp, Hist, Listing, Meta, Signal, Verdict } from "./types.ts";
 import {
   LABEL, Toaster, pushHist, readHist, readAsked, readWatch, writeWatch,
   readSettings, writeSettings, pendingOutcome, shareOrCopy, toast,
-  openFilters, onFilterCount, rememberSpot, feedRows, deviceRef,
+  openFilters, onFilterCount, rememberSpot, feedRows, deviceRef, scrollToTop,
   onFreshness, freshnessLine, type Freshness,
-  DealBanner, publishDealAlert,
+  DealBanner, publishDealAlert, pushNotes, readNotes, onNotes, unseenNotes,
 } from "./lib.tsx";
 import { Feed } from "./feed.tsx";
 import { Report } from "./detail.tsx";
 import {
   OutcomePrompt, SettingsScreen, Tabbar, Watchlist,
 } from "./screens.tsx";
+import {
+  MoreScreen, NotificationsScreen, AccountScreen, HowScreen,
+} from "./more.tsx";
+
+/**
+ * Screens the bottom bar cannot reach, and which therefore must carry a Back
+ * button. Kept as data next to the router so adding a screen is one edit.
+ */
+const NO_TAB_SCREENS = new Set(["settings", "notifications", "account", "how"]);
 /**
  * Routing, settings and the feed query live in `nav.ts` because they are the
  * parts of the shell that are decidable from a string, and `bun test` can pin
@@ -84,6 +93,14 @@ function useRoute() {
       depth.current++;
       history.pushState({}, "", p);
       setPath(p);
+      /**
+       * ⚠ FORWARD GOES TO THE TOP; BACK DOES NOT. Both halves live at this one
+       * choke point so they cannot disagree — `mark()` above writes down where
+       * we left from (for Back), and this starts the new screen at its
+       * beginning. Without it the document scroller kept the feed's offset and
+       * a listing opened 900px down its own page.
+       */
+      scrollToTop();
     }, []),
     replace: useCallback((p: string) => {
       mark();
@@ -215,6 +232,14 @@ export default function App() {
   const [crawl, setCrawl] = useState<Freshness | null>(null);
   useEffect(() => onFreshness(setCrawl), []);
   /**
+   * The bell's badge. Subscribed rather than read once, because the writer is
+   * the pulse tick and it fires while this component is already mounted — a
+   * `useState(readNotes)` alone would show a stale zero until the next route
+   * change.
+   */
+  const [unseen, setUnseen] = useState(() => unseenNotes(readNotes()));
+  useEffect(() => onNotes((n) => setUnseen(unseenNotes(n))), []);
+  /**
    * ⚠ THE NEWEST DEAL NAMES ITSELF; THE REST ARE A COUNT. `/v1/pulse` returns
    * newest-first, so `items[0]` is the one worth putting a title and a price
    * on. Announcing all five would stack five cards over the feed for an event
@@ -222,6 +247,17 @@ export default function App() {
    * to be loud, and stacking is how it would stop being.
    */
   useDealPulse(settings.alerts, settings.alertVerify, useCallback((items: any[]) => {
+    /**
+     * ⚠ THE LOG GETS EVERY ITEM; THE BANNER GETS ONE. They are different jobs:
+     * the banner interrupts and so must name a single thing, while the bell is
+     * a record and must not silently drop four of the five deals in a busy
+     * tick. Written first so a render throw cannot lose them.
+     */
+    pushNotes(items.map((i) => ({
+      id: i.id, title: i.title, call: i.call,
+      askingPriceCents: i.askingPriceCents ?? null,
+      thumb: i.thumb ?? null, at: Date.now(),
+    })));
     const top = items[0];
     publishDealAlert({
       id: top.id, title: top.title, call: top.call,
@@ -237,10 +273,10 @@ export default function App() {
    * A tab press is now just navigation. The screen follows the URL, so there is
    * nothing to keep in sync by hand.
    */
-  const PATH_FOR: Record<"deals" | "check" | "saved" | "settings", string> = {
-    deals: "/", check: "/check", saved: "/saved", settings: "/settings",
+  const PATH_FOR: Record<"deals" | "check" | "saved" | "more" | "settings", string> = {
+    deals: "/", check: "/check", saved: "/saved", more: "/more", settings: "/settings",
   };
-  const goTab = useCallback((t: "deals" | "check" | "saved" | "settings") => {
+  const goTab = useCallback((t: "deals" | "check" | "saved" | "more" | "settings") => {
     setSavedCount(readWatch().length);
     go(PATH_FOR[t]);
   }, [go]);
@@ -448,7 +484,15 @@ export default function App() {
           * out of Settings was pressing the gear a second time, which is a
           * toggle rather than a way back and always landed on the feed.
           */}
-        {screen.name === "settings" && (
+        {/**
+          * ⚠ EVERY SCREEN THE TAB BAR CANNOT REACH NEEDS A WAY BACK, and the
+          * list grew: Settings used to be the only one, and now Notifications,
+          * Account and How Assyze works hang off the top bar or the More hub
+          * too. Deriving it from `tabOf` rather than naming screens means the
+          * next one added cannot be forgotten — a screen with no exit is the
+          * bug this originally fixed.
+          */}
+        {NO_TAB_SCREENS.has(screen.name) && (
           <button className="iconbtn backbtn" onClick={back} aria-label="Back">
             <Back size={20} />
           </button>
@@ -466,6 +510,17 @@ export default function App() {
           * an unlabelled icon is the worse of the two to keep. Audit S11: keep
           * one action.
           */}
+        {/**
+          * ⚠ THE ORDER IS FILTER, BELL, PROFILE — LEFT TO RIGHT. Yish,
+          * 2026-09-01: *"in the top right they have their profile and there
+          * will be a notifications button to the left of that and also the
+          * filter will be next to that as well."*
+          *
+          * The Settings gear that used to sit at the far right is GONE from
+          * this bar: it moved into the More tab at the bottom. Leaving a
+          * duplicate here would give one screen two entry points that light
+          * differently, which is the drift `tabOf` exists to prevent.
+          */}
         {/* Deals only: filtering a screen that has no feed is meaningless. */}
         {tab === "deals" && (
           <button className={`iconbtn filtbtn${filterCount ? " on" : ""}`} onClick={openFilters}
@@ -474,10 +529,26 @@ export default function App() {
             {filterCount > 0 && <em className="num">{filterCount}</em>}
           </button>
         )}
-        <button className={`iconbtn ${screen.name === "settings" ? "on" : ""}`}
-          aria-label="Settings" aria-pressed={screen.name === "settings"}
-          onClick={() => goTab(screen.name === "settings" ? "deals" : "settings")}>
-          <Gear size={19} />
+
+        {/**
+          * ⚠ THE BELL COUNTS UNSEEN ALERTS, AND IT IS THE ONLY PLACE A MISSED
+          * DEAL SURVIVES. The banner is on screen for nine seconds; at 0.7
+          * BUYs a day, a phone in a pocket means most of them were announced
+          * to nobody. `unseenNotes` clears when the Notifications screen is
+          * opened, not when a row is tapped — arriving IS reading them.
+          */}
+        <button className={`iconbtn bellbtn${unseen ? " on" : ""}`}
+          aria-label={unseen ? `Notifications, ${unseen} new` : "Notifications"}
+          aria-pressed={screen.name === "notifications"}
+          onClick={() => go("/notifications")}>
+          <Bell size={19} />
+          {unseen > 0 && <em className="num">{unseen > 9 ? "9+" : unseen}</em>}
+        </button>
+
+        <button className={`iconbtn avbtn${screen.name === "account" ? " on" : ""}`}
+          aria-label="Account" aria-pressed={screen.name === "account"}
+          onClick={() => go("/account")}>
+          <User size={18} />
         </button>
       </header>
 
@@ -527,8 +598,20 @@ export default function App() {
                   * just tapped — asking you to start over on the thing you were
                   * already looking at. A detail view should read as a detail
                   * view.
+                  *
+                  * ⚠ GATED ON THE ROUTE, NOT ONLY ON `!listing`, AND THAT IS
+                  * THE FLASH HE REPORTED. Yish, 2026-09-01: *"for like a
+                  * millisecond when clicking a listing it goes to the check
+                  * section and then to the listing."*
+                  *
+                  * `/c/842` renders this same branch, and `listing` is null
+                  * for exactly as long as the fetch takes — so the paste box
+                  * and the "Check a listing" headline painted first, every
+                  * time, and were replaced when the data landed. `!listing`
+                  * asks "do we have data yet"; the question here is "which
+                  * screen did the user ask for", and only the route knows that.
                   */}
-                {!listing && (
+                {screen.name === "check" && !listing && (
                   <>
                     {/* Every screen needs exactly one H1. This one had none —
                         it opened straight onto an orange button, so a screen
@@ -586,6 +669,27 @@ export default function App() {
                   </>
                 )}
 
+                {/**
+                  * ⚠ A DETAIL THAT IS STILL LOADING SHOWS THE SHAPE OF A
+                  * DETAIL. Gating the paste box on the route (above) fixed the
+                  * flash of the wrong screen, but `Report` renders `null`
+                  * without a listing — so the fix on its own traded a flash of
+                  * the Check screen for a flash of NOTHING, which reads as the
+                  * tap not having registered and gets tapped again.
+                  *
+                  * The blocks match the real layout: photo, verdict, price
+                  * line. Same `.skel` the feed and Saved already use.
+                  */}
+                {screen.name === "detail" && !listing && !error && (
+                  <div className="dskel" aria-busy="true" aria-label="Loading listing">
+                    <div className="skel" style={{ height: 260, borderRadius: 14, marginBottom: 14 }} />
+                    <div className="skel" style={{ height: 26, width: "42%", borderRadius: 999, marginBottom: 12 }} />
+                    <div className="skel" style={{ height: 30, width: "58%", marginBottom: 10 }} />
+                    <div className="skel" style={{ height: 14, width: "88%", marginBottom: 7 }} />
+                    <div className="skel" style={{ height: 14, width: "64%" }} />
+                  </div>
+                )}
+
                 {error && <div className="alert" role="alert">{error}</div>}
 
                 {/* The source chips this comment used to describe were deleted
@@ -632,6 +736,20 @@ export default function App() {
                 savedCount={savedCount}
                 onClearSaved={() => { writeWatch([]); setSavedCount(0); }} />
             )}
+
+            {screen.name === "more" && (
+              <MoreScreen go={go} savedCount={savedCount} noteCount={unseen} />
+            )}
+
+            {screen.name === "notifications" && (
+              <NotificationsScreen onOpen={(id) => go(`/c/${id}`)} />
+            )}
+
+            {screen.name === "account" && (
+              <AccountScreen go={go} savedCount={savedCount} />
+            )}
+
+            {screen.name === "how" && <HowScreen />}
           </main>
 
           <Tabbar tab={tab} go={goTab} savedCount={savedCount} />

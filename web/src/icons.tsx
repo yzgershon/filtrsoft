@@ -139,3 +139,7 @@ export const Phone = ({ size = 18, className }: P) =>
 /** Sparkle — appearance. */
 export const Spark = ({ size = 18, className }: P) =>
   svg(size, <><path d="M12 3v4M12 17v4M3 12h4M17 12h4" /><path d="m6.3 6.3 2.5 2.5M15.2 15.2l2.5 2.5M17.7 6.3l-2.5 2.5M8.8 15.2l-2.5 2.5" /></>, className);
+
+/** Dots — the More tab. Three, horizontal, matching the 24px grid. */
+export const Dots = ({ size = 22, className }: P) =>
+  svg(size, <><circle cx="5.5" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="18.5" cy="12" r="1.4" fill="currentColor" stroke="none" /></>, className);

@@ -19,7 +19,11 @@ export type Screen =
   | { name: "deals" }
   | { name: "check" }
   | { name: "saved" }
+  | { name: "more" }
   | { name: "settings" }
+  | { name: "notifications" }
+  | { name: "account" }
+  | { name: "how" }
   | { name: "detail"; id: number };
 
 /**
@@ -39,15 +43,33 @@ export function screenOf(pathname: string): Screen {
   if (m) return { name: "detail", id: Number(m[1]) };
   if (/^\/check\/?$/.test(pathname)) return { name: "check" };
   if (/^\/saved\/?$/.test(pathname)) return { name: "saved" };
+  if (/^\/more\/?$/.test(pathname)) return { name: "more" };
   if (/^\/settings\/?$/.test(pathname)) return { name: "settings" };
+  if (/^\/notifications\/?$/.test(pathname)) return { name: "notifications" };
+  if (/^\/account\/?$/.test(pathname)) return { name: "account" };
+  if (/^\/how\/?$/.test(pathname)) return { name: "how" };
   return { name: "deals" };
 }
 
-/** Which bottom-bar item is lit. Detail and Settings belong to no tab. */
-export function tabOf(s: Screen): "deals" | "check" | "saved" | null {
+/**
+ * Which bottom-bar item is lit.
+ *
+ * ⚠ SETTINGS LIGHTS **MORE**, and that is the point of the More tab. Yish,
+ * 2026-09-01: *"the settings button will move to the taskbar at the bottom and
+ * instead of it just being the settings button it will change to a more
+ * button."* Settings is now a destination reached THROUGH More, so the tab it
+ * belongs to has to stay lit while you are in it — otherwise the bar goes dark
+ * on a screen you navigated to from the bar, which reads as having left the
+ * app.
+ *
+ * Notifications and Account hang off the TOP bar, not the tab bar, so they
+ * light nothing. A detail belongs to whatever you came from.
+ */
+export function tabOf(s: Screen): "deals" | "check" | "saved" | "more" | null {
   if (s.name === "deals") return "deals";
   if (s.name === "check") return "check";
   if (s.name === "saved") return "saved";
+  if (s.name === "more" || s.name === "settings" || s.name === "how") return "more";
   return null;
 }
 

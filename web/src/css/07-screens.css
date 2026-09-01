@@ -284,3 +284,118 @@
 /* ⚠ `.b-*` sets --vc for the verdict chips; here only the INK is wanted, on a
    surface that already has its own background. */
 .buymeta em { font-style: normal; font-weight: 600; color: var(--vc, var(--ink-2)); }
+
+/* ================================================================ more hub */
+/*
+ * The More tab's rows.
+ *
+ * ⚠ THEY ARE `.mrow`, NOT `.srow`. A settings row's right-hand side is a
+ * CONTROL — a switch, a stepper, a Clear button — and tapping the row itself
+ * does nothing. A hub row's whole surface is a link. Reusing `.srow` would have
+ * given a navigation row a control's affordance, and the chevron would have
+ * been the only thing telling the two apart.
+ */
+.mrow {
+  display: flex; align-items: center; gap: var(--s3); width: 100%;
+  padding: var(--s3) var(--s4); text-align: left;
+  background: none; border: 0; border-bottom: 1px solid var(--line);
+  min-height: var(--tap); color: inherit; cursor: pointer;
+}
+.mrow:last-child { border-bottom: 0; }
+.mrow:active { background: rgba(255,255,255,.05); }
+.mic {
+  flex: none; width: 34px; height: 34px; border-radius: 9px;
+  display: grid; place-items: center;
+  background: var(--surface-2); border: 1px solid var(--line);
+  color: var(--ink-2);
+}
+.mtext { flex: 1; min-width: 0; }
+.mtext b { display: block; font-size: 14.5px; font-weight: 620; margin-bottom: 2px; }
+/*
+ * ⚠ WRAPS TO TWO LINES; DOES NOT TRUNCATE TO ONE. `nowrap` + ellipsis cut
+ * every hint mid-word ("and your pl…"), which is the worst of both — it costs
+ * the same vertical space as one full line and delivers half a sentence. The
+ * hint is the only thing explaining where a row goes, so it gets to finish.
+ */
+.mtext span {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--ink-3); font-size: 12px; line-height: 1.4;
+}
+.mbadge {
+  flex: none; min-width: 20px; padding: 2px 6px; border-radius: 999px;
+  background: var(--brand); color: var(--on-brand);
+  font-size: 11px; font-weight: 800; text-align: center;
+}
+/* A chevron, not an icon: it is punctuation and must not read as an action. */
+.mchev { flex: none; color: var(--ink-3); font-size: 20px; line-height: 1; margin-left: 2px; }
+
+/* =========================================================== notifications */
+.nrow {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 10px var(--s3); text-align: left;
+  background: none; border: 0; border-bottom: 1px solid var(--line);
+  min-height: var(--tap); color: inherit; cursor: pointer;
+}
+.nrow:last-child { border-bottom: 0; }
+.nrow:active { background: rgba(255,255,255,.05); }
+.nshot {
+  flex: none; width: 46px; height: 46px; border-radius: 8px; overflow: hidden;
+  background: var(--surface-2); display: grid; place-items: center; color: var(--ink-3);
+}
+.nshot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ntext { flex: 1; min-width: 0; }
+/*
+ * `--vc` is set by the `.b-*` class on this element, so the dot and the label
+ * take the verdict's colour without this file knowing what a verdict is.
+ */
+.nkick {
+  display: flex; align-items: center; gap: 5px; margin-bottom: 2px;
+  font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--vc, var(--ink-3));
+}
+.nkick i { width: 5px; height: 5px; border-radius: 99px; background: currentColor; flex: none; }
+/* The age is muted and un-uppercased: it is context, not the headline. */
+.nkick em {
+  margin-left: auto; font-style: normal; font-weight: 600; letter-spacing: 0;
+  text-transform: none; color: var(--ink-3); font-size: 11px;
+}
+.ntext b {
+  display: block; font-size: 13px; font-weight: 600; line-height: 1.3;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nprice { flex: none; font-size: 14px; font-weight: 800; letter-spacing: -.02em; }
+
+/* ================================================================= account */
+.acchead {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s4); margin-bottom: var(--s4);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+}
+.accav {
+  flex: none; width: 52px; height: 52px; border-radius: 999px;
+  display: grid; place-items: center;
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--brand);
+}
+.accid { flex: 1; min-width: 0; }
+.accid b { display: block; font-size: 16px; font-weight: 700; margin-bottom: 3px; }
+.accid .mono { display: block; color: var(--ink-3); }
+
+/* ============================================================ how it works */
+.hsteps { display: flex; flex-direction: column; gap: var(--s2); margin-bottom: var(--s5); }
+.hstep {
+  display: flex; gap: var(--s3); align-items: flex-start;
+  padding: var(--s4);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+}
+/* Numbered, because the four steps are a SEQUENCE — an icon per step would
+   read as four unrelated features. */
+.hnum {
+  flex: none; width: 26px; height: 26px; border-radius: 999px;
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--brand) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent);
+  color: var(--brand); font-size: 12.5px; font-weight: 800;
+}
+.hstep b { display: block; font-size: 14.5px; font-weight: 650; margin-bottom: 4px; }
+.hstep p { margin: 0; color: var(--ink-2); font-size: 12.5px; line-height: 1.5; }

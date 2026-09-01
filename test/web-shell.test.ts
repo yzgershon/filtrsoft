@@ -50,20 +50,46 @@ describe("tabOf", () => {
     expect(tabOf({ name: "deals" })).toBe("deals");
     expect(tabOf({ name: "check" })).toBe("check");
     expect(tabOf({ name: "saved" })).toBe("saved");
+    expect(tabOf({ name: "more" })).toBe("more");
   });
 
-  test("detail and settings light nothing", () => {
+  /**
+   * ⚠ SETTINGS LIGHTS MORE; DETAIL STILL LIGHTS NOTHING.
+   *
+   * This test asserted that Settings lit nothing, which was right while it was
+   * a gear in the top bar. It is a row inside the More hub now, so the tab that
+   * got you there has to stay lit — the original bug this file guards against
+   * was the bar DISAGREEING with the screen, and a dark bar on a screen you
+   * reached from the bar is the same disagreement pointing the other way.
+   */
+  test("screens reached through More light More", () => {
+    expect(tabOf({ name: "settings" })).toBe("more");
+    expect(tabOf({ name: "how" })).toBe("more");
+  });
+
+  test("detail and the top-bar screens light nothing", () => {
     // The old shell lit Check while a detail was open, because the tab was
     // separate state that the route never corrected.
     expect(tabOf({ name: "detail", id: 12 })).toBeNull();
-    expect(tabOf({ name: "settings" })).toBeNull();
+    // Notifications and Account hang off the top bar, not the tab bar.
+    expect(tabOf({ name: "notifications" })).toBeNull();
+    expect(tabOf({ name: "account" })).toBeNull();
   });
 
-  test("no path can light a tab that is not the screen you are on", () => {
-    for (const p of ["/", "/check", "/saved", "/settings", "/c/9", "/junk"]) {
+  /**
+   * The invariant, restated for a hub: a lit tab is either the screen itself or
+   * the hub that screen was reached through. Written as an explicit map rather
+   * than relaxed to "anything goes", so a route that lights the WRONG tab still
+   * fails — which is the whole point of the check.
+   */
+  test("no path can light a tab it does not belong to", () => {
+    const HUB: Record<string, string> = { settings: "more", how: "more" };
+    const paths = ["/", "/check", "/saved", "/more", "/settings", "/how",
+      "/notifications", "/account", "/c/9", "/junk"];
+    for (const p of paths) {
       const s = screenOf(p);
       const t = tabOf(s);
-      if (t !== null) expect(t).toBe(s.name as typeof t);
+      if (t !== null) expect(t).toBe(HUB[s.name] ?? s.name);
     }
   });
 });

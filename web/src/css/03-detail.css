@@ -235,3 +235,17 @@
 @media (prefers-reduced-motion: reduce) {
   .reading .spin { animation: none; border-top-color: var(--brand); }
 }
+
+/*
+ * The detail's loading state.
+ *
+ * ⚠ IT EXISTS BECAUSE FIXING THE CHECK-SCREEN FLASH OPENED A BLANK ONE.
+ * `/c/:id` shares a branch with the Check screen; gating the paste box on the
+ * route stopped the wrong screen painting, and `Report` returns null without a
+ * listing, so the gap became empty. A tap that produces nothing reads as a tap
+ * that missed.
+ *
+ * Same top padding as the real detail so the skeleton does not jump when the
+ * data lands.
+ */
+.dskel { padding-top: var(--s3); }

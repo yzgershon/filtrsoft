@@ -88,6 +88,56 @@ export const pushHist = (h: Hist) => {
  * No account required, and the tradeoff is stated on the screen: the list does
  * not follow you to another device.
  */
+/**
+ * ───────────────────────────────────────────────── the notification log
+ *
+ * Every deal the pulse announced, kept so the bell has something behind it.
+ *
+ * ⚠ THE BANNER IS NOT A RECORD. It shows for nine seconds and it is gone, so
+ * a deal that landed while the phone was in his pocket was announced to nobody
+ * and then lost — the whole point of a 0.7-per-day signal is that you can come
+ * back to it. This is written by the SAME pulse tick that raises the banner,
+ * so the two can never disagree about what arrived.
+ *
+ * ⚠ IT STORES THE LISTING ID, NOT THE VERDICT. A call can change between the
+ * alert and the tap (a re-score, or one of his own overrides), and a
+ * notification list asserting BUY next to a row the feed now calls RISK is
+ * worse than no list. The call here is what it was WHEN IT FIRED, labelled as
+ * such by the timestamp; the listing itself is always re-read on open.
+ */
+export const NKEY = "assyze:notes";
+export type Note = {
+  id: number; title: string; call: Call;
+  askingPriceCents: number | null; thumb: string | null;
+  at: number; seen?: boolean;
+};
+export const readNotes = (): Note[] => {
+  try { return JSON.parse(localStorage.getItem(NKEY) || "[]"); } catch { return []; }
+};
+/** Newest first, deduped by listing, capped at 60. */
+export function pushNotes(items: Note[]): Note[] {
+  const fresh = items.filter((n) => n && typeof n.id === "number");
+  if (!fresh.length) return readNotes();
+  const seenIds = new Set(fresh.map((n) => n.id));
+  const next = [...fresh, ...readNotes().filter((n) => !seenIds.has(n.id))].slice(0, 60);
+  try { localStorage.setItem(NKEY, JSON.stringify(next)); } catch { /* private mode */ }
+  notesListeners.forEach((fn) => fn(next));
+  return next;
+}
+export function markNotesSeen(): Note[] {
+  const next = readNotes().map((n) => ({ ...n, seen: true }));
+  try { localStorage.setItem(NKEY, JSON.stringify(next)); } catch { /* private mode */ }
+  notesListeners.forEach((fn) => fn(next));
+  return next;
+}
+export const unseenNotes = (n: Note[]) => n.filter((x) => !x.seen).length;
+const notesListeners = new Set<(n: Note[]) => void>();
+/** The bell lives in the top bar and the writer is the pulse, three files away. */
+export function onNotes(fn: (n: Note[]) => void) {
+  notesListeners.add(fn);
+  return () => { notesListeners.delete(fn); };
+}
+
 export const WKEY = "assyze:watch";
 export const readWatch = (): number[] => { try { return JSON.parse(localStorage.getItem(WKEY) || "[]"); } catch { return []; } };
 export const writeWatch = (ids: number[]) => localStorage.setItem(WKEY, JSON.stringify(ids.slice(0, 200)));
@@ -498,6 +548,29 @@ export function restoreScroll(y: number) {
   requestAnimationFrame(put);
   setTimeout(() => { put(); cleanup(); }, 140);
 }
+
+/**
+ * A FORWARD navigation starts at the top of the new screen.
+ *
+ * ⚠ THIS WAS MISSING ENTIRELY, AND IT IS WHY OPENING A LISTING LANDED YOU
+ * MID-PAGE. Yish, 2026-09-01: *"when I click a listing it doesnt start at the
+ * top of the listing it goes to the where $X comes from and check when you get
+ * there section."*
+ *
+ * The scroller is the DOCUMENT and it is shared by every screen, so its
+ * `scrollTop` survives a route change. Tap a card 900px down the feed and the
+ * detail mounts still scrolled 900px down — which lands on whatever section
+ * happens to sit there, in his case the valuation breakdown. Nothing ever
+ * reset it: `restoreScroll` only runs on BACK, which is the case that must
+ * *not* go to the top.
+ *
+ * It reuses `restoreScroll(0)` rather than writing `scrollTop = 0` once,
+ * because the target screen's content lands over the next few frames and a
+ * single synchronous write can be undone by the browser's own anchoring as the
+ * taller feed unmounts. The same "stop if the user touches anything" guard
+ * applies, for the same reason.
+ */
+export const scrollToTop = () => restoreScroll(0);
 
 /**
  * The Filters button lives in the TOP BAR, and the sheet lives in the feed.

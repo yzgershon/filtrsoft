@@ -171,3 +171,36 @@
   border-radius: var(--r-md); font-size: 14px;
   background: rgba(255,71,87,.1); border: 1px solid rgba(255,71,87,.3); color: #ffd7db;
 }
+
+/*
+ * ⚠ THE BELL AND THE AVATAR IN THE TOP BAR. Yish, 2026-09-01: *"in the top
+ * right they have their profile and there will be a notifications button to
+ * the left of that and also the filter will be next to that as well."*
+ *
+ * The unseen count reuses `.filtbtn em`'s geometry deliberately — two
+ * different-looking count bubbles 44px apart in the same bar would read as two
+ * different kinds of number.
+ */
+.bellbtn { position: relative; }
+.bellbtn em {
+  position: absolute; top: 4px; right: 3px;
+  min-width: 15px; height: 15px; padding: 0 3px;
+  border-radius: 999px; background: var(--buy); color: #04140b;
+  font-size: 9.5px; font-weight: 800; font-style: normal;
+  display: grid; place-items: center;
+  /* Rings the badge in the bar's own colour so it reads as sitting on top of
+     the glyph rather than merged into it. */
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.bellbtn.on { color: var(--ink); }
+/*
+ * The avatar is a filled circle, not another line icon: it is an IDENTITY, and
+ * against three stroked glyphs a fourth would disappear into the row.
+ */
+.avbtn { color: var(--ink-2); }
+.avbtn svg {
+  border-radius: 999px; padding: 3px;
+  background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line);
+  width: 28px; height: 28px;
+}
+.avbtn.on svg { color: var(--brand); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 55%, transparent); }
