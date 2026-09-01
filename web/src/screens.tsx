@@ -17,7 +17,7 @@ import {
 } from "./nav.ts";
 import {
   LABEL, money, ago, markAsked, toast, writeWatch, readWatch, toggleWatch,
-  SUBKEY, urlB64ToBytes,
+  SUBKEY, urlB64ToBytes, deviceRef,
 } from "./lib.tsx";
 import { Gcard } from "./feed.tsx";
 
@@ -262,15 +262,8 @@ export function OutcomePrompt({ h, onDone }: { h: Hist; onDone: () => void }) {
  * webhook and that is what the entitlement is keyed on. When real accounts
  * exist this becomes a user id and nothing else changes.
  */
-export const REFKEY = "assyze:ref";
-export function deviceRef(): string {
-  let v = localStorage.getItem(REFKEY);
-  if (!v) {
-    v = crypto.randomUUID().replace(/-/g, "");
-    localStorage.setItem(REFKEY, v);
-  }
-  return v;
-}
+/** Moved to `lib.tsx` — three screens need it now, not just billing. */
+export { REFKEY, deviceRef } from "./lib.tsx";
 
 /**
  * Billing.

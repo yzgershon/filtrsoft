@@ -11,8 +11,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert, Back as BackIcon, Chat, Check, Cut, Eye, Ghost, Info, Link, Shield, Store, Tag,
 } from "./icons.tsx";
-import type { Comp, Listing, Meta, Retail, RiskCheck, Signal, Verdict } from "./types.ts";
-import { LABEL, money, ago, toast, Thumb } from "./lib.tsx";
+import type { Call, Comp, Listing, Meta, Retail, RiskCheck, Signal, Verdict } from "./types.ts";
+import { LABEL, money, ago, toast, Thumb, deviceRef } from "./lib.tsx";
 import { SectionHead } from "./feed.tsx";
 
 /**
@@ -66,6 +66,86 @@ export function SecHead({ icon, title, note, tone, trailing }: {
         {trailing}
       </div>
     </div>
+  );
+}
+
+/**
+ * His own call, overriding the engine's.
+ *
+ * Yish, 2026-08-31: *"I noticed some scams were labelled as verify first so I
+ * want there to be an option for me to manually change the label of things in
+ * the app so I can manually change them to risky."* He had just been sent the
+ * same scripted message on two different listings by one seller — the kind of
+ * thing a person sees in one exchange and no photo model ever will.
+ *
+ * ⚠ IT MUST NEVER LOOK LIKE THE ENGINE SAID IT. `overriddenFrom` comes back
+ * from the API and the card says "your call, engine said X", because the whole
+ * value of the control is knowing which listings you have personally judged.
+ * A silent replacement would erase that distinction the moment you forgot.
+ *
+ * Only the four calls worth setting by hand are offered. "Can't tell" and "Not
+ * covered" are things the ENGINE says about its own coverage; a human marking a
+ * listing "I couldn't price this" tells nobody anything.
+ */
+const MY_CALLS: Call[] = ["BUY", "VERIFY", "RISK", "PASS"];
+
+export function MyCall({ id, call, overriddenFrom, onChange }: {
+  id: number;
+  call: Call;
+  overriddenFrom?: Call | null;
+  onChange: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const set = async (next: Call | null) => {
+    setBusy(true);
+    try {
+      const ref = deviceRef();
+      if (next === null) {
+        await fetch(`/v1/checks/${id}/override?ref=${encodeURIComponent(ref)}`, { method: "DELETE" });
+        toast("Back to the engine's call");
+      } else {
+        await fetch(`/v1/checks/${id}/override`, {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ref, call: next }),
+        });
+        toast(`Marked ${LABEL[next]}`);
+      }
+      setOpen(false);
+      onChange();
+    } catch {
+      toast("Couldn't save that", true);
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <section className="sec rise">
+      <SecHead tone="alt" icon={<Eye size={18} />} title="Your call"
+        note={overriddenFrom
+          ? `You marked this ${LABEL[call]}. The engine said ${LABEL[overriddenFrom]}.`
+          : "Seen something the engine hasn't? Relabel it."} />
+      {!open ? (
+        <button className="btn2 mycallbtn" onClick={() => setOpen(true)}>
+          {overriddenFrom ? "Change your label" : "Set my own label"}
+        </button>
+      ) : (
+        <div className="mycall">
+          {MY_CALLS.map((cx) => (
+            <button key={cx} className={`fchip${cx === call ? " on" : ""}`} disabled={busy}
+              aria-pressed={cx === call} onClick={() => set(cx)}>
+              {LABEL[cx]}
+            </button>
+          ))}
+          {overriddenFrom && (
+            <button className="fchip" disabled={busy} onClick={() => set(null)}>
+              Use the engine's
+            </button>
+          )}
+          <button className="fchip" disabled={busy} onClick={() => setOpen(false)}>Cancel</button>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -671,13 +751,17 @@ export function Outcome({ id }: { id: number }) {
   );
 }
 
-export function Report({ listing, verdict, signals, comps, meta, stage, reading, checkId, onBack }: {
+export function Report({
+  listing, verdict, signals, comps, meta, stage, reading, checkId, onBack, onReload,
+}: {
   listing: Listing | null; verdict: Verdict | null; signals: Signal[];
   comps?: Comp[];
   meta?: Meta; stage: number; reading: number; checkId?: number | null;
   /** Absent during a paste, where the result appears in place and there is
       nothing behind it to go back to. */
   onBack?: () => void;
+  /** Re-fetch after he relabels, so the card and the feed agree immediately. */
+  onReload?: () => void;
 }) {
   const [lbx, setLbx] = useState<number | null>(null);
   if (!listing) return null;
@@ -790,6 +874,15 @@ export function Report({ listing, verdict, signals, comps, meta, stage, reading,
       {verdict?.riskChecks?.length ? <Blockers checks={verdict.riskChecks} /> : null}
       <Flags signals={signals} />
       {verdict && <Questions qs={verdict.questions} />}
+      {/**
+        * ⚠ AFTER the engine's reasoning, never before it. This is the place to
+        * disagree with a conclusion, and a control to relabel a listing shown
+        * above the evidence invites relabelling it without reading any.
+        */}
+      {verdict && checkId && onReload && (
+        <MyCall id={checkId} call={verdict.call} overriddenFrom={verdict.overriddenFrom}
+          onChange={onReload} />
+      )}
       {/**
         * "What happened?" was REMOVED from the listing view, 2026-08-28.
         *

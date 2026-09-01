@@ -211,6 +211,26 @@ export function Thumb({ src, size = 22 }: { src: string | null; size?: number })
 export const SUBKEY = "assyze:subId";
 
 /**
+ * A stable per-device id.
+ *
+ * ⚠ IT LIVES HERE, NOT IN `screens.tsx`, BECAUSE THREE SCREENS NEED IT NOW.
+ * It was minted for Stripe's `client_reference_id`; the verdict override reuses
+ * it as the owner of a relabelled listing, which is what lets an
+ * UNAUTHENTICATED public endpoint be safe — an override belongs to the browser
+ * that made it and can never change what anyone else sees. Full reasoning in
+ * `src/api/overrides.ts`.
+ */
+export const REFKEY = "assyze:ref";
+export function deviceRef(): string {
+  let v = localStorage.getItem(REFKEY);
+  if (!v) {
+    v = crypto.randomUUID().replace(/-/g, "");
+    localStorage.setItem(REFKEY, v);
+  }
+  return v;
+}
+
+/**
  * VAPID key, base64url to bytes.
  *
  * ⚠ RETURNS `ArrayBuffer`, NOT `Uint8Array`. `applicationServerKey` wants a

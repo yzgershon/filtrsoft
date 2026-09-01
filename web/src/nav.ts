@@ -130,9 +130,18 @@ export function feedQuery(o: {
   return `/v1/feed?limit=${o.limit}&offset=${o.offset}&quality=${o.quality}${gone}`;
 }
 
-/** The detail request carries the user's drive time; the stored verdict does not. */
-export function checkQuery(id: number, driveMinutes: number): string {
-  return `/v1/checks/${id}?drive=${clampDrive(driveMinutes)}`;
+/**
+ * The detail request carries the user's drive time; the stored verdict does not.
+ *
+ * ⚠ `ref` IS A PARAMETER, NOT READ FROM STORAGE. Nothing in this file may touch
+ * `localStorage` — that is the rule that keeps it testable without a DOM. The
+ * caller passes `deviceRef()` from `lib.tsx`.
+ *
+ * Without it the server cannot tell whose overrides to apply, and a listing he
+ * relabelled would keep showing the engine's call.
+ */
+export function checkQuery(id: number, driveMinutes: number, ref?: string): string {
+  return `/v1/checks/${id}?drive=${clampDrive(driveMinutes)}${ref ? `&ref=${encodeURIComponent(ref)}` : ""}`;
 }
 
 // ─────────────────────────────────────────────────────── discovery filters
@@ -265,11 +274,20 @@ export const restoreLimit = (n: number): number =>
   Math.min(FEED_LIMIT_MAX, Math.max(FEED_PAGE, Math.floor(n) || FEED_PAGE));
 
 /** The feed request for a whole filter state. */
-export function feedUrl(o: { limit: number; offset: number; hideGone: boolean; filters: Filters }): string {
+export function feedUrl(o: {
+  limit: number; offset: number; hideGone: boolean; filters: Filters; ref?: string;
+}): string {
   const p = new URLSearchParams(searchFromFilters(o.filters).replace(/^\?/, ""));
   p.set("limit", String(o.limit));
   p.set("offset", String(o.offset));
   p.set("quality", o.filters.quality);
   if (!o.hideGone) p.set("gone", "1");
+  /**
+   * ⚠ THE FEED NEEDS THE REF OR AN OVERRIDE ONLY WORKS ON THE DETAIL SCREEN.
+   * The server moves a relabelled listing between segments and recounts the
+   * chips, so a feed request without it shows the engine's call and the
+   * engine's counts while the listing's own page shows his.
+   */
+  if (o.ref) p.set("ref", o.ref);
   return `/v1/feed?${p.toString()}`;
 }

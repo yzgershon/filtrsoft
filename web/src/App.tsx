@@ -12,7 +12,7 @@ import type { Comp, Hist, Listing, Meta, Signal, Verdict } from "./types.ts";
 import {
   LABEL, Toaster, pushHist, readHist, readAsked, readWatch, writeWatch,
   readSettings, writeSettings, pendingOutcome, shareOrCopy, toast,
-  openFilters, onFilterCount, rememberSpot, feedRows,
+  openFilters, onFilterCount, rememberSpot, feedRows, deviceRef,
 } from "./lib.tsx";
 import { Feed } from "./feed.tsx";
 import { Report } from "./detail.tsx";
@@ -135,6 +135,11 @@ export default function App() {
    * badge from `location.search` would go stale the moment a filter changed
    * without a route change.
    */
+  /**
+   * Bumped when he relabels a listing, so the detail effect re-runs and the
+   * screen shows his call rather than the one it fetched a moment ago.
+   */
+  const [reloadAt, setReloadAt] = useState(0);
   const [filterCount, setFilterCount] = useState(0);
   useEffect(() => onFilterCount(setFilterCount), []);
   const es = useRef<EventSource | null>(null);
@@ -225,7 +230,7 @@ export default function App() {
     setBusy(true);
     // The Settings stepper is a real input now: it changes the required
     // profit floor, and therefore the verdict, on this screen.
-    fetch(checkQuery(screen.id, settings.driveMinutes)).then((r) => r.json()).then((d) => {
+    fetch(checkQuery(screen.id, settings.driveMinutes, deviceRef())).then((r) => r.json()).then((d) => {
       if (d.error) return setError(d.error);
       setListing(d.listing); setVerdict(d.verdict); setCheckId(d.checkId);
       // The detail endpoint recomputes these; dropping them left the risk
@@ -251,7 +256,7 @@ export default function App() {
         setHist(readHist());
       }
     }).finally(() => setBusy(false));
-  }, [path]);
+  }, [path, reloadAt]);
 
   const reset = () => {
     es.current?.close();
@@ -498,7 +503,10 @@ export default function App() {
                     behind it to return to. */}
                 <Report listing={listing} verdict={verdict} signals={signals} comps={comps}
                   meta={meta} stage={stage} reading={reading} checkId={checkId}
-                  onBack={screen.name === "detail" ? back : undefined} />
+                  onBack={screen.name === "detail" ? back : undefined}
+                  /* Relabelling changes the call the server serves, so the
+                     screen re-reads rather than guessing at the new state. */
+                  onReload={() => setReloadAt(Date.now())} />
 
                 {ms != null && <div className="timing num">verdict in {ms}ms</div>}
 

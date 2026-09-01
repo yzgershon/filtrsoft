@@ -335,3 +335,33 @@ CREATE TABLE IF NOT EXISTS listing_thumb_misses (
   tries      INTEGER NOT NULL DEFAULT 1,
   last_try   TEXT NOT NULL
 );
+
+/*
+ * Yish's own call, overriding the engine's.
+ *
+ * "I noticed some scams were labelled as verify first, so I want there to be an
+ * option for me to manually change the label of things in the app so I can
+ * manually change them to risky." — 2026-08-31, after a seller running two
+ * listings at once sent him the same scripted message on both.
+ *
+ * WARNING: KEYED ON A DEVICE REF, NOT GLOBAL, AND THAT IS A SECURITY DECISION.
+ * assyze.com is public. An unauthenticated write that changed the verdict
+ * everyone sees would let anyone relabel a scam as a buy. `deviceRef()` already
+ * exists in the web app as Stripe's client_reference_id — a random uuid minted
+ * once per browser — so an override is scoped to the person who made it and
+ * needs no login and no token in a form.
+ *
+ * WARNING: A SEPARATE TABLE, NEVER AN UPDATE TO `verdicts`. reverdictAll
+ * rewrites that table on every engine bump, so an override written into it
+ * would be silently erased by the next deploy — and erased overrides are worse
+ * than no overrides, because the listing goes back to looking safe.
+ */
+CREATE TABLE IF NOT EXISTS verdict_overrides (
+  device_ref  TEXT NOT NULL,
+  listing_id  INTEGER NOT NULL REFERENCES listings(id),
+  call        TEXT NOT NULL,
+  note        TEXT,
+  created_at  TEXT NOT NULL,
+  PRIMARY KEY (device_ref, listing_id)
+);
+CREATE INDEX IF NOT EXISTS idx_overrides_listing ON verdict_overrides(listing_id);

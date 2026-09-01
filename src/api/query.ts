@@ -30,12 +30,29 @@ export interface Scoped {
  *   verify  VERIFY              — one message settles it
  *   risky   RISK                — its own state, never counted as a deal
  *   browse  FAIR + PASS         — priced, and not worth it
- *   all     everything the feed already allows
+ *   all     everything EXCEPT risk
  *
  * `INSUFFICIENT_DATA` is deliberately reachable ONLY under `all`. It is the
  * largest bucket and the one that can never be acted on, so promoting it into
  * any named segment would fill that segment with rows nobody can use.
+ *
+ * ⚠ `all` DOES NOT MEAN EVERY ROW — RISK IS EXCLUDED FROM IT.
+ *
+ * Yish, 2026-08-31: *"I've decided that I don't actually want risky listings to
+ * be in the all listings feed at all. I just want them to appear in the risky
+ * listings when I click that tab."*
+ *
+ * He is right and it is the same argument §4 already made about "deals": a
+ * scam is not a listing you browse past, it is a listing you were nearly sent
+ * to. Leaving them in the default view spends attention on rows whose whole
+ * purpose is to be avoided — and the day this changed, one of those RISK rows
+ * turned out to be a real scammer running two listings at once (§18j).
+ *
+ * The tab still shows them, with its own count, so nothing is hidden. This is
+ * about what the DEFAULT view is for.
  */
+const NEVER_IN_ALL = ["RISK"];
+
 export const QUALITY: Record<string, string[] | null> = {
   all: null,
   ready: ["BUY"],
@@ -46,10 +63,17 @@ export const QUALITY: Record<string, string[] | null> = {
 
 export const QUALITIES = Object.keys(QUALITY);
 
-/** An unknown segment falls back to `all` rather than serving nothing. */
+/**
+ * An unknown segment falls back to `all` rather than serving nothing.
+ *
+ * ⚠ THE `all` BRANCH IS A FILTER NOW, NOT A PASSTHROUGH. It used to `return
+ * rows` untouched, which is why this reads as a special case rather than as
+ * "no quality selected".
+ */
 export const applyQuality = <T extends Scoped>(rows: T[], quality: string): T[] => {
   const wanted = QUALITY[quality] ?? null;
-  return wanted ? rows.filter((r) => wanted.includes(r.call)) : rows;
+  if (wanted) return rows.filter((r) => wanted.includes(r.call));
+  return rows.filter((r) => !NEVER_IN_ALL.includes(r.call));
 };
 
 export const withinPrice = <T extends Scoped>(rows: T[], maxPrice: number | null): T[] =>

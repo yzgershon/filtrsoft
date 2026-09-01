@@ -252,3 +252,21 @@
  * to read as anything but a muddy middle.
  */
 .tab.on { color: var(--brand); }
+
+/* ═══════════════════════════════════════════════════ his call, not the engine's
+ *
+ * Yish, 2026-08-31: *"I want there to be an option for me to manually change
+ * the label of things in the app so I can manually change them to risky."*
+ *
+ * ⚠ AN OVERRIDDEN CHIP MUST READ AS HIS. A relabelled listing that looks
+ * identical to an engine call erases the one thing the control records — which
+ * listings he has personally judged. A dot is enough: the chip already carries
+ * the verdict colour, and a second word would not fit on a two-up card.
+ */
+.gcall.mine i, .dcall.mine i {
+  font-style: normal; margin-left: 4px; opacity: .75;
+}
+.mycall { display: flex; flex-wrap: wrap; gap: 6px; }
+/* `.btn2` sizes to its content in flow, so it needs the same inline treatment
+   the empty state's does rather than stretching across the screen. */
+.mycallbtn { display: inline-flex; }

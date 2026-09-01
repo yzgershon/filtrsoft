@@ -31,6 +31,9 @@ import {
 import { getEconomics } from "../valuation/index.ts";
 import { db, DB_PATH } from "../db/index.ts";
 import { getThumb, thumbStats, pruneThumbs, THUMBS_OFF } from "../photos/thumb.ts";
+import {
+  loadOverrides, applyOverride, handleSetOverride, handleClearOverride,
+} from "./overrides.ts";
 import { archiveStatus } from "../db/archive.ts";
 import { VISION_MODEL, visionConfigured } from "../vision/index.ts";
 import {
@@ -437,6 +440,13 @@ const thumbUrl = (r: { id: number; has_thumb?: number; thumb?: string | null }) 
  * listing's photos do, and a card that re-downloads its image on every feed
  * render would spend the saving this exists to make.
  */
+/**
+ * His own call on a listing. See `api/overrides.ts` — device-scoped, stored
+ * separately from `verdicts` so a re-score cannot erase it.
+ */
+app.post("/v1/checks/:id/override", handleSetOverride);
+app.delete("/v1/checks/:id/override", handleClearOverride);
+
 app.get("/v1/thumb/:id", (c) => {
   const id = Number(c.req.param("id"));
   if (!Number.isInteger(id) || id <= 0) return c.text("bad id", 400);
@@ -488,6 +498,7 @@ app.get("/v1/feed", (c) => {
    */
   const filters = parseFilters((k) => c.req.query(k));
   const { quality } = filters;
+  const overrides = loadOverrides(c.req.query("ref"));
 
   const rows = db().query(`
     SELECT l.id, l.title, l.url, l.asking_price_cents, l.location, l.posted_at, l.source,
@@ -599,6 +610,16 @@ app.get("/v1/feed", (c) => {
      * see it.
      */
     .filter((i) => (showGone ? true : !i.gone))
+    /**
+     * ⚠ HIS OWN CALL REPLACES THE ENGINE'S *BEFORE* THE COUNTS ARE TAKEN.
+     *
+     * A listing he relabelled has to leave the segment it was in and join the
+     * one he chose — in the rows AND in the chip counts. Applying it any later
+     * than here would leave "Risky 25" beside a list of 26, which is the exact
+     * lie `segmentCounts`' invariant exists to prevent. See `api/overrides.ts`
+     * for why these are scoped to a device rather than global.
+     */
+    .map((i) => applyOverride(i, overrides))
     .sort((a, b) => b.score - a.score);
 
   // Rank globally, then page. Paging before ranking would make page 2 a
@@ -776,6 +797,7 @@ app.get("/v1/checks/:id", (c) => {
   let comps: unknown[] = [];
   let meta: Record<string, unknown> = {};
   let verdict = row.payload ? JSON.parse(row.payload) : null;
+
   try {
     const re = checkStored(id, driveMinutes ? { driveMinutes } : {});
     // Only replace the stored verdict when the caller actually asked for a
@@ -816,6 +838,26 @@ app.get("/v1/checks/:id", (c) => {
       description: re.listing.description ?? "",
     };
   } catch { /* a listing we cannot re-read still renders its stored verdict */ }
+
+  /**
+   * ⚠ HIS CALL WINS, AND IT IS APPLIED *AFTER* THE RE-SCORE, NOT BEFORE.
+   *
+   * The web app always sends `?drive=` (see `checkQuery` in nav.ts), so the
+   * branch above always replaces `verdict` with a freshly computed one.
+   * Applying the override any earlier means it is silently overwritten on every
+   * single request from the actual product — the control would appear to work,
+   * the row would be written, and the screen would keep showing the engine's
+   * answer.
+   *
+   * `overriddenFrom` carries what the engine said. Without it the screen
+   * presents his own judgement back to him as the engine's, and knowing which
+   * listings he has personally checked is the entire point. See
+   * `api/overrides.ts`.
+   */
+  const ov = loadOverrides(c.req.query("ref")).get(id);
+  if (ov && verdict && ov.call !== verdict.call) {
+    verdict = { ...verdict, call: ov.call, overriddenFrom: verdict.call, overrideNote: ov.note };
+  }
 
   return c.json({
     checkId: row.id,

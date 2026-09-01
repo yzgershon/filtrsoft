@@ -19,7 +19,7 @@ import {
 import {
   LABEL, money, ago, readWatch, toggleWatch, readSettings, toast, Thumb,
   SUBKEY, urlB64ToBytes, onOpenFilters, publishFilterCount,
-  popSpot, restoreScroll, setFeedRows,
+  popSpot, restoreScroll, setFeedRows, deviceRef,
 } from "./lib.tsx";
 
 /** Re-exported so existing importers keep one name for the page size. */
@@ -45,7 +45,7 @@ export function Gcard({ i, saved, onSave, onOpen }: {
    */
   const descId = `gd${i.id}`;
   const desc = [
-    LABEL[i.call],
+    i.overriddenFrom ? `${LABEL[i.call]}, your own label` : LABEL[i.call],
     money(price),
     i.priceDropCents ? `dropped ${money(i.priceDropCents)}` : null,
     i.netProfitCents && i.netProfitCents > 0 ? `${money(i.netProfitCents)} net profit` : null,
@@ -62,7 +62,16 @@ export function Gcard({ i, saved, onSave, onOpen }: {
           {i.thumb
             ? <Thumb src={i.thumb} />
             : <span className="noimg"><Ghost size={22} /></span>}
-          <span className={`gcall b-${i.call}`}>{LABEL[i.call]}</span>
+          {/**
+            * ⚠ AN OVERRIDDEN CARD SAYS SO. `overriddenFrom` is only present
+            * when HE relabelled it, and without the marker his own judgement
+            * comes back to him as the engine's — which erases the one thing the
+            * control exists to record: which listings he has actually checked
+            * himself. See `api/overrides.ts`.
+            */}
+          <span className={`gcall b-${i.call}${i.overriddenFrom ? " mine" : ""}`}>
+            {LABEL[i.call]}{i.overriddenFrom ? <i aria-hidden="true">•</i> : null}
+          </span>
           {i.gone ? <span className="gghost">Gone</span> : null}
           <span className="gstats">
             <span className="num gprice">{money(price)}</span>
@@ -375,7 +384,13 @@ export function Feed({ onOpen, onWatchChange }: {
      * feed hides delisted rows by default, so the switch has to ASK for them
      * when it is off — `feedUrl` inverts it onto the existing `?gone=1` flag.
      */
-    return fetch(feedUrl({ limit, offset, hideGone: readSettings().hideGone, filters: f }))
+    /**
+     * ⚠ THE REF GOES WITH EVERY FEED REQUEST. The server applies his verdict
+     * overrides BEFORE it counts the segments, so a request without it shows
+     * the engine's calls and the engine's chip counts while the same listing's
+     * own page shows his. See `api/overrides.ts`.
+     */
+    return fetch(feedUrl({ limit, offset, hideGone: readSettings().hideGone, filters: f, ref: deviceRef() }))
       .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
       .then((d) => {
         setItems((prev) => (offset === 0 ? (d.items ?? []) : [...(prev ?? []), ...(d.items ?? [])]));
@@ -650,7 +665,9 @@ export function Feed({ onOpen, onWatchChange }: {
                     ? <Thumb src={hero.thumb} size={28} />
                     : <span className="noimg"><Ghost size={28} /></span>}
                   <span className="hover">
-                    <span className={`dcall b-${hero.call}`}>{LABEL[hero.call]}</span>
+                    <span className={`dcall b-${hero.call}${hero.overriddenFrom ? " mine" : ""}`}>
+                      {LABEL[hero.call]}{hero.overriddenFrom ? <i aria-hidden="true">•</i> : null}
+                    </span>
                     <b>{hero.title}</b>
                   </span>
                 </span>

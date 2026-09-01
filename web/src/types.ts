@@ -17,6 +17,8 @@ export interface Retail {
 }
 export interface Verdict {
   call: Call; confidence: string; headline: string; reasoning: string;
+  /** Present only when HE relabelled it — what the engine had said. */
+  overriddenFrom?: Call | null;
   decidingUnknown?: string; targetOfferCents?: number;
   netProfitCents?: number; requiredProfitCents?: number;
   bestChannel?: Channel; channels?: Channel[];
@@ -35,6 +37,8 @@ export interface FeedItem {
   id: number; title: string; url: string; source: string;
   askingPriceCents: number | null; location: string | null; postedAt: string | null;
   thumb: string | null; call: Call; headline: string | null; netProfitCents: number | null;
+  /** Present only when HE relabelled it — what the engine had said. */
+  overriddenFrom?: Call | null;
   /** From the daily sweep. The difference between a list and a tracker. */
   gone?: boolean; goneReason?: string | null;
   currentPriceCents?: number | null;

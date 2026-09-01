@@ -920,11 +920,33 @@ describe("feed segments", () => {
 
   test("the named segments are exactly the audit's vocabulary", () => {
     const counts = segmentCounts(rows);
-    expect(counts.all).toBe(9);
+    // 9 rows, minus the one RISK — see the next test.
+    expect(counts.all).toBe(8);
     expect(counts.ready).toBe(2);   // BUY only
     expect(counts.verify).toBe(2);
     expect(counts.risky).toBe(1);   // RISK is its own state, never a deal
     expect(counts.browse).toBe(2);  // FAIR + PASS
+  });
+
+  /**
+   * ⚠ `all` DOES NOT MEAN EVERY ROW.
+   *
+   * Yish, 2026-08-31: *"I've decided that I don't actually want risky listings
+   * to be in the all listings feed at all. I just want them to appear in the
+   * risky listings when I click that tab."*
+   *
+   * Same argument §4 already made about "deals": a scam is not something you
+   * browse past, it is something you were nearly sent to. The day this changed,
+   * one of those RISK rows turned out to be a real scammer running two listings
+   * at once.
+   */
+  test("RISK is excluded from all, and reachable only under its own tab", () => {
+    expect(applyQuality(rows, "all").some((r) => r.call === "RISK")).toBe(false);
+    expect(applyQuality(rows, "risky").map((r) => r.call)).toEqual(["RISK"]);
+    // Nothing is hidden: the tab still counts it.
+    expect(segmentCounts(rows).risky).toBe(1);
+    // And `all` is exactly everything else.
+    expect(applyQuality(rows, "all").length).toBe(rows.length - 1);
   });
 
   test("RISK is never counted as a deal", () => {
@@ -942,9 +964,13 @@ describe("feed segments", () => {
     expect(applyQuality(rows, "all").filter((r) => r.call === "INSUFFICIENT_DATA").length).toBe(2);
   });
 
-  test("an unknown segment serves everything rather than nothing", () => {
-    expect(applyQuality(rows, "bogus").length).toBe(rows.length);
-    expect(applyQuality(rows, "").length).toBe(rows.length);
+  test("an unknown segment falls back to all rather than serving nothing", () => {
+    // It degrades to `all`, which now means "everything except RISK" — so the
+    // fallback must match `all` exactly, not the raw row count.
+    const all = applyQuality(rows, "all").length;
+    expect(applyQuality(rows, "bogus").length).toBe(all);
+    expect(applyQuality(rows, "").length).toBe(all);
+    expect(applyQuality(rows, "bogus").some((r) => r.call === "RISK")).toBe(false);
   });
 
   test("the price filter narrows counts and rows together", () => {
