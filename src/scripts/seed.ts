@@ -44,13 +44,23 @@ const dead = d.query("SELECT COUNT(*) n FROM skus WHERE liquidity='dead'").get()
 console.log(`seeded skus: +${added} (${dead.n} marked dead)`);
 
 // --- 1. Yish's economics -----------------------------------------------
-// Two stated points ($100 local, $150 at 30min) resolve to one parameter:
-// an effective hourly floor of roughly $120-135.
+//
+// ⚠ RESTATED 2026-08-31: "$100 profit with a 20 min drive."
+//
+// The old pair ($100 local, $150 at 30 min) resolved to ~$125/hr, and with 15
+// minutes of meeting and 20 of relisting that made the CLOCK the binding term
+// at every distance — the $100 floor was never reachable. A 15-minute drive
+// asked for $135.42 and a 20-minute one asked for MORE, $156.25, which is the
+// opposite of what he wanted when he asked for a longer drive and a lower bar.
+//
+// $80/hr puts the crossover exactly at 20 minutes: $100 flat up to there, and
+// the clock only adds beyond it. It is also his revealed preference — he drove
+// 20 minutes to Boston for $74 on an i9-12900K the engine had called FAIR.
 d.query(
   `INSERT INTO user_economics (label, home_location, min_absolute_profit_cents,
      effective_hourly_floor_cents, max_drive_minutes, transaction_minutes,
      relist_minutes, prefers_channel, updated_at)
-   VALUES ('yish', 'Newton, MA', 10000, 12500, NULL, 15, 20, 'facebook', $now)
+   VALUES ('yish', 'Newton, MA', 10000, 8000, NULL, 15, 20, 'facebook', $now)
    ON CONFLICT(label) DO UPDATE SET
      min_absolute_profit_cents = excluded.min_absolute_profit_cents,
      effective_hourly_floor_cents = excluded.effective_hourly_floor_cents,

@@ -68,10 +68,42 @@ describe("tabOf", () => {
 });
 
 describe("mergeSettings", () => {
+  /**
+   * ⚠ `driveVersion` IS STAMPED ON EVERY READ, so a merged object is the
+   * defaults PLUS that marker rather than the defaults exactly. It exists to
+   * make the 15 -> 20 migration below run once and never again.
+   */
+  const defaults = { ...DEFAULT_SETTINGS, driveVersion: 2 };
+
   test("empty storage is the defaults", () => {
-    expect(mergeSettings(null)).toEqual(DEFAULT_SETTINGS);
-    expect(mergeSettings("")).toEqual(DEFAULT_SETTINGS);
-    expect(mergeSettings("{}")).toEqual(DEFAULT_SETTINGS);
+    // `null`, `""` and `"{}"` all parse to an empty object and take the same
+    // path, so all three come back stamped. Only CORRUPT input short-circuits
+    // to the raw defaults — see the fallback test below.
+    for (const empty of [null, "", "{}"]) {
+      expect(mergeSettings(empty)).toEqual(defaults);
+      expect(mergeSettings(empty).driveMinutes).toBe(20);
+    }
+  });
+
+  /**
+   * ⚠ A STORED VALUE EQUAL TO THE OLD DEFAULT IS NOT A CHOICE.
+   *
+   * Yish, 2026-08-31: *"can you change it to like $100 profit with a 20 min
+   * drive."* Settings are written to localStorage in full on every change, so
+   * his phone held `driveMinutes: 15` whether he had chosen it or never touched
+   * the stepper — and a plain merge keeps 15 forever, which reads as the change
+   * not landing.
+   */
+  test("the old drive default migrates to the new one, exactly once", () => {
+    expect(mergeSettings(JSON.stringify({ driveMinutes: 15 })).driveMinutes).toBe(20);
+
+    // Any OTHER value is a real choice and is left alone.
+    expect(mergeSettings(JSON.stringify({ driveMinutes: 45 })).driveMinutes).toBe(45);
+    expect(mergeSettings(JSON.stringify({ driveMinutes: 5 })).driveMinutes).toBe(5);
+
+    // And once stamped it never runs again — someone who deliberately picks 15
+    // after the migration keeps 15.
+    expect(mergeSettings(JSON.stringify({ driveMinutes: 15, driveVersion: 2 })).driveMinutes).toBe(15);
   });
 
   test("a stored value overrides only its own key", () => {
@@ -87,6 +119,8 @@ describe("mergeSettings", () => {
     for (const bad of ["{oops", "null", "[]", "42", '"hi"']) {
       expect(mergeSettings(bad)).toEqual(DEFAULT_SETTINGS);
     }
+    // Nothing corrupt reaches the migration, so nothing gets stamped either.
+    expect(mergeSettings("{oops").driveVersion).toBeUndefined();
   });
 
   test("a key from a future version does not erase the known ones", () => {

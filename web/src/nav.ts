@@ -59,12 +59,23 @@ export interface Settings {
   hideGone: boolean;
   reduceMotion: boolean;
   askOutcomes: boolean;
+  /** Stamps the one-shot 15 -> 20 default migration. See `mergeSettings`. */
+  driveVersion?: number;
 }
 
 export const SETTINGS_KEY = "assyze:settings";
 
+/**
+ * ⚠ 20 MINUTES, NOT 15, AS OF 2026-08-31. Yish: *"can you change it to like
+ * $100 profit with a 20 min drive."* The server's economics were retuned to put
+ * the crossover exactly there — $100 flat up to 20 minutes, the clock only
+ * beyond it — so this default and that curve are one decision. See the
+ * `2026-08-31-hourly-floor-80-crossover-at-20min` migration.
+ */
+export const LEGACY_DRIVE_DEFAULT = 15;
+
 export const DEFAULT_SETTINGS: Settings = {
-  driveMinutes: 15,
+  driveMinutes: 20,
   hideGone: true,
   reduceMotion: false,
   askOutcomes: true,
@@ -82,7 +93,24 @@ export function mergeSettings(raw: string | null): Settings {
   try {
     const parsed = JSON.parse(raw || "{}");
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return DEFAULT_SETTINGS;
-    return { ...DEFAULT_SETTINGS, ...parsed };
+    const merged = { ...DEFAULT_SETTINGS, ...parsed };
+    /**
+     * ⚠ A STORED VALUE EQUAL TO THE OLD DEFAULT IS NOT A CHOICE.
+     *
+     * Settings are written to localStorage in full on every change, so his
+     * phone holds `driveMinutes: 15` whether he set it or merely never touched
+     * the stepper — and a plain merge keeps 15 forever. He asked for 20; the
+     * app would have gone on showing 15, which reads as the change not landing.
+     *
+     * So the OLD DEFAULT specifically is migrated, once, and any other value is
+     * left alone because someone who typed 45 meant 45. `driveVersion` stamps
+     * it so this never runs twice and cannot walk a later choice back.
+     */
+    if (merged.driveVersion !== 2) {
+      if (merged.driveMinutes === LEGACY_DRIVE_DEFAULT) merged.driveMinutes = DEFAULT_SETTINGS.driveMinutes;
+      merged.driveVersion = 2;
+    }
+    return merged;
   } catch {
     return DEFAULT_SETTINGS;
   }

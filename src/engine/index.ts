@@ -404,6 +404,10 @@ export function checkStored(
  * 0.3.19 — unresolved category hard blockers always veto BUY.
  * 0.3.20 — category agreement, brand boundaries, printer purge, 256G storage.
  *
+ * 0.3.27 — the profit floor is $100 flat to a 20-minute drive. The hourly rate
+ *           goes $125 -> $80, which puts the crossover exactly there; at $125
+ *           the clock was the binding term at EVERY distance and the $100 floor
+ *           was unreachable.
  * 0.3.26 — a spec screen is evidence FOR the seller. Vision signals carry
  *           their own polarity instead of being cast negative, `specScreens`
  *           emits a positive SPEC_SCREEN_PROOF, SCREENSHOT_ARTIFACTS drops to
@@ -416,4 +420,4 @@ export function checkStored(
  * the current version. Exactly the failure this constant was made load-bearing
  * to prevent, two days after writing that down.
  */
-export const ENGINE_VERSION = "0.3.26";
+export const ENGINE_VERSION = "0.3.27";

@@ -663,9 +663,14 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
                 onClick={() => save({ driveMinutes: clampDrive(s.driveMinutes + DRIVE_STEP) })}>+</button>
             </span>
           </label>
+          {/* ⚠ THIS USED TO SAY "they show on the You tab". That tab was
+              removed in the audit, so the one place the numbers were visible
+              stopped existing and the note pointed at nothing. They are stated
+              here instead. */}
           <p className="snote">
-            Your profit floor and hourly rate are set on the server for now. They
-            show on the You tab.
+            You need <b>$100</b> clear on anything within 20 minutes. Past that
+            the drive starts paying for itself at $80/hr, so a 30-minute trip
+            needs about $127. Set on the server; this stepper is what moves it.
           </p>
         </div>
       </div>

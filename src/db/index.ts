@@ -109,6 +109,29 @@ function migrate(d: Database) {
   )`);
   const applied = d.query("SELECT 1 FROM schema_migrations WHERE name=?");
   const mark = d.query("INSERT INTO schema_migrations (name, applied_at) VALUES (?,?)");
+  /**
+   * ⚠ $100 AT A 20-MINUTE DRIVE. Yish, 2026-08-31: *"right now you're saying my
+   * floor is $135 for a 15 min drive — can you change it to like $100 profit
+   * with a 20 min drive."*
+   *
+   * `user_economics` is SEEDED ONCE, so production's row keeps whatever the
+   * first `bun run seed` wrote and a change to `seed.ts` alone would never
+   * reach it. That is the whole reason this mechanism exists.
+   *
+   * $125/hr made the clock the binding term at every distance — 15 minutes
+   * asked $135.42 and 20 minutes asked MORE, $156.25. $80/hr puts the crossover
+   * exactly at 20 minutes, so the floor is flat to there and only longer trips
+   * cost more. Guarded on the old value so a hand-edited row is never clobbered.
+   */
+  const econ = "2026-08-31-hourly-floor-80-crossover-at-20min";
+  if (!applied.get(econ)) {
+    d.query(
+      `UPDATE user_economics SET effective_hourly_floor_cents = 8000, updated_at = ?
+        WHERE label = 'yish' AND effective_hourly_floor_cents = 12500`,
+    ).run(new Date().toISOString());
+    mark.run(econ, new Date().toISOString());
+  }
+
   const name = "2026-08-27-prune-consecutive-verdict-duplicates";
   if (!applied.get(name)) {
     d.transaction(() => {
