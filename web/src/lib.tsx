@@ -88,6 +88,16 @@ export const pushHist = (h: Hist) => {
  * No account required, and the tradeoff is stated on the screen: the list does
  * not follow you to another device.
  */
+export const WKEY = "assyze:watch";
+export const readWatch = (): number[] => { try { return JSON.parse(localStorage.getItem(WKEY) || "[]"); } catch { return []; } };
+export const writeWatch = (ids: number[]) => localStorage.setItem(WKEY, JSON.stringify(ids.slice(0, 200)));
+export const toggleWatch = (id: number): number[] => {
+  const cur = readWatch();
+  const next = cur.includes(id) ? cur.filter((x) => x !== id) : [id, ...cur];
+  writeWatch(next);
+  return next;
+};
+
 /**
  * ───────────────────────────────────────────────── the notification log
  *
@@ -137,16 +147,6 @@ export function onNotes(fn: (n: Note[]) => void) {
   notesListeners.add(fn);
   return () => { notesListeners.delete(fn); };
 }
-
-export const WKEY = "assyze:watch";
-export const readWatch = (): number[] => { try { return JSON.parse(localStorage.getItem(WKEY) || "[]"); } catch { return []; } };
-export const writeWatch = (ids: number[]) => localStorage.setItem(WKEY, JSON.stringify(ids.slice(0, 200)));
-export const toggleWatch = (id: number): number[] => {
-  const cur = readWatch();
-  const next = cur.includes(id) ? cur.filter((x) => x !== id) : [id, ...cur];
-  writeWatch(next);
-  return next;
-};
 
 /**
  * Which checks we have already asked about, so nobody gets nagged twice.
@@ -234,6 +234,26 @@ export function Toaster() {
       ))}
     </div>
   );
+}
+
+// ------------------------------------------------------------ session loss
+/**
+ * "The server just told us this session is no longer valid."
+ *
+ * ⚠ WITHOUT THIS, AN EXPIRED SESSION LOOKS LIKE A BROKEN APP. The feed's own
+ * error path cannot tell a 401 from a 500 — both are "the request failed" — so
+ * it would render "Couldn't load deals · Try again", and trying again would
+ * fail forever with no hint that the fix is to sign in.
+ *
+ * A module-level bus rather than a prop, for the same reason as the toasts:
+ * the fetch sites are scattered and the only listener is the shell, four
+ * levels up.
+ */
+const authLostListeners = new Set<() => void>();
+export const publishAuthLost = () => authLostListeners.forEach((fn) => fn());
+export function onAuthLost(fn: () => void) {
+  authLostListeners.add(fn);
+  return () => { authLostListeners.delete(fn); };
 }
 
 // ------------------------------------------------------------- deal alerts

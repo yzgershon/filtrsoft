@@ -19,7 +19,7 @@ import {
 import {
   LABEL, money, ago, listedAge, readWatch, toggleWatch, readSettings, toast, Thumb,
   SUBKEY, urlB64ToBytes, onOpenFilters, publishFilterCount,
-  popSpot, restoreScroll, setFeedRows, deviceRef, publishFreshness,
+  popSpot, restoreScroll, setFeedRows, deviceRef, publishFreshness, publishAuthLost,
 } from "./lib.tsx";
 
 /** Re-exported so existing importers keep one name for the page size. */
@@ -443,7 +443,18 @@ export function Feed({ onOpen, onWatchChange }: {
      */
     const seen = readSeen();
     return fetch(feedUrl({ limit, offset, hideGone: readSettings().hideGone, filters: f, ref: deviceRef(), seen }))
-      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+      .then((r) => {
+        /**
+         * ⚠ A 401 IS NOT A FAILED REQUEST, IT IS A SIGNED-OUT USER, and the
+         * two need different screens. Falling through to the generic catch
+         * below renders "Couldn't load deals · Try again" over a session that
+         * has simply expired — and every retry fails identically, with nothing
+         * anywhere suggesting the fix is to sign in.
+         */
+        if (r.status === 401) { publishAuthLost(); throw new Error("401"); }
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      })
       .then((d) => {
         setItems((prev) => (offset === 0 ? (d.items ?? []) : [...(prev ?? []), ...(d.items ?? [])]));
         setSegments(d.segments ?? {});

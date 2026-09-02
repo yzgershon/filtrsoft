@@ -15,6 +15,7 @@ import {
   openFilters, onFilterCount, rememberSpot, feedRows, deviceRef, scrollToTop,
   onFreshness, freshnessLine, type Freshness,
   DealBanner, publishDealAlert, pushNotes, readNotes, onNotes, unseenNotes,
+  onAuthLost,
 } from "./lib.tsx";
 import { Feed } from "./feed.tsx";
 import { Report } from "./detail.tsx";
@@ -242,6 +243,16 @@ function useAuth() {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  /**
+   * ⚠ ANY 401 ANYWHERE IN THE APP RE-ASKS THE SERVER, rather than flipping
+   * straight to signed-out. The 401 might be one stale in-flight request from
+   * before a re-auth, and dropping a working session on it would sign someone
+   * out mid-scroll. `refresh` is the single authority; this just makes it ask
+   * again at the moment there is reason to.
+   */
+  useEffect(() => onAuthLost(() => refresh()), [refresh]);
+
   return { state, user, providers, setUser, setState, refresh };
 }
 
@@ -311,7 +322,18 @@ export default function App() {
    * that happens five times a WEEK — the volume is the reason this can afford
    * to be loud, and stacking is how it would stop being.
    */
-  useDealPulse(settings.alerts, settings.alertVerify, useCallback((items: any[]) => {
+  /**
+   * ⚠ `auth.state === "in"` IS PART OF THE ENABLE CONDITION, NOT A GUARD
+   * FURTHER DOWN, because a hook cannot be called conditionally.
+   *
+   * The gate below returns the marketing page before the app shell is built,
+   * but `useDealPulse` still RUNS — hooks always do — so a signed-out visitor
+   * sitting on the landing page was polling `/v1/pulse` every sixty seconds
+   * and collecting a 401 each time. Invisible on screen, real in the network
+   * tab, and exactly the failure the comment on that early return warns about.
+   * Caught by watching responses rather than the page.
+   */
+  useDealPulse(auth.state === "in" && settings.alerts, settings.alertVerify, useCallback((items: any[]) => {
     /**
      * ⚠ THE LOG GETS EVERY ITEM; THE BANNER GETS ONE. They are different jobs:
      * the banner interrupts and so must name a single thing, while the bell is
