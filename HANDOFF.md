@@ -3,10 +3,57 @@
 **Master plan AND current state. Update before you stop working.** A stale line
 here is worse than a missing one, because a fresh session will believe it.
 
-Last updated **2026-08-31**. **Section 2 is the current state and section 15
+Last updated **2026-09-03**. **Section 2 is the current state and section 15
 is what to do next**; section 18 is the most recent pass in detail. The one
-thing bigger than everything else on the list is §18g — 77% of the feed cannot
-be priced.
+thing bigger than everything else on the list is §18g — 78% of the feed cannot
+be priced, and §0 below now says exactly why.
+
+## 0. READ THIS FIRST — why the feed is mostly "can't tell" (2026-09-03)
+
+Yish: *"there hasnt been a verify first or buy it listing thats come in in the
+past 3 days."* 800 listings pulled off production and taken apart. **The
+crawler is fine** — 57 arrived in the hour it was measured. Three real causes:
+
+**1. THE COMPS ARE FROZEN AND THEY EXPIRE. This is the big one.**
+`valueSku` only counts a sale inside a **90-day window**, and comps ship in a
+static archive that nothing refills. Newest sale held: **2026-08-26**. So the
+priceable share of the catalog falls every single day, with no error anywhere,
+and the feed slowly turns into "can't tell".
+
+Already true: **RTX 4080 SUPER 0 comps, RX 9070 XT 0 comps, Mac Mini M4 0
+comps** — all three ARE in the catalog, all three are what is trading now.
+**59 of the unpriced listings are identified target gear waiting only on a
+price**, including a $700 4080 Super and a $600 9070 XT that are probably BUYs.
+
+    /v1/health -> comps.daysOfRunway    82 days as of 2026-09-03
+    /v1/health -> comps.skusPriceable   282 of 435
+
+**The fix is `bun run ebay:comps` then `bun run archive`, commit the archive,
+redeploy.** It needs his machine and his eBay login. Nothing in the container
+can do it. This has been the top recommendation for weeks and it is now the
+whole answer to "no BUYs".
+
+**2. VISION HAD DEADLOCKED FOR THREE DAYS.** `visionCandidates` ordered
+BUY/VERIFY/RISK first, and on this feed those are overwhelmingly Facebook
+(Risky was 33 of 34). Production has no browser, so fetching one throws, and
+the old `catch {}` wrote nothing — so `NOT EXISTS` kept the same three at the
+head of the queue and every tick retried exactly those three. `reads24h: 0`
+against a 645 backlog.
+
+Fixed two ways: `vision_misses` counts attempts and drops a listing after 3
+(the `listing_thumb_misses` pattern), and **fetchability now outranks call
+priority in the ordering** — an unreadable BUY is worth zero reads. Confirmed
+recovering: reads 0 -> 23, spend $0.20, pool 640 -> 617.
+
+**3. Two engine bugs.** Every CPU pattern required the literal word "ryzen", so
+a $1,155 build titled "…AMD 7600X" reported "cpu not stated" for a CPU in its
+own title (`amdCpusIn` maps the tier from the second digit). And home audio was
+being asked for a GPU — "Ion USB Turntable" -> "gpu and cpu not stated".
+
+⚠ **Health now reports all of this** so it can never hide again: `comps`
+(runway, priceable SKUs) and `vision` (reads24h, candidatePool, unreadable,
+lastPass.outcome, and BOTH vision switches — they read different env vars and
+only one was ever reported).
 
 ---
 
