@@ -100,6 +100,24 @@ export function visionCandidates(limit: number): Candidate[] {
         OR (v.call = 'INSUFFICIENT_DATA' AND json_extract(v.payload, '$.headline') LIKE '%not stated%')
       )
     ORDER BY
+      -- FETCHABILITY OUTRANKS VALUE, AND THAT INVERSION IS DELIBERATE.
+      --
+      -- Facebook, OfferUp and Mercari listings are PUSHED here from a machine
+      -- with a browser and a real session; this process has neither, so it
+      -- cannot re-fetch one to read its photos. An unreadable BUY has an
+      -- expected value of exactly zero reads, while a Craigslist "cpu not
+      -- stated" might turn into a BUY.
+      --
+      -- Measured 2026-09-03: with call priority first, the head of the queue
+      -- was 33-of-34 Facebook and the pass reported "tried 3: read 0,
+      -- unreadable 3" every tick. The miss budget alone would have ground
+      -- through the backlog at about 20 listings an hour; this reaches the
+      -- readable ones on the very next tick.
+      --
+      -- They are DEPRIORITISED, not excluded: on his own machine the browser
+      -- is there and the fetch succeeds, so they still get read, just after
+      -- everything cheap.
+      CASE WHEN l.source IN ('facebook','offerup','mercari') THEN 1 ELSE 0 END,
       CASE v.call WHEN 'BUY' THEN 0 WHEN 'VERIFY' THEN 1 WHEN 'RISK' THEN 2 ELSE 3 END,
       l.id DESC
     LIMIT $lim
