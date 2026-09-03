@@ -60,6 +60,66 @@ export function namedCatalogBrand(title: string, brands: string[]): string | nul
  * `ryzen 7 9800`; `3080 ti` and `3080` share `rtx 3080`.
  */
 const CPU_BASE = /^(?:i[3579][- ]\d{4,5}|ryzen \d \d{4}|m[1-9])/;
+
+/**
+ * ─────────────────────────────────────── "AMD 7600X" is a Ryzen 5 7600X
+ *
+ * ⚠ EVERY CPU PATTERN IN THIS CODEBASE REQUIRED THE LITERAL WORD "RYZEN", AND
+ * SELLERS ROUTINELY DO NOT WRITE IT.
+ *
+ * Found 2026-09-03 on a live $1,155 listing: *"RTX 3080 Ti Gaming PC 32GB
+ * DDR5, AMD 7600X, ROG Strix"*. GPU, RAM and storage all extracted correctly;
+ * `cpu` came back empty and the verdict was "Can't be valued: cpu not stated"
+ * on a build whose CPU is in its own title.
+ *
+ * AMD's four-digit desktop numbering is `<gen><tier><sku><suffix>` and the
+ * SECOND DIGIT gives the tier, which is what makes this recoverable rather
+ * than a guess: 3 -> Ryzen 3, 4-6 -> Ryzen 5, 7-8 -> Ryzen 7, 9 -> Ryzen 9.
+ * Checked against this catalog: 7600X is a Ryzen 5, 7800X3D a Ryzen 7, 7900X a
+ * Ryzen 9, 9700X a Ryzen 7.
+ *
+ * ⚠ THE EXCLUSIONS ARE THE LOAD-BEARING PART, because a wrong CPU is a
+ * confident wrong price inside a number somebody drives on:
+ *
+ *   · `RX 7600`, `Radeon RX 7900 XTX` are GPUs, and the word "AMD" sits right
+ *     beside them. Mapping those to a Ryzen prices a graphics card as a chip.
+ *   · `FX 8350` is the pre-Ryzen FX line. Second digit 3 would call it a
+ *     Ryzen 7; it is not a Ryzen at all.
+ *   · `Athlon 3000G` is an Athlon. Same shape, different product.
+ *   · `EPYC 7443` is a server part nobody in this market buys.
+ *
+ * So a bare number is read as a Ryzen only when AMD or Ryzen is stated nearby
+ * AND none of those words claims it first. `X3D` is accepted alone because no
+ * other product line has ever used that suffix.
+ */
+const RYZEN_TIER: Record<string, string> = {
+  "3": "3", "4": "5", "5": "5", "6": "5", "7": "7", "8": "7", "9": "9",
+};
+
+/** Words meaning this number belongs to something that is not a Ryzen. */
+const NOT_RYZEN_BEFORE = /(rtx|gtx|\brx\b|radeon|\bfx\b|athlon|epyc|threadripper|geforce|arc)\s*$/i;
+
+/** Every Ryzen spelled without the word, normalised to `ryzen <tier> <model>`. */
+export function amdCpusIn(text: string): string[] {
+  const out: string[] = [];
+  for (const m of text.matchAll(/\b(\d{4})\s?(x3d|xt|x|g|ge|f|hx|hs|h|u)?\b/gi)) {
+    const digits = m[1]!;
+    const suffix = (m[2] ?? "").toLowerCase();
+    const before = text.slice(Math.max(0, (m.index ?? 0) - 24), m.index ?? 0);
+
+    if (NOT_RYZEN_BEFORE.test(before)) continue;
+    /**
+     * X3D stands alone; anything else needs AMD or Ryzen nearby, because a
+     * bare "7600" in a title is far more often a model year or a part number.
+     */
+    if (!/\b(amd|ryzen)\b/i.test(before) && suffix !== "x3d") continue;
+
+    const tier = RYZEN_TIER[digits[1]!];
+    if (!tier) continue;
+    out.push(`ryzen ${tier} ${digits}${suffix}`);
+  }
+  return out;
+}
 const GPU_BASE = /^(?:rtx|gtx|rx)\s?\d{3,4}/;
 
 /**
@@ -160,8 +220,17 @@ export function extractAttributes(text: string): Record<string, string | number>
    * §5 records as a known limitation. This closes the attribute half of it.
    */
   const cpu = fullestVariant(
-    [...t.matchAll(/\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d \d{4}[a-z0-9]*|m[1-9](?:\s(?:pro|max|ultra))?)\b/g)]
-      .map((m) => m[1].trim()),
+    [
+      ...[...t.matchAll(/\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d \d{4}[a-z0-9]*|m[1-9](?:\s(?:pro|max|ultra))?)\b/g)]
+        .map((m) => m[1].trim()),
+      /**
+       * ⚠ APPENDED, NOT PREPENDED. `fullestVariant` keeps the fullest spelling
+       * of whatever the FIRST match names, so an explicitly written
+       * "Ryzen 7 9800X3D" must stay first and win. This only supplies a
+       * candidate for the case where the seller never wrote the word.
+       */
+      ...amdCpusIn(t),
+    ],
     CPU_BASE,
   );
   if (cpu) a.cpu = cpu;

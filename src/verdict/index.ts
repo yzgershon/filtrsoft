@@ -56,8 +56,32 @@ const NOT_OUR_MARKET =
  * appear as a bundled accessory on something we would price, so they are
  * decisive on the raw title.
  */
+/**
+ * ⚠ THE HOME-AUDIO WORDS WERE ADDED 2026-09-03, AND THEY ARE HERE — ON THE RAW
+ * TITLE — BECAUSE HEAD-NOUN GATING DEMONSTRABLY DOES NOT WORK FOR THEM.
+ *
+ * Measured on the live feed while diagnosing Yish's *"all the listings that
+ * have come in passively have been cant tells"*: the engine was demanding
+ * computer specs from things that have none.
+ *
+ *     "Ion USB Turntable ... Converter To PC"   -> "gpu and cpu not stated"
+ *     "Sony stereo cassette tape deck TC-WE475" -> "cpu and ram not stated"
+ *
+ * The first attempt put them in a head-noun-gated list. `resolveProductType`
+ * returns **"pc"** for the turntable — its title ends "To PC" — and **null**
+ * for the cassette deck, so both sailed straight through. Only the raw title
+ * ever sees the word that decides.
+ *
+ * ⚠ WHICH IS ALSO WHY THIS LIST STOPS WHERE IT DOES. `booster`, `antenna`,
+ * `mount`, `stereo` and `receiver` were each tried and are deliberately NOT
+ * here: every one can legitimately appear in a computer listing's title
+ * ("Gaming PC, WiFi antenna included"), and on a raw title that deletes a real
+ * machine. **A word earns a place here only if it could never appear inside a
+ * listing for something we would price** — a turntable never turns up in a PC
+ * ad, a WiFi antenna does.
+ */
 const NEVER_OUR_MARKET =
-  /\b(server|poweredge|proliant|rack ?mount(ed)?|blade server|kvm|(smart|network|ethernet|gigabit|managed|poe)[- ]?switch|switch[- ]?\d{1,2}[- ]?port|\d{1,2}[- ]port)\b/i;
+  /\b(server|poweredge|proliant|rack ?mount(ed)?|blade server|kvm|(smart|network|ethernet|gigabit|managed|poe)[- ]?switch|switch[- ]?\d{1,2}[- ]?port|\d{1,2}[- ]port|turntable|record player|cassette|tape deck|vcr|subwoofer|amplifier|boombox)\b/i;
 
 /**
  * Bulk and multi-item listings. "24 Computers, Printers, Monitors left starting

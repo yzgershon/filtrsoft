@@ -32,7 +32,7 @@ import {
   newSegmentCounts, parseSeen,
 } from "../src/api/query.ts";
 import { analyze } from "../src/signals/index.ts";
-import { matchSku } from "../src/catalog/match.ts";
+import { matchSku, amdCpusIn } from "../src/catalog/match.ts";
 import { buildVerdict } from "../src/verdict/index.ts";
 import { BY_SIGNAL, BY_FIELD, FALLBACK } from "../src/verdict/questions.ts";
 import { parseBestBuy, parseMicroCenter, parseNewegg } from "../src/sources/retail.ts";
@@ -1498,5 +1498,115 @@ describe("readCookie", () => {
     expect(readCookie("broken; assyze_session=ok", "assyze_session")).toBe("ok");
     expect(readCookie(undefined, "assyze_session")).toBeNull();
     expect(readCookie("", "assyze_session")).toBeNull();
+  });
+});
+
+
+/**
+ * ── "AMD 7600X" IS A RYZEN 5 7600X ─────────────────────────────────────────
+ *
+ * Every CPU pattern in the codebase required the literal word "ryzen", and
+ * sellers routinely do not write it. Found on a live $1,155 Craigslist build
+ * titled "RTX 3080 Ti Gaming PC 32GB DDR5, AMD 7600X" — GPU, RAM and storage
+ * all extracted, `cpu` empty, verdict "Can't be valued: cpu not stated" on a
+ * build whose CPU is in its own title.
+ */
+describe("AMD cpus written without the word ryzen", () => {
+  test("maps the model number to its tier", () => {
+    // Second digit is the tier: 3 -> R3, 4-6 -> R5, 7-8 -> R7, 9 -> R9.
+    expect(amdCpusIn("Gaming PC, AMD 7600X, ROG Strix")).toEqual(["ryzen 5 7600x"]);
+    expect(amdCpusIn("amd 7950x 16-core")).toEqual(["ryzen 9 7950x"]);
+    expect(amdCpusIn("AMD 5700G desktop")).toEqual(["ryzen 7 5700g"]);
+    expect(amdCpusIn("amd 3300x")).toEqual(["ryzen 3 3300x"]);
+  });
+
+  /** X3D has only ever been a Ryzen suffix, so it needs no other evidence. */
+  test("x3d stands on its own", () => {
+    expect(amdCpusIn("5800X3D gaming rig")).toEqual(["ryzen 7 5800x3d"]);
+    expect(amdCpusIn("9800X3D build")).toEqual(["ryzen 7 9800x3d"]);
+  });
+
+  /**
+   * ⚠ THE EXCLUSIONS ARE THE POINT. A wrong CPU is a confident wrong price
+   * inside a number somebody drives on, and "AMD" sits right beside a Radeon
+   * on half the GPU listings on Craigslist.
+   */
+  test("never claims a GPU, an FX, an Athlon or an EPYC", () => {
+    expect(amdCpusIn("Sapphire Radeon RX 7600 XT 16GB")).toEqual([]);
+    expect(amdCpusIn("AMD Radeon RX 7900 XTX")).toEqual([]);
+    expect(amdCpusIn("RTX 3080 Ti 12GB")).toEqual([]);
+    expect(amdCpusIn("AMD FX 8350 Black Edition")).toEqual([]);
+    expect(amdCpusIn("AMD Athlon 3000G")).toEqual([]);
+    expect(amdCpusIn("AMD EPYC 7443 server")).toEqual([]);
+  });
+
+  test("a bare four-digit number is not a CPU", () => {
+    expect(amdCpusIn("Dell OptiPlex 7040 SFF i7-6700")).toEqual([]);
+    expect(amdCpusIn("Vizio E700i-B3 70-inch TV")).toEqual([]);
+    expect(amdCpusIn("2019 MacBook Pro 16 inch")).toEqual([]);
+    expect(amdCpusIn("1650W Power Supply")).toEqual([]);
+  });
+
+  /**
+   * The explicitly-spelled form must still win, because `fullestVariant` keeps
+   * the fullest spelling of whatever the FIRST candidate names.
+   */
+  test("an explicit Ryzen is unaffected", () => {
+    expect(extractAttributes("AMD Ryzen 7 9800X3D 32GB").cpu).toBe("ryzen 7 9800x3d");
+  });
+
+  /** End to end: the listing that exposed this now yields a CPU. */
+  test("the live listing that exposed it now extracts its cpu", () => {
+    const a = extractAttributes(
+      "RTX 3080 Ti Gaming PC 32GB DDR5, AMD 7600X, ROG Strix 3080 Ti, 1TB");
+    expect(a.cpu).toBe("ryzen 5 7600x");
+    expect(a.gpu).toBe("rtx 3080 ti");
+    expect(a.ram_gb).toBe(32);
+  });
+});
+
+
+/**
+ * ── HOME AUDIO IS NOT A COMPUTER ───────────────────────────────────────────
+ *
+ * The engine was demanding computer specs from things that have none:
+ * "Ion USB Turntable" came back "gpu and cpu not stated". Fixed on the RAW
+ * TITLE, because head-noun gating resolves that turntable to "pc" (its title
+ * ends "To PC") and the cassette deck to null.
+ */
+describe("scope: home audio never reaches a verdict", () => {
+  const scopeOf = (title: string) => {
+    const signals = analyze({
+      source: "craigslist", sourceId: "t", url: "https://boston.craigslist.org/x.html",
+      title, description: "", askingPriceCents: 20000,
+      location: "Newton, MA", postedAt: null, updatedAt: null,
+      photoUrls: ["https://example.test/a.jpg"], attributes: {}, raw: {},
+    } as never);
+    return buildVerdict({
+      title, description: "", askingPriceCents: 20000,
+      signals, match: matchSku(title, ""),
+    }).call;
+  };
+
+  test("a turntable, a tape deck and a subwoofer are out of scope", () => {
+    expect(scopeOf("Ion USB Turntable iTTUSB Record/ Vinyl Converter To PC")).toBe("OUT_OF_SCOPE");
+    expect(scopeOf("Sony stereo cassette tape deck TC-WE475")).toBe("OUT_OF_SCOPE");
+    expect(scopeOf("Klipsch 12in powered subwoofer")).toBe("OUT_OF_SCOPE");
+  });
+
+  /**
+   * ⚠ THE REGRESSION GUARD. `booster`, `antenna`, `mount`, `stereo` and
+   * `receiver` were all tried in this list and removed — each appears in real
+   * computer titles, and on a raw title that deletes a machine. A gaming PC
+   * that mentions its WiFi antenna must survive.
+   */
+  test("a computer that mentions an accessory still gets judged", () => {
+    for (const t of [
+      "Gaming PC RTX 2070 Super, i5-9600K, WiFi antenna included",
+      "Custom Gaming PC RTX 3070Ti Intel Core i7 11700K 32GB RAM 2.25TB",
+      "Dell OptiPlex 7040 SFF i7-6700 16GB SSD Windows 11 Pro",
+    ]) {
+      expect(scopeOf(t)).not.toBe("OUT_OF_SCOPE");
+    }
   });
 });

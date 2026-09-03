@@ -40,7 +40,8 @@ import {
   loadOverrides, applyOverride, handleSetOverride, handleClearOverride,
 } from "./overrides.ts";
 import { archiveStatus } from "../db/archive.ts";
-import { VISION_MODEL, visionConfigured } from "../vision/index.ts";
+import { compsHealth, visionHealth } from "./pipeline-health.ts";
+import { VISION_MODEL, PROMPT_VERSION, visionConfigured } from "../vision/index.ts";
 import {
   rateLimit, clientKey, visionAllowed, visionKilled, budgetAvailable,
   singleFlight, guardStatus,
@@ -209,7 +210,24 @@ app.get("/v1/health", (c) => {
     canPrice,
     engine: ENGINE_VERSION,
     ...stats,
-    vision: { configured: visionConfigured(), model: VISION_MODEL, ...guardStatus() },
+    /**
+     * ⚠ `spentTodayUsd` ALONE CANNOT TELL YOU IF VISION WORKS. Zero means
+     * either "nothing needed a photo read" or "the pass is broken", and those
+     * have opposite fixes — an hour went into distinguishing them by hand on
+     * 2026-09-03. `reads24h` beside `candidatePool` settles it in one glance.
+     */
+    vision: {
+      configured: visionConfigured(), model: VISION_MODEL, ...guardStatus(),
+      ...(() => { try { return visionHealth(VISION_MODEL, PROMPT_VERSION); } catch { return {}; } })(),
+    },
+    /**
+     * ⚠ THE COMPS DECAY ON THEIR OWN AND NOTHING HERE REFILLS THEM.
+     * `valueSku` only counts a sale inside 90 days; the comps ship frozen in an
+     * archive. So the priceable share of the catalog falls every day with no
+     * error anywhere, and the symptom is a feed that slowly turns into "can't
+     * tell". `daysOfRunway` is the number to watch.
+     */
+    comps: (() => { try { return compsHealth(); } catch { return null; } })(),
     /**
      * Reports WHETHER the eBay verification token is set, never its value.
      * Without this the only way to know production has it is to make eBay
