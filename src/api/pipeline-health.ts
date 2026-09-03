@@ -85,6 +85,16 @@ export interface VisionHealth {
   lastReadAt: string | null;
   /** Listings eligible for a paid photo read right now. */
   candidatePool: number;
+  /**
+   * Listings this process tried and could not fetch, and gave up on.
+   *
+   * ⚠ A RISING NUMBER HERE IS NOT AN ERROR, IT IS THE EXPECTED COST OF
+   * production having no browser: a Facebook listing pushed from his machine
+   * can never be re-fetched from the container. It matters because it is what
+   * distinguishes "the pass is working and skipping what it cannot read" from
+   * the deadlock that hid for three days.
+   */
+  unreadable: number;
   warning: string | null;
 }
 
@@ -126,9 +136,12 @@ export function visionHealth(model: string, promptVersion: string): VisionHealth
    * an empty pool with no reads is perfectly healthy and looks identical in
    * every other metric.
    */
+  const unreadable = one<{ n: number }>(
+    "SELECT COUNT(*) n FROM vision_misses WHERE tries >= 3").n;
+
   const warning = candidatePool > 20 && reads24h === 0
     ? `${candidatePool} listings are waiting on a photo read and none has run in 24h`
     : null;
 
-  return { reads24h, reads7d, lastReadAt, candidatePool, warning };
+  return { reads24h, reads7d, lastReadAt, candidatePool, unreadable, warning };
 }

@@ -337,6 +337,36 @@ CREATE TABLE IF NOT EXISTS listing_thumb_misses (
 );
 
 /*
+ * ─────────────────────────────────────── LISTINGS VISION COULD NOT READ
+ *
+ * ⚠ WITHOUT THIS TABLE THE VISION PASS DEADLOCKS, AND IT DID — SILENTLY, FOR
+ * THREE DAYS.
+ *
+ * Yish, 2026-09-03: *"there hasnt been a verify first or buy it listing thats
+ * come in in the past 3 days."* Production health showed `reads24h: 0`,
+ * `lastReadAt` three days earlier, and a **645-listing backlog**.
+ *
+ * The mechanism: `visionCandidates` orders BUY/VERIFY/RISK first, and on this
+ * feed those are overwhelmingly Facebook and OfferUp (Risky was 33 of 34
+ * Facebook). Production has no browser and no marketplace session, so fetching
+ * one throws — and the catch in `visionPass` swallowed it. A failed read wrote
+ * no `vision_results` row, so `NOT EXISTS` kept the same three listings at the
+ * head of the queue, and every tick for three days retried exactly those three
+ * and read nothing else.
+ *
+ * The fix is the one this codebase already uses for dead photo urls
+ * (`listing_thumb_misses`): count the attempts and stop offering a listing that
+ * has burned its budget. A BUDGET, not a tombstone — a container hiccup must
+ * not permanently blacklist a listing his own machine could read fine.
+ */
+CREATE TABLE IF NOT EXISTS vision_misses (
+  listing_id INTEGER PRIMARY KEY REFERENCES listings(id),
+  tries      INTEGER NOT NULL DEFAULT 1,
+  last_error TEXT,
+  last_try   TEXT NOT NULL
+);
+
+/*
  * Yish's own call, overriding the engine's.
  *
  * "I noticed some scams were labelled as verify first, so I want there to be an

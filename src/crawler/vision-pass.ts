@@ -89,6 +89,12 @@ export function visionCandidates(limit: number): Candidate[] {
         SELECT 1 FROM vision_results r
          WHERE r.listing_id = l.id AND r.model = $model AND r.prompt_version = $prompt
       )
+      -- AND NOT ONE THAT HAS BURNED ITS ATTEMPT BUDGET. Without this the pass
+      -- deadlocks on listings this process cannot fetch: see the catch in
+      -- visionPass and the vision_misses schema comment.
+      -- (Line comments, not block: a backtick in a JS template literal ends
+      --  the string, and every identifier here wants one.)
+      AND COALESCE((SELECT tries FROM vision_misses m WHERE m.listing_id = l.id), 0) < $budget
       AND (
         v.call IN ('BUY','VERIFY','RISK')
         OR (v.call = 'INSUFFICIENT_DATA' AND json_extract(v.payload, '$.headline') LIKE '%not stated%')
@@ -97,7 +103,7 @@ export function visionCandidates(limit: number): Candidate[] {
       CASE v.call WHEN 'BUY' THEN 0 WHEN 'VERIFY' THEN 1 WHEN 'RISK' THEN 2 ELSE 3 END,
       l.id DESC
     LIMIT $lim
-  `).all({ $lim: limit * 3, $model: VISION_MODEL, $prompt: PROMPT_VERSION }) as Candidate[];
+  `).all({ $lim: limit * 3, $model: VISION_MODEL, $prompt: PROMPT_VERSION, $budget: VISION_MISS_BUDGET }) as Candidate[];
 
   /**
    * Never pay to look at furniture. A "computers" category crawl surfaces
@@ -128,7 +134,7 @@ export async function visionPass(
   const cands = visionCandidates(limit);
   if (!cands.length) return 0;
 
-  let read = 0, changed = 0;
+  let read = 0, changed = 0, failed = 0;
   for (const c of cands) {
     if (!budgetAvailable()) { onProgress("daily budget reached mid-pass"); break; }
     try {
@@ -138,14 +144,50 @@ export async function visionPass(
         changed++;
         onProgress(`${c.call} -> ${r.verdict.call}  ${c.title.slice(0, 44)}`);
       }
-    } catch {
+    } catch (e) {
       /**
-       * A dead listing must not stop the pass, and must not be retried
-       * forever either — the sweep will mark it delisted, which removes it
-       * from `visionCandidates` permanently.
+       * ⚠ A FAILURE MUST BE RECORDED, NOT SWALLOWED. THIS EXACT `catch {}`
+       * DEADLOCKED THE WHOLE PASS FOR THREE DAYS.
+       *
+       * The old comment claimed the sweep would eventually remove a dead
+       * listing. That is true of a DELISTED one and false of the case that
+       * actually happened: a live Facebook listing that this process simply
+       * cannot fetch, having no browser and no marketplace session. It threw,
+       * nothing was written, `NOT EXISTS (vision_results ...)` kept it at the
+       * head of the queue, and — because candidates are ordered
+       * BUY/VERIFY/RISK first, which on this feed is 33-of-34 Facebook — the
+       * same three listings were retried every three minutes and nothing else
+       * was ever read. `reads24h: 0` against a 645-listing backlog.
+       *
+       * Counting the attempt is what breaks the cycle. It is also now LOGGED,
+       * because a silent failure is what made three days of this invisible.
        */
+      noteVisionMiss(c.id, (e as Error)?.message ?? String(e));
+      failed++;
+      onProgress(`could not read #${c.id} ${c.title.slice(0, 36)} — ${(e as Error)?.message?.slice(0, 60) ?? "unknown"}`);
     }
   }
-  if (read) onProgress(`read ${read}, ${changed} changed call`);
+  if (read || failed) onProgress(`read ${read}, ${changed} changed call, ${failed} unreadable`);
   return read;
+}
+
+/**
+ * How many times a photo read may fail before the listing stops being offered.
+ *
+ * ⚠ A BUDGET, NOT A TOMBSTONE — the same call `photos/thumb.ts` documents. Most
+ * failures there turned out to be container timeouts rather than dead urls, and
+ * a listing this container cannot fetch is one his own machine, with a real
+ * browser and a real session, may read perfectly. Three strikes leaves room for
+ * a bad minute without letting one listing hold the queue.
+ */
+export const VISION_MISS_BUDGET = 3;
+
+function noteVisionMiss(listingId: number, error: string) {
+  db().run(
+    `INSERT INTO vision_misses (listing_id, tries, last_error, last_try)
+     VALUES (?, 1, ?, ?)
+     ON CONFLICT(listing_id) DO UPDATE SET
+       tries = tries + 1, last_error = excluded.last_error, last_try = excluded.last_try`,
+    [listingId, error.slice(0, 200), new Date().toISOString()],
+  );
 }

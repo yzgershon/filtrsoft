@@ -1610,3 +1610,42 @@ describe("scope: home audio never reaches a verdict", () => {
     }
   });
 });
+
+
+/**
+ * ── THE VISION PASS MUST NEVER DEADLOCK ────────────────────────────────────
+ *
+ * Yish, 2026-09-03: *"there hasnt been a verify first or buy it listing thats
+ * come in in the past 3 days."* Production health showed `reads24h: 0`,
+ * `lastReadAt` three days earlier, and a 645-listing backlog.
+ *
+ * Candidates are ordered BUY/VERIFY/RISK first, and on the live feed those are
+ * overwhelmingly Facebook (Risky was 33 of 34). Production has no browser, so
+ * fetching one throws; the old `catch {}` wrote nothing, `NOT EXISTS` kept the
+ * same three at the head of the queue, and every tick for three days retried
+ * exactly those three and read nothing else.
+ */
+describe("vision candidates step aside after repeated failures", () => {
+  test("a listing that burns its attempt budget stops blocking the queue", () => {
+    const { visionCandidates, VISION_MISS_BUDGET } = require("../src/crawler/vision-pass.ts");
+    const { db } = require("../src/db/index.ts");
+    const before = visionCandidates(3).map((c: { id: number }) => c.id);
+    if (!before.length) return;                      // empty fixture db, nothing to prove
+
+    const victim = before[0];
+    for (let i = 0; i < VISION_MISS_BUDGET; i++) {
+      db().run(
+        `INSERT INTO vision_misses (listing_id,tries,last_error,last_try) VALUES (?,1,'test',?)
+         ON CONFLICT(listing_id) DO UPDATE SET tries=tries+1, last_try=excluded.last_try`,
+        [victim, new Date().toISOString()]);
+    }
+    try {
+      const after = visionCandidates(3).map((c: { id: number }) => c.id);
+      expect(after).not.toContain(victim);
+      // and the queue actually MOVED rather than emptying
+      expect(after.length).toBeGreaterThan(0);
+    } finally {
+      db().run("DELETE FROM vision_misses WHERE listing_id=?", [victim]);
+    }
+  });
+});
