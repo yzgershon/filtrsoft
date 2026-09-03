@@ -70,6 +70,22 @@ const VISION_PER_RUN = Number(process.env.ASSYZE_CRAWL_VISION ?? 3);
 /** `ASSYZE_VISION=off` kills photo reading without stopping the crawl. */
 const VISION_ON = (process.env.ASSYZE_VISION ?? "on").toLowerCase() !== "off";
 
+/**
+ * ⚠ EXPORTED SO `/v1/health` CAN REPORT WHAT THE LOOP ACTUALLY SEES.
+ *
+ * There are TWO independent vision switches reading TWO different env vars,
+ * and health only ever reported one of them:
+ *
+ *     visionKilled()  -> ASSYZE_VISION_ENABLED === "0"   (the kill switch)
+ *     VISION_ON       -> ASSYZE_VISION !== "off"         (this loop)
+ *
+ * So `visionEnabled: true` was compatible with the pass never running once.
+ * Diagnosing "no reads in three days" cost an hour partly because of this.
+ * Anything that can stop the pass has to be visible from outside it.
+ */
+export const visionLoopEnabled = () => VISION_ON;
+export const crawlPaceMode = () => pace().mode;
+
 /** Set `ASSYZE_CRAWL=off` to disable — the local box does not need it. */
 const ENABLED = (process.env.ASSYZE_CRAWL ?? "on").toLowerCase() !== "off";
 

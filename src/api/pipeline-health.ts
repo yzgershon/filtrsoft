@@ -95,6 +95,17 @@ export interface VisionHealth {
    * the deadlock that hid for three days.
    */
   unreadable: number;
+  /**
+   * The shortlist AFTER the JS filters, i.e. what a tick would actually try.
+   *
+   * ⚠ `candidatePool` AND THIS CAN DISAGREE, AND THE GAP IS DIAGNOSTIC.
+   * `visionCandidates` takes `limit * 3` rows from SQL and then drops anything
+   * that is not `kind: "tech"` or that reads as an accessory. A big pool with
+   * an empty shortlist means the pass returns 0 without attempting anything —
+   * which records no read AND no failure, and is indistinguishable from a
+   * broken pass in every other metric.
+   */
+  shortlist: number;
   warning: string | null;
 }
 
@@ -139,9 +150,16 @@ export function visionHealth(model: string, promptVersion: string): VisionHealth
   const unreadable = one<{ n: number }>(
     "SELECT COUNT(*) n FROM vision_misses WHERE tries >= 3").n;
 
+  /** Imported lazily: `vision-pass` pulls in the engine, which is heavy. */
+  let shortlist = -1;
+  try {
+    const { visionCandidates } = require("../crawler/vision-pass.ts");
+    shortlist = visionCandidates(3).length;
+  } catch { /* leave -1, meaning "could not evaluate" */ }
+
   const warning = candidatePool > 20 && reads24h === 0
     ? `${candidatePool} listings are waiting on a photo read and none has run in 24h`
     : null;
 
-  return { reads24h, reads7d, lastReadAt, candidatePool, unreadable, warning };
+  return { reads24h, reads7d, lastReadAt, candidatePool, unreadable, shortlist, warning };
 }

@@ -41,6 +41,7 @@ import {
 } from "./overrides.ts";
 import { archiveStatus } from "../db/archive.ts";
 import { compsHealth, visionHealth } from "./pipeline-health.ts";
+import { visionLoopEnabled, crawlPaceMode } from "./scheduler.ts";
 import { VISION_MODEL, PROMPT_VERSION, visionConfigured } from "../vision/index.ts";
 import {
   rateLimit, clientKey, visionAllowed, visionKilled, budgetAvailable,
@@ -219,6 +220,14 @@ app.get("/v1/health", (c) => {
     vision: {
       configured: visionConfigured(), model: VISION_MODEL, ...guardStatus(),
       ...(() => { try { return visionHealth(VISION_MODEL, PROMPT_VERSION); } catch { return {}; } })(),
+      /**
+       * ⚠ BOTH SWITCHES, BECAUSE THEY READ DIFFERENT ENV VARS. `visionEnabled`
+       * above is the kill switch (`ASSYZE_VISION_ENABLED`); `loopEnabled` is
+       * what the crawl tick gates on (`ASSYZE_VISION`). Reporting one and not
+       * the other is how "vision is on" and "vision never runs" coexisted.
+       * `mode` matters too: the pass only runs in steady, never in backfill.
+       */
+      ...(() => { try { return { loopEnabled: visionLoopEnabled(), mode: crawlPaceMode() }; } catch { return {}; } })(),
     },
     /**
      * ⚠ THE COMPS DECAY ON THEIR OWN AND NOTHING HERE REFILLS THEM.
