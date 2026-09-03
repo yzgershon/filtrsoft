@@ -124,15 +124,43 @@ export function visionCandidates(limit: number): Candidate[] {
  * money guard that can be exceeded is not a guard. This is the same rule the
  * crawler already follows.
  */
+/**
+ * ⚠ WHAT THE LAST PASS ACTUALLY DID, IN MEMORY, FOR `/v1/health`.
+ *
+ * Diagnosing "no photo reads in three days" cost two deploys because every
+ * observable was compatible with several different causes: switches on, mode
+ * steady, budget free, three candidates shortlisted, and still zero reads AND
+ * zero recorded failures. The one thing nobody could see was the exception,
+ * which the scheduler catches and writes to a log this machine cannot read.
+ *
+ * Cleared on process restart, which is fine — it answers "what is it doing
+ * right now", not "what did it do last week". That is `vision_results`' job.
+ */
+export const lastVisionPass: {
+  at: string | null; outcome: string | null; error: string | null;
+} = { at: null, outcome: null, error: null };
+
+const note = (outcome: string, error: string | null = null) => {
+  lastVisionPass.at = new Date().toISOString();
+  lastVisionPass.outcome = outcome;
+  lastVisionPass.error = error;
+};
+
 export async function visionPass(
   limit: number,
   onProgress: (m: string) => void = () => {},
 ): Promise<number> {
-  if (visionKilled()) return 0;
-  if (!budgetAvailable()) { onProgress("daily budget reached, skipping"); return 0; }
+  if (visionKilled()) { note("killed"); return 0; }
+  if (!budgetAvailable()) { note("budget reached"); onProgress("daily budget reached, skipping"); return 0; }
 
-  const cands = visionCandidates(limit);
-  if (!cands.length) return 0;
+  let cands: Candidate[];
+  try {
+    cands = visionCandidates(limit);
+  } catch (e) {
+    note("candidate query threw", (e as Error)?.message ?? String(e));
+    throw e;
+  }
+  if (!cands.length) { note("no candidates"); return 0; }
 
   let read = 0, changed = 0, failed = 0;
   for (const c of cands) {
@@ -162,12 +190,20 @@ export async function visionPass(
        * Counting the attempt is what breaks the cycle. It is also now LOGGED,
        * because a silent failure is what made three days of this invisible.
        */
-      noteVisionMiss(c.id, (e as Error)?.message ?? String(e));
+      /**
+       * ⚠ THE BOOKKEEPING MUST NOT BE ABLE TO THROW OUT OF THE LOOP. If
+       * recording a miss failed, the exception would escape `visionPass`
+       * entirely, the scheduler would log it and move on, and the result would
+       * be zero reads AND zero recorded failures — which is precisely the
+       * shape of the bug this whole block exists to fix, wearing a new cause.
+       */
+      try { noteVisionMiss(c.id, (e as Error)?.message ?? String(e)); } catch { /* never fatal */ }
       failed++;
       onProgress(`could not read #${c.id} ${c.title.slice(0, 36)} — ${(e as Error)?.message?.slice(0, 60) ?? "unknown"}`);
     }
   }
   if (read || failed) onProgress(`read ${read}, ${changed} changed call, ${failed} unreadable`);
+  note(`tried ${cands.length}: read ${read}, unreadable ${failed}`);
   return read;
 }
 

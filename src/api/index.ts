@@ -42,6 +42,7 @@ import {
 import { archiveStatus } from "../db/archive.ts";
 import { compsHealth, visionHealth } from "./pipeline-health.ts";
 import { visionLoopEnabled, crawlPaceMode } from "./scheduler.ts";
+import { lastVisionPass } from "../crawler/vision-pass.ts";
 import { VISION_MODEL, PROMPT_VERSION, visionConfigured } from "../vision/index.ts";
 import {
   rateLimit, clientKey, visionAllowed, visionKilled, budgetAvailable,
@@ -228,6 +229,8 @@ app.get("/v1/health", (c) => {
        * `mode` matters too: the pass only runs in steady, never in backfill.
        */
       ...(() => { try { return { loopEnabled: visionLoopEnabled(), mode: crawlPaceMode() }; } catch { return {}; } })(),
+      /** What the last pass actually did, including the exception nobody could see. */
+      ...(() => { try { return { lastPass: lastVisionPass }; } catch { return {}; } })(),
     },
     /**
      * ⚠ THE COMPS DECAY ON THEIR OWN AND NOTHING HERE REFILLS THEM.
