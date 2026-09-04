@@ -45,6 +45,16 @@ const seen = new Set(
 );
 
 let found = 0, analysed = 0, skipped = 0;
+/**
+ * ⚠ TRACKED SEPARATELY FROM `found`, AND THE DISTINCTION IS THE POINT.
+ *
+ * `found` counts cards that PARSED. Zero of those is a normal outcome — a
+ * search can legitimately return two hundred brackets and RGB strips and
+ * nothing in scope. Zero LINKS across EVERY query is a different animal: it
+ * means the page was never read, and the only honest responses are "you are
+ * blocked" or "the selectors are dead".
+ */
+let linksSeen = 0, queriesRun = 0, blockedQueries = 0;
 const tally: Record<string, number> = {};
 
 for await (const ev of runMarketWorker(source, {
@@ -55,6 +65,9 @@ for await (const ev of runMarketWorker(source, {
   else if (ev.type === "cards") {
     const cards = parseCards(source, ev.links);
     found += cards.length;
+    queriesRun++;
+    linksSeen += ev.links.length;
+    if ((ev as { blocked?: boolean }).blocked) blockedQueries++;
     console.log(`  \x1b[1m${ev.query}\x1b[0m: ${ev.links.length} links -> ${cards.length} cards`);
 
     const fresh = cards.filter((c) => !seen.has(c.sourceId));
@@ -87,4 +100,28 @@ for await (const ev of runMarketWorker(source, {
 console.log(`\n${found} cards seen · ${analysed} analysed · ${skipped} out of scope`);
 if (Object.keys(tally).length) {
   console.log("  " + Object.entries(tally).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(" · "));
+}
+
+/**
+ * ⚠ EXIT NON-ZERO WHEN NOTHING WAS READ AT ALL.
+ *
+ * `bun run agent` decides a source succeeded from the child's exit code, so a
+ * crawler that reads a challenge page for every query and exits 0 reports
+ * **"mercari: ok"** to the crawl button. That is precisely how Mercari sat dead
+ * from 2026-08-26 to 2026-09-04 with a green tick beside it.
+ *
+ * The gate is `linksSeen`, never `found` — see the note above. A run where
+ * every query came back with an unreadable page is a failed run, and it should
+ * look like one everywhere: in the terminal, in the job row, and in the app.
+ */
+if (queriesRun > 0 && linksSeen === 0) {
+  console.error(
+    `\n\x1b[31m${source}: ${queriesRun} queries, not one readable result.\x1b[0m`,
+  );
+  console.error(
+    blockedQueries > 0
+      ? `  ${blockedQueries} of them served a bot challenge. Run \`bun run ${source === "mercari" ? "mc" : "ou"}:crawl\` WITHOUT --headless once,\n  clear the check in the window, and the profile keeps the clearance for later headless runs.`
+      : "  No challenge was detected either, so suspect the card selectors rather than a block.",
+  );
+  process.exit(3);
 }

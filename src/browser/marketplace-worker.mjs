@@ -188,6 +188,34 @@ try {
      * item id is only in the href, and without an id there is no stable
      * `source_id`, so a re-crawl would insert duplicates instead of updating.
      */
+    /**
+     * ⚠ A BOT CHALLENGE IS NOT AN EMPTY RESULT, AND CONFLATING THEM COST NINE
+     * DAYS.
+     *
+     * Mercari sits behind Cloudflare. Headless Chrome gets the interstitial —
+     * `<title>Just a moment...</title>`, "Performing security verification",
+     * a Ray ID — which contains two anchors and no items. The scraper read that
+     * as "the search returned nothing", every query, and the run exited 0. So
+     * `mercari: ok` was reported to the crawl button while the source had
+     * produced **zero listings since 2026-08-26**, the day it was written.
+     *
+     * Name it. A source that is being blocked and a source with nothing new
+     * look identical in the data and need completely different responses.
+     */
+    const blocked = await page.evaluate(() => {
+      const t = document.title || "";
+      const b = (document.body.innerText || "").slice(0, 600);
+      if (/just a moment|attention required|access denied|verify you are human/i.test(t)) return t.trim();
+      if (/security verification|checking your browser|unusual traffic/i.test(b)) return t.trim() || "challenge page";
+      return null;
+    });
+    if (blocked) {
+      emit({ type: "error", msg: `${command} served a bot challenge ("${blocked}") for "${query}" — the profile needs a headed run to clear it` });
+      emit({ type: "cards", source: command, query, lines: [], links: [], blocked: true });
+      await pause(3000, 5500);
+      continue;
+    }
+
     const { lines, links } = await page.evaluate(() => {
       const main = document.querySelector("main");
       const text = main && (main.innerText || "").length > 200
