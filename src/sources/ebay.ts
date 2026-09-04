@@ -422,9 +422,31 @@ export function saveComps(comps: SoldComp[], query: string, skuId: number | null
 export function skusNeedingComps(limit = 20): Array<{ id: number; brand: string; model: string; category: string; comps: number }> {
   return db()
     .query(
-      `SELECT s.id, s.brand, s.model, s.category, COUNT(c.id) comps
+      /**
+       * ⚠ RANKED BY **USABLE** COMPS, NOT TOTAL, AND THE DIFFERENCE IS THE
+       * WHOLE POINT OF THIS FUNCTION.
+       *
+       * `valueSku` only counts a sale inside 90 days. A model holding 100 comps
+       * that are all older than that is exactly as unpriceable as one holding
+       * none — but ordered by `COUNT(c.id)` it sorted LAST, so the models most
+       * in need of a refill were the ones this never offered.
+       *
+       * Measured 2026-09-03: 147 of 430 SKUs had no comps at all, including
+       * RTX 4080 SUPER, RX 9070 XT and Mac Mini M4 — the three that were
+       * actively blocking BUY verdicts on the live feed. The old ordering would
+       * have reached them only after everything else.
+       *
+       * Total comps stays as the tie-break, so between two unpriceable models
+       * the one that has never been fetched goes first.
+       */
+      `SELECT s.id, s.brand, s.model, s.category,
+              COUNT(c.id) comps,
+              SUM(CASE WHEN c.id IS NOT NULL
+                        AND (c.sold_at IS NULL OR c.sold_at >= date('now','-90 days'))
+                       THEN 1 ELSE 0 END) usable
        FROM skus s LEFT JOIN comps c ON c.sku_id = s.id
-       GROUP BY s.id ORDER BY comps ASC, s.category, s.model
+       GROUP BY s.id
+       ORDER BY usable ASC, comps ASC, s.category, s.model
        LIMIT $lim`,
     )
     .all({ $lim: limit }) as Array<{ id: number; brand: string; model: string; category: string; comps: number }>;

@@ -125,7 +125,32 @@ try {
         (opts.categoryId ? `&_sacat=${opts.categoryId}` : "");
 
       log(`searching sold: ${query}`);
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
+      /**
+       * ⚠ ONE BAD NAVIGATION MUST NOT END THE WHOLE RUN.
+       *
+       * A 60-model backfill died on its second query with
+       * `net::ERR_ADDRESS_UNREACHABLE` — a transient network blip — and took
+       * the other 58 with it, storing nothing. These runs take an hour and are
+       * exactly the thing you start and walk away from, so an unlucky second
+       * is not a reason to abandon the batch.
+       *
+       * ONE RETRY, then skip: a genuinely unreachable host will not recover in
+       * four seconds, and hammering a failing page is how a scraper gets
+       * blocked. Anything already stored stays stored — `saveComps` writes per
+       * query, not at the end.
+       */
+      let navigated = false;
+      for (let attempt = 0; attempt < 2 && !navigated; attempt++) {
+        try {
+          await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
+          navigated = true;
+        } catch (navErr) {
+          const msg = String(navErr && navErr.message ? navErr.message : navErr).slice(0, 120);
+          if (attempt === 0) { log(`  navigation failed, retrying once: ${msg}`); await pause(4000, 7000); }
+          else emit({ type: "error", msg: `skipped "${query}": ${msg}` });
+        }
+      }
+      if (!navigated) { await pause(3000, 6000); continue; }
       await pause(2500, 4000);
 
       const title = await page.title();

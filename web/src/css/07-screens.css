@@ -399,3 +399,51 @@
 }
 .hstep b { display: block; font-size: 14.5px; font-weight: 650; margin-bottom: 4px; }
 .hstep p { margin: 0; color: var(--ink-2); font-size: 12.5px; line-height: 1.5; }
+
+/* ============================================================ crawl panel */
+/*
+ * The Start-crawl control. Reuses `.srow`/`.scard` so it reads as one more
+ * Settings group rather than a bolted-on operator console.
+ */
+.pinrow { flex: none; display: flex; align-items: center; gap: 6px; }
+.pinrow input {
+  width: 84px; padding: 9px 10px; text-align: center;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-md); color: var(--ink);
+  /* 16px, or iOS zooms the viewport on focus and never zooms back. */
+  font-size: 16px; letter-spacing: .3em;
+}
+.pinrow input:focus {
+  outline: none; border-color: color-mix(in srgb, var(--brand) 60%, transparent);
+}
+.btn2.sm { min-height: 38px; padding: 0 14px; font-size: 13.5px; }
+
+/* Green when the agent has checked in inside the last 90s, grey otherwise. */
+.dotlive {
+  flex: none; width: 9px; height: 9px; border-radius: 99px;
+  background: var(--ink-3);
+}
+.dotlive.on {
+  background: var(--buy);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--buy) 60%, transparent);
+  animation: livepulse 2s ease-out infinite;
+}
+@keyframes livepulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--buy) 55%, transparent) }
+  70%  { box-shadow: 0 0 0 8px transparent }
+  100% { box-shadow: 0 0 0 0 transparent }
+}
+
+.spin {
+  flex: none; width: 16px; height: 16px; border-radius: 99px;
+  border: 2px solid var(--line); border-top-color: var(--brand);
+  animation: spin 700ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg) } }
+
+.ok { color: var(--buy); }
+.snote.danger { display: flex; align-items: center; gap: 7px; color: var(--risk); }
+
+@media (prefers-reduced-motion: reduce) {
+  .dotlive.on, .spin { animation: none; }
+}

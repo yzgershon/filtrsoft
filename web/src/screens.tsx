@@ -23,6 +23,7 @@ import {
   SUBKEY, urlB64ToBytes, deviceRef, Thumb, readSettings, HKEY, AKEY,
 } from "./lib.tsx";
 import { Gcard } from "./feed.tsx";
+import { CrawlPanel } from "./crawl.tsx";
 
 export function Watchlist({ onOpen, onWatchChange, onBrowse }: {
   onOpen: (id: number) => void;
@@ -785,6 +786,14 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
       </div>
 
       <Billing onlyWhenEnabled />
+
+      {/**
+        * ⚠ THE CRAWL BUTTON LIVES IN SETTINGS, NOT ON THE FEED. It is an
+        * operator control, not something to tap while browsing — and putting a
+        * PIN prompt one thumb-slip away from the deals list is how a crawl gets
+        * started by accident on a phone in a pocket.
+        */}
+      <CrawlPanel />
 
       {/* ── ALERTS ─────────────────────────────────────────────────────── */}
       <div className="sgroup">

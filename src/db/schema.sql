@@ -473,3 +473,42 @@ CREATE TABLE IF NOT EXISTS account_devices (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_account_devices_user ON account_devices(user_id);
+
+/*
+ * ───────────────────────────────────────── CRAWL JOBS HE STARTS FROM THE APP
+ *
+ * Yish, 2026-09-03: *"code a button in Assyze that I click and put in a pin ...
+ * that automatically starts the crawl ... so I dont need to waste my claude
+ * usage asking you to crawl."*
+ *
+ * ⚠ THE SERVER CANNOT REACH HIS PC, SO HIS PC ASKS THE SERVER. This is the one
+ * architectural fact the whole feature turns on. assyze.com runs in a Railway
+ * container; his desktop is behind a home router with no inbound route and no
+ * fixed address. A button that tried to CALL his machine could never work.
+ *
+ * So the button only ever writes a row here, and `bun run agent` on his PC
+ * polls for it. Facebook, OfferUp and Mercari need a logged-in browser, which
+ * only that machine has — the container could not run these crawls even if it
+ * could be reached.
+ *
+ * ⚠ WHICH MEANS "queued" IS NOT "RUNNING". If his PC is off, the row sits here
+ * until it is on. The UI has to say that plainly rather than showing a spinner
+ * for something nothing is working on, or the first time he taps it with the
+ * machine asleep the feature looks broken.
+ */
+CREATE TABLE IF NOT EXISTS crawl_jobs (
+  id          INTEGER PRIMARY KEY,
+  -- queued | running | done | failed | expired
+  status      TEXT NOT NULL DEFAULT 'queued',
+  sources     TEXT NOT NULL,          -- json array: facebook, offerup, mercari
+  requested_by INTEGER REFERENCES users(id),
+  created_at  TEXT NOT NULL,
+  started_at  TEXT,
+  finished_at TEXT,
+  -- Progress the agent reports as it goes, so the app can show something real
+  -- rather than a spinner: "offerup: 24 listings pushed".
+  progress    TEXT,
+  result      TEXT,
+  error       TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_crawl_jobs_status ON crawl_jobs(status, id);

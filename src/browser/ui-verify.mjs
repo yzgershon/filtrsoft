@@ -267,14 +267,41 @@ const detailOpen = (page) => page.evaluate(
     await chips.nth(i).click();
     await page.waitForTimeout(900);
 
-    // Page until the app stops offering more, then count what is on screen.
-    for (let guard = 0; guard < 12; guard++) {
-      const more = page.getByRole("button", { name: /show more|more listings/i });
+    /**
+     * Page until the app stops offering more, then count what is on screen.
+     *
+     * ⚠ THE STOP CONDITION IS THE APP, NOT A CLICK BUDGET. This was
+     * `guard < 12` and the feed pages 60 rows at a time, so exactly 780
+     * listings were reachable however many existed — a chip claiming 846
+     * failed against an app that was working perfectly. **A constant that
+     * goes stale the moment the database grows is worse than no check**: it
+     * cries wolf for weeks, and the day it is right nobody looks. Same
+     * lesson as the Saved sub-tab count that asserted 2 after a third tab
+     * shipped.
+     *
+     * It presses until the button is gone, and bails only when a press adds
+     * NOTHING — which is the real defect (a pager that does not page) rather
+     * than an arbitrary ceiling. The outer bound is a runaway guard, not a
+     * budget: it is never the thing that ends a healthy loop.
+     *
+     * ⚠ AND IT MATCHES ON THE CLASS, NOT THE LABEL. The button renames itself
+     * "Loading…" while the fetch is in flight, so a name-based lookup reads a
+     * mid-load pager as "nothing left to press" and stops early — the same
+     * false pass this assertion exists to catch.
+     */
+    const countRows = () => page.locator(".grid .gcard, .dealhero").count();
+    let reachable = await countRows();
+    for (let guard = 0; guard < 200; guard++) {
+      const more = page.locator("button.more");
       if (!(await more.count()) || !(await more.first().isVisible())) break;
+      const before = reachable;
       await more.first().click();
-      await page.waitForTimeout(700);
+      for (let w = 0; w < 20 && reachable <= before; w++) {
+        await page.waitForTimeout(200);
+        reachable = await countRows();
+      }
+      if (reachable <= before) break;
     }
-    const reachable = await page.locator(".grid .gcard, .dealhero").count();
     /**
      * ⚠ THIS IS THE 20-VS-13 ASSERTION. The number on the chip must equal the
      * number of listings you can actually reach by pressing things.

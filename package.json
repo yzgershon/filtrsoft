@@ -37,7 +37,8 @@
     "photos:prune": "bun run src/scripts/photos-prune.ts",
     "thumbs": "bun run src/scripts/thumbs.ts",
     "daily": "bun run src/scripts/daily.ts",
-    "probe": "bun run src/scripts/probe.ts"
+    "probe": "bun run src/scripts/probe.ts",
+    "agent": "bun run src/scripts/agent.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

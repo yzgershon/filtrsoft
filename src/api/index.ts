@@ -43,6 +43,9 @@ import { archiveStatus } from "../db/archive.ts";
 import { compsHealth, visionHealth } from "./pipeline-health.ts";
 import { visionLoopEnabled, crawlPaceMode } from "./scheduler.ts";
 import { lastVisionPass } from "../crawler/vision-pass.ts";
+import {
+  handleStartCrawl, handleLatestJob, handleNextJob, handleJobUpdate, crawlPinConfigured,
+} from "./jobs.ts";
 import { VISION_MODEL, PROMPT_VERSION, visionConfigured } from "../vision/index.ts";
 import {
   rateLimit, clientKey, visionAllowed, visionKilled, budgetAvailable,
@@ -127,9 +130,42 @@ const PUBLIC_PREFIXES = [
   "/v1/landing",
 ];
 
+/**
+ * ⚠ THE AGENT'S OWN ENDPOINTS, MATCHED EXACTLY RATHER THAN BY PREFIX.
+ *
+ * `bun run agent` on his desktop is a headless process with no browser cookie;
+ * it authenticates with `ASSYZE_PUSH_TOKEN` inside its handlers instead. Both
+ * of these have to bypass the session wall or the button queues jobs that
+ * nothing ever collects.
+ *
+ * A prefix of `/v1/jobs/` would have been simpler and wrong: it would also
+ * expose `/v1/jobs/latest`, which reports what he is crawling and when, to
+ * anyone who asks. `/v1/jobs/:id` is a number, so the pattern says so.
+ */
+const AGENT_PATHS = [
+  /^\/v1\/jobs\/next$/,
+  /^\/v1\/jobs\/\d+$/,
+  /**
+   * ⚠ `/v1/push` EXACTLY — the listing ingest, NOT the `/v1/push/*` web-push
+   * endpoints, which are browser calls and stay behind the wall.
+   *
+   * Adding the sign-in wall on 2026-09-01 silently broke `bun run push`: it
+   * authenticates with `ASSYZE_PUSH_TOKEN` inside its own handler, so the
+   * middleware rejected it before that ever ran. Nothing noticed for two days
+   * because nothing had pushed since. Found when the crawl agent's very first
+   * end-to-end run came back `push failed 401`.
+   *
+   * That is the whole failure mode of a blanket wall: it is correct for every
+   * path a browser uses and wrong for every path a machine uses, and the
+   * machine paths are the ones nobody exercises by accident.
+   */
+  /^\/v1\/push$/,
+];
+
 app.use("/v1/*", async (c, next) => {
   const path = new URL(c.req.url).pathname;
   if (PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(p))) return next();
+  if (AGENT_PATHS.some((re) => re.test(path))) return next();
   if (!currentUser(c)) {
     /**
      * 401 with a machine-readable reason. The client turns this into "your
@@ -254,6 +290,7 @@ app.get("/v1/health", (c) => {
      */
     archive: archiveStatus(),
     billing: { enabled: billingEnabled() },
+    crawlButton: { configured: crawlPinConfigured() },
     /** Which sign-in methods are configured. Never the ids themselves. */
     auth: (() => { const a = authProviders(); return { password: a.password, google: a.google, apple: a.apple }; })(),
     /**
@@ -494,6 +531,20 @@ app.post("/v1/auth/signout", handleSignout);
 app.post("/v1/auth/google", handleGoogle);
 app.post("/v1/auth/apple", handleApple);
 app.get("/v1/auth/me", handleMe);
+
+/**
+ * ────────────────────────────────────────────── crawling from the app
+ *
+ * ⚠ `/v1/jobs/next` AND `/v1/jobs/:id` ARE AGENT ENDPOINTS AND MUST BE IN
+ * `PUBLIC_PREFIXES`. The agent is a headless process on his desktop with no
+ * browser cookie; it authenticates with `ASSYZE_PUSH_TOKEN` inside the handler
+ * instead. Leaving them behind the session wall would 401 the agent forever
+ * and the button would queue jobs nothing ever collects.
+ */
+app.post("/v1/jobs", handleStartCrawl);
+app.get("/v1/jobs/latest", handleLatestJob);
+app.get("/v1/jobs/next", handleNextJob);
+app.post("/v1/jobs/:id", handleJobUpdate);
 
 app.get("/v1/billing/status", handleBillingStatus);
 app.post("/v1/billing/checkout", handleCheckout);

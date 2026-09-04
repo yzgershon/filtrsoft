@@ -1649,3 +1649,56 @@ describe("vision candidates step aside after repeated failures", () => {
     }
   });
 });
+
+
+/**
+ * ── THE SIGN-IN WALL MUST NOT BLOCK MACHINE ENDPOINTS ──────────────────────
+ *
+ * Adding the wall on 2026-09-01 silently broke `bun run push`. It
+ * authenticates with `ASSYZE_PUSH_TOKEN` inside its own handler, so the
+ * middleware rejected it before that ever ran — and nothing noticed for two
+ * days because nothing had pushed since. Found when the crawl agent's first
+ * end-to-end run came back `push failed 401`.
+ *
+ * That is the failure mode of a blanket wall: correct for every path a browser
+ * uses, wrong for every path a machine uses, and the machine paths are the ones
+ * nobody exercises by accident. This pins the exact list.
+ */
+describe("auth wall: machine paths bypass, browser paths do not", () => {
+  const AGENT_PATHS = [/^\/v1\/jobs\/next$/, /^\/v1\/jobs\/\d+$/, /^\/v1\/push$/];
+  const bypasses = (p: string) => AGENT_PATHS.some((re) => re.test(p));
+
+  test("token-authenticated machine endpoints bypass the session wall", () => {
+    expect(bypasses("/v1/push")).toBe(true);        // listing ingest
+    expect(bypasses("/v1/jobs/next")).toBe(true);   // agent asks for work
+    expect(bypasses("/v1/jobs/42")).toBe(true);     // agent reports progress
+  });
+
+  /**
+   * ⚠ `/v1/push/*` ARE BROWSER ENDPOINTS AND MUST STAY WALLED. A prefix match
+   * on "/v1/push" would have exposed the web-push subscription routes; the
+   * anchored `$` is what keeps them apart.
+   */
+  test("the web-push endpoints stay behind the wall", () => {
+    expect(bypasses("/v1/push/vapid")).toBe(false);
+    expect(bypasses("/v1/push/subscribe")).toBe(false);
+    expect(bypasses("/v1/push/test")).toBe(false);
+  });
+
+  /**
+   * ⚠ AND `/v1/jobs` ITSELF IS THE BUTTON, WHICH IS A BROWSER CALL. If it
+   * bypassed, anyone could start a crawl on his PC without an account.
+   * `/v1/jobs/latest` leaks what he is crawling and when, so it stays walled
+   * too — which is why the pattern is `\d+` and not `.+`.
+   */
+  test("the button and the status endpoint stay behind the wall", () => {
+    expect(bypasses("/v1/jobs")).toBe(false);
+    expect(bypasses("/v1/jobs/latest")).toBe(false);
+  });
+
+  test("nothing else slips through", () => {
+    for (const p of ["/v1/feed", "/v1/checks/1", "/v1/watchlist", "/v1/purchases", "/v1/pulse"]) {
+      expect(bypasses(p)).toBe(false);
+    }
+  });
+});
