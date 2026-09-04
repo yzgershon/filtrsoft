@@ -208,9 +208,22 @@ while (true) {
     /**
      * Offline is normal on a laptop and must not spam the console every 15
      * seconds — warn once per outage, then go quiet until it recovers.
+     *
+     * ⚠ BUT A HOST THAT DOES NOT RESOLVE IS NOT AN OUTAGE, AND THE TWO LOOK
+     * IDENTICAL. `fetch` reports both as "Unable to connect", so a typo in
+     * `FILTRSOFT_API` — or pointing at a domain whose DNS has not been set up
+     * yet, which is exactly where this sat on 2026-09-04 — reads as "my wifi
+     * is flaky" and gets waited out forever. Name the host and say which one
+     * it is.
      */
     if (!warnedOffline) {
-      console.log(`(offline, will keep trying) ${(e as Error).message?.slice(0, 80) ?? ""}`);
+      const msg = (e as Error).message ?? "";
+      const dns = /ENOTFOUND|getaddrinfo|Unable to connect|failed to lookup/i.test(msg);
+      console.log(`(offline, will keep trying) ${msg.slice(0, 80)}`);
+      if (dns) {
+        console.log(`  ${API} did not resolve. If that domain is not live yet,`);
+        console.log("  set FILTRSOFT_API in .env to the address that is.");
+      }
       warnedOffline = true;
     }
   }
