@@ -215,6 +215,23 @@ export function ensureAlertTables() {
       created_at     TEXT NOT NULL
     )`);
   /**
+   * ⚠ THE STANDING ALERT. Yish, 2026-09-04: *"the entire point of the app was
+   * to send me a notification when there is a buy and a verify first but its
+   * still not working. this may be because the alerts only work for custom
+   * alerts that i make."*
+   *
+   * He diagnosed it exactly. `runAlerts` iterates `saved_searches`, so with no
+   * saved search the loop body never ran and the app's whole reason to exist
+   * was gated behind a feature he had no reason to use. **Turning a product's
+   * core promise into an opt-in is how it silently never happens.**
+   *
+   * A row rather than a special case, because everything a notification needs
+   * is already built around rows: per-listing dedupe in `alert_sent`, the
+   * `created_at` backlog guard, dead-subscription cleanup, and `matches()`.
+   * A parallel code path would reimplement four things and get one wrong.
+   */
+  addColumn("saved_searches", "standing", "INTEGER NOT NULL DEFAULT 0");
+  /**
    * One row per (search, listing) already sent. This is what stops the same
    * listing alerting on every crawl — a re-verdict bumps a listing's row
    * without changing its id, so "have I sent this" cannot be inferred from
@@ -227,12 +244,46 @@ export function ensureAlertTables() {
       sent_at    TEXT NOT NULL,
       PRIMARY KEY (search_id, listing_id)
     )`);
+
+  backfillStandingAlerts();
+}
+
+/** `schema.sql` is idempotent but never ALTERs a table that already exists. */
+function addColumn(table: string, name: string, decl: string) {
+  const has = (db().query(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>)
+    .some((c) => c.name === name);
+  if (!has) db().run(`ALTER TABLE ${table} ADD COLUMN ${name} ${decl}`);
+}
+
+/** Every push subscription gets BUY and VERIFY, whether or not it asked. */
+export const STANDING_LABEL = "Buy it and Verify first";
+export const STANDING_CALLS = "BUY,VERIFY";
+
+/**
+ * Give every subscription that lacks one a standing alert.
+ *
+ * ⚠ `created_at` IS NOW, NOT THE SUBSCRIPTION'S DATE, and that is the one
+ * decision here worth defending. The row's timestamp is the backlog guard, so
+ * backdating it would fire one notification per historical match the instant
+ * this ships — about thirty at once on the current feed. The existing comment
+ * on that guard already records what happens next: *"notifications get switched
+ * off immediately."* Starting from now costs him nothing he cannot see in the
+ * app, and buys the feature a first impression it survives.
+ */
+function backfillStandingAlerts() {
+  db().run(
+    `INSERT INTO saved_searches (sub_id, label, query, max_price_cents, min_profit_cents, calls, created_at, standing)
+     SELECT p.id, ?, NULL, NULL, NULL, ?, ?, 1
+       FROM push_subs p
+      WHERE NOT EXISTS (SELECT 1 FROM saved_searches s WHERE s.sub_id = p.id AND s.standing = 1)`,
+    [STANDING_LABEL, STANDING_CALLS, now()],
+  );
 }
 
 interface SearchRow {
   id: number; sub_id: number; label: string; query: string | null;
   max_price_cents: number | null; min_profit_cents: number | null;
-  calls: string | null; created_at: string;
+  calls: string | null; created_at: string; standing?: number;
   endpoint: string; p256dh: string; auth: string;
 }
 
@@ -306,8 +357,17 @@ export async function runAlerts(): Promise<number> {
       const net = r.payload ? (JSON.parse(r.payload).netProfitCents ?? null) : null;
       if (!matches(s, { title: r.title, price: r.price, call: r.call, net })) continue;
 
+      /**
+       * ⚠ THE TITLE NAMES THE CALL, and for the standing alert that is the
+       * whole message. A lock-screen line reading "Buy it and Verify first"
+       * over every notification tells him nothing about the one that just
+       * arrived; "Buy it" versus "Verify first" is the entire decision.
+       */
+      const heading = s.standing
+        ? (r.call === "BUY" ? "Buy it" : r.call === "VERIFY" ? "Verify first" : r.call)
+        : s.label;
       const ok = await send(s, {
-        title: s.label,
+        title: heading,
         body: `${r.title.slice(0, 70)}, ${r.price ? `$${Math.round(r.price / 100)}` : "no price"}`,
         url: `/c/${r.id}`,
       });
@@ -385,7 +445,14 @@ export async function handleSubscribe(c: Context) {
     [b.endpoint, b.keys.p256dh, b.keys.auth, now()],
   );
   const row = db().query("SELECT id FROM push_subs WHERE endpoint=?").get(b.endpoint) as { id: number };
-  return c.json({ subId: row.id });
+  /**
+   * ⚠ A DEVICE IS SUBSCRIBED TO BUY AND VERIFY THE MOMENT IT ALLOWS
+   * NOTIFICATIONS. Granting permission and then receiving nothing is
+   * indistinguishable from the feature being broken, which is exactly the
+   * state Yish found it in.
+   */
+  backfillStandingAlerts();
+  return c.json({ subId: row.id, standing: STANDING_CALLS.split(",") });
 }
 
 export function handleListSearches(c: Context) {
@@ -393,7 +460,7 @@ export function handleListSearches(c: Context) {
   const subId = Number(c.req.query("subId"));
   if (!subId) return c.json({ items: [] });
   const items = db().query(
-    "SELECT id, label, query, max_price_cents, min_profit_cents, calls, created_at FROM saved_searches WHERE sub_id=? ORDER BY id DESC",
+    "SELECT id, label, query, max_price_cents, min_profit_cents, calls, created_at, standing FROM saved_searches WHERE sub_id=? ORDER BY standing DESC, id DESC",
   ).all(subId);
   return c.json({ items });
 }
@@ -434,6 +501,18 @@ export function handleDeleteSearch(c: Context) {
   ensureAlertTables();
   const id = Number(c.req.param("id"));
   const subId = Number(c.req.query("subId"));
+  /**
+   * ⚠ THE STANDING ALERT CANNOT BE DELETED, ONLY NARROWED. Deleting it would
+   * put the device back in the silent state this whole change exists to end,
+   * and it would do so through a control that looks like ordinary tidying up.
+   * Turning VERIFY off is `PATCH`; turning everything off is the OS permission
+   * toggle, which is where a user already expects to find it.
+   */
+  const target = db().query("SELECT standing FROM saved_searches WHERE id=? AND sub_id=?")
+    .get(id, subId) as { standing: number } | null;
+  if (target?.standing) {
+    return c.json({ error: "that one is built in — switch Verify first off instead", standing: true }, 400);
+  }
   // Scoped to the subscription so an id alone cannot delete somebody else's.
   const r = db().run("DELETE FROM saved_searches WHERE id=? AND sub_id=?", [id, subId]);
   return c.json({ deleted: r.changes });
@@ -453,4 +532,44 @@ export async function handleTestPush(c: Context) {
     url: "/",
   });
   return c.json({ sent: ok });
+}
+
+/**
+ * Who is actually subscribed, and to what.
+ *
+ * Reported on `/v1/health` beside `pushStatus()`. The two answer different
+ * questions and conflating them cost real time: the server can be perfectly
+ * configured for push and have nobody to push to, which is what "alerts don't
+ * work" looked like from the outside.
+ */
+export function alertStatus() {
+  try {
+    ensureAlertTables();
+    const subs = (db().query("SELECT COUNT(*) n FROM push_subs").get() as { n: number }).n;
+    const standing = (db().query("SELECT COUNT(*) n FROM saved_searches WHERE standing=1").get() as { n: number }).n;
+    const custom = (db().query("SELECT COUNT(*) n FROM saved_searches WHERE standing=0").get() as { n: number }).n;
+    const last = (db().query("SELECT MAX(sent_at) t FROM alert_sent").get() as { t: string | null }).t;
+    return { subscriptions: subs, standingAlerts: standing, savedSearches: custom, lastAlertAt: last };
+  } catch {
+    return { subscriptions: 0, standingAlerts: 0, savedSearches: 0, lastAlertAt: null };
+  }
+}
+
+/**
+ * Narrow or widen the standing alert. The only thing about it that is editable.
+ *
+ * `verify: false` leaves BUY on. There is deliberately no way to reach an empty
+ * `calls` here — a standing alert that matches nothing is the silent state this
+ * whole mechanism exists to prevent, and the honest control for "no
+ * notifications at all" is the operating system's own permission switch.
+ */
+export async function handleUpdateStanding(c: Context) {
+  ensureAlertTables();
+  const subId = Number(c.req.query("subId"));
+  if (!subId) return c.json({ error: "subId is required" }, 400);
+  const b = await c.req.json().catch(() => null) as { verify?: boolean } | null;
+  const calls = b?.verify === false ? "BUY" : STANDING_CALLS;
+  const r = db().run("UPDATE saved_searches SET calls=? WHERE sub_id=? AND standing=1", [calls, subId]);
+  if (!r.changes) return c.json({ error: "no standing alert for this device" }, 404);
+  return c.json({ calls: calls.split(",") });
 }

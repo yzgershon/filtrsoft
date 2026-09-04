@@ -25,6 +25,8 @@ import { handleDeletionChallenge, handleDeletionNotice, deletionEndpoint, deleti
 import {
   handleVapid, handleSubscribe, handleListSearches, handleCreateSearch,
   handleDeleteSearch, handleTestPush, pushConfigured, ensureAlertTables, pushStatus,
+  alertStatus,
+  handleUpdateStanding,
 } from "./alerts.ts";
 import {
   handleBillingStatus, handleCheckout, handlePortal, handleWebhook, billingEnabled,
@@ -336,7 +338,14 @@ app.get("/v1/health", (c) => {
      * fail the challenge, which disables the keyset again.
      */
     ebay: { deletionEndpoint: deletionEndpoint(), deletionConfigured: deletionConfigured() },
-    push: pushStatus(),
+    /**
+     * ⚠ SUBSCRIPTION COUNT BELONGS HERE, because "push is usable" and "anything
+     * is subscribed" are different facts that were reported as one. Health said
+     * `usable: true` the whole time Yish was telling me alerts did not work,
+     * and it was telling the truth about the VAPID keys while saying nothing
+     * about whether a single device would ever receive one.
+     */
+    push: { ...pushStatus(), ...alertStatus() },
     /**
      * What the SHIPPED archive holds, vs what the database holds. If
      * `archive.comps` exceeds `comps`, the file arrived and the import did not
@@ -512,6 +521,7 @@ app.post("/v1/push/test", handleTestPush);
 app.get("/v1/searches", handleListSearches);
 app.post("/v1/searches", handleCreateSearch);
 app.delete("/v1/searches/:id", handleDeleteSearch);
+app.patch("/v1/searches/standing", handleUpdateStanding);
 
 /**
  * Billing. Built, and OFF until `STRIPE_PRICE_ID` is set — see `billing.ts`

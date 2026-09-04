@@ -648,7 +648,8 @@ export function Alerts() {
         {supported && !subId && (
           <>
             <p className="snote">
-              Get told the moment something matching your search posts. This is where the
+              Get told the moment a Buy it or Verify first posts. That one is on
+              automatically — you do not have to set anything up. This is where the
               feed stops being somewhere you have to remember to check.
             </p>
             <button className="btn2" disabled={busy} onClick={enable}>
@@ -659,7 +660,47 @@ export function Alerts() {
 
         {supported && subId && (
           <>
-            {list.map((s) => (
+            {/**
+              * ⚠ THE STANDING ALERT RENDERS AS A SWITCH, NOT A CARD WITH A
+              * REMOVE BUTTON. Yish, 2026-09-04: *"the entire point of the app
+              * was to send me a notification when there is a buy and a verify
+              * first but its still not working ... the alerts only work for
+              * custom alerts that i make."*
+              *
+              * It is on from the moment notifications are allowed, and it must
+              * not look like one more optional thing to configure — the
+              * previous shape of this screen is the reason it never existed.
+              */}
+            {list.filter((s) => s.standing).map((s) => (
+              <div className="srow static" key={s.id}>
+                <span className="stext">
+                  <b className="ok">Every Buy it{(s.calls ?? "").includes("VERIFY") ? " and Verify first" : ""}</b>
+                  <span>
+                    On automatically. This is the one you actually want; it needs no setup.
+                  </span>
+                </span>
+              </div>
+            ))}
+            {list.filter((s) => s.standing).map((s) => (
+              <label className="srow" key={`v${s.id}`}>
+                <span className="stext">
+                  <b>Include Verify first</b>
+                  <span>Deals that need one question answered before you drive. Off means Buy it only.</span>
+                </span>
+                <input type="checkbox" className="switch"
+                  checked={(s.calls ?? "").includes("VERIFY")}
+                  onChange={async (e) => {
+                    await fetch(`/v1/searches/standing?subId=${subId}`, {
+                      method: "PATCH",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({ verify: e.target.checked }),
+                    });
+                    fetch(`/v1/searches?subId=${subId}`).then((x) => x.json()).then((d) => setList(d.items ?? []));
+                  }} />
+              </label>
+            ))}
+
+            {list.filter((s) => !s.standing).map((s) => (
               <div className="srow static" key={s.id}>
                 <span className="stext">
                   <b>{s.label}</b>
@@ -682,9 +723,10 @@ export function Alerts() {
             </div>
 
             <p className="snote">
-              Every word has to appear in the title, so "rtx 4090" won't alert on every
-              graphics card. Alerts only cover listings found after you save the search,
-              and they live on this device.
+              Above is on by itself. Add a search below only if you want something
+              narrower, like one model under a price. Every word has to appear in the
+              title, so "rtx 4090" won't alert on every graphics card. Alerts only cover
+              listings found after they were set up, and they live on this device.
             </p>
             <button className="btn2" onClick={async () => {
               const r = await (await fetch(`/v1/push/test?subId=${subId}`, { method: "POST" })).json();
