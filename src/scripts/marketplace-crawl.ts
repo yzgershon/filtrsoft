@@ -118,9 +118,19 @@ if (queriesRun > 0 && linksSeen === 0) {
   console.error(
     `\n\x1b[31m${source}: ${queriesRun} queries, not one readable result.\x1b[0m`,
   );
+  /**
+   * ⚠ "RUN IT HEADED ONCE AND THE PROFILE KEEPS THE CLEARANCE" IS FALSE, AND
+   * THIS MESSAGE SAID IT FOR ONE COMMIT.
+   *
+   * Measured back to back on the same profile on 2026-09-04: headed read 28
+   * links per query, headless straight afterwards read zero and was challenged
+   * on all seven. Cloudflare fingerprints the browser, so no amount of warming
+   * makes a headless run pass. Drop `--headless`, every time — telling someone
+   * to warm a profile that cannot be warmed is worse than saying nothing.
+   */
   console.error(
     blockedQueries > 0
-      ? `  ${blockedQueries} of them served a bot challenge. Run \`bun run ${source === "mercari" ? "mc" : "ou"}:crawl\` WITHOUT --headless once,\n  clear the check in the window, and the profile keeps the clearance for later headless runs.`
+      ? `  ${blockedQueries} of them served a bot challenge.\n  Re-run WITHOUT --headless: \`bun run ${source === "mercari" ? "mc" : "ou"}:crawl\`. A headed run does not leave a\n  clearance behind, so this source needs a real window EVERY time, not once.`
       : "  No challenge was detected either, so suspect the card selectors rather than a block.",
   );
   process.exit(3);

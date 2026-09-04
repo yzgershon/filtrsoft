@@ -145,7 +145,22 @@ const STEPS: Record<string, string[][]> = {
     ["run", "ou:photos", "--limit", "40", "--headless"],
     ["run", "push", "--source", "offerup"],
   ],
-  mercari: [["run", "mc:crawl", "--headless"], ["run", "push", "--source", "mercari"]],
+  /**
+   * ⚠ MERCARI RUNS HEADED, AND IT IS THE ONLY ONE THAT HAS TO.
+   *
+   * It sits behind Cloudflare, and headless Chrome is served the "Just a
+   * moment..." interstitial for every query. **A headed run does NOT leave a
+   * clearance the headless one can use** — measured on 2026-09-04, back to
+   * back on the same profile: headed read 28 links per query, headless
+   * immediately afterwards read zero and got challenged seven times out of
+   * seven. Cloudflare is fingerprinting the browser, not just checking a
+   * cookie, so there is no warm-up that fixes this.
+   *
+   * The visible cost is a Chrome window appearing for about a minute during a
+   * crawl. The alternative was dropping Mercari from the button, which is not
+   * what was asked for.
+   */
+  mercari: [["run", "mc:crawl"], ["run", "push", "--source", "mercari"]],
 };
 
 async function doJob(job: { id: number; sources: string[] }) {
