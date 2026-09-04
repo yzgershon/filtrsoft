@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import { parseModel } from "../src/catalog/derive.ts";
 import { extractAttributes, fullestVariant } from "../src/catalog/match.ts";
+import { isScamFarm, scamSignals, trailingSerial } from "../src/verdict/scam.ts";
 import { parseOfferUpDetail, offerUpDescription } from "../src/sources/marketplace.ts";
 import { namedCatalogBrand } from "../src/catalog/match.ts";
 import { isUnsupportedPrinter, resolveCategory, resolveProductType } from "../src/signals/product-type.ts";
@@ -1700,5 +1701,86 @@ describe("auth wall: machine paths bypass, browser paths do not", () => {
     for (const p of ["/v1/feed", "/v1/checks/1", "/v1/watchlist", "/v1/purchases", "/v1/pulse"]) {
       expect(bypasses(p)).toBe(false);
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────── the scam detector
+//
+// Every title below is a REAL one off the live feed on 2026-09-04, which is the
+// only reason to trust the thresholds. Yish marked about twenty of these RISK by
+// hand on his phone before the engine could.
+describe("scam-farm detection", () => {
+  test("the farm signature: impossible price AND a bulk-posting tag", () => {
+    const farm: Array<[string, number, number]> = [
+      ["Unlocked iPhone 16 Pro Max 256GB Desert Titanium 7DIT", 5200, 74000],
+      ["MacBook Pro M3 Max 16-core 48GB Memory 1TB Storage Q2632", 3700, 123000],
+      ["Apple iPhone 13 Pro Max 256GB Unlocked ZEP3", 5800, 38000],
+      ["iPhone 14 256GB Purple Unlocked QG4G", 5200, 29000],
+    ];
+    for (const [title, ask, market] of farm) {
+      expect(isScamFarm({ title, askCents: ask, marketCents: market })).toBe(true);
+    }
+  });
+
+  test("a real listing that merely ENDS in a part number is not a scam", () => {
+    // 0.59 of market. The token is real: it is Gigabyte's SKU.
+    expect(isScamFarm({
+      title: "Gigabyte GeForce RTX 5090 WINDFORCE OC 32G GV-N5090",
+      askCents: 250000, marketCents: 424000,
+    })).toBe(false);
+  });
+
+  test("an Intel part number is never read as a serial", () => {
+    // This one nearly shipped as a false positive: 8565U is the same SHAPE as
+    // a farm token, and only an honest price was keeping the ThinkPad safe.
+    expect(trailingSerial('Lenovo 14" ThinkPad X1 Carbon 7th Gen i7-8565U')).toBeNull();
+    expect(trailingSerial("Dell Latitude 5420 i5-1145G7")).toBeNull();
+  });
+
+  test("specs and colours at the end of a title are not serials", () => {
+    for (const t of [
+      "NVIDIA GeForce RTX 4090 Founders Edition 24GB GDDR6X",
+      "Apple iPhone 12 128GB Unlocked RED",
+      "MacBook Air M2 2022 13in 8GB 512GB SILVER",
+      "Rtx 5090 FE",
+      "Xbox Series X 1TB",
+      "Custom Gaming PC RTX 3070Ti i7 11700K 32GB RAM 2TB SSD",
+    ]) expect(trailingSerial(t)).toBeNull();
+  });
+
+  test("the tokens themselves are recognised", () => {
+    for (const [t, want] of [
+      ["Apple iPhone 15 Pro 512GB Unlocked 03J1", "03J1"],
+      ["Apple iPhone 13 256GB Midnight Unlocked ITPN", "ITPN"],
+      ["iPhone 12 Unlocked 128GB 0RMG", "0RMG"],
+      ["Apple iPhone 12 128GB (Product) RED Unlocked SAQR", "SAQR"],
+    ] as Array<[string, string]>) expect(trailingSerial(t)).toBe(want);
+  });
+
+  test("a token alone never convicts — Yish's rule", () => {
+    // "im not telling you that if the part listing is in there than its a scam
+    //  but be warry." A tagged title at an honest price stays innocent.
+    expect(isScamFarm({
+      title: "Apple iPhone 13 Pro 128GB Unlocked 3WWL",
+      askCents: 42000, marketCents: 50000,
+    })).toBe(false);
+  });
+
+  test("an absurd price convicts without a token", () => {
+    expect(isScamFarm({ title: "Xbox Series X - 1 TB", askCents: 100, marketCents: 35000 })).toBe(true);
+  });
+
+  test("no price or no comps means no accusation", () => {
+    expect(isScamFarm({ title: "iPhone 15 Pro Max ABCD", askCents: null, marketCents: 90000 })).toBe(false);
+    expect(isScamFarm({ title: "iPhone 15 Pro Max ABCD", askCents: 5000, marketCents: null })).toBe(false);
+  });
+
+  test("the standalone price signal clears a bar it can defend alone", () => {
+    // 0.46 of market is a real HP OMEN somebody wants gone this weekend, and
+    // "priced far below anything real" must not appear on it.
+    const codes = scamSignals({
+      title: "HP OMEN MAX 45L Gaming PC (No GPU)", askCents: 65000, marketCents: 141000,
+    }).map((s) => s.code);
+    expect(codes).not.toContain("PRICE_IMPOSSIBLE");
   });
 });

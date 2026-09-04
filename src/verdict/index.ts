@@ -20,6 +20,7 @@ import { evaluateRisk, riskGate, type RiskCheck, type RiskGate } from "./risk-ga
 import { latestRetail, retailMeaning, type RetailPrice } from "../sources/retail.ts";
 import { boardTier } from "../signals/board-tier.ts";
 import type { VisionResult } from "../vision/index.ts";
+import { isScamFarm, scamSignals, scamHeadline } from "./scam.ts";
 
 const OUT_OF_SCOPE = /\b(lens|dslr|mirrorless|camera body|tripod|nikon|canon ef|sigma \d|tamron|zeiss|leica|scanner|camcorder)\b/i;
 
@@ -708,6 +709,31 @@ export function buildVerdict(input: {
    * available, so this compares like with like.
    */
   const localMarket = best.grossCents;
+
+  /**
+   * ⚠ CHECKED BEFORE THE "priced at N% of market" RULE, BECAUSE THAT RULE IS
+   * WHERE THE SCAMS WERE LANDING.
+   *
+   * Its own comment concedes the ambiguity — *"the strongest deal signal AND
+   * the strongest scam signal; they're the same observation"* — and then
+   * resolves it as VERIFY, which is right at 0.55 and indefensible at 0.07.
+   * On 2026-09-04, **34 of the 59 listings the app was telling Yish to act on
+   * were farm postings**, and he was working through them by hand on his phone.
+   *
+   * A feed where the majority of the actionable items are fake is worse than
+   * an empty one: it costs him the time to check each, and it teaches him to
+   * distrust the calls that are real.
+   */
+  if (isScamFarm({ title: input.title, askCents: ask, marketCents: localMarket })) {
+    const signals = scamSignals({ title: input.title, askCents: ask, marketCents: localMarket });
+    return {
+      ...money, call: "RISK", confidence: "high",
+      headline: scamHeadline({ title: input.title, askCents: ask, marketCents: localMarket }),
+      reasoning: `${signals.map((s) => s.detail).join(" ")} Asking ${$(ask)} against ${$(localMarket)} ${channelName(best.channel)}. Treat it as bait: the usual play is a deposit, a shipping fee, or a "my cousin has it" redirect off-platform.`,
+      decidingUnknown: undefined,
+    };
+  }
+
   const ratio = ask && localMarket ? ask / localMarket : 1;
   if (ratio > 0 && ratio < 0.6) {
     return {
