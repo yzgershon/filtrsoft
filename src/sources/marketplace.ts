@@ -452,3 +452,121 @@ export function probeVerdict(p: { text: string; finalUrl: string; error?: string
 
   return { gone: false, reason: "still up" };
 }
+
+// ───────────────────────────────────────────────── Mercari's detail page
+//
+// Yish, 2026-09-04: *"build the thing we need to analyze the descriptions for
+// mercari."*
+//
+// The reason it matters is measured, not assumed. A Mercari SEARCH CARD carries
+// a title and a price and nothing else, so the 99 listings the first working
+// crawl brought in scored **90 INSUFFICIENT_DATA** — the engine asking for a
+// storage size or a GPU that the card could never have told it. OfferUp had the
+// identical problem and `ou:photos` fixed it there; this is the same fix, for
+// the same reason, on a differently-shaped page.
+//
+// The block looks like this, and the shape is what the parser is written
+// against rather than guessed at:
+//
+//     Details
+//     Condition
+//     Good
+//     Category
+//     Electronics
+//     Video games & consoles      <- Category is MULTI-LINE. Nothing else is.
+//     Games
+//     Posted
+//     09/03/26
+//     Description
+//     The Call of Duty: Modern Warfare 3 ...
+//     Delivery
+
+/** Labels Mercari uses in its Details block. A line equal to one starts a field. */
+const MC_LABELS = new Set([
+  "condition", "category", "brand", "size", "color", "colour", "posted",
+  "model", "material", "style", "item id",
+]);
+
+/** Where the description stops. `Delivery` is the reliable one; the rest are fallbacks. */
+const MC_DESC_END =
+  /^(delivery|shipping|payment|from|similar items|have a similar item\?|buyer protection|seller|about this seller|reviews?)$/i;
+
+export interface MercariDetail {
+  description: string;
+  details: Record<string, string>;
+}
+
+/**
+ * Pull the description and the Details block out of a Mercari item page.
+ *
+ * ⚠ PURE, AND PARSED FROM `innerText`, for the same reason `parseOfferUpDetail`
+ * is: Mercari's class names are hashed build output and the visible text is
+ * not. A layout change becomes a fixture edit rather than another browser
+ * session.
+ *
+ * ⚠ AND IT READS THE PAGE BACKWARDS FROM `Description`, NOT FORWARDS FROM THE
+ * TOP. The item's own text sits about 300 lines down, underneath checkout
+ * copy, a protection-plan advert and a "Similar items" carousel that repeats
+ * dozens of OTHER listings' titles and prices. Scanning from the top and
+ * stopping at the first plausible paragraph gets a competitor's listing.
+ */
+export function parseMercariDetail(text: string): MercariDetail {
+  const lines = (text ?? "").split(/\r?\n/).map((l) => l.trim());
+  const out: MercariDetail = { description: "", details: {} };
+
+  /**
+   * The LAST `Description` heading, not the first. The similar-items carousel
+   * can carry one of its own, and the item's block is always below it.
+   */
+  let dStart = -1;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (/^description$/i.test(lines[i])) { dStart = i; break; }
+  }
+  if (dStart >= 0) {
+    const body: string[] = [];
+    for (let i = dStart + 1; i < lines.length; i++) {
+      const l = lines[i];
+      if (MC_DESC_END.test(l)) break;
+      if (l) body.push(l);
+    }
+    out.description = body.join(" ").trim();
+  }
+
+  const tStart = lines.findIndex((l) => /^details$/i.test(l));
+  if (tStart >= 0) {
+    let key: string | null = null;
+    const buf: string[] = [];
+    const flush = () => {
+      if (key && buf.length) out.details[key] = buf.join(", ");
+      buf.length = 0;
+    };
+    for (let i = tStart + 1; i < lines.length; i++) {
+      const l = lines[i];
+      if (!l) continue;
+      if (/^description$/i.test(l) || MC_DESC_END.test(l)) { flush(); break; }
+      if (MC_LABELS.has(l.toLowerCase())) { flush(); key = l.toLowerCase(); continue; }
+      /**
+       * A value line. Multi-line values are joined rather than overwritten —
+       * Category arrives as three lines and keeping only the last one throws
+       * away the two that say what the thing actually is.
+       */
+      if (key) buf.push(l);
+    }
+    flush();
+  }
+  return out;
+}
+
+/**
+ * The description we should STORE for a Mercari listing.
+ *
+ * Flattened to `Key: value` text for exactly the reason the OfferUp version is:
+ * `extractAttributes` and the signal layer parse free text, so structured data
+ * has to become text to reach them at all.
+ */
+export function mercariDescription(d: MercariDetail): string {
+  const specs = Object.entries(d.details)
+    .filter(([k]) => k !== "posted" && k !== "condition")
+    .map(([k, v]) => `${k}: ${v}`);
+  return [d.description, ...specs].filter(Boolean).join("\n").trim();
+}

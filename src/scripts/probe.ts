@@ -41,8 +41,19 @@ const LIMIT = Number(arg("limit")) || 40;
 const ONLY = arg("source");
 
 /**
- * Oldest information first. `last_seen` is null for a listing never checked, so
- * `COALESCE` sorts those to the front — they are the ones we know least about.
+ * ⚠ WHAT HE CAN SEE IS PROBED FIRST. STALENESS ONLY BREAKS THE TIE.
+ *
+ * This was ordered purely by `COALESCE(last_seen, captured_at)` — oldest
+ * information first — which is a defensible rule and the wrong one. It spends
+ * a bounded, expensive budget on whichever rows happen to be dustiest, and
+ * measured on 2026-09-04 the result was that **all seven Facebook VERIFY
+ * listings had gone unchecked for over two days** while unpriceable monitors
+ * nobody will ever open were probed instead.
+ *
+ * The cost of a stale row is not uniform. A dead listing at the bottom of
+ * "can't tell" costs nothing; a sold BUY at the top of the feed is the one
+ * Yish drives to. So: BUY, then VERIFY, then everything else, and only within
+ * a tier does the oldest information win.
  *
  * Facebook is probed through the marketplace worker's profile only for OfferUp
  * and Mercari; Facebook has its own logged-in profile and is handled by the
@@ -50,9 +61,12 @@ const ONLY = arg("source");
  */
 function due(source: string, limit: number) {
   return db().query(
-    `SELECT id, url FROM listings
-      WHERE source = ? AND delisted_at IS NULL AND url IS NOT NULL
-      ORDER BY COALESCE(last_seen, captured_at) ASC
+    `SELECT l.id, l.url FROM listings l
+       LEFT JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
+      WHERE l.source = ? AND l.delisted_at IS NULL AND l.url IS NOT NULL
+      ORDER BY
+        CASE v.call WHEN 'BUY' THEN 0 WHEN 'VERIFY' THEN 1 WHEN 'FAIR' THEN 2 ELSE 3 END,
+        COALESCE(l.last_seen, l.captured_at) ASC
       LIMIT ?`,
   ).all(source, limit) as Array<{ id: number; url: string }>;
 }

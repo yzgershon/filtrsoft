@@ -47,6 +47,7 @@ import { visionLoopEnabled, crawlPaceMode } from "./scheduler.ts";
 import { lastVisionPass } from "../crawler/vision-pass.ts";
 import {
   handleStartCrawl, handleLatestJob, handleNextJob, handleJobUpdate, crawlPinConfigured,
+  autoCrawlStatus,
 } from "./jobs.ts";
 import { VISION_MODEL, PROMPT_VERSION, visionConfigured } from "../vision/index.ts";
 import {
@@ -353,7 +354,7 @@ app.get("/v1/health", (c) => {
      */
     archive: archiveStatus(),
     billing: { enabled: billingEnabled() },
-    crawlButton: { configured: crawlPinConfigured() },
+    crawlButton: { configured: crawlPinConfigured(), ...autoCrawlStatus() },
     /** Which sign-in methods are configured. Never the ids themselves. */
     auth: (() => { const a = authProviders(); return { password: a.password, google: a.google, apple: a.apple }; })(),
     /**

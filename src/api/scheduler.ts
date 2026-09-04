@@ -33,6 +33,7 @@
  */
 import { discover, drain, queueDepth } from "../crawler/queue.ts";
 import { visionPass } from "../crawler/vision-pass.ts";
+import { autoQueueCrawl } from "./jobs.ts";
 import { sweep } from "../tracker/index.ts";
 import { prunePhotos } from "../photos/index.ts";
 import { pruneThumbs, backfillThumbs } from "../photos/thumb.ts";
@@ -65,7 +66,22 @@ const LIMIT = Number(process.env.FILTRSOFT_CRAWL_LIMIT ?? 40);
  * can overshoot by two, and a money guard that can be exceeded is not a guard.
  * This number only decides how fast the budget could be reached.
  */
-const VISION_PER_RUN = Number(process.env.FILTRSOFT_CRAWL_VISION ?? 3);
+/**
+ * ⚠ RAISED FROM 3 TO 10 ON 2026-09-04, AND THE MONEY GUARD IS WHY THAT IS SAFE.
+ *
+ * Diagnosing Yish's *"the cant tells start around listing 200 out of 1000"*:
+ * of 1,193 unpriceable listings, **692 are unpriceable only because a spec is
+ * not stated in the text** — storage 326, gpu 162, cpu 133, ram 71. **653 of
+ * those have photos, and vision had read 37 of them.** A photo of a spec
+ * sticker or a Settings screen is exactly where that number lives.
+ *
+ * At 3 per tick the backlog was moving at about 96 reads a day against a $2
+ * daily ceiling of which **five cents** was being spent. The whole 653-listing
+ * backlog costs about $3.60. The ceiling, not this number, is the real bound —
+ * `visionPass` checks the budget before EVERY listing, so the worst case of
+ * raising this is that the budget is reached earlier in the day.
+ */
+const VISION_PER_RUN = Number(process.env.FILTRSOFT_CRAWL_VISION ?? 10);
 
 /** `FILTRSOFT_VISION=off` kills photo reading without stopping the crawl. */
 const VISION_ON = (process.env.FILTRSOFT_VISION ?? "on").toLowerCase() !== "off";
@@ -247,6 +263,17 @@ async function runOnce(reason: string) {
       }
     }
     metrics.vision = vision;
+
+    /**
+     * ⚠ START A BROWSER CRAWL BY OURSELVES IF HIS PC IS ON. Yish, 2026-09-04:
+     * *"if I have to even think to crawl then that adds friction."* The button
+     * exists so a crawl can be started from a phone; it was never meant to be
+     * the only way one ever begins. `autoQueueCrawl` refuses unless an agent is
+     * actively polling, so this never builds a queue that fires all at once
+     * when his machine next boots.
+     */
+    try { autoQueueCrawl((m) => console.log(`  ${m}`)); }
+    catch (e) { console.error("auto-queue failed:", (e as Error).message); }
 
     /**
      * ⚠ A FEW THUMBNAILS PER TICK, AND IT IS A RACE AGAINST AN EXPIRY.

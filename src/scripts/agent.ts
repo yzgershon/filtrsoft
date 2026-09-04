@@ -139,10 +139,29 @@ async function report(id: number, body: Record<string, unknown>) {
  * listings arrive unpriceable — that was measured at 151 of them.
  */
 const STEPS: Record<string, string[][]> = {
-  facebook: [["run", "fb:crawl", "--headless"], ["run", "push", "--source", "facebook"]],
+  facebook: [
+    ["run", "fb:crawl", "--headless"],
+    /**
+     * ⚠ THE DELISTING PROBE RUNS HERE, NOT ONLY WHEN SOMEONE REMEMBERS IT.
+     *
+     * Yish, 2026-09-04: *"a ton of the listings on filtrsoft are sold."* He
+     * asked for this on 2026-08-28 too, and `bun run probe` was BUILT for it —
+     * it was simply never wired to anything, so it only ran when I ran it by
+     * hand. Meanwhile the server-side sweep covers Craigslist ONLY
+     * (`tracker/index.ts` filters `source = 'craigslist'`, because the others
+     * need a logged-in browser), so Facebook, OfferUp and Mercari listings were
+     * never checked for being sold by anything at all.
+     *
+     * A crawl that adds listings without retiring them makes the feed worse
+     * every time it runs.
+     */
+    ["run", "probe", "--source", "facebook", "--limit", "80"],
+    ["run", "push", "--source", "facebook"],
+  ],
   offerup: [
     ["run", "ou:crawl", "--headless"],
     ["run", "ou:photos", "--limit", "40", "--headless"],
+    ["run", "probe", "--source", "offerup", "--limit", "50"],
     ["run", "push", "--source", "offerup"],
   ],
   /**
@@ -160,7 +179,24 @@ const STEPS: Record<string, string[][]> = {
    * crawl. The alternative was dropping Mercari from the button, which is not
    * what was asked for.
    */
-  mercari: [["run", "mc:crawl"], ["run", "push", "--source", "mercari"]],
+  mercari: [
+    ["run", "mc:crawl"],
+    /**
+     * ⚠ WITHOUT THIS STEP MERCARI IS ALMOST ENTIRELY UNPRICEABLE. A Mercari
+     * search card carries a title and a price and nothing else, so the first
+     * working crawl produced 99 listings of which **90 scored
+     * INSUFFICIENT_DATA** — the engine asking for a storage size the card could
+     * never have carried. Same shape as OfferUp before `ou:photos`, where the
+     * equivalent pass turned 2 descriptions into 143 and surfaced two BUYs that
+     * had been sitting there unreadable.
+     *
+     * Headed, like everything Mercari: Cloudflare challenges headless Chrome on
+     * every request.
+     */
+    ["run", "mc:detail", "--limit", "40"],
+    ["run", "probe", "--source", "mercari", "--limit", "40"],
+    ["run", "push", "--source", "mercari"],
+  ],
 };
 
 async function doJob(job: { id: number; sources: string[] }) {

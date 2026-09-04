@@ -266,3 +266,76 @@ export async function handleJobUpdate(c: Context) {
   const row = db().query("SELECT * FROM crawl_jobs WHERE id=?").get(id) as any;
   return c.json({ job: row ? publicJob(row) : null });
 }
+
+// ────────────────────────────────────────────── crawling without being asked
+
+/**
+ * How often a crawl starts BY ITSELF while his PC is on.
+ *
+ * Yish, 2026-09-04: *"if I have to even think to crawl then that adds friction
+ * to the automation of the app because it should be sending me an alert as soon
+ * as the listing is up."*
+ *
+ * He is right, and the button was never the goal — it was the piece that made
+ * crawling possible at all from a phone. A feature you must remember to press
+ * is a feature that runs when you are already thinking about deals, which is
+ * exactly when it is least useful.
+ */
+const AUTO_CRAWL_MIN = Number(process.env.FILTRSOFT_AUTO_CRAWL_MIN ?? 45);
+
+/** The agent has to have checked in this recently for a queued job to mean anything. */
+const AGENT_FRESH_MS = 120_000;
+
+export function autoCrawlStatus() {
+  return {
+    everyMinutes: AUTO_CRAWL_MIN,
+    agentOnline: lastAgentPollAt != null && Date.now() - Date.parse(lastAgentPollAt) < 90_000,
+    lastAgentPollAt,
+  };
+}
+
+/**
+ * Queue a crawl if his PC is on, nothing is already running, and it has been a
+ * while.
+ *
+ * ⚠ IT ONLY QUEUES WHILE AN AGENT IS ACTUALLY POLLING, and that condition is
+ * what makes this safe to run on a loop. Queuing into the void would build a
+ * pile of jobs that all fire at once the next time his machine boots — three
+ * simultaneous crawls against one browser profile, which Playwright's
+ * persistent context cannot serve and which surfaces as a login error. The TTL
+ * sweep would eventually expire them, but "eventually" is not a design.
+ *
+ * ⚠ AND IT DOES NOT NEED THE PIN. The PIN authenticates a HUMAN asking for a
+ * crawl from a phone that might not be his. This is the server talking to its
+ * own agent, both sides already authenticated by `FILTRSOFT_PUSH_TOKEN`; asking
+ * it for a four-digit code would be theatre.
+ */
+export function autoQueueCrawl(log: (m: string) => void = () => {}): boolean {
+  if (AUTO_CRAWL_MIN <= 0) return false;
+  if (lastAgentPollAt == null) return false;
+  if (Date.now() - Date.parse(lastAgentPollAt) > AGENT_FRESH_MS) return false;
+
+  sweepStaleJobs();
+
+  const live = db().query(
+    "SELECT id FROM crawl_jobs WHERE status IN ('queued','running') LIMIT 1",
+  ).get();
+  if (live) return false;
+
+  /**
+   * Measured from when the last job FINISHED, not when it started. A crawl that
+   * takes eleven minutes should not be followed four minutes later just because
+   * the interval is counted from the wrong end.
+   */
+  const last = db().query(
+    `SELECT COALESCE(finished_at, created_at) t FROM crawl_jobs ORDER BY id DESC LIMIT 1`,
+  ).get() as { t: string } | null;
+  if (last && Date.now() - Date.parse(last.t) < AUTO_CRAWL_MIN * 60_000) return false;
+
+  db().run(
+    `INSERT INTO crawl_jobs (status, sources, requested_by, created_at) VALUES ('queued',?,NULL,?)`,
+    [JSON.stringify([...AGENT_SOURCES]), now()],
+  );
+  log(`auto-queued a crawl (${AGENT_SOURCES.join(", ")}) — his PC is online`);
+  return true;
+}

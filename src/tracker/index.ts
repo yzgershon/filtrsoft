@@ -190,6 +190,24 @@ export async function sweep(opts: {
   log(`${st.stillUp} still up · ${st.priceMoves} price changes · ${missing.length} not seen`);
 
   // ---- 3. probe the missing ones individually --------------------------
+  /**
+   * ⚠ SORTED BEFORE SLICING, FOR THE SAME REASON `probe.ts` IS.
+   *
+   * `missing.slice(0, 150)` took whatever came out of the table first, so the
+   * probe budget was spent in row order — and with 3,593 live Craigslist rows
+   * against a cap of 150 a day, a given listing is looked at about once a
+   * month. Two of the four live Craigslist BUYs had not been checked in two
+   * days when this was measured. Rank by what he would act on.
+   */
+  const rank = new Map<number, number>();
+  for (const r of db().query(
+    `SELECT v.listing_id id, v.call FROM verdicts v
+      WHERE v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = v.listing_id)`,
+  ).all() as Array<{ id: number; call: string }>) {
+    rank.set(r.id, { BUY: 0, VERIFY: 1, FAIR: 2 }[r.call] ?? 3);
+  }
+  missing.sort((a, b) => (rank.get(a.id) ?? 3) - (rank.get(b.id) ?? 3));
+
   const toProbe = opts.probeLimit ? missing.slice(0, opts.probeLimit) : missing;
   if (opts.probeLimit && missing.length > toProbe.length) {
     log(`  probing ${toProbe.length} of ${missing.length} (probeLimit) — the rest stay live until next sweep`);
