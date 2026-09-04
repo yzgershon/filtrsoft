@@ -981,13 +981,23 @@ The generated `<service>-production.up.railway.app` name always works and is a
 fallback for debugging, **not the address of the product** — never quote it to
 Yish or put it in user-facing copy.
 
-**⚠ THE PLAN ALLOWS EXACTLY ONE CUSTOM DOMAIN. This is the constraint that
-shapes the cutover.** `www` was never servable for that reason — the Networking
-page says *"You have hit the custom domain limit for your plan."* — and it means
-**`assyze.com` has to be REMOVED before `filtrsoft.com` can be added.** There is
-no overlap window and no redirect from the old domain; the moment it is
-detached, `assyze.com` stops resolving to the app. Do it in one sitting, and
-expect certificate issuance to take a few minutes after the DNS lands.
+**The one-custom-domain limit is GONE — he moved to Railway premium on
+2026-09-04.** It shaped the cutover while it lasted: `www` was never servable
+(*"You have hit the custom domain limit for your plan"*), and `assyze.com` had
+to be detached before `filtrsoft.com` could be added, with no overlap and no
+redirect. That is history now; more than one domain can be attached at once, so
+a future move does not need a hard cutover.
+
+**But `www` still must not SERVE the app, and that is a product decision, not a
+plan limit.** The session cookie is host-scoped and `localStorage` — Saved,
+history, the device ref — is per-origin, so two hostnames both serving means a
+user who lands on `www` gets a second, empty account surface with no way to tell
+why. `src/api/index.ts` 301s `www.*` to the apex for exactly that reason.
+
+Certificate issuance takes a few minutes after the DNS lands. Until it does,
+the edge falls back to its own `*.up.railway.app` wildcard, which produces
+`SEC_E_WRONG_PRINCIPAL` / `ERR_TLS_CERT_ALTNAME_INVALID` — that is normal
+waiting, not a misconfiguration.
 
 ### What was wrong: the TXT verify value was pasted TRUNCATED
 
