@@ -76,6 +76,48 @@ is what to do next**; section 18 is the most recent pass in detail. The one
 thing bigger than everything else on the list is §18g — 78% of the feed cannot
 be priced, and §0 below now says exactly why.
 
+## 0. READ THIS FIRST — what "can't tell" actually is (2026-09-04)
+
+**Yish's guess was more comps. The measurement says otherwise, and the
+difference decides weeks of work.** Of 1,193 unpriceable listings:
+
+| count | why | what fixes it |
+|---|---|---|
+| **692** | a spec is not STATED in the text — storage 326, gpu 162, cpu 133, ram 71 | **vision, and descriptions** |
+| **384** | could not be matched to a model at all | catalog + matcher |
+| **117** | genuinely no sold comps inside 90 days | **more comps** |
+
+So comps fix about **10%** of it. The dominant bucket is listings whose text
+never says the one number that decides the price — and **653 of those 692 have
+photos, of which vision had read 37.** A photo of a spec sticker or an iPhone
+Settings screen is exactly where that number lives.
+
+Vision was running at ~96 reads/day against a **$2 daily ceiling with five
+cents spent.** The whole 653-listing backlog costs about **$3.60**.
+`FILTRSOFT_CRAWL_VISION` is 10 now (was 3); the budget check before every
+listing is the real bound, so raising it cannot overspend.
+
+⚠ **AND THE OTHER HALF OF THAT BUCKET IS DESCRIPTIONS, NOT PHOTOS.** A search
+card on OfferUp and Mercari carries a title and a price. `ou:photos` fixed
+OfferUp — 146 listings went from 2 descriptions to 143 and **two BUYs appeared
+that had been sitting there unreadable**. `mc:detail` is the same fix for
+Mercari, which arrived 99 listings / 90 INSUFFICIENT_DATA.
+
+## 0b. Over half the actionable feed was a scam farm (2026-09-04)
+
+Yish spotted it by hand before the engine did: *"all of them were $66 or $85 or
+$67 ... the titles were too perfect like Iphone 14 Pro Max Blue 128gb VXG9I."*
+**34 of 59 BUY/VERIFY listings matched.** Every one ended in a random
+4-6 character token and asked 3-29% of its own comps.
+
+`src/verdict/scam.ts`. **The token alone never convicts** — a real Gigabyte card
+titled `... 32G GV-N5090` ends in a part number at 0.59 of market. Two traps
+already paid for: Intel part numbers (`i7-8565U`) are the same SHAPE as farm
+tokens and must be excluded explicitly, and separating words from noise by
+looking for a vowel lets `SAQR` through as a word.
+
+VERIFY 52 -> 23, RISK 35 -> 69, BUY 7 unchanged.
+
 ## 0. READ THIS FIRST — why the feed is mostly "can't tell" (2026-09-03)
 
 Yish: *"there hasnt been a verify first or buy it listing thats come in in the
