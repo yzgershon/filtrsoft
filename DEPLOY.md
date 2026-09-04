@@ -136,8 +136,15 @@ filtrsoft  :8080  engine 0.3.0  serving web/dist
 
 **5. Domain**
 - Service → **Settings → Networking → Custom Domain** → `filtrsoft.com`
-- Add the CNAME Railway gives you at your registrar
-- Also add `www.filtrsoft.com` pointing to the same target
+- At the registrar: **ALIAS** on `@` (a CNAME at the apex is invalid DNS), plus
+  the `_railway-verify` TXT record
+- ⚠ **Copy the TXT value with the modal's copy control.** The displayed string
+  is truncated with an ellipsis that reads as a hex digit; pasting the visible
+  text leaves Railway stuck on "Waiting for DNS update" with no certificate.
+- ⚠ **The plan allows ONE custom domain, so `www` cannot be added** — Railway
+  counts it as a second. Apex only. The `www` CNAME is harmless to leave in
+  DNS but Railway will never serve it. Same reason an old domain has to be
+  removed before a new one is added.
 
 ---
 

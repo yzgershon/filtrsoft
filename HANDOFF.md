@@ -24,6 +24,37 @@ filename, the browser-profile root `~/.filtrsoft`, the repo, the folder
 `C:\Dev\filtrsoft`, the icons, every string — moved. Quotes from Yish in code
 comments had the product name substituted; the words are otherwise his.
 
+### What is still on Railway, and is his to do
+
+**Nothing in the container reads `ASSYZE_*` any more**, so until these are done
+the deployed app runs on defaults: no vision (fails closed), no crawl PIN, and
+`/v1/push` rejects his local crawls.
+
+1. **Variables -> Raw Editor -> replace every `ASSYZE_` with `FILTRSOFT_`.**
+   One find-and-replace over the whole block, which is exhaustive by
+   construction — a hand-typed list is how one gets missed. The values do not
+   change and he never has to re-type a secret.
+2. **Settings -> rename the service to `filtrsoft`.** This changes the generated
+   domain to `filtrsoft-production.up.railway.app`; nothing depends on the old
+   one except a line in this file.
+3. **Networking -> REMOVE `assyze.com`, then add `filtrsoft.com`.** In that
+   order, because **the plan allows one custom domain** (§11f) — this is not a
+   cutover with an overlap, and there is no redirect from the old address.
+   Then the three DNS records at the registrar: ALIAS `@`, CNAME `www`, TXT
+   `_railway-verify`. **Copy the TXT value with the modal's copy control, never
+   by selecting the visible text** — the displayed string ends in an ellipsis
+   that looks like a hex digit, and pasting it truncated cost a day in August.
+4. **Redeploy.** `db()` renames `/data/assyze.db` to `/data/filtrsoft.db` on the
+   boot that finds it, WAL and SHM included. That code is a one-shot; delete
+   `carryOverTheRenamedDatabase` once the volume shows the new name.
+5. **`FILTRSOFT_CRAWL_PIN=2008`** is new and has never been set. Without it the
+   crawl button reports itself unconfigured rather than doing nothing, which is
+   the intended failure but is still not the feature working.
+
+**Everyone gets signed out once.** The cookie is `filtrsoft_session` now, and a
+browser holding an `assyze_session` simply has no session. The `users` table is
+untouched, so his existing email and password still work.
+
 Last updated **2026-09-03**. **Section 2 is the current state and section 15
 is what to do next**; section 18 is the most recent pass in detail. The one
 thing bigger than everything else on the list is §18g — 78% of the feed cannot
@@ -102,9 +133,12 @@ components. **Out:** furniture, accessories, cameras.
 
 ## 2. Current state — 2026-08-31
 
-**filtrsoft.com is LIVE, pricing real listings, and has now found a real deal.**
-`https://filtrsoft.com` — use it everywhere; `filtrsoft-production.up.railway.app` is
-a debugging fallback, never the address of the product.
+**The app is LIVE, pricing real listings, and has now found a real deal.**
+`filtrsoft.com` is the address from the rebrand on — but see §11f, it is bought
+and **not yet serving**; production answers on `assyze.com` until the Railway
+steps at the top of this file are done. The generated
+`<service>-production.up.railway.app` name is a debugging fallback, never the
+address of the product.
 
 > **2026-08-31, and this is the first one that matters.** The feed surfaced an
 > **RTX 5090 FE at $2,800 on Craigslist, 30 minutes after it posted**, and Yish
@@ -919,21 +953,25 @@ DRAM-less and TLC vs QLC for SSDs, 80+ tier and modularity for PSUs. The
 
 ---
 
-## 11f. filtrsoft.com is LIVE — 2026-08-26
+## 11f. The domain — read the date before believing this section
 
-**`https://filtrsoft.com` is the production URL. Use it everywhere.** Valid
-Let's Encrypt certificate (`CN=filtrsoft.com`, issued 2026-08-26), HTTP 200,
-health reports `canPrice: true`.
+**As of 2026-09-04, `filtrsoft.com` is BOUGHT AND NOT YET SERVING.** The live
+production URL is still `assyze.com` until the Railway and DNS steps at the top
+of this file are done. Everything below describes what was set up for
+`assyze.com` on 2026-08-26; it is here because **the same three records, the
+same trap and the same plan limit apply verbatim to the new domain.**
 
-`filtrsoft-production.up.railway.app` still works and is the Railway-generated
-name. It is a fallback for debugging, **not the address of the product** —
-never quote it to Yish or put it in user-facing copy.
+The generated `<service>-production.up.railway.app` name always works and is a
+fallback for debugging, **not the address of the product** — never quote it to
+Yish or put it in user-facing copy.
 
-**`www.filtrsoft.com` does NOT work and is not a bug to chase.** Railway counts it
-as a SECOND custom domain and the plan allows one; the Networking page says
-*"You have hit the custom domain limit for your plan."* The `www` CNAME resolves
-but Railway will not serve it — no binding, no certificate. Apex-only until the
-plan changes. Leaving the DNS record in place is harmless.
+**⚠ THE PLAN ALLOWS EXACTLY ONE CUSTOM DOMAIN. This is the constraint that
+shapes the cutover.** `www` was never servable for that reason — the Networking
+page says *"You have hit the custom domain limit for your plan."* — and it means
+**`assyze.com` has to be REMOVED before `filtrsoft.com` can be added.** There is
+no overlap window and no redirect from the old domain; the moment it is
+detached, `assyze.com` stops resolving to the app. Do it in one sitting, and
+expect certificate issuance to take a few minutes after the DNS lands.
 
 ### What was wrong: the TXT verify value was pasted TRUNCATED
 
