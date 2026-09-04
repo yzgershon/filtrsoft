@@ -148,10 +148,10 @@ export function Watchlist({ onOpen, onWatchChange, onBrowse }: {
 }
 
 /**
- * What Assyze has actually bought him.
+ * What Filtrsoft has actually bought him.
  *
- * Yish, 2026-08-31: *"add a section in Assyze where it shows all of my
- * purchases with the help of assyze and make it have good ui."*
+ * Yish, 2026-08-31: *"add a section in Filtrsoft where it shows all of my
+ * purchases with the help of filtrsoft and make it have good ui."*
  *
  * ⚠ THE PAIRING IS THE FEATURE, NOT THE LIST. A list of things you bought is a
  * receipt. What you PAID beside what the engine said it was WORTH is the
@@ -401,7 +401,7 @@ export { REFKEY, deviceRef } from "./lib.tsx";
  * price of the configured plan.
  *
  * ⚠ AND THE FREE TIER IS NOT A CRIPPLED ONE. `billing.ts` explains why billing
- * is built and off: the Phase 3 gate is ten payers, Assyze has an audience of
+ * is built and off: the Phase 3 gate is ten payers, Filtrsoft has an audience of
  * one, and a paywall now costs the only thing that matters. Nothing in the
  * "Free" column below is something the app does today and would stop doing.
  */
@@ -539,7 +539,7 @@ export function Billing({ onlyWhenEnabled }: { onlyWhenEnabled?: boolean }) {
 
       {!st.enabled && !st.owner && (
         <p className="snote">
-          Assyze is free while the feed is being built out. Paid plans come when
+          Filtrsoft is free while the feed is being built out. Paid plans come when
           there is something worth charging for, and nothing you use today moves
           behind a paywall.
         </p>
@@ -641,7 +641,7 @@ export function Alerts() {
       <div className="scard">
         {!supported && (
           <p className="snote">
-            This browser can't show notifications. Install Assyze to your home screen and open it from there.
+            This browser can't show notifications. Install Filtrsoft to your home screen and open it from there.
           </p>
         )}
 
@@ -724,7 +724,7 @@ export function Toggle({ label, hint, on, onChange }: {
  * Yish, 2026-09-01, asked for *"a general section, account section, and a
  * bunch others like what apps usually have even things we havent talked
  * about."* Every group below exists because a real control needed a home —
- * the ones a normal app has that Assyze genuinely has no answer for (dark/
+ * the ones a normal app has that Filtrsoft genuinely has no answer for (dark/
  * light mode: there is one theme; language: there is one language; sign out:
  * there is no account) are NOT stubbed in as disabled rows. An app that says
  * "coming soon" four times is worse than one that is honestly small.
@@ -899,7 +899,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
             * be a promise the CSS cannot keep.
             */}
           <p className="snote">
-            Assyze is dark only. The verdict colours are contrast-tuned against
+            Filtrsoft is dark only. The verdict colours are contrast-tuned against
             this background, so a light theme is a repaint rather than a switch.
           </p>
         </div>
@@ -923,7 +923,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
           <button className="srow" onClick={() => location.reload()}>
             <span className="stext">
               <b>Check for updates</b>
-              <span>Reloads the app. Assyze updates itself on the next launch.</span>
+              <span>Reloads the app. Filtrsoft updates itself on the next launch.</span>
             </span>
             <Again size={16} />
           </button>
@@ -939,7 +939,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
             * cost. Saved listings, overrides and alerts hang off the device
             * ref, so they genuinely do not follow him to another phone. Saying
             * so here is the difference between a known tradeoff and a bug
-            * report the first time he opens Assyze on a laptop.
+            * report the first time he opens Filtrsoft on a laptop.
             */}
           <button className="srow" onClick={() => {
             navigator.clipboard?.writeText(ref)
@@ -1029,7 +1029,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
             * analytics dependency in `web/package.json`.
             */}
           <p className="snote nolead">
-            Assyze never handles a card number. Payment happens on Stripe's own
+            Filtrsoft never handles a card number. Payment happens on Stripe's own
             page. It never asks for a marketplace login. There is no analytics
             and no third-party tracking, and the only thing stored about you is
             on this device.
@@ -1052,7 +1052,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
         </div>
       </div>
 
-      <p className="micro2">Assyze · assyze.com</p>
+      <p className="micro2">Filtrsoft · filtrsoft.com</p>
     </div>
   );
 }
@@ -1073,7 +1073,7 @@ function ResetEverything() {
   if (done) {
     return (
       <div className="srow static">
-        <span className="stext"><b>Cleared</b><span>Reopen Assyze to start fresh.</span></span>
+        <span className="stext"><b>Cleared</b><span>Reopen Filtrsoft to start fresh.</span></span>
         <span className="pill">Done</span>
       </div>
     );

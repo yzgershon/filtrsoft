@@ -18,7 +18,7 @@
  * Facebook's card soup into a listing — is testable without launching a browser.
  *
  * CREDENTIALS: there is no login code in this project. Yish signs in himself in
- * a real Chrome window and the session lives in a profile on his disk. Assyze
+ * a real Chrome window and the session lives in a profile on his disk. Filtrsoft
  * never sees a password or a token. Do not add a login helper, ever.
  */
 import { join } from "node:path";
@@ -26,7 +26,7 @@ import { homedir } from "node:os";
 import type { RawListing } from "../types.ts";
 
 export const PROFILE_DIR =
-  process.env.ASSYZE_BROWSER_PROFILE ?? join(homedir(), ".assyze", "browser-profile");
+  process.env.FILTRSOFT_BROWSER_PROFILE ?? join(homedir(), ".filtrsoft", "browser-profile");
 
 /**
  * Forward slashes on purpose. A backslashed Windows path in a JS string literal
@@ -35,7 +35,7 @@ export const PROFILE_DIR =
  * round here. Node and Chrome both accept forward slashes on Windows.
  */
 export const CHROME_PATH =
-  process.env.ASSYZE_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
+  process.env.FILTRSOFT_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
 
 const WORKER = join(import.meta.dir, "../browser/fb-worker.mjs");
 const BASE = "https://www.facebook.com";

@@ -13,9 +13,9 @@
 # Downloaded listing images (runtime output) — NOT src/photos, which is code.
 /photos
 
-/assyze.db
-/assyze.db-wal
-/assyze.db-shm
+/filtrsoft.db
+/filtrsoft.db-wal
+/filtrsoft.db-shm
 /.env
 
 # Test-set photos are large and unneeded in production. The audit JSON beside

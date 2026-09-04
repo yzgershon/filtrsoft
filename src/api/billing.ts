@@ -4,7 +4,7 @@
  * ── IT IS BUILT AND IT IS OFF, DELIBERATELY ────────────────────────────────
  *
  * The Phase 3 gate in MASTER-PLAN.md is "10 payers AND >=3% conversion of
- * active users". Assyze currently has no users, so switching this on would put
+ * active users". Filtrsoft currently has no users, so switching this on would put
  * a paywall in front of an audience of one and cost the only thing that
  * matters right now, which is people using the feed at all. Yish was told this
  * and asked for it anyway, so it exists in full — but nothing gates until
@@ -19,7 +19,7 @@
  * Checkout is a hosted page: we create a session, redirect, and Stripe handles
  * the card. That keeps every PCI obligation on Stripe's side and means a
  * compromise of this box cannot leak a card number, because it never had one.
- * The same rule as everywhere else in this project — Assyze does not handle
+ * The same rule as everywhere else in this project — Filtrsoft does not handle
  * credentials.
  *
  * ── THE WEBHOOK IS THE SOURCE OF TRUTH, NOT THE REDIRECT ───────────────────
@@ -37,7 +37,7 @@ import { db, now } from "../db/index.ts";
 const KEY = () => (process.env.STRIPE_SECRET_KEY ?? "").trim();
 const PRICE = () => (process.env.STRIPE_PRICE_ID ?? "").trim();
 const WHSEC = () => (process.env.STRIPE_WEBHOOK_SECRET ?? "").trim();
-const SITE = () => (process.env.ASSYZE_SITE_URL ?? "https://assyze.com").replace(/\/$/, "");
+const SITE = () => (process.env.FILTRSOFT_SITE_URL ?? "https://filtrsoft.com").replace(/\/$/, "");
 
 /** Both a key AND a price. A key alone cannot sell anything. */
 export const billingEnabled = () => Boolean(KEY() && PRICE());
@@ -72,7 +72,7 @@ export function ensureBillingTables() {
  * Yish, 2026-09-01: *"you can turn on the stripe payment and add the plans
  * section (mine will always be the best one)."*
  *
- * `ASSYZE_OWNER_REF` is his device ref, set as an env var on the server. That
+ * `FILTRSOFT_OWNER_REF` is his device ref, set as an env var on the server. That
  * device reads as the top tier for good: no checkout, no subscription, no
  * expiry.
  *
@@ -88,7 +88,7 @@ export function ensureBillingTables() {
  * a failed payment on a card he tested with), and he would lose access to his
  * own product for a reason no screen could explain.
  */
-const OWNER_REF = () => (process.env.ASSYZE_OWNER_REF ?? "").trim();
+const OWNER_REF = () => (process.env.FILTRSOFT_OWNER_REF ?? "").trim();
 export const isOwner = (ref: string) => Boolean(ref) && ref === OWNER_REF();
 
 /** `active` and `trialing` are the only states that grant access. */

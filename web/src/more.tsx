@@ -124,13 +124,13 @@ export function MoreScreen({ go, savedCount, noteCount }: {
           <Row icon={<Star size={17} />} label="Plan"
             hint="What you're on and what else there is."
             onClick={() => go("/settings")} />
-          <Row icon={<Info size={17} />} label="How Assyze works"
+          <Row icon={<Info size={17} />} label="How Filtrsoft works"
             hint="Where the prices come from and what each verdict means."
             onClick={() => go("/how")} />
         </div>
       </div>
 
-      <p className="micro2">Assyze · assyze.com</p>
+      <p className="micro2">Filtrsoft · filtrsoft.com</p>
     </div>
   );
 }
@@ -175,7 +175,7 @@ export function NotificationsScreen({ onOpen }: { onOpen: (id: number) => void }
           <span className="eic"><Bell size={26} /></span>
           <b>No alerts yet</b>
           <p>
-            When a Buy it lands while Assyze is open, it shows at the top of the
+            When a Buy it lands while Filtrsoft is open, it shows at the top of the
             screen and is kept here. That happens about five times a week, so
             this list stays short on purpose.
           </p>
@@ -305,7 +305,7 @@ export function AccountScreen({ go, savedCount, user, onSignedOut }: {
           <Row icon={<Star size={17} />} label="Plan"
             hint={`You're on ${planName}.`} onClick={() => go("/settings")} />
           <Row icon={<Shield size={17} />} label="Privacy"
-            hint="What Assyze stores and what it never touches."
+            hint="What Filtrsoft stores and what it never touches."
             onClick={() => go("/settings")} />
         </div>
       </div>
@@ -345,7 +345,7 @@ export function AccountScreen({ go, savedCount, user, onSignedOut }: {
 }
 
 /**
- * How Assyze works.
+ * How Filtrsoft works.
  *
  * ⚠ THE NUMBERS HERE ARE READ FROM THE SERVER, NOT TYPED IN. An explainer that
  * hardcodes "18,000 sold prices" is wrong the first week and nobody notices,
@@ -390,13 +390,13 @@ export function HowScreen() {
     { call: "RISK", body: "Something failed a scam check. Kept out of the main feed on purpose." },
     { call: "FAIR", body: "Correctly priced. Nothing in it for you." },
     { call: "PASS", body: "Above what it is worth." },
-    { call: "INSUFFICIENT_DATA", body: "Not enough stated to price it honestly. Assyze would rather say so than guess." },
+    { call: "INSUFFICIENT_DATA", body: "Not enough stated to price it honestly. Filtrsoft would rather say so than guess." },
   ];
 
   return (
     <div className="screen">
       <div className="feedhead tight">
-        <h1>How Assyze works</h1>
+        <h1>How Filtrsoft works</h1>
         <p>Four steps between a listing and a verdict.</p>
       </div>
 
@@ -426,7 +426,7 @@ export function HowScreen() {
         </div>
       </div>
 
-      <p className="micro2">Assyze · assyze.com</p>
+      <p className="micro2">Filtrsoft · filtrsoft.com</p>
     </div>
   );
 }

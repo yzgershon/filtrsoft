@@ -17,7 +17,7 @@
  * already claim the current version. Facts are portable; judgements are not.
  *
  * **AUTH IS A SHARED SECRET IN AN ENV VAR**, never in the repo and never
- * entered into a web form. Without `ASSYZE_PUSH_TOKEN` set on the server the
+ * entered into a web form. Without `FILTRSOFT_PUSH_TOKEN` set on the server the
  * endpoint refuses every request, including empty ones — an unauthenticated
  * write path into the deals feed is a way for anyone to put anything in front
  * of a buyer.
@@ -151,7 +151,7 @@ async function cacheThumbs(rows: Array<{ id: number; url: string | undefined }>)
 
 /** `POST /v1/push` — bearer-token guarded. */
 export async function handlePush(c: Context) {
-  const token = process.env.ASSYZE_PUSH_TOKEN;
+  const token = process.env.FILTRSOFT_PUSH_TOKEN;
   if (!token) return c.json({ error: "push not enabled on this server" }, 503);
 
   const auth = c.req.header("authorization") ?? "";

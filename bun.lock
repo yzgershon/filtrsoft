@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "assyze",
+      "name": "filtrsoft",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.120.0",
         "hono": "^4.13.3",

@@ -2,16 +2,16 @@
 import type { Database } from "bun:sqlite";
 import { db, now } from "../db/index.ts";
 
-const configuredBudget = Number(process.env.ASSYZE_DAILY_BUDGET_USD);
+const configuredBudget = Number(process.env.FILTRSOFT_DAILY_BUDGET_USD);
 
 /** Dollars of Anthropic spend allowed per UTC day across the whole service. */
 export const DAILY_BUDGET_USD =
   Number.isFinite(configuredBudget) && configuredBudget >= 0 ? configuredBudget : 2;
 export const DAILY_BUDGET_MICROS = Math.floor(DAILY_BUDGET_USD * 1e6);
 
-/** `ASSYZE_VISION_ENABLED=0` stops all paid work immediately, no redeploy. */
+/** `FILTRSOFT_VISION_ENABLED=0` stops all paid work immediately, no redeploy. */
 export function visionKilled(): boolean {
-  return process.env.ASSYZE_VISION_ENABLED === "0";
+  return process.env.FILTRSOFT_VISION_ENABLED === "0";
 }
 
 /**

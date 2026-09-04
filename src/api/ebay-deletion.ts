@@ -27,7 +27,7 @@
  * Two things about that make it easy to get silently wrong:
  *
  *   · **The endpoint URL is part of the hash**, so it must be the byte-exact
- *     string registered in the portal. `https://assyze.com/v1/ebay/deletion`
+ *     string registered in the portal. `https://filtrsoft.com/v1/ebay/deletion`
  *     and the same URL with a trailing slash produce different digests, and
  *     eBay's failure message does not distinguish "wrong token" from "wrong
  *     URL". `EBAY_DELETION_ENDPOINT` overrides the default so the registered
@@ -35,7 +35,7 @@
  *   · **It is a hex digest, not base64.** eBay's own docs show hex.
  *
  * The POST that follows carries the actual deletion notice. We acknowledge it
- * with a 200 and log it. **Assyze stores no eBay USER data** — comps are sold
+ * with a 200 and log it. **Filtrsoft stores no eBay USER data** — comps are sold
  * listing prices, keyed by SKU, with no buyer or seller identity attached — so
  * there is nothing to erase. The log line exists so that if that ever stops
  * being true, there is a record of which notices arrived and when.
@@ -47,7 +47,7 @@
 import type { Context } from "hono";
 import { createHash } from "node:crypto";
 
-const DEFAULT_ENDPOINT = "https://assyze.com/v1/ebay/deletion";
+const DEFAULT_ENDPOINT = "https://filtrsoft.com/v1/ebay/deletion";
 
 export const deletionEndpoint = () =>
   (process.env.EBAY_DELETION_ENDPOINT ?? DEFAULT_ENDPOINT).trim();

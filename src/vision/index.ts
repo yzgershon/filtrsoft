@@ -253,7 +253,7 @@ async function prepare(path: string): Promise<{ data: string; media: string; not
 
 export async function analyzePhotos(listingId: number): Promise<VisionResult | null> {
   if (visionKilled()) {
-    console.error("vision: switched off by ASSYZE_VISION_ENABLED");
+    console.error("vision: switched off by FILTRSOFT_VISION_ENABLED");
     return null;
   }
   const c = client();

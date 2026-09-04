@@ -18,7 +18,7 @@ import { join } from "node:path";
 const LABEL = process.argv[2] ?? "shots";
 const BASE = process.argv[3] ?? "http://localhost:3177";
 const DEVICE = process.argv[4] ?? "Galaxy S24";
-const CHROME = process.env.ASSYZE_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
+const CHROME = process.env.FILTRSOFT_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const OUT = join("docs", "ui", LABEL);
 mkdirSync(OUT, { recursive: true });
 

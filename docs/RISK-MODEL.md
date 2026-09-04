@@ -1,4 +1,4 @@
-# Assyze Risk Model v1
+# Filtrsoft Risk Model v1
 
 **This is the moat.** Comps are a commodity you can buy. This document is the thing competitors have no reason to build, because none of them have actually driven across town to look at a used GPU.
 
@@ -12,7 +12,7 @@ Written as prose before code, deliberately. Rules get encoded once they're right
 
 Every risk falls into one of two buckets, and they behave completely differently:
 
-**HARD BLOCKERS** destroy value in a binary way. Not "worth 15% less" — worth **parts value or nothing**. An iCloud-locked iPhone is a $40 parts unit regardless of its cosmetic condition or what a price comp says. These are the reason Assyze exists.
+**HARD BLOCKERS** destroy value in a binary way. Not "worth 15% less" — worth **parts value or nothing**. An iCloud-locked iPhone is a $40 parts unit regardless of its cosmetic condition or what a price comp says. These are the reason Filtrsoft exists.
 
 **FLAGS** adjust value continuously. Battery at 78%, a cracked back, a mined GPU. Each has a rough dollar cost you subtract.
 
@@ -157,7 +157,7 @@ Cheap to run: hashing is local, no model call, and it scales linearly with photo
 
 Yish's observation: *the length and detail of a description tells you how much the seller actually knows about their own item, and someone who doesn't know what they have is far more likely to undercut themselves.*
 
-Sections 3c and 3e use listing quality to detect **fraud**. This uses the same underlying data to detect **opportunity**. Same input, completely different output, and Assyze should compute both.
+Sections 3c and 3e use listing quality to detect **fraud**. This uses the same underlying data to detect **opportunity**. Same input, completely different output, and Filtrsoft should compute both.
 
 ### The relationship
 
@@ -383,7 +383,7 @@ Z Flip and Z Fold devices have failure modes no other phone has, and generic pho
 
 **This model is currently tuned to avoid false negatives — calling a scam a good deal. That is the right priority, and it is not the only one.**
 
-A false positive costs real money too. If Assyze flags every underpriced item as suspicious, it stops being a deal-finder and becomes an anxiety machine, and a flipper who misses three genuine bargains because the app cried wolf will delete it.
+A false positive costs real money too. If Filtrsoft flags every underpriced item as suspicious, it stops being a deal-finder and becomes an anxiety machine, and a flipper who misses three genuine bargains because the app cried wolf will delete it.
 
 **The structural difficulty: underpriced is simultaneously the strongest deal signal and the strongest scam signal.** They are the same observation. Separating them is the actual product.
 

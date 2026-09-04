@@ -72,7 +72,7 @@ function countBy<T>(rows: T[], key: (r: T) => string | null | undefined): Record
  * from their users' browsers. Dev origins are listed explicitly.
  */
 const ALLOWED_ORIGINS = [
-  "https://assyze.com", "https://www.assyze.com",
+  "https://filtrsoft.com", "https://www.filtrsoft.com",
   "http://localhost:5177", "http://127.0.0.1:5177",
 ];
 app.use("/*", cors({ origin: (o) => (ALLOWED_ORIGINS.includes(o) ? o : null) }));
@@ -98,7 +98,7 @@ app.use("/v1/checks", async (c, next) => {
 /**
  * ────────────────────────────────────────────────────── the sign-in wall
  *
- * Yish, 2026-09-01: *"right now anyone who goes to assyze.com can just have
+ * Yish, 2026-09-01: *"right now anyone who goes to filtrsoft.com can just have
  * full access to all the deals."*
  *
  * ⚠ ENFORCED HERE, NOT IN THE UI. A React route that hides the feed is a
@@ -134,7 +134,7 @@ const PUBLIC_PREFIXES = [
  * ⚠ THE AGENT'S OWN ENDPOINTS, MATCHED EXACTLY RATHER THAN BY PREFIX.
  *
  * `bun run agent` on his desktop is a headless process with no browser cookie;
- * it authenticates with `ASSYZE_PUSH_TOKEN` inside its handlers instead. Both
+ * it authenticates with `FILTRSOFT_PUSH_TOKEN` inside its handlers instead. Both
  * of these have to bypass the session wall or the button queues jobs that
  * nothing ever collects.
  *
@@ -150,7 +150,7 @@ const AGENT_PATHS = [
    * endpoints, which are browser calls and stay behind the wall.
    *
    * Adding the sign-in wall on 2026-09-01 silently broke `bun run push`: it
-   * authenticates with `ASSYZE_PUSH_TOKEN` inside its own handler, so the
+   * authenticates with `FILTRSOFT_PUSH_TOKEN` inside its own handler, so the
    * middleware rejected it before that ever ran. Nothing noticed for two days
    * because nothing had pushed since. Found when the crawl agent's very first
    * end-to-end run came back `push failed 401`.
@@ -172,7 +172,7 @@ app.use("/v1/*", async (c, next) => {
      * session expired, sign in again" rather than the generic failure banner,
      * which otherwise reads as the server being down.
      */
-    return c.json({ error: "sign in to use Assyze", auth: "required" }, 401);
+    return c.json({ error: "sign in to use Filtrsoft", auth: "required" }, 401);
   }
   await next();
 });
@@ -259,8 +259,8 @@ app.get("/v1/health", (c) => {
       ...(() => { try { return visionHealth(VISION_MODEL, PROMPT_VERSION); } catch { return {}; } })(),
       /**
        * ⚠ BOTH SWITCHES, BECAUSE THEY READ DIFFERENT ENV VARS. `visionEnabled`
-       * above is the kill switch (`ASSYZE_VISION_ENABLED`); `loopEnabled` is
-       * what the crawl tick gates on (`ASSYZE_VISION`). Reporting one and not
+       * above is the kill switch (`FILTRSOFT_VISION_ENABLED`); `loopEnabled` is
+       * what the crawl tick gates on (`FILTRSOFT_VISION`). Reporting one and not
        * the other is how "vision is on" and "vision never runs" coexisted.
        * `mode` matters too: the pass only runs in steady, never in backfill.
        */
@@ -537,7 +537,7 @@ app.get("/v1/auth/me", handleMe);
  *
  * ⚠ `/v1/jobs/next` AND `/v1/jobs/:id` ARE AGENT ENDPOINTS AND MUST BE IN
  * `PUBLIC_PREFIXES`. The agent is a headless process on his desktop with no
- * browser cookie; it authenticates with `ASSYZE_PUSH_TOKEN` inside the handler
+ * browser cookie; it authenticates with `FILTRSOFT_PUSH_TOKEN` inside the handler
  * instead. Leaving them behind the session wall would 401 the agent forever
  * and the button would queue jobs nothing ever collects.
  */
@@ -673,10 +673,10 @@ app.post("/v1/checks/:id/override", handleSetOverride);
 app.delete("/v1/checks/:id/override", handleClearOverride);
 
 /**
- * Everything he has bought with Assyze's help.
+ * Everything he has bought with Filtrsoft's help.
  *
- * Yish, 2026-08-31: *"add a section in Assyze where it shows all of my
- * purchases with the help of assyze."*
+ * Yish, 2026-08-31: *"add a section in Filtrsoft where it shows all of my
+ * purchases with the help of filtrsoft."*
  *
  * ⚠ IT JOINS THE PRICE HE PAID TO WHAT THE ENGINE SAID IT WAS WORTH, and that
  * pairing is the whole feature. A list of things you bought is a receipt; a
@@ -964,10 +964,10 @@ app.get("/v1/feed", (c) => {
    * had no answer anywhere in the product.
    *
    * Yish, 2026-08-31: *"I want to understand better when new listings get added
-   * to Assyze because I want to know when to look at Assyze, and eventually it
+   * to Filtrsoft because I want to know when to look at Filtrsoft, and eventually it
    * would be great if new listings were being added like every 5 minutes."*
    *
-   * It ALREADY runs every three minutes (`ASSYZE_CRAWL_INTERVAL_MS`, scheduler
+   * It ALREADY runs every three minutes (`FILTRSOFT_CRAWL_INTERVAL_MS`, scheduler
    * line 45). The gap was never the cadence, it was that nothing on screen said
    * so — `lastCrawl` has been in this response the whole time and no component
    * ever read it. A crawler you cannot see is one you assume is broken.
@@ -1026,7 +1026,7 @@ app.get("/v1/feed", (c) => {
     lastCrawl: lastCrawl ?? null,
     /** New listings in the last hour, and how often the crawler runs. */
     freshCount,
-    crawlEveryMs: Number(process.env.ASSYZE_CRAWL_INTERVAL_MS ?? 3 * 60 * 1000),
+    crawlEveryMs: Number(process.env.FILTRSOFT_CRAWL_INTERVAL_MS ?? 3 * 60 * 1000),
   });
 });
 
@@ -1423,7 +1423,7 @@ setTimeout(async () => {
     }
   } catch (e) {
     console.error(`DATABASE UNAVAILABLE at ${DB_PATH}: ${(e as Error).message}`);
-    console.error("  The server is still serving. Fix the volume mount or ASSYZE_DB.");
+    console.error("  The server is still serving. Fix the volume mount or FILTRSOFT_DB.");
   }
 }, 0);
 
@@ -1432,7 +1432,7 @@ const port = Number(process.env.PORT) || 3177;
 // invisible to the platform's healthcheck even though it "started fine".
 const hostname = "0.0.0.0";
 console.log(
-  `assyze  ${hostname}:${port}  engine ${ENGINE_VERSION}  ` +
+  `filtrsoft  ${hostname}:${port}  engine ${ENGINE_VERSION}  ` +
   `${hasBuild ? "serving web/dist" : "api only (dev)"}  db=${DB_PATH}`,
 );
 export default { port, hostname, fetch: app.fetch, idleTimeout: 120 };

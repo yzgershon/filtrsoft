@@ -1,13 +1,13 @@
-# Codex prompt — full backend audit of Assyze
+# Codex prompt — full backend audit of Filtrsoft
 
-Paste everything below the line into Codex, with the repo open at `C:\Dev\assyze`.
+Paste everything below the line into Codex, with the repo open at `C:\Dev\filtrsoft`.
 
 ---
 
-You are auditing and improving the backend of **Assyze**, a marketplace that
+You are auditing and improving the backend of **Filtrsoft**, a marketplace that
 finds genuinely underpriced used tech and tells a buyer what a listing is
-really worth before they drive to see it. It is live at https://assyze.com on
-Railway. Repo root is `C:\Dev\assyze`.
+really worth before they drive to see it. It is live at https://filtrsoft.com on
+Railway. Repo root is `C:\Dev\filtrsoft`.
 
 **You have permission to edit this repository, commit, and push to `main`.**
 Pushing auto-deploys to production, so treat `main` as live. The boundaries are

@@ -2,7 +2,7 @@
  * bun run daily [--fast] [--dry]
  *
  * The once-a-day local routine: crawl the sources production CANNOT reach, then
- * push what it found to assyze.com.
+ * push what it found to filtrsoft.com.
  *
  * ── WHY THIS EXISTS AT ALL ─────────────────────────────────────────────────
  *
@@ -102,8 +102,8 @@ async function crawlSource(source: string, script: string, queries: string[], pe
 
 async function push(source: string) {
   if (DRY) return;
-  if (!process.env.ASSYZE_PUSH_TOKEN) {
-    steps.push({ label: `push ${source}`, ok: false, added: 0, note: "ASSYZE_PUSH_TOKEN not set — nothing sent" });
+  if (!process.env.FILTRSOFT_PUSH_TOKEN) {
+    steps.push({ label: `push ${source}`, ok: false, added: 0, note: "FILTRSOFT_PUSH_TOKEN not set — nothing sent" });
     return;
   }
   const r = await run(["push", "--source", source, "--since", "3", "--limit", "200"], 5 * 60_000);

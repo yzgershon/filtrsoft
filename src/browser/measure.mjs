@@ -10,7 +10,7 @@ import { auditButtons } from "./button-audit.mjs";
 
 const BASE = process.argv[2] ?? "http://localhost:3177";
 const DEV = process.argv[3] ?? "Galaxy S24";
-const CHROME = process.env.ASSYZE_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
+const CHROME = process.env.FILTRSOFT_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
 
 const b = await chromium.launch({ executablePath: CHROME, headless: true });
 const c = await b.newContext({ ...devices[DEV] });

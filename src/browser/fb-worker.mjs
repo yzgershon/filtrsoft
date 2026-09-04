@@ -3,7 +3,7 @@
  *
  * WHY A SEPARATE PROCESS: Playwright hangs under Bun on this machine — measured
  * 2026-08-24, `chromium.launch()` never resolves, while the identical script
- * under Node 24 launches Chrome in about three seconds. The rest of Assyze is
+ * under Node 24 launches Chrome in about three seconds. The rest of Filtrsoft is
  * Bun (it uses `bun:sqlite`, which Node cannot load), so the two cannot simply
  * swap. They split instead: Node drives the browser, Bun owns the database.
  *
@@ -48,7 +48,7 @@ mkdirSync(opts.profileDir, { recursive: true });
 /**
  * A persistent context IS the browser. Yish signs in once by hand and the
  * session lives in this profile on disk — there is no credential handling
- * anywhere in Assyze, and there must never be.
+ * anywhere in Filtrsoft, and there must never be.
  */
 const ctx = await chromium.launchPersistentContext(opts.profileDir, {
   executablePath: opts.chromePath,

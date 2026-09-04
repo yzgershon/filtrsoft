@@ -1,12 +1,12 @@
-# Assyze frontend UI/UX master audit
+# Filtrsoft frontend UI/UX master audit
 
 **Date:** 2026-08-30  
-**Scope:** Live production at `assyze.com`, the React/Vite frontend, PWA shell, every reachable screen, and every safe interaction type.  
+**Scope:** Live production at `filtrsoft.com`, the React/Vite frontend, PWA shell, every reachable screen, and every safe interaction type.  
 **Deliverable status:** Audit only. No production UI code was changed.
 
 ## Executive verdict
 
-Assyze has a good visual foundation, but it currently behaves like a polished mobile prototype stretched across a desktop browser. The verdict colors, price hierarchy, two-up mobile cards, inline SVG icons, and plain-language copy are worth keeping. The highest-priority problems are not aesthetic:
+Filtrsoft has a good visual foundation, but it currently behaves like a polished mobile prototype stretched across a desktop browser. The verdict colors, price hierarchy, two-up mobile cards, inline SVG icons, and plain-language copy are worth keeping. The highest-priority problems are not aesthetic:
 
 1. The Deals filter says there are 21 deals but exposes only 13 and removes the only pagination control.
 2. Browser Back changes the URL without leaving a listing detail page.
@@ -147,7 +147,7 @@ Deduplicate upstream by source listing ID and canonical URL first. Add a conserv
 
 ### 6. Build a real desktop shell
 
-At 1920 px, Assyze is a 560 px phone column with a four-item bottom bar stretched across all 1920 px. Each navigation target is 475 px wide. This is the single strongest reason the live site feels unfinished on desktop.
+At 1920 px, Filtrsoft is a 560 px phone column with a four-item bottom bar stretched across all 1920 px. Each navigation target is 475 px wide. This is the single strongest reason the live site feels unfinished on desktop.
 
 **Desktop at 1024 px and above:**
 
@@ -262,7 +262,7 @@ The first Settings card explains that the product is free and paid plans may com
 
 The live OfferUp detail used a 250 × 250 source image displayed at 560 × 420. It is soft before the lightbox even opens.
 
-- Fetch/source the highest available remote image URL; do not retain photo bytes on Assyze storage.
+- Fetch/source the highest available remote image URL; do not retain photo bytes on Filtrsoft storage.
 - Use `srcset` and `sizes` when multiple remote sizes exist.
 - Use `object-fit: contain` for the detail inspection gallery so spec sheets and damage are not cropped. Keep `cover` on feed cards.
 - Add the same graceful `onError` fallback used by `Thumb` to Gallery and Lightbox.
@@ -365,7 +365,7 @@ Recommended order:
 3. Data/device note.
 4. Billing only when enabled.
 
-Remove the redundant `Assyze · assyze.com` footer and repeated “coming” promises. State present behavior: **Saved on this device.**
+Remove the redundant `Filtrsoft · filtrsoft.com` footer and repeated “coming” promises. State present behavior: **Saved on this device.**
 
 ## Design-system specification
 
@@ -457,7 +457,7 @@ Add a real TypeScript configuration and a typecheck script. The Vite build trans
 - Fix the manifest Check shortcut.
 - Remove the portrait orientation lock unless a tested interaction truly requires it.
 - Update the page description; it still describes Paste as the whole product while the feed is now primary.
-- Add Open Graph and Twitter metadata with a real Assyze share image.
+- Add Open Graph and Twitter metadata with a real Filtrsoft share image.
 - Add `color-scheme: dark`.
 - Keep the service worker's network-first API strategy.
 - Expose an offline indicator so cached prices are never mistaken for fresh data.
@@ -554,6 +554,6 @@ Add a real TypeScript configuration and a typecheck script. The Vite build trans
 
 ## Three highest-value additions after the repair
 
-1. **Transparent sold comps.** Showing the actual evidence behind value is the clearest way to turn Assyze from a verdict generator into a trusted buying instrument.
+1. **Transparent sold comps.** Showing the actual evidence behind value is the clearest way to turn Filtrsoft from a verdict generator into a trusted buying instrument.
 2. **Real discovery + save this search.** Search, category/source/radius filters, and alerts make 587 listings usable and create a reason to return.
-3. **Offer sandbox.** Let a buyer test an offer and see channel-specific net profit instantly. It uses data Assyze already has and directly supports the decision the product exists to make.
+3. **Offer sandbox.** Let a buyer test an offer and see channel-specific net profit instantly. It uses data Filtrsoft already has and directly supports the decision the product exists to make.

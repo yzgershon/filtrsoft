@@ -363,7 +363,7 @@ body::before {
  * green. It is what stops five identically-structured sections reading as the
  * same section scrolled twice.
  *
- * Assyze has four such screens, so each takes one:
+ * Filtrsoft has four such screens, so each takes one:
  *
  *   Deals     green   — the only LIVE one, and the only one with a pulsing dot
  *   Check     cyan    — the default; this is the tool, and cyan is the brand

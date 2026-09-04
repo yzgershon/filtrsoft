@@ -28,7 +28,7 @@ import { boardTier, type BoardTier } from "../signals/board-tier.ts";
 const WORKER = join(import.meta.dir, "../browser/retail-worker.mjs");
 
 export const CHROME_PATH =
-  process.env.ASSYZE_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
+  process.env.FILTRSOFT_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
 
 /**
  * The three retailers, BEST FIRST for the categories Yish trades.

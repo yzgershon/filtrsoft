@@ -59,7 +59,7 @@ export const CATALOG: SeedSku[] = [
   // ---- laptops. The 2019 cutoff is Yish's rule, not a spec boundary. ----
   /**
    * **KEEP THE CURRENT APPLE SILICON GENERATION IN HERE.** A live listing read
-   * "Brand new APPLE MACBOOK AIR M5" and Assyze answered *"Couldn't identify
+   * "Brand new APPLE MACBOOK AIR M5" and Filtrsoft answered *"Couldn't identify
    * the exact model"* — with the model printed in the title, in capitals.
    *
    * The catalog stopped at M4 and the failure surfaced as an identification

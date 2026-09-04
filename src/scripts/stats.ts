@@ -2,7 +2,7 @@ import { stats, DB_PATH } from "../db/index.ts";
 import { readArchive } from "../db/archive.ts";
 
 const s = stats();
-console.log(`assyze.db  ${DB_PATH}\n`);
+console.log(`filtrsoft.db  ${DB_PATH}\n`);
 console.log(`comps            ${s.comps}${s.comps ? `  (${s.comps_classified} classified)` : ""}`);
 console.log(`oldest comp      ${s.oldest_comp ?? "—"}`);
 console.log(`skus             ${s.skus}  (${s.aliases} aliases)`);

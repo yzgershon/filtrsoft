@@ -187,7 +187,7 @@ const CALLS = ["BUY", "FAIR", "VERIFY", "PASS", "RISK", "INSUFFICIENT_DATA"];
 const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Assyze — re-review with evidence</title>
+<title>Filtrsoft — re-review with evidence</title>
 <style>
   :root{
     --bg:#0d0b0b; --card:#161313; --line:#2a2525; --ink:#f2eeec; --dim:#9a908c;
@@ -268,7 +268,7 @@ const html = `<!doctype html>
 const DATA = ${JSON.stringify(rows)};
 const CALLS = ${JSON.stringify(CALLS)};
 const $ = (c) => c == null ? "—" : "$" + Math.round(c/100).toLocaleString();
-const store = JSON.parse(localStorage.getItem("assyze-rereview") || "{}");
+const store = JSON.parse(localStorage.getItem("filtrsoft-rereview") || "{}");
 
 function money(c){ return $(c); }
 
@@ -343,8 +343,8 @@ function render(){
 }
 function pick(ref, call){ store[ref] = {...(store[ref]||{}), call}; persist(); render(); }
 function note(ref, notes){ store[ref] = {...(store[ref]||{}), notes}; persist(); }
-function persist(){ localStorage.setItem("assyze-rereview", JSON.stringify(store)); }
-function reset(){ if(confirm("Clear all re-grades?")){ localStorage.removeItem("assyze-rereview");
+function persist(){ localStorage.setItem("filtrsoft-rereview", JSON.stringify(store)); }
+function reset(){ if(confirm("Clear all re-grades?")){ localStorage.removeItem("filtrsoft-rereview");
   for(const k of Object.keys(store)) delete store[k]; render(); } }
 function save(){
   const out = Object.entries(store).filter(([,v])=>v.call)
@@ -352,7 +352,7 @@ function save(){
   if(!out.length){ alert("Nothing re-graded yet."); return; }
   const b = new Blob([JSON.stringify(out,null,2)],{type:"application/json"});
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(b); a.download = "assyze-rereview.json"; a.click();
+  a.href = URL.createObjectURL(b); a.download = "filtrsoft-rereview.json"; a.click();
 }
 render();
 </script></body></html>`;

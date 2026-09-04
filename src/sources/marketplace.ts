@@ -21,7 +21,7 @@ import type { RawListing } from "../types.ts";
 const WORKER = join(import.meta.dir, "../browser/marketplace-worker.mjs");
 
 export const CHROME_PATH =
-  process.env.ASSYZE_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
+  process.env.FILTRSOFT_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
 
 export const MARKETPLACES = ["offerup", "mercari"] as const;
 export type Marketplace = (typeof MARKETPLACES)[number];

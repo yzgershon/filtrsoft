@@ -1,7 +1,7 @@
 /**
  * The "Start crawl" button, its PIN, and the live status of a running job.
  *
- * Yish, 2026-09-03: *"code a button in Assyze that I click and put in a pin
+ * Yish, 2026-09-03: *"code a button in Filtrsoft that I click and put in a pin
  * (im the only one that knows the pin thats the point) the pin will be 2008 and
  * then that automatically starts the crawl and im guessing that the crawl will
  * only work if my computer is on."*
@@ -88,7 +88,7 @@ export function CrawlPanel() {
       toast(d.alreadyRunning ? "A crawl is already running" : "Crawl queued");
       void load();
     } catch {
-      setError("Couldn't reach Assyze.");
+      setError("Couldn't reach Filtrsoft.");
     } finally { setBusy(false); }
   }
 
@@ -103,7 +103,7 @@ export function CrawlPanel() {
       <div className="scard">
         {!st.configured ? (
           <p className="snote nolead">
-            Not set up yet. <b>ASSYZE_CRAWL_PIN</b> has to be set on the server
+            Not set up yet. <b>FILTRSOFT_CRAWL_PIN</b> has to be set on the server
             before this button can do anything.
           </p>
         ) : (
@@ -215,7 +215,7 @@ export function CrawlPanel() {
             {!st.agentOnline && (
               <p className="snote">
                 The agent is the small window you leave open on your PC. If it
-                is not running, open a terminal in <b>C:\Dev\assyze</b> and run{" "}
+                is not running, open a terminal in <b>C:\Dev\filtrsoft</b> and run{" "}
                 <b>bun run agent</b>.
               </p>
             )}

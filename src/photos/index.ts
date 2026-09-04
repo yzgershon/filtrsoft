@@ -16,7 +16,7 @@ import { join } from "node:path";
 
 // Ensure the photo root exists — same directory-vs-file trap as the database.
 export const PHOTO_DIR =
-  process.env.ASSYZE_PHOTOS ?? join(import.meta.dir, "../../photos");
+  process.env.FILTRSOFT_PHOTOS ?? join(import.meta.dir, "../../photos");
 
 /**
  * dHash — 64-bit difference hash. Resize to 9x8 grayscale, compare each pixel to
@@ -113,10 +113,10 @@ export async function fetchPhoto(url: string): Promise<Buffer> {
  * actually needs for stolen-photo and repost detection. A few kilobytes
  * instead of hundreds of megabytes.
  *
- * `ASSYZE_KEEP_PHOTOS=1` retains them, for eval work where the images are the
+ * `FILTRSOFT_KEEP_PHOTOS=1` retains them, for eval work where the images are the
  * point.
  */
-export const KEEP_PHOTOS = process.env.ASSYZE_KEEP_PHOTOS === "1";
+export const KEEP_PHOTOS = process.env.FILTRSOFT_KEEP_PHOTOS === "1";
 
 /** Delete one listing's downloaded photos. The phash rows are left alone. */
 export function releasePhotos(listingId: number): number {

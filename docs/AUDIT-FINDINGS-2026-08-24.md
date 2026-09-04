@@ -1,4 +1,4 @@
-# Assyze Master Audit Findings
+# Filtrsoft Master Audit Findings
 
 **Audit date:** 2026-08-24  
 **Prepared for:** Claude Code project handoff  
@@ -7,7 +7,7 @@
 
 ## Executive conclusion
 
-Assyze has a strong product thesis and a sensible early pipeline: preserve raw evidence, identify the exact item before pricing it, separate signal detection from the verdict, and default to uncertainty instead of inventing a number. That foundation is better than most two-day prototypes.
+Filtrsoft has a strong product thesis and a sensible early pipeline: preserve raw evidence, identify the exact item before pricing it, separate signal detection from the verdict, and default to uncertainty instead of inventing a number. That foundation is better than most two-day prototypes.
 
 It is not ready for a public launch yet. The biggest issue is not simply waiting for eBay keys. The current blockers are:
 
@@ -20,23 +20,23 @@ It is not ready for a public launch yet. The biggest issue is not simply waiting
 7. Main auto-deploys with no test suite, CI gate, protected branch, configured Railway health check, or current production backup.
 8. Listing and vision caches can stay stale after sellers change titles, descriptions, prices, or photos.
 
-**Recommended product posture:** keep Assyze in private alpha until the P0 launch gates in this report are closed. The best near-term version is a trustworthy link checker plus a carefully controlled feed, not a broad marketplace with unsupported coverage.
+**Recommended product posture:** keep Filtrsoft in private alpha until the P0 launch gates in this report are closed. The best near-term version is a trustworthy link checker plus a carefully controlled feed, not a broad marketplace with unsupported coverage.
 
 ## Current-state snapshot
 
 | Area | Confirmed state on 2026-08-24 |
 |---|---|
-| Repository | Private GitHub repository `yzgershon/assyze`; `main` auto-deploys to Railway |
+| Repository | Private GitHub repository `yzgershon/filtrsoft`; `main` auto-deploys to Railway |
 | Current commit | `3281bc9` - `Refuse family-resemblance SKU matches; read bare 'core i7' from spec screens` |
 | Working tree before audit docs | Claude had an edited `src/valuation/index.ts` and a new `src/valuation/condition.ts`; the audit did not touch them |
 | Backend | Bun + Hono + SQLite/WAL; engine version `0.3.0` |
 | Frontend | React + Vite; production build succeeds |
-| Production | Railway project `selfless-freedom`, service `assyze`, one replica, persistent volume, 2 vCPU / 1 GB |
+| Production | Railway project `selfless-freedom`, service `filtrsoft`, one replica, persistent volume, 2 vCPU / 1 GB |
 | Live health | Database healthy, 62 SKUs, 0 comps, Anthropic configured with `claude-haiku-4-5` |
 | Production feed | Two user-checked listings, both `INSUFFICIENT`; no crawler-fed inventory |
 | Local database | 341 listings, 1,674 photos, 824 verdict rows, 80 comps, 69 judgments, 9 vision rows, 0 outcomes |
 | Comp quality | All 80 local comps are provisional/fake test data; no real sold comp corpus yet |
-| Domain | `assyze.com` DNS resolves to Railway, but HTTPS certificate provisioning is not complete; `www.assyze.com` is not registered as a Railway custom domain |
+| Domain | `filtrsoft.com` DNS resolves to Railway, but HTTPS certificate provisioning is not complete; `www.filtrsoft.com` is not registered as a Railway custom domain |
 | Automated tests | None discovered; `bun test` reports no tests |
 | CI/security controls | No GitHub Actions, branch protection, Dependabot alerts, or secret scanning |
 | Railway backups | None; Railway UI says backups/PITR require Pro |
@@ -112,7 +112,7 @@ Twenty simultaneous requests for the same URL cause at most one source fetch/vis
 
 **Impact**
 
-A correctly identified and cheaply priced device can be labeled `BUY` without proof that it is usable, unfinanced, unlocked, or not remotely managed. This violates Assyze's main trust claim.
+A correctly identified and cheaply priced device can be labeled `BUY` without proof that it is usable, unfinanced, unlocked, or not remotely managed. This violates Filtrsoft's main trust claim.
 
 **Required fix**
 
@@ -136,7 +136,7 @@ Golden tests prove that an iPhone without activation-lock and IMEI/finance evide
 
 **Impact**
 
-Boot screens, model/spec evidence, screenshot detection, visible damage, port condition, and other photo-derived warnings can influence a verdict but remain invisible on the result and permalink. A shared link cannot show why Assyze reached its answer.
+Boot screens, model/spec evidence, screenshot detection, visible damage, port condition, and other photo-derived warnings can influence a verdict but remain invisible on the result and permalink. A shared link cannot show why Filtrsoft reached its answer.
 
 **Required fix**
 
@@ -203,7 +203,7 @@ Every comp shown to the valuation engine has verifiable source provenance, sale 
 
 - Local: 341 listings, 1,674 photos, 80 provisional comps, 824 verdict records.
 - Production: 62 SKUs, 0 comps, two checked listings, no crawler-fed inventory.
-- Railway uses `/data/assyze.db` on its own persistent volume.
+- Railway uses `/data/filtrsoft.db` on its own persistent volume.
 - Local crawling, tracking, and backups operate on a separate workstation database.
 - There is no promotion, replication, import, or API ingestion path between them.
 
@@ -396,18 +396,18 @@ The `cost_cents` field is never populated. There are no structured request/job l
 
 ### Current domain state
 
-- `assyze.com` resolves to Railway's current address.
+- `filtrsoft.com` resolves to Railway's current address.
 - HTTP redirects to HTTPS.
-- HTTPS validation for both `assyze.com` and `www.assyze.com` returned a certificate-name mismatch during the audit.
-- Railway shows `assyze.com` as “Waiting for DNS update,” so the custom domain is not ready even though public DNS has propagated to the resolver used in this audit.
-- `www.assyze.com` points at Railway in DNS but is not registered on the service. Railway currently reports that the custom-domain limit is reached, so Railway cannot issue a certificate for that hostname in the present setup.
+- HTTPS validation for both `filtrsoft.com` and `www.filtrsoft.com` returned a certificate-name mismatch during the audit.
+- Railway shows `filtrsoft.com` as “Waiting for DNS update,” so the custom domain is not ready even though public DNS has propagated to the resolver used in this audit.
+- `www.filtrsoft.com` points at Railway in DNS but is not registered on the service. Railway currently reports that the custom-domain limit is reached, so Railway cannot issue a certificate for that hostname in the present setup.
 
-**Recommended resolution:** use `assyze.com` as the canonical production hostname. Finish Railway verification/certificate issuance for the root. Route `www` through a registrar/Cloudflare redirect to the canonical root or add it as a platform domain when the plan permits. Do not announce the custom domain until both HTTPS and redirect behavior pass from an outside network. Railway's domain documentation is [here](https://docs.railway.com/networking/domains).
+**Recommended resolution:** use `filtrsoft.com` as the canonical production hostname. Finish Railway verification/certificate issuance for the root. Route `www` through a registrar/Cloudflare redirect to the canonical root or add it as a platform domain when the plan permits. Do not announce the custom domain until both HTTPS and redirect behavior pass from an outside network. Railway's domain documentation is [here](https://docs.railway.com/networking/domains).
 
 ### Railway status
 
 - Latest deploy succeeded and mounted the persistent volume.
-- Startup logs show engine `0.3.0`, `db=/data/assyze.db`, and 62 SKUs.
+- Startup logs show engine `0.3.0`, `db=/data/filtrsoft.db`, and 62 SKUs.
 - One replica is expected with the attached SQLite volume.
 - Healthcheck Path is unset.
 - No automatic volume backup is active.
@@ -528,7 +528,7 @@ The new `valueSku()` signature accepts condition and category, but `src/verdict/
 
 ## Suggested launch gates
 
-Assyze should not present a listing as a verified deal until all of these are true:
+Filtrsoft should not present a listing as a verified deal until all of these are true:
 
 - The listing has a versioned evidence snapshot and current photo fingerprint.
 - Exact SKU identity is high enough for the selected pricing model.

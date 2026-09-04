@@ -393,7 +393,7 @@ export function matchSku(title: string, description = "", categoryHint?: string)
    * generation guard below silently did nothing for any model whose generation
    * is one digit. It defeated the exact trap that guard exists to catch.
    *
-   * Found live on assyze.com's first production feed, 2026-08-26:
+   * Found live on filtrsoft.com's first production feed, 2026-08-26:
    *
    *     "Sony PlayStation 4 console"   -> priced as PlayStation 5
    *     "Sony PlayStation 3 slim"      -> priced as PlayStation 5 Slim

@@ -8,7 +8,7 @@
  *
  * ── THE THREE DECISIONS THAT MATTER ────────────────────────────────────────
  *
- * ⚠ **SCOPED TO A DEVICE REF, NOT GLOBAL.** assyze.com is public and this is an
+ * ⚠ **SCOPED TO A DEVICE REF, NOT GLOBAL.** filtrsoft.com is public and this is an
  * unauthenticated write. Global overrides would let anyone relabel a scam as a
  * buy for everybody. `deviceRef()` already exists in the web app — a random
  * uuid minted once per browser for Stripe — so an override belongs to whoever

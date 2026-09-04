@@ -62,7 +62,7 @@ function useRoute() {
    * A shared link opens straight onto `/c/842` with nothing behind it, and
    * `history.length` cannot tell you that — it counts the whole tab, including
    * whatever page the user was on before they tapped the link. Going "back"
-   * there would take them out of Assyze entirely, which is not what a Back
+   * there would take them out of Filtrsoft entirely, which is not what a Back
    * button inside an app means. Below zero depth, Back goes to the feed.
    */
   const depth = useRef(0);
@@ -388,7 +388,7 @@ export default function App() {
 
   /**
    * ANDROID SHARE SHEET. The manifest registers `/share` as a share target, so
-   * Assyze appears in Chrome's Share menu on a Craigslist page and the whole
+   * Filtrsoft appears in Chrome's Share menu on a Craigslist page and the whole
    * copy-paste step disappears.
    *
    * **The link usually arrives in `text`, not `url`.** `url` is only populated
@@ -617,7 +617,7 @@ export default function App() {
         {/**
           * ⚠ EVERY SCREEN THE TAB BAR CANNOT REACH NEEDS A WAY BACK, and the
           * list grew: Settings used to be the only one, and now Notifications,
-          * Account and How Assyze works hang off the top bar or the More hub
+          * Account and How Filtrsoft works hang off the top bar or the More hub
           * too. Deriving it from `tabOf` rather than naming screens means the
           * next one added cannot be forgotten — a screen with no exit is the
           * bug this originally fixed.
@@ -628,7 +628,7 @@ export default function App() {
           </button>
         )}
         <button className="brand" onClick={() => goTab("deals")}
-          aria-label="Assyze home">ass<span>yze</span></button>
+          aria-label="Filtrsoft home">filtr<span>soft</span></button>
         {/* The desktop header nav is GONE: above 1024px the app is a phone
             in a frame (10-desktop.css), so there is no wide bar to put it
             in. It lived in commit 6017540. */}

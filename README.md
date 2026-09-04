@@ -1,10 +1,10 @@
-# Assyze
+# Filtrsoft
 
 **The app that tells you what a used tech listing is really worth and what's wrong with it, before you drive.**
 
 Used tech marketplaces (Facebook Marketplace, OfferUp, Craigslist, eBay, Mercari) are full of listings whose real value is nothing like their asking price. Every existing tool values the *model*. None of them value the *risk*.
 
-## Why "Assyze"
+## Why "Filtrsoft"
 
 Respelling of **assize** (pronounced "uh-SIZE"). From Old French *assise*, "a sitting," via Latin *assidere*, to sit beside. Three layered meanings, all of which fit:
 
@@ -16,7 +16,7 @@ So: *a formal judgment, a true standard of value, and the inspection that keeps 
 
 Sibling word: **assess**, same Latin root, originally "to sit beside a judge and fix an amount." (Unrelated to *assay*, which comes from *exagium*, "a weighing.")
 
-Inspection is the brand, not deal volume. Name chosen 2026-08-22. Domain: assyze.com
+Inspection is the brand, not deal volume. Name chosen 2026-08-22. Domain: filtrsoft.com
 
 ## The thesis
 

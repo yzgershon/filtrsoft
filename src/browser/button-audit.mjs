@@ -12,7 +12,7 @@
  * straight past, because "slightly off" does not look like a defect until it is
  * measured. Yish, 2026-08-31: *"the saved tab has some buttons that are bugged
  * like the browse deals and the saved icon are not centered or cut off, so make
- * sure there's no button like that and all the buttons in Assyze are perfect."*
+ * sure there's no button like that and all the buttons in Filtrsoft are perfect."*
  *
  *   · **tap** — 44x44 is the Apple HIG / Material floor. A 30px bookmark on a
  *     card you use one-handed is the single most common miss in this app.

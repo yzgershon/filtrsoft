@@ -3,7 +3,7 @@
  *
  * RUNS UNDER NODE, NOT BUN. Playwright hangs under Bun on this machine
  * (measured 2026-08-24: `chromium.launch()` never resolves; identical code under
- * Node 24 launches in ~3s). The rest of Assyze is Bun because `bun:sqlite` is
+ * Node 24 launches in ~3s). The rest of Filtrsoft is Bun because `bun:sqlite` is
  * the database, so the two split: Node drives browsers, Bun owns data.
  *
  * ONE PROFILE PER SITE. Facebook and eBay logins must not share a cookie jar —
@@ -17,9 +17,9 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 
 export const profilePath = (name) =>
-  process.env.ASSYZE_BROWSER_PROFILE_ROOT
-    ? join(process.env.ASSYZE_BROWSER_PROFILE_ROOT, name)
-    : join(homedir(), ".assyze", `${name}-profile`);
+  process.env.FILTRSOFT_BROWSER_PROFILE_ROOT
+    ? join(process.env.FILTRSOFT_BROWSER_PROFILE_ROOT, name)
+    : join(homedir(), ".filtrsoft", `${name}-profile`);
 
 export async function openContext({ profile, chromePath, headless = false }) {
   const dir = profilePath(profile);

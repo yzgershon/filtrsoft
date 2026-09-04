@@ -107,7 +107,7 @@ export interface Settings {
   compact: boolean;
 }
 
-export const SETTINGS_KEY = "assyze:settings";
+export const SETTINGS_KEY = "filtrsoft:settings";
 
 /**
  * ⚠ 20 MINUTES, NOT 15, AS OF 2026-08-31. Yish: *"can you change it to like
@@ -366,7 +366,7 @@ export const restoreLimit = (n: number): number =>
  * and then reports zero new listings forever, with nothing on screen to
  * explain why. Same reason `parseSeen` exists server-side.
  */
-export const SEEN_KEY = "assyze:seen";
+export const SEEN_KEY = "filtrsoft:seen";
 
 export type Seen = Partial<Record<Quality, string>>;
 

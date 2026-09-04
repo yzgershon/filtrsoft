@@ -1,7 +1,7 @@
 /**
  * eBay sold comps — the archive's real source.
  *
- * WHY THIS IS THE IMPORTANT FILE: every valuation in Assyze needs sold prices,
+ * WHY THIS IS THE IMPORTANT FILE: every valuation in Filtrsoft needs sold prices,
  * and until now there were none. 80 provisional rows, hand-typed, covering 10 of
  * 83 SKUs. The plan said "waiting on eBay keys", which was wrong twice over —
  * production keys grant the Browse API (ACTIVE listings), and the sold-history
@@ -24,7 +24,7 @@ import { variantPattern } from "../signals/variants.ts";
 const WORKER = join(import.meta.dir, "../browser/ebay-worker.mjs");
 
 export const CHROME_PATH =
-  process.env.ASSYZE_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
+  process.env.FILTRSOFT_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
 
 export interface SoldComp {
   sourceItemId: string;

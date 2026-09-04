@@ -76,7 +76,7 @@ export async function fetchListing(url: string): Promise<RawListing> {
    * attributes with no `labl` span, so the pattern above skipped them entirely
    * and they never reached the engine. On a live $2,500 RTX 5090 at 59% of
    * market, "cryptocurrency ok" and "delivery available" were both present and
-   * Assyze returned **zero flags** — throwing away the two strongest scam
+   * Filtrsoft returned **zero flags** — throwing away the two strongest scam
    * signals on the page, both of which Craigslist hands us as structured data.
    *
    * Stored under their own text as the key so they survive into the

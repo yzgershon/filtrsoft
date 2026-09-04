@@ -118,9 +118,9 @@ const SHIPS_ON_LOCAL_MARKET =
   /\b(flat[- ]rate shipping|shipping (is )?(available|included|only)|will ship|can ship|ships? (nationwide|anywhere|to you)|delivery available|i deliver)\b/i;
 
 /**
- * COUNTERFEITS. The seller usually says so, and Assyze was not listening.
+ * COUNTERFEITS. The seller usually says so, and Filtrsoft was not listening.
  *
- * Live on assyze.com: *"Apple iPhone 15 Pro Max 1TB **CLONE** Unlocked"* at $99
+ * Live on filtrsoft.com: *"Apple iPhone 15 Pro Max 1TB **CLONE** Unlocked"* at $99
  * came back **VERIFY with $433 of net profit**, because the matcher resolved it
  * to a real 1TB Pro Max and priced it against real comps. The word "CLONE" was
  * in the title in capitals.
@@ -153,7 +153,7 @@ const COUNTERFEIT =
  *   "...works perfectly. Selling because it's no longer needed. www.ww5936.com
  *    Feel free to reach out for more details or photos. I'll respond quickly."
  *
- * Assyze read those, priced them against real comps, and reported the MacBook
+ * Filtrsoft read those, priced them against real comps, and reported the MacBook
  * as **VERIFY with $416 of net profit** — the single worst thing this product
  * can do. A listing that sends you off-platform is not a deal to verify.
  *
@@ -295,14 +295,14 @@ const HIGH_KNOWLEDGE =
  * THE TITLE DECIDES THE CATEGORY. The description only breaks ties.
  *
  * Running the patterns over title + description let a seller's PROSE outvote
- * what they were actually selling. Live on assyze.com, 2026-08-26:
+ * what they were actually selling. Live on filtrsoft.com, 2026-08-26:
  *
  *   "NVIDIA GeForce RTX 4090 Founders Edition 24GB GDDR6X Graphics Card"
  *   -> category `prebuilt` -> "Can't be valued — cpu not stated."
  *
  * The seller had pasted NVIDIA's own marketing copy into the description
  * ("ultra-high performance gaming", "gamers and creators", "productivity"),
- * which trips the prebuilt pattern. So Assyze asked which CPU a graphics card
+ * which trips the prebuilt pattern. So Filtrsoft asked which CPU a graphics card
  * has. The title says "Graphics Card" in plain English.
  *
  * A title is what someone is selling; a description is what they say about it.

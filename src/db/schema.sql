@@ -1,4 +1,4 @@
--- Assyze schema v1
+-- Filtrsoft schema v1
 --
 -- THREE RULES BAKED IN HERE. Do not "clean them up":
 --   1. raw_json is stored ALWAYS. You will want fields you don't know you need,
@@ -375,7 +375,7 @@ CREATE TABLE IF NOT EXISTS vision_misses (
  * listings at once sent him the same scripted message on both.
  *
  * WARNING: KEYED ON A DEVICE REF, NOT GLOBAL, AND THAT IS A SECURITY DECISION.
- * assyze.com is public. An unauthenticated write that changed the verdict
+ * filtrsoft.com is public. An unauthenticated write that changed the verdict
  * everyone sees would let anyone relabel a scam as a buy. `deviceRef()` already
  * exists in the web app as Stripe's client_reference_id — a random uuid minted
  * once per browser — so an override is scoped to the person who made it and
@@ -399,7 +399,7 @@ CREATE INDEX IF NOT EXISTS idx_overrides_listing ON verdict_overrides(listing_id
 /*
  * ─────────────────────────────────────────────────────────────── ACCOUNTS
  *
- * Yish, 2026-09-01: *"right now anyone who goes to assyze.com can just have
+ * Yish, 2026-09-01: *"right now anyone who goes to filtrsoft.com can just have
  * full access to all the deals so lets add some personalization and security."*
  *
  * ⚠ THE DEVICE REF DOES NOT GO AWAY, IT GETS ADOPTED. Saved listings, verdict
@@ -477,12 +477,12 @@ CREATE INDEX IF NOT EXISTS idx_account_devices_user ON account_devices(user_id);
 /*
  * ───────────────────────────────────────── CRAWL JOBS HE STARTS FROM THE APP
  *
- * Yish, 2026-09-03: *"code a button in Assyze that I click and put in a pin ...
+ * Yish, 2026-09-03: *"code a button in Filtrsoft that I click and put in a pin ...
  * that automatically starts the crawl ... so I dont need to waste my claude
  * usage asking you to crawl."*
  *
  * ⚠ THE SERVER CANNOT REACH HIS PC, SO HIS PC ASKS THE SERVER. This is the one
- * architectural fact the whole feature turns on. assyze.com runs in a Railway
+ * architectural fact the whole feature turns on. filtrsoft.com runs in a Railway
  * container; his desktop is behind a home router with no inbound route and no
  * fixed address. A button that tried to CALL his machine could never work.
  *

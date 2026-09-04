@@ -2,10 +2,10 @@
  * bun run ebay:login
  *
  * eBay shows SOLD prices to signed-in accounts on its own website. Sign in once
- * in the Chrome window; the session lives in ~/.assyze/ebay-profile.
+ * in the Chrome window; the session lives in ~/.filtrsoft/ebay-profile.
  *
  * As with Facebook, there is no login automation and there must never be —
- * Assyze does not see or store your password.
+ * Filtrsoft does not see or store your password.
  */
 import { runEbayWorker } from "../sources/ebay.ts";
 

@@ -24,14 +24,14 @@ import type { VisionResult } from "../vision/index.ts";
 const OUT_OF_SCOPE = /\b(lens|dslr|mirrorless|camera body|tripod|nikon|canon ef|sigma \d|tamron|zeiss|leica|scanner|camcorder)\b/i;
 
 /**
- * Tech Assyze does not trade. Not junk — just not Yish's market.
+ * Tech Filtrsoft does not trade. Not junk — just not Yish's market.
  *
  * Diagnosing the 259 INSUFFICIENT_DATA verdicts on the live feed, **46 were
  * monitors, TVs, routers, network switches and bare hard drives.** They are
  * genuinely tech, so `resolveProductType` correctly called them tech and they
  * fell through to "Couldn't identify the exact model" — which reads as a
  * failure when the honest answer is that a 24" Asus monitor is not something
- * Assyze covers. It never will be: there are no comps for it because nobody
+ * Filtrsoft covers. It never will be: there are no comps for it because nobody
  * ever asked for any.
  *
  * Saying so plainly is better than implying we tried and failed. It also stops
@@ -391,7 +391,7 @@ export function buildVerdict(input: {
   if (OUT_OF_SCOPE.test(input.title)) {
     return {
       ...base, call: "OUT_OF_SCOPE", confidence: "high",
-      headline: "Not a category Assyze judges.",
+      headline: "Not a category Filtrsoft judges.",
       reasoning: "Camera and photo gear is deliberately out of scope. Valuation is fine there, but the risk layer (fungus, element separation, focus motor wear, mount play) needs domain knowledge we don't have, and a category we can't audit is one we could be wrong about indefinitely.",
     };
   }
@@ -399,8 +399,8 @@ export function buildVerdict(input: {
   if (isUnsupportedPrinter(input.title)) {
     return {
       ...base, call: "OUT_OF_SCOPE", confidence: "high",
-      headline: "Not a category Assyze covers.",
-      reasoning: "That is printer gear. Assyze does not have the failure-mode expertise or resale market depth to judge it reliably.",
+      headline: "Not a category Filtrsoft covers.",
+      reasoning: "That is printer gear. Filtrsoft does not have the failure-mode expertise or resale market depth to judge it reliably.",
     };
   }
 
@@ -419,7 +419,7 @@ export function buildVerdict(input: {
       headline: product.kind === "furniture"
         ? `That's furniture, not tech.`
         : `That's an accessory, not the device.`,
-      reasoning: `Assyze only judges tech. ${product.reason}.`,
+      reasoning: `Filtrsoft only judges tech. ${product.reason}.`,
     };
   }
 
@@ -438,7 +438,7 @@ export function buildVerdict(input: {
    * Measured over 400 stored listings it catches 90 — jerseys, trading cards,
    * book stands, messenger bags, ink cartridges — and the tech it declines
    * (webcams, cable locks, keyboards) was returning INSUFFICIENT_DATA anyway.
-   * "Not something Assyze covers" is the honest version of that answer.
+   * "Not something Filtrsoft covers" is the honest version of that answer.
    */
   /**
    * Real tech, wrong market — checked BEFORE the SKU lookup, because the
@@ -485,11 +485,11 @@ export function buildVerdict(input: {
   if (!match.skuId && (NOT_OUR_MARKET.test(head.head ?? input.title) || NEVER_OUR_MARKET.test(input.title))) {
     return {
       ...base, call: "OUT_OF_SCOPE", confidence: "high",
-      headline: "Not a category Assyze covers.",
+      headline: "Not a category Filtrsoft covers.",
       // `head.head` is null whenever the title carries no recognised product
       // noun, which is exactly the router/switch case that reaches here via the
       // title fallback above. Name the matched word instead of crashing.
-      reasoning: `That reads as ${(input.title.match(NEVER_OUR_MARKET)?.[0] ?? head.head ?? input.title.match(NOT_OUR_MARKET)?.[0] ?? "peripheral").toLowerCase()} gear. Assyze covers phones, laptops, GPUs, consoles, tablets and PC components, the things with deep enough sold-comp data to price confidently. There are no comps here because nobody has ever asked for any.`,
+      reasoning: `That reads as ${(input.title.match(NEVER_OUR_MARKET)?.[0] ?? head.head ?? input.title.match(NOT_OUR_MARKET)?.[0] ?? "peripheral").toLowerCase()} gear. Filtrsoft covers phones, laptops, GPUs, consoles, tablets and PC components, the things with deep enough sold-comp data to price confidently. There are no comps here because nobody has ever asked for any.`,
     };
   }
 
@@ -504,8 +504,8 @@ export function buildVerdict(input: {
   if (product.kind === "unknown") {
     return {
       ...base, call: "OUT_OF_SCOPE", confidence: "high",
-      headline: "Not something Assyze covers.",
-      reasoning: `Nothing in "${input.title.slice(0, 60)}" reads as a device Assyze knows how to price: no recognisable product type and no model number. Assyze covers phones, laptops, GPUs, consoles, tablets and PC components.`,
+      headline: "Not something Filtrsoft covers.",
+      reasoning: `Nothing in "${input.title.slice(0, 60)}" reads as a device Filtrsoft knows how to price: no recognisable product type and no model number. Filtrsoft covers phones, laptops, GPUs, consoles, tablets and PC components.`,
     };
   }
 

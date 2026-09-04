@@ -88,7 +88,7 @@
  * same visual weight and no room for what it actually includes, which is the
  * only reason anyone reads a pricing section.
  *
- * They STACK rather than sitting side by side. Assyze is a 360px-wide phone
+ * They STACK rather than sitting side by side. Filtrsoft is a 360px-wide phone
  * app; three columns of feature bullets at 110px each is a comparison nobody
  * can read. Stacked, each plan gets the full width and the "Current" pill is
  * what does the comparing.
@@ -232,8 +232,8 @@
 
 /* ═════════════════════════════════════════════════ purchases — the scoreboard
  *
- * Yish, 2026-08-31: *"add a section in Assyze where it shows all of my
- * purchases with the help of assyze and make it have good ui."*
+ * Yish, 2026-08-31: *"add a section in Filtrsoft where it shows all of my
+ * purchases with the help of filtrsoft and make it have good ui."*
  *
  * ⚠ THE SUM LEADS. A list of things you bought is a receipt; the reason to open
  * this screen is the total — what you spent against what it is worth. Four

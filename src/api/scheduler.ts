@@ -1,5 +1,5 @@
 /**
- * The production crawl loop — what makes assyze.com a marketplace rather than
+ * The production crawl loop — what makes filtrsoft.com a marketplace rather than
  * a search box.
  *
  * **THE PROBLEM.** The deployed app served three Craigslist listings, all more
@@ -29,7 +29,7 @@
  * Three independent bounds, because this loop runs unattended forever:
  *   · `VISION_PER_RUN` listings per crawl, best-looking first
  *   · the $2/day budget, checked before EVERY call inside `crawl()`
- *   · `ASSYZE_VISION=off` kills it outright
+ *   · `FILTRSOFT_VISION=off` kills it outright
  */
 import { discover, drain, queueDepth } from "../crawler/queue.ts";
 import { visionPass } from "../crawler/vision-pass.ts";
@@ -43,10 +43,10 @@ import { db, now } from "../db/index.ts";
 import { storeVerdict } from "../db/verdicts.ts";
 
 /** Gap between ticks. A tick is 5 requests when nothing is new. */
-const INTERVAL_MS = Number(process.env.ASSYZE_CRAWL_INTERVAL_MS ?? 3 * 60 * 1000);
+const INTERVAL_MS = Number(process.env.FILTRSOFT_CRAWL_INTERVAL_MS ?? 3 * 60 * 1000);
 
 /** Listings analysed per run. Bounded so one pass cannot run away. */
-const LIMIT = Number(process.env.ASSYZE_CRAWL_LIMIT ?? 40);
+const LIMIT = Number(process.env.FILTRSOFT_CRAWL_LIMIT ?? 40);
 
 /**
  * Listings whose photos get read per TICK.
@@ -65,10 +65,10 @@ const LIMIT = Number(process.env.ASSYZE_CRAWL_LIMIT ?? 40);
  * can overshoot by two, and a money guard that can be exceeded is not a guard.
  * This number only decides how fast the budget could be reached.
  */
-const VISION_PER_RUN = Number(process.env.ASSYZE_CRAWL_VISION ?? 3);
+const VISION_PER_RUN = Number(process.env.FILTRSOFT_CRAWL_VISION ?? 3);
 
-/** `ASSYZE_VISION=off` kills photo reading without stopping the crawl. */
-const VISION_ON = (process.env.ASSYZE_VISION ?? "on").toLowerCase() !== "off";
+/** `FILTRSOFT_VISION=off` kills photo reading without stopping the crawl. */
+const VISION_ON = (process.env.FILTRSOFT_VISION ?? "on").toLowerCase() !== "off";
 
 /**
  * ⚠ EXPORTED SO `/v1/health` CAN REPORT WHAT THE LOOP ACTUALLY SEES.
@@ -76,8 +76,8 @@ const VISION_ON = (process.env.ASSYZE_VISION ?? "on").toLowerCase() !== "off";
  * There are TWO independent vision switches reading TWO different env vars,
  * and health only ever reported one of them:
  *
- *     visionKilled()  -> ASSYZE_VISION_ENABLED === "0"   (the kill switch)
- *     VISION_ON       -> ASSYZE_VISION !== "off"         (this loop)
+ *     visionKilled()  -> FILTRSOFT_VISION_ENABLED === "0"   (the kill switch)
+ *     VISION_ON       -> FILTRSOFT_VISION !== "off"         (this loop)
  *
  * So `visionEnabled: true` was compatible with the pass never running once.
  * Diagnosing "no reads in three days" cost an hour partly because of this.
@@ -86,8 +86,8 @@ const VISION_ON = (process.env.ASSYZE_VISION ?? "on").toLowerCase() !== "off";
 export const visionLoopEnabled = () => VISION_ON;
 export const crawlPaceMode = () => pace().mode;
 
-/** Set `ASSYZE_CRAWL=off` to disable — the local box does not need it. */
-const ENABLED = (process.env.ASSYZE_CRAWL ?? "on").toLowerCase() !== "off";
+/** Set `FILTRSOFT_CRAWL=off` to disable — the local box does not need it. */
+const ENABLED = (process.env.FILTRSOFT_CRAWL ?? "on").toLowerCase() !== "off";
 
 /**
  * How many listings to analyse this run, and how long to wait afterwards.
@@ -138,8 +138,8 @@ function pace(): { limit: number; nextMs: number; mode: string } {
  * days. It also produces the clearing-price history that `outcomes` reads, and
  * every day it does not run is history nobody can refetch.
  */
-const SWEEP_INTERVAL_MS = Number(process.env.ASSYZE_SWEEP_INTERVAL_MS ?? 24 * 60 * 60 * 1000);
-const SWEEP_ON = (process.env.ASSYZE_SWEEP ?? "on").toLowerCase() !== "off";
+const SWEEP_INTERVAL_MS = Number(process.env.FILTRSOFT_SWEEP_INTERVAL_MS ?? 24 * 60 * 60 * 1000);
+const SWEEP_ON = (process.env.FILTRSOFT_SWEEP ?? "on").toLowerCase() !== "off";
 
 /**
  * Cap the per-run individual probes.
@@ -165,7 +165,7 @@ const SWEEP_ON = (process.env.ASSYZE_SWEEP ?? "on").toLowerCase() !== "off";
  * live until tomorrow, so the backlog drains over days rather than arriving as
  * one spike.
  */
-const SWEEP_PROBE_LIMIT = Number(process.env.ASSYZE_SWEEP_PROBE ?? 150);
+const SWEEP_PROBE_LIMIT = Number(process.env.FILTRSOFT_SWEEP_PROBE ?? 150);
 
 let running = false;
 let sweeping = false;
@@ -451,7 +451,7 @@ function recordTick(
 }
 
 export function startCrawlLoop() {
-  if (!ENABLED) { console.log("crawl loop: disabled (ASSYZE_CRAWL=off)"); return; }
+  if (!ENABLED) { console.log("crawl loop: disabled (FILTRSOFT_CRAWL=off)"); return; }
 
   /**
    * First run is DEFERRED, not immediate.
@@ -507,7 +507,7 @@ export function startCrawlLoop() {
  *
  * The evidence: local sweeps ran on 08-27, 08-29 and 08-31 against a DAILY
  * interval, and production had marked **7 of 725** listings delisted. Yish:
- * *"there's a bunch of listings on Assyze that are sold already, so once
+ * *"there's a bunch of listings on Filtrsoft that are sold already, so once
  * something is sold it should get removed."* He was looking at the symptom of a
  * timer that could never fire.
  *

@@ -15,7 +15,7 @@ const dry = process.argv.includes("--dry");
 const mb = (b: number) => `${(b / 1024 / 1024).toFixed(1)} MB`;
 
 if (KEEP_PHOTOS) {
-  console.log("ASSYZE_KEEP_PHOTOS=1 is set — retention is disabled, pruning anyway on request.");
+  console.log("FILTRSOFT_KEEP_PHOTOS=1 is set — retention is disabled, pruning anyway on request.");
 }
 
 const before = db().query("SELECT COUNT(*) n FROM listing_photos WHERE phash IS NOT NULL").get() as { n: number };

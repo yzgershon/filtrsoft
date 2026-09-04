@@ -1,7 +1,7 @@
 /**
  * Snapshot the archive.
  *
- * WHY THIS IS NOT `copy assyze.db`:
+ * WHY THIS IS NOT `copy filtrsoft.db`:
  *
  * SQLite in WAL mode keeps recent writes in a SEPARATE `-wal` file until a
  * checkpoint folds them in. On 2026-08-24 the database was 1.3 MB and the WAL
@@ -23,21 +23,21 @@ import { join, basename } from "node:path";
 import { homedir } from "node:os";
 import { db, DB_PATH, stats } from "../db/index.ts";
 
-const KEEP = Number(process.env.ASSYZE_BACKUP_KEEP) || 14;
-const LOCAL = process.env.ASSYZE_BACKUP_DIR ?? join(import.meta.dir, "../../backups");
+const KEEP = Number(process.env.FILTRSOFT_BACKUP_KEEP) || 14;
+const LOCAL = process.env.FILTRSOFT_BACKUP_DIR ?? join(import.meta.dir, "../../backups");
 
 /**
  * The second copy. A backup on the same disk as the original protects against
  * a bad migration, not against the disk. OneDrive syncs off the machine for
  * free and is already running, so it is the cheapest real offsite there is.
  */
-const CLOUD = process.env.ASSYZE_BACKUP_CLOUD ?? join(homedir(), "OneDrive", "assyze-backups");
+const CLOUD = process.env.FILTRSOFT_BACKUP_CLOUD ?? join(homedir(), "OneDrive", "filtrsoft-backups");
 
 const mb = (n: number) => `${(n / 1e6).toFixed(1)} MB`;
 
 function rotate(dir: string) {
   const files = readdirSync(dir)
-    .filter((f) => /^assyze-\d{4}-\d{2}-\d{2}\.db$/.test(f))
+    .filter((f) => /^filtrsoft-\d{4}-\d{2}-\d{2}\.db$/.test(f))
     .sort();
   for (const f of files.slice(0, Math.max(0, files.length - KEEP))) {
     rmSync(join(dir, f));
@@ -46,7 +46,7 @@ function rotate(dir: string) {
 }
 
 const day = new Date().toISOString().slice(0, 10);
-const name = `assyze-${day}.db`;
+const name = `filtrsoft-${day}.db`;
 
 mkdirSync(LOCAL, { recursive: true });
 const out = join(LOCAL, name);

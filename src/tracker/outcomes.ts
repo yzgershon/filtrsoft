@@ -1,5 +1,5 @@
 /**
- * The outcome loop — the only thing that can tell Assyze whether it is RIGHT.
+ * The outcome loop — the only thing that can tell Filtrsoft whether it is RIGHT.
  *
  * Until now `outcomes` was empty, which meant nothing anywhere fed a verdict
  * back against reality. The engine's accuracy was whatever Yish said it was

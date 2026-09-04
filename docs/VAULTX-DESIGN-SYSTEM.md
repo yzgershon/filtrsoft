@@ -1,7 +1,7 @@
 # The VaultX design system — measured, not guessed
 
-Assyze's visual system as of 2026-08-31. Yish: *"literally abandon everything
-from Assyze and use this design system to make it look amazing and use the
+Filtrsoft's visual system as of 2026-08-31. Yish: *"literally abandon everything
+from Filtrsoft and use this design system to make it look amazing and use the
 demo's colors aswell."*
 
 Source: <https://ui-ux-pro-max-skill.nextlevelbuilder.io/demo/crypto-wallet>
@@ -84,7 +84,7 @@ called out:
 3. **Muted `#94A3B8` subtitle**, one line.
 4. **Grid of glass cards** — icon in accent colour, bold white title, muted body.
 
-## Mapping onto Assyze's verdicts
+## Mapping onto Filtrsoft's verdicts
 
 ⚠ **THE VERDICT COLOURS ARE THE PRODUCT AND THEY ARE NOT DECORATION.** They
 carry the only judgement the app makes, so they move to the demo's palette
@@ -112,5 +112,5 @@ are safe here because every verdict is also a WORD on screen ("BUY IT",
 "RISKY") and an icon — colour is never the only indicator. Do not remove those
 labels to save space.
 
-⚠ **ASSYZE'S BRAND ORANGE `#ff8a3d` IS GONE.** The demo has no orange except as
+⚠ **FILTRSOFT'S BRAND ORANGE `#ff8a3d` IS GONE.** The demo has no orange except as
 a Bitcoin token colour. The brand is the cyan→purple gradient now.

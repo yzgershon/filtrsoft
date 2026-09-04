@@ -6,7 +6,7 @@
  * ── WHY THIS EXISTS ────────────────────────────────────────────────────────
  *
  * Yish, 2026-08-28: *"a lot of the listings that are shown are sold... make
- * sure every listing that's been sold or deleted or removed isn't on Assyze."*
+ * sure every listing that's been sold or deleted or removed isn't on Filtrsoft."*
  * The MacBook Pro 14" M1 Pro at $630 had sold and was still sitting in the
  * feed as a VERIFY.
  *

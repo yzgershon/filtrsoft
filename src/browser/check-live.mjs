@@ -7,8 +7,8 @@
  */
 import { chromium, devices } from "playwright-core";
 
-const BASE = process.argv[2] ?? "https://assyze.com";
-const CHROME = process.env.ASSYZE_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
+const BASE = process.argv[2] ?? "https://filtrsoft.com";
+const CHROME = process.env.FILTRSOFT_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
 
 const b = await chromium.launch({ executablePath: CHROME, headless: true });
 const c = await b.newContext({ ...devices["Galaxy S24"] });

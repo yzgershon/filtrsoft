@@ -112,7 +112,7 @@ function pairWorks(subject: string, pub: string, priv: string): string | null {
  */
 function resolveKeys(): { publicKey: string; privateKey: string; from: "env" | "generated" } | null {
   if (active) return active;
-  const subject = envOr("VAPID_SUBJECT", "mailto:hello@assyze.com");
+  const subject = envOr("VAPID_SUBJECT", "mailto:hello@filtrsoft.com");
 
   const envPub = (process.env.VAPID_PUBLIC_KEY ?? "").trim();
   const envPriv = (process.env.VAPID_PRIVATE_KEY ?? "").trim();
@@ -167,7 +167,7 @@ function configure(): boolean {
   if (ready) return true;
   const keys = resolveKeys();
   if (!keys) { configError ??= "no usable VAPID keypair"; return false; }
-  const subject = envOr("VAPID_SUBJECT", "mailto:hello@assyze.com");
+  const subject = envOr("VAPID_SUBJECT", "mailto:hello@filtrsoft.com");
   const err = pairWorks(subject, keys.publicKey, keys.privateKey);
   if (err) { configError = err; console.error(`push disabled — VAPID rejected: ${err}`); return false; }
   ready = true;
@@ -187,7 +187,7 @@ export function pushStatus() {
     error: configError,
     /** env = you supplied a pair; generated = the server made its own. */
     keySource: active?.from ?? null,
-    subject: envOr("VAPID_SUBJECT", "mailto:hello@assyze.com"),
+    subject: envOr("VAPID_SUBJECT", "mailto:hello@filtrsoft.com"),
     publicKeyChars: active?.publicKey.length ?? 0,   // 87 when healthy
     privateKeyChars: active?.privateKey.length ?? 0, // 43 when healthy
   };
@@ -448,7 +448,7 @@ export async function handleTestPush(c: Context) {
   const row = db().query("SELECT id sub_id, endpoint, p256dh, auth FROM push_subs WHERE id=?").get(subId) as SearchRow | null;
   if (!row) return c.json({ error: "unknown subscription" }, 404);
   const ok = await send(row, {
-    title: "Assyze alerts are on",
+    title: "Filtrsoft alerts are on",
     body: "This is what a match will look like.",
     url: "/",
   });

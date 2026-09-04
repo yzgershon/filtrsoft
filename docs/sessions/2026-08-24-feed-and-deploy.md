@@ -58,7 +58,7 @@ the name read `yzgershon` while the account shown was a friend Yish didn't know 
 GitHub. He found it on the repo page.
 
 Fixed by rewriting all 27 commits, deleting a stale `master` branch, and setting the
-default to `main`. Every other repo under `C:\Dev` was clean — assyze was the only one
+default to `main`. Every other repo under `C:\Dev` was clean — filtrsoft was the only one
 without an explicit repo-local `user.email`, because I created it.
 
 **Prevention:** `.git/hooks/pre-commit` blocks any commit whose author email isn't his.

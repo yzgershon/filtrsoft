@@ -138,9 +138,9 @@ So Facebook realized prices must be either (a) **derived** — eBay sold × a lo
 
 > *"the app could have a button that automatically drafts the listing in an instant you just need to take photos... its always good practice to take at least 5 photos of the item and maybe even a video and all the person has to do is click publish listing."*
 
-Good feature on its own — it extends Assyze from "should I buy this" to the full flip cycle, and selling is the natural reason to *come back*, which is retention.
+Good feature on its own — it extends Filtrsoft from "should I buy this" to the full flip cycle, and selling is the natural reason to *come back*, which is retention.
 
-**But the strategic value is bigger than convenience.** Look at the data problem directly above: the one thing Assyze cannot buy is what items actually sell for on Facebook Marketplace locally.
+**But the strategic value is bigger than convenience.** Look at the data problem directly above: the one thing Filtrsoft cannot buy is what items actually sell for on Facebook Marketplace locally.
 
 **If the app drafts and tracks the listing, the app knows what it sold for.** The relisting feature is not a convenience bolt-on — it is the **collection mechanism for the only proprietary dataset in the entire product.** Yish's feature idea and the data moat are the same thing.
 
@@ -150,7 +150,7 @@ It also closes the loop end to end: buy verdict → purchase → relist → real
 - **eBay has a Sell API** → genuine one-click publish is possible
 - **Facebook has no API** → "draft prepared, you paste and publish." Still saves most of the work; be honest that the last click is manual.
 
-**Capture standard (his):** minimum 5 photos, ideally a short video. Worth enforcing in the UI, since it doubles as the input for the next buyer's Assyze analysis.
+**Capture standard (his):** minimum 5 photos, ideally a short video. Worth enforcing in the UI, since it doubles as the input for the next buyer's Filtrsoft analysis.
 
 Slots into **Phase 5** in `PLAN.md`, alongside the outcome loop it enables.
 

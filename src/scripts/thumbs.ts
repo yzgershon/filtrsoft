@@ -35,7 +35,7 @@ const show = () => {
 };
 
 if (THUMBS_OFF) {
-  console.log("ASSYZE_NO_THUMB_CACHE=1 — the cache is switched off.");
+  console.log("FILTRSOFT_NO_THUMB_CACHE=1 — the cache is switched off.");
   process.exit(0);
 }
 

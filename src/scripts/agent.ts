@@ -3,13 +3,13 @@
  *
  * The piece that lives on HIS PC and does what the container cannot.
  *
- * Yish, 2026-09-03: *"code a button in Assyze that I click and put in a pin ...
+ * Yish, 2026-09-03: *"code a button in Filtrsoft that I click and put in a pin ...
  * that automatically starts the crawl ... so I dont need to waste my claude
  * usage asking you to crawl."*
  *
  * ── WHY IT POLLS ───────────────────────────────────────────────────────────
  *
- * assyze.com is a Railway container and this desktop is behind a home router.
+ * filtrsoft.com is a Railway container and this desktop is behind a home router.
  * **The server cannot reach here.** So the button writes a row and this asks
  * for it, every 15 seconds, forever. Leave it running; it costs one tiny HTTP
  * request a quarter-minute and nothing else.
@@ -35,8 +35,8 @@
  */
 import { spawn, execSync } from "node:child_process";
 
-const API = (process.env.ASSYZE_API ?? "https://assyze.com").replace(/\/$/, "");
-const TOKEN = (process.env.ASSYZE_PUSH_TOKEN ?? "").trim();
+const API = (process.env.FILTRSOFT_API ?? "https://filtrsoft.com").replace(/\/$/, "");
+const TOKEN = (process.env.FILTRSOFT_PUSH_TOKEN ?? "").trim();
 
 const POLL_MS = 15_000;
 /**
@@ -50,7 +50,7 @@ const POLL_MS = 15_000;
 const PER_SOURCE_TIMEOUT_MS = 12 * 60_000;
 
 if (!TOKEN) {
-  console.error("ASSYZE_PUSH_TOKEN is not set. The agent cannot authenticate.");
+  console.error("FILTRSOFT_PUSH_TOKEN is not set. The agent cannot authenticate.");
   console.error("It must match the value set on Railway.");
   process.exit(1);
 }
@@ -189,7 +189,7 @@ async function doJob(job: { id: number; sources: string[] }) {
   console.log(`job #${job.id} finished: ${JSON.stringify(summary)}`);
 }
 
-console.log(`Assyze agent watching ${API}`);
+console.log(`Filtrsoft agent watching ${API}`);
 console.log("Leave this window open. Tap Start crawl in the app to trigger a run.\n");
 
 let warnedOffline = false;
@@ -198,7 +198,7 @@ while (true) {
   try {
     const res = await fetch(`${API}/v1/jobs/next`, { headers: auth });
     if (res.status === 401) {
-      console.error("Rejected: ASSYZE_PUSH_TOKEN does not match the server's.");
+      console.error("Rejected: FILTRSOFT_PUSH_TOKEN does not match the server's.");
       process.exit(1);
     }
     const { job } = await res.json() as { job: { id: number; sources: string[] } | null };

@@ -27,7 +27,7 @@ COPY --from=web /web/dist ./web/dist
 EXPOSE 3177
 
 # Volume-backed paths. Railway overrides these with the real mount.
-ENV ASSYZE_DB=/data/assyze.db
-ENV ASSYZE_PHOTOS=/data/photos
+ENV FILTRSOFT_DB=/data/filtrsoft.db
+ENV FILTRSOFT_PHOTOS=/data/photos
 
 CMD ["bun", "run", "src/api/index.ts"]

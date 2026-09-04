@@ -2,13 +2,13 @@
  * bun run push [--source facebook] [--since 7] [--limit 200] [--dry]
  *
  * Send locally-crawled listings to production. This is how Facebook Marketplace
- * (and anything else needing a signed-in browser) reaches assyze.com — the
+ * (and anything else needing a signed-in browser) reaches filtrsoft.com — the
  * container cannot log in, and session cookies do not belong in a server image.
  *
  * Sends FACTS only. The server re-scores everything with its own engine, so a
  * stale local engine can never put a stale verdict in front of a buyer.
  *
- * Needs `ASSYZE_PUSH_TOKEN` set in the local environment AND on Railway. Set it
+ * Needs `FILTRSOFT_PUSH_TOKEN` set in the local environment AND on Railway. Set it
  * in Railway's variables UI yourself — never paste a token into a chat.
  */
 import { db } from "../db/index.ts";
@@ -19,14 +19,14 @@ const arg = (k: string) => {
 };
 const has = (k: string) => process.argv.includes(`--${k}`);
 
-const API = process.env.ASSYZE_API ?? "https://assyze.com";
-const TOKEN = process.env.ASSYZE_PUSH_TOKEN;
+const API = process.env.FILTRSOFT_API ?? "https://filtrsoft.com";
+const TOKEN = process.env.FILTRSOFT_PUSH_TOKEN;
 const source = arg("source") ?? "facebook";
 const sinceDays = Number(arg("since")) || 14;
 const limit = Math.min(Number(arg("limit")) || 200, 300);
 
 if (!TOKEN && !has("dry")) {
-  console.error("ASSYZE_PUSH_TOKEN is not set locally.");
+  console.error("FILTRSOFT_PUSH_TOKEN is not set locally.");
   console.error("  Set the same value in Railway -> Variables, then export it here.");
   process.exit(1);
 }

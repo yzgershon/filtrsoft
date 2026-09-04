@@ -1,5 +1,5 @@
 /**
- * The crawler — what turns Assyze from a link checker into a marketplace.
+ * The crawler — what turns Filtrsoft from a link checker into a marketplace.
  *
  * A feed means analysing EVERYTHING, not one listing on demand. Vision costs
  * ~60s per listing on the CLI, so analysing everything with vision is

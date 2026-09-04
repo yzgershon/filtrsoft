@@ -1,7 +1,7 @@
 /**
  * Accounts: email + password, Sign in with Google, Sign in with Apple.
  *
- * Yish, 2026-09-01: *"right now anyone who goes to assyze.com can just have
+ * Yish, 2026-09-01: *"right now anyone who goes to filtrsoft.com can just have
  * full access to all the deals so lets add some personalization and security
  * and professionalism."*
  *
@@ -53,7 +53,7 @@ const APPLE_CLIENT_ID = () => (process.env.APPLE_CLIENT_ID ?? "").trim();
 
 /** 60 days. Long enough that a deal-hunting app is not a login chore. */
 const SESSION_DAYS = 60;
-export const SESSION_COOKIE = "assyze_session";
+export const SESSION_COOKIE = "filtrsoft_session";
 
 /**
  * ⚠ `Secure` IS DROPPED ONLY ON LOCALHOST. A browser silently refuses to store
@@ -476,7 +476,7 @@ function upsertIdentity(opts: {
      * synthetic address keyed on the provider subject keeps the row valid and
      * stable without pretending to be reachable mail.
      */
-    const addr = email ?? `${opts.provider}_${opts.subject}@users.assyze.com`;
+    const addr = email ?? `${opts.provider}_${opts.subject}@users.filtrsoft.com`;
     const r = d.run(
       `INSERT INTO users (email, password_hash, name, avatar_url, created_at, last_seen_at)
        VALUES (?, NULL, ?, ?, ?, ?)`,

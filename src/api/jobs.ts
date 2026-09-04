@@ -1,13 +1,13 @@
 /**
  * Crawl jobs — the button in the app that starts a crawl on his PC.
  *
- * Yish, 2026-09-03: *"code a button in Assyze that I click and put in a pin ...
+ * Yish, 2026-09-03: *"code a button in Filtrsoft that I click and put in a pin ...
  * that automatically starts the crawl ... so I dont need to waste my claude
  * usage asking you to crawl."*
  *
  * ── WHY IT IS A QUEUE AND NOT A CALL ───────────────────────────────────────
  *
- * assyze.com is a Railway container. His desktop is behind a home router with
+ * filtrsoft.com is a Railway container. His desktop is behind a home router with
  * no inbound route and no fixed address. **The server cannot reach his PC**, so
  * a button that tried to call it could never work in any amount of code.
  *
@@ -31,7 +31,7 @@
  * ⚠ AND IT LIVES IN AN ENV VAR, NEVER IN THE REPO. Same rule as every other
  * secret in this project. A PIN committed to git is a PIN in the clone, in the
  * fork and in the history forever, and rotating it would take a deploy. Set
- * `ASSYZE_CRAWL_PIN` on Railway; unset, the feature reports itself as
+ * `FILTRSOFT_CRAWL_PIN` on Railway; unset, the feature reports itself as
  * unconfigured rather than defaulting to something guessable.
  */
 import type { Context } from "hono";
@@ -39,7 +39,7 @@ import { timingSafeEqual } from "node:crypto";
 import { db, now } from "../db/index.ts";
 import { currentUser } from "./auth.ts";
 
-const PIN = () => (process.env.ASSYZE_CRAWL_PIN ?? "").trim();
+const PIN = () => (process.env.FILTRSOFT_CRAWL_PIN ?? "").trim();
 export const crawlPinConfigured = () => PIN().length >= 4;
 
 /** Sources only a browser with a real session can reach. */
@@ -112,7 +112,7 @@ export async function handleStartCrawl(c: Context) {
   if (!crawlPinConfigured()) {
     return c.json({
       error: "crawling from the app is not set up yet",
-      detail: "ASSYZE_CRAWL_PIN is not set on the server.",
+      detail: "FILTRSOFT_CRAWL_PIN is not set on the server.",
     }, 503);
   }
 
@@ -192,7 +192,7 @@ export function handleLatestJob(c: Context) {
 // ────────────────────────────────────────────────────────────── the agent
 
 /**
- * ⚠ THE AGENT AUTHENTICATES WITH `ASSYZE_PUSH_TOKEN`, NOT A SESSION. It is a
+ * ⚠ THE AGENT AUTHENTICATES WITH `FILTRSOFT_PUSH_TOKEN`, NOT A SESSION. It is a
  * headless process on his desktop, not a browser: it has no cookie, and giving
  * it a 60-day user session would put an account credential in a background
  * service. It already needs that token to `push` its results, so this adds no
@@ -201,7 +201,7 @@ export function handleLatestJob(c: Context) {
 let lastAgentPollAt: string | null = null;
 
 function agentAuthorised(c: Context): boolean {
-  const want = (process.env.ASSYZE_PUSH_TOKEN ?? "").trim();
+  const want = (process.env.FILTRSOFT_PUSH_TOKEN ?? "").trim();
   if (!want) return false;
   const got = (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   if (got.length !== want.length) return false;

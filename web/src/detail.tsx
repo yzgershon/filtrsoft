@@ -612,7 +612,7 @@ export function Lightbox({ urls, start, onClose }: { urls: string[]; start: numb
  * The hard-blocker panel — the risk layer, finally visible.
  *
  * `riskChecks` has been computed and attached to every verdict for weeks and
- * was rendered nowhere, so the thing that actually separates Assyze from a
+ * was rendered nowhere, so the thing that actually separates Filtrsoft from a
  * price lookup was invisible in the product. Each check states what it is,
  * whether the listing resolved it, and the exact question that would.
  */

@@ -1,7 +1,7 @@
 /**
  * The marketing site and the auth screens.
  *
- * ⚠ THIS IS THE ONE PART OF ASSYZE THAT IS NOT A PHONE APP, and the geometry
+ * ⚠ THIS IS THE ONE PART OF FILTRSOFT THAT IS NOT A PHONE APP, and the geometry
  * has to say so. `10-desktop.css` puts the APP inside a 360px phone frame above
  * 1024px, which is right for a tool you use one-handed and completely wrong for
  * a page whose job is to convince a stranger on a laptop. So the landing owns

@@ -1,15 +1,15 @@
-# Assyze Ecosystem and Expansion Map
+# Filtrsoft Ecosystem and Expansion Map
 
 **Date:** 2026-08-24  
 **Purpose:** A product opportunity map for Claude and Yish. This is intentionally separate from the technical audit so good ideas do not blur the launch blockers.
 
-## The strongest version of Assyze
+## The strongest version of Filtrsoft
 
-Assyze should not become another broad classifieds site. Its strongest position is:
+Filtrsoft should not become another broad classifieds site. Its strongest position is:
 
 > **The trust and decision layer for buying used technology locally.**
 
-Marketplaces help a buyer find listings. Assyze should help the buyer answer the harder questions:
+Marketplaces help a buyer find listings. Filtrsoft should help the buyer answer the harder questions:
 
 - Is this the exact model the seller claims?
 - Is anything important hidden, locked, damaged, fake, or missing?
@@ -17,7 +17,7 @@ Marketplaces help a buyer find listings. Assyze should help the buyer answer the
 - Is the asking price actually good after travel, repair, resale friction, and risk?
 - What should I ask the seller, test in person, offer, and walk away from?
 
-That position lets Assyze work across Craigslist, Facebook Marketplace, OfferUp, eBay, local stores, university surplus, repair shops, and direct seller submissions without needing to own every listing.
+That position lets Filtrsoft work across Craigslist, Facebook Marketplace, OfferUp, eBay, local stores, university surplus, repair shops, and direct seller submissions without needing to own every listing.
 
 ## AI leverage boundary
 
@@ -28,21 +28,21 @@ The product advantage comes from making that boundary visible. “AI could not p
 ## Product system
 
 ```text
-                    ASSYZE TRUST GRAPH
+                    FILTRSOFT TRUST GRAPH
                            |
         +------------------+------------------+
         |                  |                  |
-   Assyze Check       Assyze Feed       Assyze Passport
+   Filtrsoft Check       Filtrsoft Feed       Filtrsoft Passport
    one listing        verified deals    shareable evidence
         |                  |                  |
         +---------+--------+--------+---------+
                   |                 |
-            Assyze Seller      Assyze Pro
+            Filtrsoft Seller      Filtrsoft Pro
             better listings    reseller workspace
                   |                 |
                   +--------+--------+
                            |
-                    Assyze Data/API
+                    Filtrsoft Data/API
              normalized models, evidence,
               prices, lifecycle, outcomes
 ```
@@ -51,9 +51,9 @@ Each surface should strengthen the same data asset instead of creating a separat
 
 ## Recommended product families
 
-### 1. Assyze Check
+### 1. Filtrsoft Check
 
-The current link checker is the best wedge because it gives value before Assyze has its own complete feed.
+The current link checker is the best wedge because it gives value before Filtrsoft has its own complete feed.
 
 **Core result**
 
@@ -68,7 +68,7 @@ The current link checker is the best wedge because it gives value before Assyze 
 
 **High-leverage additions**
 
-- Browser extension and mobile share sheet: “Check with Assyze” from any marketplace page.
+- Browser extension and mobile share sheet: “Check with Filtrsoft” from any marketplace page.
 - Paste screenshots when a marketplace blocks direct fetching.
 - Photo-change detection so an edited listing automatically invalidates old evidence.
 - Evidence crops: tap a field to see the photo region or sentence that supports it.
@@ -76,7 +76,7 @@ The current link checker is the best wedge because it gives value before Assyze 
 - Private notes and a meeting checklist.
 - A lightweight “check without vision” mode plus paid/limited deep check.
 
-### 2. Assyze Feed
+### 2. Filtrsoft Feed
 
 The feed should be a consequence of verified checks, not a raw scrape with a score added.
 
@@ -99,7 +99,7 @@ The feed should be a consequence of verified checks, not a raw scrape with a sco
 - Price-drop and seller-edit timelines.
 - Local demand/competition indicator for resellers.
 
-### 3. Assyze Passport
+### 3. Filtrsoft Passport
 
 A Passport is a versioned, shareable evidence record for one physical device or listing.
 
@@ -111,20 +111,20 @@ A Passport is a versioned, shareable evidence record for one physical device or 
 - Known defects and unresolved questions.
 - Repair/service receipts when supplied.
 - Battery/cycle/diagnostic snapshots.
-- Price evidence and Assyze result version.
+- Price evidence and Filtrsoft result version.
 - A QR/share link with public and private fields separated.
 
 **Why it matters**
 
 - Buyers can verify what a seller claims.
 - Good sellers can prove a device is cleaner than competing listings.
-- Outcomes create labeled data for Assyze.
+- Outcomes create labeled data for Filtrsoft.
 - The result becomes shareable, which creates organic distribution.
 - The Passport can travel with the device through resale without pretending prior checks are still current.
 
 Avoid calling it a guarantee. It is an evidence record with dates, sources, and clear limits.
 
-### 4. Assyze Seller
+### 4. Filtrsoft Seller
 
 Seller tools create permitted first-party supply and better evidence.
 
@@ -142,7 +142,7 @@ Seller tools create permitted first-party supply and better evidence.
 
 This can reduce dependence on centralized marketplace crawling: sellers submit structured inventory because verification helps them sell.
 
-### 5. Assyze Pro
+### 5. Filtrsoft Pro
 
 For flippers, repair shops, refurbishers, and power buyers.
 
@@ -159,9 +159,9 @@ For flippers, repair shops, refurbishers, and power buyers.
 - Receipt and serial storage with privacy controls.
 - Export/API for bookkeeping and inventory systems.
 
-Assyze Pro can monetize before a consumer marketplace reaches scale because it saves measurable time and prevents bad buys.
+Filtrsoft Pro can monetize before a consumer marketplace reaches scale because it saves measurable time and prevents bad buys.
 
-### 6. Assyze Data/API
+### 6. Filtrsoft Data/API
 
 This is a later product, but the schema should make it possible now.
 
@@ -188,7 +188,7 @@ Do not sell raw scraped marketplace data unless the collection and licensing bas
 | User-confirmed buy/pass/sale outcome | High | Very high | Medium | Now |
 | Photo/content change invalidation | High | High | Medium | Now |
 | Saved searches and verified alerts | High | Medium | Medium | After feed quality |
-| Assyze Passport | High | Very high | Medium-high | Next |
+| Filtrsoft Passport | High | Very high | Medium-high | Next |
 | Guided seller photo capture | High | Very high | Medium | Next |
 | Reseller deal/inventory workspace | High | Very high | High | Next |
 | Map and travel-cost ranking | Medium-high | Medium | Medium | After feed quality |
@@ -212,7 +212,7 @@ For each device/listing, capture:
 - Required checks and their state.
 - Listing observations over time.
 - Photo/content fingerprints and changes.
-- Assyze model/rule/prompt versions.
+- Filtrsoft model/rule/prompt versions.
 - Final user action and eventual outcome.
 
 ### Outcome loop
@@ -245,7 +245,7 @@ The safest KPI is not the number of deals shown. It is the percentage of strong 
 
 ## Source strategy
 
-Assyze should be source-agnostic at the product layer and strict at the access layer.
+Filtrsoft should be source-agnostic at the product layer and strict at the access layer.
 
 ### Better source mix
 
@@ -271,7 +271,7 @@ Create one table/document for every source:
 | Rate limits | Technical and contractual limits |
 | Retention | How long raw pages/photos/payloads may be kept |
 | Attribution | Required source links/branding |
-| Shutdown plan | What Assyze does if access ends |
+| Shutdown plan | What Filtrsoft does if access ends |
 
 No new source adapter should launch without this record.
 
@@ -323,7 +323,7 @@ guided evidence -> trusted Passport -> faster/cleaner sale
 ### Local-partner loop
 
 ```text
-shop inventory/inspection -> Assyze qualified demand
+shop inventory/inspection -> Filtrsoft qualified demand
       -> measured conversions -> more partner inventory
 ```
 
@@ -331,7 +331,7 @@ These loops produce first-party evidence. A generic content feed does not.
 
 ## Monetization paths
 
-Monetization should match where Assyze creates measurable value and where variable AI cost occurs.
+Monetization should match where Filtrsoft creates measurable value and where variable AI cost occurs.
 
 ### Consumer
 
@@ -391,7 +391,7 @@ The current pipeline most naturally serves a careful flipper or informed consume
 
 Write a strict definition before using the word in public. It should specify identity confidence, evidence age, blocker status, comp quality, and what still requires an in-person test.
 
-### 3. What is Assyze responsible for?
+### 3. What is Filtrsoft responsible for?
 
 Decide whether it is:
 
@@ -414,7 +414,7 @@ Choose whether the long-term center is the listing, physical device, SKU, Passpo
 - Payments, escrow, shipping, insurance, or warranties.
 - A native app before the web/share workflow proves repeat use.
 - Alerts before feed eligibility and stale-listing handling are reliable.
-- A public “Assyze Score” that compresses unresolved blockers into one number.
+- A public “Filtrsoft Score” that compresses unresolved blockers into one number.
 - Social profiles, comments, likes, or a content feed.
 - A conversational AI wrapper that cannot show evidence.
 - Broad geographic expansion before one local market has labeled outcomes.
@@ -515,7 +515,7 @@ Page views, raw listings crawled, and total checks are supporting metrics, not t
 
 ## Final product recommendation
 
-Build Assyze outward from **Check -> Evidence -> Outcome -> Passport -> Feed**, not from **Scrape -> Rank -> Scale**.
+Build Filtrsoft outward from **Check -> Evidence -> Outcome -> Passport -> Feed**, not from **Scrape -> Rank -> Scale**.
 
-The first path compounds trust and first-party data. The second creates a fragile aggregation business that is easy to copy and dependent on platforms Assyze does not control.
+The first path compounds trust and first-party data. The second creates a fragile aggregation business that is easy to copy and dependent on platforms Filtrsoft does not control.
 

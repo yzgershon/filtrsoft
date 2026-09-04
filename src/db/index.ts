@@ -1,30 +1,68 @@
 import { Database } from "bun:sqlite";
-import { readFileSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { readFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
+import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-export const DB_PATH = process.env.ASSYZE_DB ?? join(here, "../../assyze.db");
+export const DB_PATH = process.env.FILTRSOFT_DB ?? join(here, "../../filtrsoft.db");
 
 let _db: Database | null = null;
 
 export function db(): Database {
   if (_db) return _db;
   // SQLite creates the FILE but never the DIRECTORY. On a fresh container with
-  // ASSYZE_DB=/data/assyze.db this threw at import time, the process died before
+  // FILTRSOFT_DB=/data/filtrsoft.db this threw at import time, the process died before
   // it ever listened, and the platform healthcheck just timed out with no clue.
   try {
     mkdirSync(dirname(DB_PATH), { recursive: true });
   } catch (e) {
     console.error(`FATAL: cannot create database directory ${dirname(DB_PATH)}`);
     console.error(`  ${(e as Error).message}`);
-    console.error(`  Is the volume mounted there? ASSYZE_DB=${DB_PATH}`);
+    console.error(`  Is the volume mounted there? FILTRSOFT_DB=${DB_PATH}`);
     throw e;
   }
+  refuseToShadowAnExistingDatabase();
+
   _db = new Database(DB_PATH, { create: true });
   _db.exec(readFileSync(join(here, "schema.sql"), "utf8"));
   migrate(_db);
   return _db;
+}
+
+/**
+ * ⚠ NEVER CREATE A BLANK DATABASE BESIDE A REAL ONE.
+ *
+ * `{ create: true }` is right for a first boot and catastrophic for a typo: a
+ * wrong `FILTRSOFT_DB` produces a brand new empty file, the container starts
+ * perfectly, the healthcheck passes, and the app serves zero listings while the
+ * real database sits untouched one filename away. Every symptom points at the
+ * data being gone.
+ *
+ * That stopped being hypothetical on 2026-09-04, when the rebrand renamed this
+ * variable from `ASSYZE_DB` — production's value has to be re-pointed by hand
+ * in Railway, and the cost of getting it wrong should be a container that
+ * refuses to boot and names the file it found, not a silently empty app.
+ *
+ * The rule is narrow on purpose: it only fires when the configured path does
+ * NOT exist and a sibling `.db` does. A genuinely fresh volume is empty, so
+ * first boots are unaffected.
+ */
+function refuseToShadowAnExistingDatabase(): void {
+  if (existsSync(DB_PATH)) return;
+  const dir = dirname(DB_PATH);
+  let siblings: string[] = [];
+  try {
+    siblings = readdirSync(dir).filter((f) => f.endsWith(".db") && f !== basename(DB_PATH));
+  } catch {
+    return;   // unreadable directory is the mkdir path's problem, not this one
+  }
+  if (!siblings.length) return;
+
+  console.error(`FATAL: ${DB_PATH} does not exist, but ${dir} already holds a database.`);
+  console.error(`  found: ${siblings.join(", ")}`);
+  console.error("  Creating a new empty one here would look like every listing vanished.");
+  console.error("  Point FILTRSOFT_DB at the real file, or move the old one into place.");
+  throw new Error(`refusing to create an empty database beside ${siblings[0]}`);
 }
 
 /**
@@ -163,7 +201,7 @@ function migrate(d: Database) {
   /**
    * A printer was entered as a laptop SKU, then a comp pull faithfully attached
    * 15 printer sales to it. The resulting $55 median looked internally valid
-   * while being entirely outside Assyze's market. Match by identity rather than
+   * while being entirely outside Filtrsoft's market. Match by identity rather than
    * local id because archive imports can assign a different id on another DB.
    */
   const printerName = "2026-08-27-remove-hp-envy-6055e-printer-sku";

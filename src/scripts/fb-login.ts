@@ -3,7 +3,7 @@
  *
  * Opens a real Chrome window on your own profile. You sign in by hand.
  *
- * There is deliberately no automation of the login. Assyze must never see, ask
+ * There is deliberately no automation of the login. Filtrsoft must never see, ask
  * for, or store a Facebook password or session token — Chrome holds the cookie
  * and we only drive Chrome.
  */

@@ -36,7 +36,7 @@
  *   · In the DATABASE, not on the filesystem. A crash between download and
  *     write cannot leave an orphan the way a directory of files could — that
  *     was one of the ways the old backlog accumulated.
- *   · `ASSYZE_NO_THUMB_CACHE=1` turns it off entirely.
+ *   · `FILTRSOFT_NO_THUMB_CACHE=1` turns it off entirely.
  *
  * At ~20 KB and today's ~1,000 production listings that is about 20 MB, and the
  * prune holds it there.
@@ -55,7 +55,7 @@ export const THUMB_EDGE = 480;
  */
 export const MAX_BYTES = 200_000;
 
-export const THUMBS_OFF = process.env.ASSYZE_NO_THUMB_CACHE === "1";
+export const THUMBS_OFF = process.env.FILTRSOFT_NO_THUMB_CACHE === "1";
 
 export interface Thumb {
   bytes: Uint8Array;

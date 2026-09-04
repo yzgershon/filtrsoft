@@ -70,7 +70,7 @@ export const LABEL: Record<Call, string> = {
 };
 
 // -------------------------------------------------------------- storage
-export const HKEY = "assyze:history";
+export const HKEY = "filtrsoft:history";
 export const readHist = (): Hist[] => { try { return JSON.parse(localStorage.getItem(HKEY) || "[]"); } catch { return []; } };
 export const pushHist = (h: Hist) => {
   const all = [h, ...readHist().filter((x) => x.id !== h.id)].slice(0, 30);
@@ -88,7 +88,7 @@ export const pushHist = (h: Hist) => {
  * No account required, and the tradeoff is stated on the screen: the list does
  * not follow you to another device.
  */
-export const WKEY = "assyze:watch";
+export const WKEY = "filtrsoft:watch";
 export const readWatch = (): number[] => { try { return JSON.parse(localStorage.getItem(WKEY) || "[]"); } catch { return []; } };
 export const writeWatch = (ids: number[]) => localStorage.setItem(WKEY, JSON.stringify(ids.slice(0, 200)));
 export const toggleWatch = (id: number): number[] => {
@@ -115,7 +115,7 @@ export const toggleWatch = (id: number): number[] => {
  * worse than no list. The call here is what it was WHEN IT FIRED, labelled as
  * such by the timestamp; the listing itself is always re-read on open.
  */
-export const NKEY = "assyze:notes";
+export const NKEY = "filtrsoft:notes";
 export type Note = {
   id: number; title: string; call: Call;
   askingPriceCents: number | null; thumb: string | null;
@@ -155,7 +155,7 @@ export function onNotes(fn: (n: Note[]) => void) {
  * is capped at 30 and rolls, and an answer must survive its listing falling off
  * the end or the same listing would come back around and ask again.
  */
-export const AKEY = "assyze:asked";
+export const AKEY = "filtrsoft:asked";
 export const readAsked = (): number[] => { try { return JSON.parse(localStorage.getItem(AKEY) || "[]"); } catch { return []; } };
 export const markAsked = (id: number) => {
   const all = [id, ...readAsked().filter((x) => x !== id)].slice(0, 200);
@@ -414,7 +414,7 @@ export function Thumb({ src, size = 22 }: { src: string | null; size?: number })
  * search" and the Saved screen's alert list register a device, and putting the
  * helper in either one would make the other import from a sibling screen.
  */
-export const SUBKEY = "assyze:subId";
+export const SUBKEY = "filtrsoft:subId";
 
 /**
  * A stable per-device id.
@@ -426,7 +426,7 @@ export const SUBKEY = "assyze:subId";
  * that made it and can never change what anyone else sees. Full reasoning in
  * `src/api/overrides.ts`.
  */
-export const REFKEY = "assyze:ref";
+export const REFKEY = "filtrsoft:ref";
 export function deviceRef(): string {
   let v = localStorage.getItem(REFKEY);
   if (!v) {
@@ -457,7 +457,7 @@ export function urlB64ToBytes(s: string): ArrayBuffer {
  * WHERE YOU WERE, so Back puts you back there.
  *
  * Yish, 2026-08-31: *"the only back button that works is when I click the
- * assyze logo … but that always brings me back to the top of the homepage, and
+ * filtrsoft logo … but that always brings me back to the top of the homepage, and
  * that's frustrating if I'm halfway down the listings and click one then go
  * back."*
  *
@@ -625,7 +625,7 @@ export function onOpenFilters(fn: () => void) {
  * rendered by `App` and the numbers arrive in the FEED's response, so either
  * `App` learns to fetch the feed (a second request for data it already has) or
  * the feed publishes. Yish: *"I want to understand better when new listings get
- * added because I want to know when to look at Assyze."*
+ * added because I want to know when to look at Filtrsoft."*
  */
 export type Freshness = { at: string | null; fresh: number; everyMs: number };
 const freshListeners = new Set<(f: Freshness) => void>();

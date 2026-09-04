@@ -26,14 +26,14 @@ import { join } from "node:path";
 
 const LABEL = process.argv[2] ?? "run";
 const BASE = process.argv[3] ?? "http://localhost:3177";
-const CHROME = process.env.ASSYZE_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
+const CHROME = process.env.FILTRSOFT_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const OUT = join("docs", "ui", LABEL);
 
 /**
  * A remote host is slower than localhost and the difference is not small: a
  * cold container has to boot, rank 578 rows and ship a 250 KB bundle before
  * the first card exists. 20s is comfortable against `localhost:3177` and
- * marginal against `https://assyze.com`, where it produced one spurious
+ * marginal against `https://filtrsoft.com`, where it produced one spurious
  * timeout on an app that was working fine. A checker that fails on latency
  * teaches you to re-run it rather than read it.
  */
@@ -95,8 +95,8 @@ const browser = await chromium.launch({ executablePath: CHROME, headless: true }
  * The account is created on first run and reused after. Against production
  * that is a real account, which is why the address is obviously a test one.
  */
-const TEST_EMAIL = process.env.ASSYZE_TEST_EMAIL ?? "ui-verify@assyze.test";
-const TEST_PASSWORD = process.env.ASSYZE_TEST_PASSWORD ?? "ui verify harness passphrase";
+const TEST_EMAIL = process.env.FILTRSOFT_TEST_EMAIL ?? "ui-verify@filtrsoft.test";
+const TEST_PASSWORD = process.env.FILTRSOFT_TEST_PASSWORD ?? "ui verify harness passphrase";
 
 async function signInCookie() {
   const post = (path, body) => fetch(`${BASE}${path}`, {
@@ -121,7 +121,7 @@ async function signInCookie() {
    */
   const raw = res.headers.getSetCookie?.() ?? [res.headers.get("set-cookie") ?? ""];
   for (const line of raw) {
-    const m = /(?:^|;\s*)assyze_session=([^;]+)/.exec(line);
+    const m = /(?:^|;\s*)filtrsoft_session=([^;]+)/.exec(line);
     if (m) return m[1];
   }
   throw new Error("signed in but no session cookie came back");
@@ -149,12 +149,12 @@ async function newPage(spec, settings) {
    * something one dedicated assertion should own.
    */
   await ctx.addCookies([{
-    name: "assyze_session", value: SESSION,
+    name: "filtrsoft_session", value: SESSION,
     domain: COOKIE_DOMAIN, path: "/",
     httpOnly: true, secure: BASE.startsWith("https"), sameSite: "Lax",
   }]);
   await ctx.addInitScript((s) => {
-    if (s) localStorage.setItem("assyze:settings", JSON.stringify(s));
+    if (s) localStorage.setItem("filtrsoft:settings", JSON.stringify(s));
   }, settings ?? null);
   const page = await ctx.newPage();
   return { ctx, page };
@@ -394,7 +394,7 @@ const detailOpen = (page) => page.evaluate(
   const after = ((await num.textContent()) ?? "").trim();
   ok("the drive stepper moves", before !== after, `${before} -> ${after}`);
 
-  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("assyze:settings") || "{}"));
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("filtrsoft:settings") || "{}"));
   ok("the drive setting persists", stored.driveMinutes === Number(after.replace("m", "")), JSON.stringify(stored));
 
   // Reduce motion: the class is the mechanism, so assert the class.
@@ -1071,7 +1071,7 @@ for (const spec of [...PHONES, ...DESKTOPS]) {
 // ---------------------- 13. every button on every surface, measured
 /**
  * Yish, 2026-08-31: *"make sure there's no button like that and all the buttons
- * in Assyze are perfect."*
+ * in Filtrsoft are perfect."*
  *
  * Four checks per button -- 44px target, children inside the box, ink off a
  * visible edge, content vertically centred -- and each one is a bug that

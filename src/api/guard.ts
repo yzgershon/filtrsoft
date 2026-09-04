@@ -3,7 +3,7 @@
  *
  * WHY THIS EXISTS, stated plainly: on 2026-08-24 `GET /v1/checks/stream` was
  * public, defaulted vision ON, and had no auth, no rate limit, no quota and no
- * spend ceiling. A single anonymous GET made Assyze fetch a third-party page,
+ * spend ceiling. A single anonymous GET made Filtrsoft fetch a third-party page,
  * download images, and call a paid Anthropic model. I demonstrated it myself
  * against production from an unauthenticated machine — roughly $0.02 of Yish's
  * money per request, in a loop, from anyone who found the URL.
@@ -34,7 +34,7 @@ export { DAILY_BUDGET_USD, budgetAvailable, budgetLeftUsd, spentTodayUsd, vision
 // ----------------------------------------------------------------- 2. token
 
 /**
- * Paid vision requires a bearer token when `ASSYZE_VISION_TOKEN` is set.
+ * Paid vision requires a bearer token when `FILTRSOFT_VISION_TOKEN` is set.
  *
  * DELIBERATE DESIGN: an unauthorised caller is NOT rejected — their check runs
  * on the free text layer and returns a real verdict. The public demo keeps
@@ -46,7 +46,7 @@ export { DAILY_BUDGET_USD, budgetAvailable, budgetLeftUsd, spentTodayUsd, vision
  */
 export function visionAllowed(authHeader: string | null | undefined): boolean {
   if (visionKilled()) return false;
-  const want = process.env.ASSYZE_VISION_TOKEN;
+  const want = process.env.FILTRSOFT_VISION_TOKEN;
   if (!want) return false;
   if (!authHeader) return false;
   const got = authHeader.replace(/^Bearer\s+/i, "").trim();
@@ -126,7 +126,7 @@ export function clientKey(headers: Headers): string {
 export function guardStatus() {
   return {
     visionEnabled: !visionKilled(),
-    tokenRequired: Boolean(process.env.ASSYZE_VISION_TOKEN),
+    tokenRequired: Boolean(process.env.FILTRSOFT_VISION_TOKEN),
     dailyBudgetUsd: DAILY_BUDGET_USD,
     spentTodayUsd: Number(spentTodayUsd().toFixed(4)),
     budgetLeftUsd: Number(budgetLeftUsd().toFixed(4)),

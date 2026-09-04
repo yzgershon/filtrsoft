@@ -1,4 +1,4 @@
-# Assyze — Master Plan
+# Filtrsoft — Master Plan
 
 **Written 2026-08-23.** Planning pass over the whole build-out. Executable detail: what gets built, why, what "done" means, what it depends on.
 
@@ -61,7 +61,7 @@ I previously said wait. That was wrong, for three reasons:
 
 Field: flippr **$12.99** · Flipify **$5–10** · DealFlip **$14.99–49** · SuperFlip **$49** · Swoopa **$47–352**.
 
-**Don't price at $12.99.** Undercutting flippr signals "cheaper flippr." Assyze isn't cheaper-flippr, it's the one that admits uncertainty. Pricing below the incumbent contradicts the positioning.
+**Don't price at $12.99.** Undercutting flippr signals "cheaper flippr." Filtrsoft isn't cheaper-flippr, it's the one that admits uncertainty. Pricing below the incumbent contradicts the positioning.
 
 **Don't price at $47.** Swoopa charges that for alert infrastructure at scale, which doesn't exist here yet.
 
@@ -177,7 +177,7 @@ POST   /v1/outcomes                          → the moat (Phase 5)
 
 ## 4. Go-to-market
 
-**The asymmetry to exploit: the content and the product are the same artifact.** This was the deciding reason Assyze beat every other idea considered, and the plan should lean on it hard.
+**The asymmetry to exploit: the content and the product are the same artifact.** This was the deciding reason Filtrsoft beat every other idea considered, and the plan should lean on it hard.
 
 ### 4.1 Channels, ranked
 
@@ -192,7 +192,7 @@ POST   /v1/outcomes                          → the moat (Phase 5)
 
 ### 4.3 The growth loop
 
-**Verdict pages are shareable permalinks.** "Look what Assyze said about this listing" is a natural post inside a flipping group. **Every shared verdict is an ad that a user wrote.** This is why the verdict page gets design attention disproportionate to its size.
+**Verdict pages are shareable permalinks.** "Look what Filtrsoft said about this listing" is a natural post inside a flipping group. **Every shared verdict is an ad that a user wrote.** This is why the verdict page gets design attention disproportionate to its size.
 
 ### 4.4 Launch sequence
 
@@ -211,7 +211,7 @@ POST   /v1/outcomes                          → the moat (Phase 5)
 
 Web app, **risk analysis only, no valuation.** Free, no signup.
 
-**Build:** Hono API · `/v1/checks` + SSE · React frontend · verdict page (risk sections only) · shareable permalinks · deploy to assyze.com
+**Build:** Hono API · `/v1/checks` + SSE · React frontend · verdict page (risk sections only) · shareable permalinks · deploy to filtrsoft.com
 
 **Done when:** a stranger can paste a Craigslist or Facebook URL and get red flags, evidence and questions in under a second, on a URL they can share.
 

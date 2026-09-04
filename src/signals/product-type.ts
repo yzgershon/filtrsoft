@@ -37,7 +37,7 @@ export interface ProductType {
   reason: string;
 }
 
-/** Printers are devices, but not a market Assyze has chosen to judge. */
+/** Printers are devices, but not a market Filtrsoft has chosen to judge. */
 export function isUnsupportedPrinter(title: string): boolean {
   return /\b(printer|laserjet|officejet|deskjet|inkjet|ecotank)\b/i.test(title);
 }

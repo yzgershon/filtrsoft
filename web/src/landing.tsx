@@ -1,8 +1,8 @@
 /**
- * assyze.com when you are signed out: the marketing site, and the two screens
+ * filtrsoft.com when you are signed out: the marketing site, and the two screens
  * that get you an account.
  *
- * Yish, 2026-09-01: *"assyze.com should go to a website that isnt actually the
+ * Yish, 2026-09-01: *"filtrsoft.com should go to a website that isnt actually the
  * app right away its a website that explains the app and how it works ... and
  * then we have a sign in and a get started."*
  *
@@ -16,7 +16,7 @@
  * **No invented earnings claims, no "users average $2,400/month".** Three
  * reasons, in order of how much they matter:
  *
- *   1. Assyze has one user. An average across one person is that person, and
+ *   1. Filtrsoft has one user. An average across one person is that person, and
  *      presenting it as a typical result would be a lie about a real business.
  *   2. Earnings claims on a commercial site are regulated (the FTC's
  *      substantiation rules); "proven data" that cannot be substantiated is the
@@ -68,7 +68,7 @@ export function Landing({ onStart, onSignIn }: {
     <div className="mk">
       {/* ── nav ──────────────────────────────────────────────────────── */}
       <header className="mknav">
-        <span className="mkbrand">ass<span>yze</span></span>
+        <span className="mkbrand">filtr<span>soft</span></span>
         <div className="mknavr">
           <button className="mklink" onClick={onSignIn}>Sign in</button>
           <button className="mkcta sm" onClick={onStart}>Get started</button>
@@ -83,7 +83,7 @@ export function Landing({ onStart, onSignIn }: {
           <span className="g">before you drive.</span>
         </h1>
         <p className="mksub">
-          Assyze reads every used-tech listing on Craigslist, Facebook
+          Filtrsoft reads every used-tech listing on Craigslist, Facebook
           Marketplace, OfferUp and Mercari, prices it against what the same
           thing actually sold for, and tells you the one thing that matters:
           buy it, ask a question first, or walk away.
@@ -109,7 +109,7 @@ export function Landing({ onStart, onSignIn }: {
       <section className="mkshot">
         <div className="mkphone" aria-hidden="true">
           <div className="mkphonebar">
-            <span className="mkbrand sm">ass<span>yze</span></span>
+            <span className="mkbrand sm">filtr<span>soft</span></span>
           </div>
           <div className="mkseg">
             <span className="on">Buy it <i>2</i></span>
@@ -172,7 +172,7 @@ export function Landing({ onStart, onSignIn }: {
           </div>
           <b>Intel Core i9-12900K</b>
           <p>
-            Assyze flagged it in the Boston feed at $200. He messaged the
+            Filtrsoft flagged it in the Boston feed at $200. He messaged the
             seller, got it for $170, and drove 20 minutes. It resells at about
             $290 with the buyer paying shipping.
           </p>
@@ -183,7 +183,7 @@ export function Landing({ onStart, onSignIn }: {
           </div>
         </div>
         <p className="mkdisclaim">
-          One real purchase, not an average. Assyze tells you what a listing is
+          One real purchase, not an average. Filtrsoft tells you what a listing is
           worth and what you would clear on it. What you actually make depends
           on what you buy and what you do with it.
         </p>
@@ -194,7 +194,7 @@ export function Landing({ onStart, onSignIn }: {
         <div className="mkalerticon"><Bell size={22} /></div>
         <h2>The good ones go in an hour</h2>
         <p>
-          A 4090 at $1,100 is gone before you next open a tab. Assyze checks
+          A 4090 at $1,100 is gone before you next open a tab. Filtrsoft checks
           every three minutes and tells you the moment something clears your
           floor, so you are first rather than fourth.
         </p>
@@ -202,7 +202,7 @@ export function Landing({ onStart, onSignIn }: {
 
       {/* ── trust ────────────────────────────────────────────────────── */}
       <section className="mktrust">
-        <h2>What Assyze will never do</h2>
+        <h2>What Filtrsoft will never do</h2>
         <div className="mktrustgrid">
           <div><Shield size={18} /><b>Ask for a marketplace login</b><span>It never has your Facebook or eBay password, because it never asks.</span></div>
           <div><Shield size={18} /><b>Touch a card number</b><span>Payment, if you ever want a paid plan, happens on Stripe's own page.</span></div>
@@ -219,7 +219,7 @@ export function Landing({ onStart, onSignIn }: {
       </section>
 
       <footer className="mkfoot">
-        <span className="mkbrand sm">ass<span>yze</span></span>
+        <span className="mkbrand sm">filtr<span>soft</span></span>
         <span>Greater Boston · Used tech, priced honestly</span>
       </footer>
     </div>
@@ -300,7 +300,7 @@ export function AuthScreen({ mode, providers, onDone, onMode, onBack }: {
       }
       onDone(d.user);
     } catch {
-      setError("Couldn't reach Assyze. Check your connection.");
+      setError("Couldn't reach Filtrsoft. Check your connection.");
     } finally { setBusy(false); }
   }
 
@@ -357,7 +357,7 @@ export function AuthScreen({ mode, providers, onDone, onMode, onBack }: {
       </button>
 
       <div className="authhd">
-        <span className="mkbrand">ass<span>yze</span></span>
+        <span className="mkbrand">filtr<span>soft</span></span>
         <h1>{signup ? "Create your account" : "Welcome back"}</h1>
         <p>
           {signup
@@ -471,7 +471,7 @@ export function AuthScreen({ mode, providers, onDone, onMode, onBack }: {
       </form>
 
       <p className="authswap">
-        {signup ? "Already have an account? " : "New to Assyze? "}
+        {signup ? "Already have an account? " : "New to Filtrsoft? "}
         <button onClick={() => { setError(null); onMode(signup ? "signin" : "signup"); }}>
           {signup ? "Sign in" : "Create one"}
         </button>
@@ -479,7 +479,7 @@ export function AuthScreen({ mode, providers, onDone, onMode, onBack }: {
 
       {signup && (
         <p className="authlegal">
-          Assyze stores your email and what you save. It never asks for a
+          Filtrsoft stores your email and what you save. It never asks for a
           marketplace login and never handles a card number.
         </p>
       )}

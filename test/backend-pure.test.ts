@@ -1480,24 +1480,24 @@ describe("password rules", () => {
 
 describe("readCookie", () => {
   test("finds the session among others", () => {
-    expect(readCookie("a=1; assyze_session=abc123; b=2", "assyze_session")).toBe("abc123");
-    expect(readCookie("assyze_session=solo", "assyze_session")).toBe("solo");
+    expect(readCookie("a=1; filtrsoft_session=abc123; b=2", "filtrsoft_session")).toBe("abc123");
+    expect(readCookie("filtrsoft_session=solo", "filtrsoft_session")).toBe("solo");
   });
 
   /**
-   * ⚠ A PREFIX MATCH WOULD BE A SESSION-CONFUSION BUG. `other_assyze_session`
+   * ⚠ A PREFIX MATCH WOULD BE A SESSION-CONFUSION BUG. `other_filtrsoft_session`
    * is a different cookie and must not answer for ours.
    */
   test("matches the whole name, not a prefix or a suffix", () => {
-    expect(readCookie("other_assyze_session=nope", "assyze_session")).toBeNull();
-    expect(readCookie("assyze_session_x=nope", "assyze_session")).toBeNull();
+    expect(readCookie("other_filtrsoft_session=nope", "filtrsoft_session")).toBeNull();
+    expect(readCookie("filtrsoft_session_x=nope", "filtrsoft_session")).toBeNull();
   });
 
   test("tolerates whitespace, missing values and no header at all", () => {
-    expect(readCookie("  assyze_session = spaced ", "assyze_session")).toBe("spaced");
-    expect(readCookie("broken; assyze_session=ok", "assyze_session")).toBe("ok");
-    expect(readCookie(undefined, "assyze_session")).toBeNull();
-    expect(readCookie("", "assyze_session")).toBeNull();
+    expect(readCookie("  filtrsoft_session = spaced ", "filtrsoft_session")).toBe("spaced");
+    expect(readCookie("broken; filtrsoft_session=ok", "filtrsoft_session")).toBe("ok");
+    expect(readCookie(undefined, "filtrsoft_session")).toBeNull();
+    expect(readCookie("", "filtrsoft_session")).toBeNull();
   });
 });
 
@@ -1655,7 +1655,7 @@ describe("vision candidates step aside after repeated failures", () => {
  * ── THE SIGN-IN WALL MUST NOT BLOCK MACHINE ENDPOINTS ──────────────────────
  *
  * Adding the wall on 2026-09-01 silently broke `bun run push`. It
- * authenticates with `ASSYZE_PUSH_TOKEN` inside its own handler, so the
+ * authenticates with `FILTRSOFT_PUSH_TOKEN` inside its own handler, so the
  * middleware rejected it before that ever ran — and nothing noticed for two
  * days because nothing had pushed since. Found when the crawl agent's first
  * end-to-end run came back `push failed 401`.

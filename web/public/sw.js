@@ -3,7 +3,7 @@
  * "Add shortcut to home screen".
  *
  * A manifest alone is not enough: Chrome's install criteria require a service
- * worker with a `fetch` handler, served over HTTPS. Assyze had neither, which
+ * worker with a `fetch` handler, served over HTTPS. Filtrsoft had neither, which
  * is why every other app in this repo installs and this one did not.
  *
  * TWO CACHES, TWO STRATEGIES, and the split matters:
@@ -20,7 +20,7 @@
  * URL and re-downloading them on every scroll is the single biggest data cost
  * on a phone.
  */
-const VERSION = "assyze-v1";
+const VERSION = "filtrsoft-v1";
 const SHELL = `${VERSION}-shell`;
 const API = `${VERSION}-api`;
 const IMGS = `${VERSION}-img`;
@@ -129,7 +129,7 @@ self.addEventListener("fetch", (e) => {
  * handler always shows something, even when the payload is unreadable.
  */
 self.addEventListener("push", (e) => {
-  let d = { title: "Assyze", body: "A saved search matched.", url: "/" };
+  let d = { title: "Filtrsoft", body: "A saved search matched.", url: "/" };
   try { if (e.data) d = { ...d, ...e.data.json() }; } catch { /* keep defaults */ }
   e.waitUntil(
     self.registration.showNotification(d.title, {

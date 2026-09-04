@@ -1,7 +1,28 @@
-# HANDOFF — Assyze
+# HANDOFF — Filtrsoft
 
 **Master plan AND current state. Update before you stop working.** A stale line
 here is worse than a missing one, because a fresh session will believe it.
+
+## THE PRODUCT WAS CALLED ASSYZE UNTIL 2026-09-04
+
+Yish: *"I want a complete rebrand of assyze. COMPLETE REBRAND. I dont like the
+sound of it nor the meaning."* Renamed to **Filtrsoft**, `filtrsoft.com`. **This
+paragraph is the only place the old name survives on purpose** — it is here
+because two things still carry it and a future session that meets them cold will
+otherwise think it has found a second product:
+
+- **`EBAY_CLIENT_ID` reads `YanivGer-Assyze-PRD-…`.** eBay issued that keyset and
+  the string is theirs. Renaming it does not rename anything at eBay, it just
+  breaks the key. **Leave it.**
+- **`web/src/migrate.ts`** carries eight `assyze:*` localStorage keys onto their
+  new names, once, so his saved listings and device id survive the rename. Delete
+  it after he has opened the app on his phone and his desktop; the file says so
+  itself.
+
+Everything else — env vars (`FILTRSOFT_*`), the session cookie, the database
+filename, the browser-profile root `~/.filtrsoft`, the repo, the folder
+`C:\Dev\filtrsoft`, the icons, every string — moved. Quotes from Yish in code
+comments had the product name substituted; the words are otherwise his.
 
 Last updated **2026-09-03**. **Section 2 is the current state and section 15
 is what to do next**; section 18 is the most recent pass in detail. The one
@@ -57,7 +78,7 @@ only one was ever reported).
 
 ---
 
-## 1. What Assyze is
+## 1. What Filtrsoft is
 
 **A marketplace of only the good deals.** Open it, see used-tech listings the
 engine actually verified, tap one for the reasoning and a link to the seller.
@@ -81,8 +102,8 @@ components. **Out:** furniture, accessories, cameras.
 
 ## 2. Current state — 2026-08-31
 
-**assyze.com is LIVE, pricing real listings, and has now found a real deal.**
-`https://assyze.com` — use it everywhere; `assyze-production.up.railway.app` is
+**filtrsoft.com is LIVE, pricing real listings, and has now found a real deal.**
+`https://filtrsoft.com` — use it everywhere; `filtrsoft-production.up.railway.app` is
 a debugging fallback, never the address of the product.
 
 > **2026-08-31, and this is the first one that matters.** The feed surfaced an
@@ -216,7 +237,7 @@ bun run ou:crawl --query "graphics card"      OfferUp   (local basis)
 bun run ou:photos [--limit 40]                OfferUp full-res photos, per listing
 bun run mc:crawl --query "rtx 4070"           Mercari   (eBay basis)
 bun run thumbs [--limit 200] [--prune]        self-hosted card thumbnails
-bun run push --source facebook                local crawl -> assyze.com
+bun run push --source facebook                local crawl -> filtrsoft.com
 
 bun run check <url>               one listing, staged timings
 bun run verdict                   re-score every stored listing
@@ -251,7 +272,7 @@ launching a browser to see what happened.
   emulated. The installed Chrome is native ARM64 (PE machine type 0xAA64).
 - **Forward slashes in the Chrome path.** `"C:\Program Files\..."` in a JS
   string silently becomes `C:Program FilesGoogleChromeApplicationchrome.exe`.
-- **One profile per site**, under `~/.assyze/`, OUTSIDE the repo. They hold live
+- **One profile per site**, under `~/.filtrsoft/`, OUTSIDE the repo. They hold live
   session cookies; one `git add -A` with them inside and the sessions are on
   GitHub. Separate profiles so a challenge on one site cannot log out the other.
 - **Headed by default.** eBay 403s headless outright; Facebook fingerprints it.
@@ -347,7 +368,7 @@ logged-in Chrome profile Yish signs into by hand, and session cookies do not go
 into a server image. So it crawls locally and pushes.
 
     bun run fb:crawl --query "rtx 4070"     # local, real browser
-    bun run push --source facebook          # -> assyze.com
+    bun run push --source facebook          # -> filtrsoft.com
 
 **The push carries FACTS ONLY — never verdicts.** The server re-scores
 everything on arrival. If clients sent verdicts, the feed would mix calls from
@@ -355,7 +376,7 @@ whatever engine version happened to be on a laptop, and `reverdictStale` could
 never correct them because they would already claim the current version. Facts
 are portable; judgements are not.
 
-Auth is `ASSYZE_PUSH_TOKEN`, set in BOTH the local `.env` and Railway
+Auth is `FILTRSOFT_PUSH_TOKEN`, set in BOTH the local `.env` and Railway
 Variables. **Without it on the server the endpoint refuses every request** — an
 unauthenticated write path into a deals feed lets anyone put anything in front
 of a buyer. A re-push UPDATES rather than skips, because that is how a price
@@ -507,9 +528,9 @@ doing paid state-changing work, so a link scanner or chat unfurler could spend
 money by merely previewing a shared link.
 
 Four independent layers:
-1. `ASSYZE_VISION_ENABLED=0` — kill switch, no redeploy
-2. Bearer token (`ASSYZE_VISION_TOKEN`)
-3. Daily USD ceiling (`ASSYZE_DAILY_BUDGET_USD`, default 2), summed from
+1. `FILTRSOFT_VISION_ENABLED=0` — kill switch, no redeploy
+2. Bearer token (`FILTRSOFT_VISION_TOKEN`)
+3. Daily USD ceiling (`FILTRSOFT_DAILY_BUDGET_USD`, default 2), summed from
    `vision_results.cost_micros` — integer micros, because float drift in a money
    guard is how a cap stops matching reality
 4. Per-IP token bucket + single-flight coalescing by URL
@@ -550,24 +571,24 @@ falling back to title+price.
 
 ## 11. Deployment — Railway
 
-Project `selfless-freedom`, service `assyze`, branch `main`, auto-deploy on,
-volume `assyze-volume`, custom domain `assyze.com`.
+Project `selfless-freedom`, service `filtrsoft`, branch `main`, auto-deploy on,
+volume `filtrsoft-volume`, custom domain `filtrsoft.com`.
 
 Build is a **Dockerfile** (not Nixpacks). Multi-stage: Node builds Vite, Bun
 runs the server. One service serves API + frontend on one origin.
 
 ```
-ASSYZE_DB          = /data/assyze.db
-ASSYZE_PHOTOS      = /data/photos
+FILTRSOFT_DB          = /data/filtrsoft.db
+FILTRSOFT_PHOTOS      = /data/photos
 ANTHROPIC_API_KEY  = set
-ASSYZE_VISION_TOKEN = NOT SET -> paid vision refused in production
+FILTRSOFT_VISION_TOKEN = NOT SET -> paid vision refused in production
 ```
 
 **⚠ The Railway volume is NOT the archive.** It holds a fresh seed. Every comp,
-listing and verdict lives in `C:\Dev\assyze\assyze.db` on Yish's PC, because the
+listing and verdict lives in `C:\Dev\filtrsoft\filtrsoft.db` on Yish's PC, because the
 crawlers and comp pullers run locally with his browser sessions.
 
-**⚠ Vision does not run in production** until `ASSYZE_VISION_TOKEN` is set.
+**⚠ Vision does not run in production** until `FILTRSOFT_VISION_TOKEN` is set.
 
 ---
 
@@ -898,17 +919,17 @@ DRAM-less and TLC vs QLC for SSDs, 80+ tier and modularity for PSUs. The
 
 ---
 
-## 11f. assyze.com is LIVE — 2026-08-26
+## 11f. filtrsoft.com is LIVE — 2026-08-26
 
-**`https://assyze.com` is the production URL. Use it everywhere.** Valid
-Let's Encrypt certificate (`CN=assyze.com`, issued 2026-08-26), HTTP 200,
+**`https://filtrsoft.com` is the production URL. Use it everywhere.** Valid
+Let's Encrypt certificate (`CN=filtrsoft.com`, issued 2026-08-26), HTTP 200,
 health reports `canPrice: true`.
 
-`assyze-production.up.railway.app` still works and is the Railway-generated
+`filtrsoft-production.up.railway.app` still works and is the Railway-generated
 name. It is a fallback for debugging, **not the address of the product** —
 never quote it to Yish or put it in user-facing copy.
 
-**`www.assyze.com` does NOT work and is not a bug to chase.** Railway counts it
+**`www.filtrsoft.com` does NOT work and is not a bug to chase.** Railway counts it
 as a SECOND custom domain and the plan allows one; the Networking page says
 *"You have hit the custom domain limit for your plan."* The `www` CNAME resolves
 but Railway will not serve it — no binding, no certificate. Apex-only until the
@@ -926,7 +947,7 @@ the UI marking the value as cut off, and selecting the visible text copies it.
 Railway never verified, never requested a certificate, and the dashboard sat on
 *"Waiting for DNS update"* with a green tick on the CNAME row and a warning on
 the TXT row. On :443 the edge fell back to its own `CN=*.up.railway.app`
-wildcard, which does not cover `assyze.com` — the `SEC_E_WRONG_PRINCIPAL`
+wildcard, which does not cover `filtrsoft.com` — the `SEC_E_WRONG_PRINCIPAL`
 error. **Use the modal's copy control, never the visible text.**
 
 ### CORRECTION: `n3reqlxc.up.railway.app` was never stale
@@ -936,7 +957,7 @@ not found`. **Wrong, and the mistake is worth keeping.** Railway's edge routes
 by HOST HEADER, so the bare CNAME target has no app bound to it and 404s BY
 DESIGN. With the right Host it always worked:
 
-    curl -H "Host: assyze.com" http://n3reqlxc.up.railway.app/v1/health   -> 301
+    curl -H "Host: filtrsoft.com" http://n3reqlxc.up.railway.app/v1/health   -> 301
 
 The DNS target was correct the whole time. Do not "fix" it.
 
@@ -1000,7 +1021,7 @@ than the literal `true`. A liveness probe that cannot tell "working" from
 ### The feed now REFRESHES — production crawls Craigslist itself
 
 Fixed in the same pass, because a pricing engine with nothing to price is the
-same bug one layer up. assyze.com was serving **three Craigslist listings, all
+same bug one layer up. filtrsoft.com was serving **three Craigslist listings, all
 2+ weeks old, `lastCrawl: null`** — `crawl` is a CLI script and nothing in the
 container ever called it.
 
@@ -1020,7 +1041,7 @@ categories in 2 seconds**, and 160 analysed produced 18 PASS, 2 FAIR, 2 VERIFY,
   demand when someone opens a listing.
 - **Never throws.** An unhandled rejection in the loop would take down the
   server; a failed crawl is not a reason to stop serving.
-- `ASSYZE_CRAWL=off` disables it. `ASSYZE_CRAWL_LIMIT` / `ASSYZE_CRAWL_INTERVAL_MS` tune it.
+- `FILTRSOFT_CRAWL=off` disables it. `FILTRSOFT_CRAWL_LIMIT` / `FILTRSOFT_CRAWL_INTERVAL_MS` tune it.
 
 **FACEBOOK CANNOT RUN IN THE CONTAINER, and that is architectural.**
 `sources/craigslist.ts` is a plain `fetch()`. Facebook Marketplace needs a
@@ -1033,7 +1054,7 @@ locally and pushed** — no mechanism for that exists yet.
 Craigslist items do not resolve to a SKU that has comps. That is the real
 coverage ceiling on the feed, and it is a catalog problem, not a crawler one.
 
-Live state 2026-08-26, 523 analysed listings on assyze.com: 373
+Live state 2026-08-26, 523 analysed listings on filtrsoft.com: 373
 INSUFFICIENT_DATA, 109 OUT_OF_SCOPE, 35 PASS, 4 FAIR, 1 VERIFY, 1 RISK.
 **Actionable calls are ~1%.** That is the honest yield of a Craigslist-only
 feed against the current catalog, and growing the catalog — not crawling
@@ -1114,7 +1135,7 @@ silently — the same shape as the original bug. Re-export and commit after any
 ### `www` will not work on the current plan
 
 The Networking page reads *"You have hit the custom domain limit for your
-plan"* with one custom domain used. Railway treats `www.assyze.com` as a
+plan"* with one custom domain used. Railway treats `www.filtrsoft.com` as a
 SECOND custom domain, so the `www` CNAME resolves but Railway will not serve
 it — no binding, no certificate. Apex-only until the plan changes. The record
 is harmless to leave in place for later.
@@ -1168,7 +1189,7 @@ MEDIUM — which `valueSku` prices, since only `low` is refused.
 
 The seller had pasted NVIDIA's own marketing copy into the description
 ("ultra-high performance gaming", "gamers and creators"), which trips the
-prebuilt pattern. **Assyze asked a graphics card which CPU it had.** That
+prebuilt pattern. **Filtrsoft asked a graphics card which CPU it had.** That
 listing is a BUY at $653 net; the bug was hiding it.
 
 ### `laptop` runs BEFORE `prebuilt`
@@ -1209,7 +1230,7 @@ called it.
 
 **46 monitors, TVs, routers and hard drives** said the same thing. They are
 genuinely tech, so the grammar layer correctly called them tech and they fell
-through to a failure message. A 24-inch Asus monitor is not something Assyze
+through to a failure message. A 24-inch Asus monitor is not something Filtrsoft
 covers and never will be: there are no comps because nobody ever asked for any.
 `NOT_OUR_MARKET` says so plainly. `BULK_LISTING` catches inventory dumps
 ("24 Computers, Printers, Monitors left starting at just $30").
@@ -1276,7 +1297,7 @@ backfill (3-minute ticks) and useless in steady mode (45-minute ticks), where a
 
 ### The crawl loop — `src/api/scheduler.ts`
 
-assyze.com served **three Craigslist listings, all 2+ weeks old, `lastCrawl:
+filtrsoft.com served **three Craigslist listings, all 2+ weeks old, `lastCrawl:
 null`** — `crawl` is a CLI script and nothing in the container ever called it.
 Fixing the comps archive gave the engine the ability to price and nothing to
 price. Same bug, one layer up.
@@ -1404,7 +1425,7 @@ ghost.
 called it, so the feed had never once checked whether its listings were still
 up. Now on its own 24h chain (`startSweepLoop`) with a `sweeping` flag separate
 from `running`, so a sweep and a crawl overlap without delaying each other.
-First run at +10min; probes capped at `ASSYZE_SWEEP_PROBE` (60) so the first
+First run at +10min; probes capped at `FILTRSOFT_SWEEP_PROBE` (60) so the first
 production sweep does not fire hundreds of requests in one burst.
 
 **Delisted listings are hidden from the feed by default**, `?gone=1` shows them.
@@ -1521,7 +1542,7 @@ you can buy at.
 
     VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT   push alerts
     STRIPE_SECRET_KEY / STRIPE_PRICE_ID / STRIPE_WEBHOOK_SECRET   billing (off)
-    ASSYZE_SWEEP=off · ASSYZE_SWEEP_INTERVAL_MS · ASSYZE_SWEEP_PROBE
+    FILTRSOFT_SWEEP=off · FILTRSOFT_SWEEP_INTERVAL_MS · FILTRSOFT_SWEEP_PROBE
 
 ---
 
@@ -1622,7 +1643,7 @@ undone: the server's crawl loop runs `reverdictStale`, sees verdicts at a
 version that is not its own, and re-scores them BACKWARDS. Measured — 0.3.23
 rows replaced by 0.3.21 ones **13 seconds later**, and the feed kept serving the
 old headline while the database appeared to hold the new one. **Stop the server
-before a manual re-score**, or run it with `ASSYZE_CRAWL=off`.
+before a manual re-score**, or run it with `FILTRSOFT_CRAWL=off`.
 
 ---
 
@@ -2334,9 +2355,9 @@ $0.085278**, added **40 listings**, and moved the database underneath the audit.
 Before any local API smoke test set all three:
 
 ```
-ASSYZE_CRAWL=off
-ASSYZE_SWEEP=off
-ASSYZE_VISION_ENABLED=0
+FILTRSOFT_CRAWL=off
+FILTRSOFT_SWEEP=off
+FILTRSOFT_VISION_ENABLED=0
 ```
 
 Then verify the port closes when the test ends. Do not trust a clean git tree to
@@ -2463,7 +2484,7 @@ were byte-exact the whole time; the portal carried a "Your keyset is currently
 disabled" banner that nobody had read. **Never debug eBay credentials without
 looking at the keyset page first.**
 
-Satisfied by `src/api/ebay-deletion.ts` at `https://assyze.com/v1/ebay/deletion`.
+Satisfied by `src/api/ebay-deletion.ts` at `https://filtrsoft.com/v1/ebay/deletion`.
 Endpoint over exemption because an exemption is a review queue with no deadline
 and we already run HTTPS on a stable domain. `EBAY_VERIFICATION_TOKEN` and
 `EBAY_DELETION_ENDPOINT` are set in Railway; `/v1/health` reports
@@ -2728,10 +2749,10 @@ something a single frame can show. **Trust the selector and the measurement.**
 
 It runs under NODE — Playwright hangs under Bun on this machine (see
 `src/browser/launch.mjs`) — so the split holds: Bun proves the functions, Node
-proves the running app. Point it at a server started with `ASSYZE_CRAWL=off`,
+proves the running app. Point it at a server started with `FILTRSOFT_CRAWL=off`,
 because a crawl mid-run changes the counts underneath the assertions.
 
-    ASSYZE_CRAWL=off bun run src/api/index.ts &
+    FILTRSOFT_CRAWL=off bun run src/api/index.ts &
     node src/browser/ui-verify.mjs commit2
 
 ⚠ **A stale API server on an older engine will overwrite a manual re-score.**
@@ -2937,10 +2958,10 @@ BYTE-IDENTICAL before and after, 42,853 bytes both times.**
 ⚠ The browser suite drives REAL DEVICE PROFILES, not hand-picked widths — see
 17g for why that distinction cost a shipped bug.
 
-Run the browser suite against a server started with `ASSYZE_CRAWL=off`; a crawl
+Run the browser suite against a server started with `FILTRSOFT_CRAWL=off`; a crawl
 mid-run changes the counts underneath the assertions.
 
-    ASSYZE_CRAWL=off bun run src/api/index.ts &
+    FILTRSOFT_CRAWL=off bun run src/api/index.ts &
     node src/browser/ui-verify.mjs <label>
 
 **Nine assertions failed across the five commits and eight of them were real
@@ -3026,11 +3047,11 @@ nav sat at 0 while the centred shell started at 104.
 
 **166 pass / 0 fail** (was 126 on hand-picked widths).
 
-### 17h. On a desktop, Assyze is a phone on a desk — and the wide shell is gone
+### 17h. On a desktop, Filtrsoft is a phone on a desk — and the wide shell is gone
 
 Yish, 2026-08-31, after using the live site: *"on desktop when I go to
-assyze.com it looks goofy because it's meant for mobile ... have an outline of a
-phone and then assyze inside with the exact dimensions of the real app so they
+filtrsoft.com it looks goofy because it's meant for mobile ... have an outline of a
+phone and then filtrsoft inside with the exact dimensions of the real app so they
 both reflect the same thing."*
 
 ⚠ **THIS REPLACED THE WIDE DESKTOP SHELL. DO NOT REINSTATE IT.** The 1180px
@@ -3136,7 +3157,7 @@ photo and **the worst case is a white one**.
 
 ### 18b. Back, and it puts you where you were
 
-*"The only back button that works is when I click the assyze logo, but that
+*"The only back button that works is when I click the filtrsoft logo, but that
 always brings me back to the top of the homepage."*
 
 - **Back is on the photo** (`.dback`), where he asked for it. A listing with no
@@ -3315,7 +3336,7 @@ the feed looked healthy. Every property that made it dangerous is inverted:
 - pruned on the same 28-day window the feed uses, **with a test asserting the
   two numbers still agree**
 - in the database, so a crash cannot leave an orphan directory
-- `ASSYZE_NO_THUMB_CACHE=1` turns it off
+- `FILTRSOFT_NO_THUMB_CACHE=1` turns it off
 - **`/v1/health` reports its size**, because last time every surface said
   healthy while the disk filled
 

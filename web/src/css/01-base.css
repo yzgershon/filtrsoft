@@ -32,10 +32,10 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
 
 /* ============================================================================
-   Assyze — the VaultX design system, mobile-first, OLED dark.
+   Filtrsoft — the VaultX design system, mobile-first, OLED dark.
 
    ⚠ EVERY VALUE HERE WAS MEASURED OFF THE RUNNING DEMO, not chosen. Yish,
-   2026-08-31: *"literally abandon everything from Assyze and use this design
+   2026-08-31: *"literally abandon everything from Filtrsoft and use this design
    system ... and use the demo's colors aswell."* Source, extraction script and
    the full mapping: `docs/VAULTX-DESIGN-SYSTEM.md` and `src/browser/extract-design-tokens.mjs`.
 
@@ -97,7 +97,7 @@
   --ink-3: #94a3b8;
 
   /*
-   * ⚠ THE BRAND IS A GRADIENT, AND ASSYZE'S ORANGE IS GONE.
+   * ⚠ THE BRAND IS A GRADIENT, AND FILTRSOFT'S ORANGE IS GONE.
    *
    * The demo has no orange except as a Bitcoin token colour. Its signature is
    * one gradient, used for the logo mark, the primary CTA and the accent word
@@ -131,7 +131,7 @@
    * JUDGEMENT was indistinguishable from ordinary chrome.
    *
    * Amber restores green -> amber -> red as a readable progression and leaves
-   * cyan to mean "Assyze" rather than "check this one". #ffc53d measures
+   * cyan to mean "Filtrsoft" rather than "check this one". #ffc53d measures
    * 12.4:1 on --bg and 5.6:1 as ink on a 92%-opaque chip over a white photo.
    */
   --verify: #ffc53d;
@@ -252,7 +252,7 @@ a { color: inherit; touch-action: manipulation; }
 /*
  * Headings are Space Grotesk 700 and letter-spacing is NORMAL.
  *
- * ⚠ THE DEMO DOES NOT TRACK ITS HEADINGS TIGHT. Assyze's old scale used
+ * ⚠ THE DEMO DOES NOT TRACK ITS HEADINGS TIGHT. Filtrsoft's old scale used
  * -.035em on the feed headline, which is a different typographic voice; the
  * per-heading overrides that still set it are corrected where they are
  * declared, not fought with `!important` here.
