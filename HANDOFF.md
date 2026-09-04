@@ -50,6 +50,22 @@ the deployed app runs on defaults: no vision (fails closed), no crawl PIN, and
 5. **`FILTRSOFT_CRAWL_PIN=2008`** is new and has never been set. Without it the
    crawl button reports itself unconfigured rather than doing nothing, which is
    the intended failure but is still not the feature working.
+6. **`EBAY_DELETION_ENDPOINT` — LAST, AND ONLY AFTER `filtrsoft.com` ANSWERS.**
+
+   ⚠ **A find-and-replace on the `ASSYZE_` prefix does not reach this one.** It
+   is an `EBAY_`-prefixed variable whose VALUE is
+   `https://assyze.com/v1/ebay/deletion`, so step 1 leaves it pointing at a
+   domain that stops existing the moment step 3 detaches it.
+
+   ⚠ **And a dead endpoint disables the eBay keyset**, which is what fetches
+   sold comps — the single thing keeping the feed priced. eBay retries, marks
+   the endpoint down, and the failure surfaces days later as prices going stale
+   rather than as anything about a URL.
+
+   So: get the new domain serving, THEN change the URL in the eBay Developer
+   portal, THEN set this variable to the **byte-exact** same string. The URL is
+   hashed into the challenge response, so a trailing slash difference fails
+   validation with a message that blames the token.
 
 **Everyone gets signed out once.** The cookie is `filtrsoft_session` now, and a
 browser holding an `assyze_session` simply has no session. The `users` table is
