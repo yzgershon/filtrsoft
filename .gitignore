@@ -51,3 +51,4 @@ node_modules/
 # true. `src/browser/ui-verify.mjs` writes fresh ones on demand.
 /docs/shots/
 /docs/now-*.png
+/mc-sample.txt
