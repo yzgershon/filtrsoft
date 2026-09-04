@@ -11,8 +11,8 @@
     "minimal-ui"
   ],
   "orientation": "portrait",
-  "background_color": "#08070a",
-  "theme_color": "#08070a",
+  "background_color": "#0a0e17",
+  "theme_color": "#0a0e17",
   "categories": [
     "shopping",
     "utilities",

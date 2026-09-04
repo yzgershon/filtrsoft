@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { readFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, mkdirSync, existsSync, readdirSync, renameSync } from "node:fs";
 import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -21,12 +21,49 @@ export function db(): Database {
     console.error(`  Is the volume mounted there? FILTRSOFT_DB=${DB_PATH}`);
     throw e;
   }
+  carryOverTheRenamedDatabase();
   refuseToShadowAnExistingDatabase();
 
   _db = new Database(DB_PATH, { create: true });
   _db.exec(readFileSync(join(here, "schema.sql"), "utf8"));
   migrate(_db);
   return _db;
+}
+
+/**
+ * One-shot: move the production database onto its new name after the
+ * 2026-09-04 rebrand. **DELETE THIS ONCE THE RAILWAY VOLUME HOLDS
+ * `filtrsoft.db`** — it is the only place the old name appears in the backend,
+ * and it is confined to one function so removing it is a clean cut.
+ *
+ * ── WHY IT CANNOT BE A MANUAL STEP ─────────────────────────────────────────
+ *
+ * The real database lives on a Railway volume at `/data/assyze.db`, and the
+ * Dockerfile now says `FILTRSOFT_DB=/data/filtrsoft.db`. There is no shell on
+ * that volume without a deploy, so "just rename the file" is not something Yish
+ * can do — the guard below would refuse to boot forever and the app would be
+ * down until someone shipped exactly this code anyway.
+ *
+ * ⚠ THE `-wal` AND `-shm` FILES MOVE WITH IT, AND THAT IS THE WHOLE RISK.
+ * SQLite derives their names from the main file, so renaming `assyze.db` alone
+ * leaves the most recent committed transactions sitting in an `assyze.db-wal`
+ * that nothing will ever replay. The database would open, look healthy, and be
+ * missing its newest rows — silent partial data loss, which is worse than the
+ * failure this function exists to prevent.
+ *
+ * Renames are atomic within a filesystem, so a crash mid-way leaves the trio
+ * consistent rather than half-moved.
+ */
+function carryOverTheRenamedDatabase(): void {
+  if (existsSync(DB_PATH)) return;
+  const legacy = join(dirname(DB_PATH), "assyze.db");
+  if (!existsSync(legacy)) return;
+
+  for (const suffix of ["", "-wal", "-shm"]) {
+    if (!existsSync(legacy + suffix)) continue;
+    renameSync(legacy + suffix, DB_PATH + suffix);
+    console.log(`carried over ${legacy + suffix} -> ${DB_PATH + suffix}`);
+  }
 }
 
 /**

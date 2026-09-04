@@ -31,9 +31,19 @@ const CHROME = process.env.FILTRSOFT_CHROME_PATH
   ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const OUT = join("web", "public");
 
-const BG = "#08070a";
-const INK = "#f2f0f5";
-const ACCENT = "#ff8a3d";
+/**
+ * ⚠ THESE ARE `01-base.css`'s TOKENS, NOT A SECOND PALETTE.
+ *
+ * The icons this replaced were `#08070a` / `#f2f0f5` / orange `#ff8a3d` — a
+ * palette the app stopped using when the VaultX system landed, and orange
+ * appears nowhere on any screen now. So the one asset a user sees before the
+ * app opens was the one asset off-brand. Keep these in step with `--bg`,
+ * `--ink`, `--brand` and `--brand-2`.
+ */
+const BG = "#0a0e17";        // --bg
+const INK = "#ffffff";       // --ink
+const BRAND = "#00d4ff";     // --brand
+const BRAND_2 = "#7b61ff";   // --brand-2
 
 /**
  * `rx` is a FRACTION of the side, not pixels, so the corner radius stays
@@ -47,11 +57,17 @@ const mark = ({ size, rx, scale }) => `<!doctype html>
   svg { display:block; }
 </style></head><body>
 <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="${BRAND}"/>
+      <stop offset="1" stop-color="${BRAND_2}"/>
+    </linearGradient>
+  </defs>
   <rect width="512" height="512" rx="${rx}" fill="${BG}"/>
   <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central"
         font-family="Inter,system-ui,-apple-system,sans-serif" font-weight="800"
         font-size="${Math.round(188 * scale)}" letter-spacing="${-8 * scale}">
-    <tspan fill="${INK}">f</tspan><tspan fill="${ACCENT}">s</tspan>
+    <tspan fill="${INK}">f</tspan><tspan fill="url(#g)">s</tspan>
   </text>
 </svg>
 </body></html>`;
