@@ -78,6 +78,60 @@ const ALLOWED_ORIGINS = [
 app.use("/*", cors({ origin: (o) => (ALLOWED_ORIGINS.includes(o) ? o : null) }));
 
 /**
+ * ONE CANONICAL HOST, AND A PROMISE NEVER TO SPEAK HTTP AGAIN.
+ *
+ * ── WHY HSTS, CONCRETELY ───────────────────────────────────────────────────
+ *
+ * Railway already 301s http -> https, but a 301 is a RESPONSE — the browser has
+ * to make the plaintext request first to receive it, and whatever it has cached
+ * for `http://filtrsoft.com/` wins before any of that happens. On 2026-09-04,
+ * hours after the domain went live, Chrome was still serving Yish the Namecheap
+ * parking page for the bare hostname while `https://filtrsoft.com` loaded the
+ * real app: same machine, same DNS, two different cache keys. Every other
+ * client on that machine was fine, which made it look like the domain was
+ * broken.
+ *
+ * HSTS removes the plaintext request entirely — the browser rewrites http to
+ * https internally, so a stale http entry can never be consulted again.
+ *
+ * ⚠ IT IS A ONE-WAY DOOR FOR `max-age`. A browser that has seen this header
+ * will REFUSE to reach this host over http for six months, and there is no way
+ * to reach those browsers and take it back. That is safe here only because the
+ * site is HTTPS-only by construction and Railway renews the certificate itself.
+ * **No `preload`, and no `includeSubDomains`** — preload is effectively
+ * permanent and baked into browser binaries, and a subdirective covering
+ * subdomains would apply to hosts that do not exist yet.
+ *
+ * Set only on https responses. Sending it over plaintext is meaningless (the
+ * spec says ignore it) and would be a lie on localhost.
+ *
+ * ── AND WHY www REDIRECTS RATHER THAN SERVES ───────────────────────────────
+ *
+ * `www.filtrsoft.com` became reachable when the plan gained a second custom
+ * domain slot. Two hostnames both SERVING the app is not free: sessions are
+ * cookie-scoped to a host, so signing in on one leaves you signed out on the
+ * other, and `localStorage` — which holds Saved, history and the device ref —
+ * is per-origin too. A user who reaches www once has a second, empty account
+ * surface with no way to tell why. So www exists to point at the apex, nothing
+ * more.
+ */
+app.use("/*", async (c, next) => {
+  const url = new URL(c.req.url);
+  const proto = c.req.header("x-forwarded-proto") ?? url.protocol.replace(":", "");
+
+  if (url.hostname.startsWith("www.")) {
+    url.hostname = url.hostname.slice(4);
+    url.protocol = "https:";
+    return c.redirect(url.toString(), 301);
+  }
+
+  await next();
+  if (proto === "https") {
+    c.header("Strict-Transport-Security", "max-age=15552000");   // 180 days
+  }
+});
+
+/**
  * Rate limit every check endpoint, not just the paid ones.
  *
  * Free checks are not free to everyone: each one fetches a Craigslist page, and
