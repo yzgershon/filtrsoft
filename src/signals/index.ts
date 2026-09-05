@@ -80,7 +80,24 @@ const VALUE_FIELDS: Partial<Record<Category, Array<[string, RegExp]>>> = {
   laptop:   [["cpu", /\bi[3579]\b|\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d|m[1-9]\b|celeron|core ultra|snapdragon|mediatek|exynos)/i],
              ["ram", /\b\d{1,3}\s?gb\b/i]],
   gpu:      [["model", /\b(rtx|gtx|rx|tesla|quadro)\s?[a-z]?\d{3,4}/i]],
-  prebuilt: [["gpu", /\b(rtx|gtx|rx)\s?\d{3,4}|\b(integrated|igpu|iris|radeon graphics)\b/i],
+  /**
+   * ⚠ "INTEL UHD GRAPHICS 630" IS A STATED GPU AND THIS REGEX USED TO SAY IT
+   * WAS NOT.
+   *
+   * Caught on 2026-09-04 by running vision over the backlog and watching the
+   * verdicts refuse to move. Vision read a Dell OptiPlex 7080 perfectly —
+   * `gpu: "Intel UHD Graphics 630"`, plus cpu, ram and storage — and the
+   * verdict still came back **"Can't be valued: gpu not stated."** We paid for
+   * the photo read and then threw the answer away, which is worse than not
+   * reading it.
+   *
+   * The list accepted `integrated`, `igpu`, `iris` and `radeon graphics`, and
+   * missed the single most common integrated GPU on earth, along with
+   * `HD Graphics`, `Vega 8`, `Arc`, and the plain statement that a machine has
+   * no card in it. Every one of those is the seller — or the photo — answering
+   * the question that was asked.
+   */
+  prebuilt: [["gpu", /\b(rtx|gtx|rx)\s?\d{3,4}|\b(integrated|igpu|onboard|iris|uhd graphics|hd graphics|intel graphics|radeon graphics|radeon vega|vega \d|arc a\d{3})\b|\bno (dedicated |discrete |separate )?(gpu|graphics|video) ?(card)?\b/i],
              // Same reasoning as laptop above: a bare i7 is a stated CPU.
              ["cpu", /\bi[3579]\b|\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d|m[1-9]\b|core ultra|xeon|threadripper)/i]],
   console:  [["storage", /\b(\d{3,4}\s?gb|\d{1,2}\s?tb)\b/i]],
@@ -419,9 +436,25 @@ export function analyze(l: RawListing, opts?: { clusterSize?: number; visionText
    * on every iMac and Mac mini ever crawled.
    */
   const appleWhole = isAppleWholeUnit(text);
+  /**
+   * ⚠ A MICRO-FORM-FACTOR OFFICE DESKTOP HAS NOWHERE TO PUT A GPU, so asking
+   * for one is asking about a part the machine cannot physically contain.
+   *
+   * An OptiPlex Micro, a ThinkCentre Tiny, an EliteDesk Mini and an Intel NUC
+   * are one-litre boxes with no PCIe slot and no room for a card. **28 of the
+   * 157 listings blocked on "gpu not stated" are exactly these**, and the
+   * honest answer for every one of them is "integrated, like every machine of
+   * this shape" — not "the seller failed to tell us."
+   *
+   * Same shape as the Apple rule above, and the same principle: a field only
+   * makes sense for products that have one.
+   */
+  const officeMicro = /\b(micro form factor|mff|usff|small form factor|sff|tiny|nuc)\b/i.test(text)
+    || /\b(optiplex|thinkcentre|elitedesk|prodesk|thinkstation)\b.{0,40}\b(micro|tiny|mini|sff)\b/i.test(text);
   const recoveredFromPhotos: string[] = [];
   for (const [field, re] of VALUE_FIELDS[category] ?? []) {
     if (appleWhole && (field === "gpu" || field === "cpu")) continue;
+    if (officeMicro && field === "gpu") continue;
     if (re.test(text)) continue;
     if (opts?.visionText && re.test(opts.visionText)) { recoveredFromPhotos.push(field); continue; }
     missingValueFields.push(field);
