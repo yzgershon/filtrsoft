@@ -230,6 +230,25 @@ async function doJob(job: { id: number; sources: string[] }) {
      */
   }
 
+  /**
+   * ⚠ ONE VISION PASS AFTER ALL THE SOURCES, NOT ONE PER SOURCE.
+   *
+   * Reading photos is what fixes the largest category of "can't tell" — 692 of
+   * 1,193 unpriceable listings are waiting on a spec that is not in the text,
+   * and 653 of those have photos. It runs HERE rather than only in the
+   * container because `visionPass` re-fetches each listing to reach its
+   * photos, and **338 of those 692 are on Facebook, OfferUp or Mercari**, which
+   * Railway cannot fetch at all. This machine can.
+   *
+   * Per-job rather than per-source because the queue is not organised by
+   * source; splitting it three ways would just read the same list in thirds.
+   * Its own failure is reported separately and never fails the job — a crawl
+   * that found listings succeeded even if reading their photos did not.
+   */
+  await report(job.id, { progress: "reading photos" });
+  const vision = await run(["run", "vision", "--limit", "60"], "vision");
+  summary.vision = vision.ok ? "ok" : `failed: ${vision.tail.slice(0, 120)}`;
+
   const anyOk = Object.values(summary).some((v) => v === "ok");
   await report(job.id, {
     status: anyOk ? "done" : "failed",

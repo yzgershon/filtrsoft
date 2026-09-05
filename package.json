@@ -39,7 +39,8 @@
     "daily": "bun run src/scripts/daily.ts",
     "probe": "bun run src/scripts/probe.ts",
     "agent": "bun run src/scripts/agent.ts",
-    "mc:detail": "bun run src/scripts/mc-detail.ts"
+    "mc:detail": "bun run src/scripts/mc-detail.ts",
+    "vision": "bun run src/scripts/vision.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

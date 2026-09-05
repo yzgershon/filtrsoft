@@ -41,6 +41,9 @@ export interface CompsHealth {
 /** Must match `valueSku`'s window, or this reports on a population nothing uses. */
 export const COMP_WINDOW_DAYS = 90;
 
+/** Read at call time: the scheduler owns the default, and env can override it. */
+const VISION_PER_RUN = () => Number(process.env.FILTRSOFT_CRAWL_VISION ?? 10);
+
 export function compsHealth(): CompsHealth {
   const d = db();
   const one = <T>(sql: string, ...a: unknown[]) => d.query(sql).get(...(a as [])) as T;
@@ -154,7 +157,14 @@ export function visionHealth(model: string, promptVersion: string): VisionHealth
   let shortlist = -1;
   try {
     const { visionCandidates } = require("../crawler/vision-pass.ts");
-    shortlist = visionCandidates(3).length;
+    /**
+     * ⚠ THE REAL PER-RUN COUNT, NOT A HARDCODED 3. This read `visionCandidates(3)`
+     * while the loop ran a different number, so `shortlist: 3` was a statement
+     * about this line rather than about what the next tick would do — and it
+     * kept saying 3 after the per-run count was raised to 10, which is exactly
+     * the kind of quiet lie that sends someone diagnosing the wrong thing.
+     */
+    shortlist = visionCandidates(VISION_PER_RUN()).length;
   } catch { /* leave -1, meaning "could not evaluate" */ }
 
   const warning = candidatePool > 20 && reads24h === 0
