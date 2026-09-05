@@ -52,3 +52,4 @@ node_modules/
 /docs/shots/
 /docs/now-*.png
 /mc-sample.txt
+/scripts/agent.cmd

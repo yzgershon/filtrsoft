@@ -40,7 +40,8 @@
     "probe": "bun run src/scripts/probe.ts",
     "agent": "bun run src/scripts/agent.ts",
     "mc:detail": "bun run src/scripts/mc-detail.ts",
-    "vision": "bun run src/scripts/vision.ts"
+    "vision": "bun run src/scripts/vision.ts",
+    "agent:install": "bun run src/scripts/agent-install.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
