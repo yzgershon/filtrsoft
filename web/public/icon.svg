@@ -1,14 +1,49 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Filtrsoft</title>
+  <!--
+    The Filtrsoft app icon, and the browser favicon via the icon link in
+    web/index.html.
+
+    WARNING: NEVER WRITE TWO HYPHENS IN A ROW ANYWHERE IN THIS FILE. XML
+    forbids that sequence inside a comment, so a comment naming the CSS custom
+    properties this palette comes from (they all start with two hyphens) makes
+    the whole document malformed. Chrome then refuses to render it and the
+    favicon silently becomes a broken image placeholder, while every PNG beside
+    it keeps working, so nothing looks wrong until you check a tab. That
+    shipped for exactly one build on 2026-09-05. Name the tokens in prose.
+
+    WARNING: the bars are much brighter here than in web/src/brand.tsx, and
+    that is deliberate. In the app the mark is drawn at 40 and 75 percent of
+    the muted ink so it recedes behind the BUY and VERIFY chips, which are the
+    only judgement the app makes. Standing alone in a tab strip or on a home
+    screen it has nothing to defer to and everything to lose: at 16px a 40
+    percent bar over this navy is dust, and the mark reads as one gradient dot
+    with a smudge above it. Measured on the options sheet before this shipped,
+    docs/20260905-logo-options-preview.html.
+
+    Keep the colours in step with web/src/css/01-base.css: background 0a0e17,
+    ink ffffff, brand 00d4ff, brand two 7b61ff. The icon this replaced was
+    still painting an orange the app stopped using in August, because it was
+    hand made and nothing regenerated it. The PNGs beside it come from
+    src/browser/make-icons.mjs, which draws this same geometry.
+
+    rx 112 of 512 is inherited from the hand made set on purpose: it keeps the
+    icon sitting at the same visual weight on a home screen as the one it
+    replaces.
+
+    The mark is authored on the same 24 unit grid as brand.tsx so the two
+    cannot drift. 340/24 is 14.1667, centred by (512 minus 340)/2 = 86.
+  -->
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="fsGrad" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#00d4ff"/>
       <stop offset="1" stop-color="#7b61ff"/>
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="112" fill="#0a0e17"/>
-  <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central"
-        font-family="Inter,system-ui,-apple-system,sans-serif" font-weight="800"
-        font-size="188" letter-spacing="-8">
-    <tspan fill="#ffffff">f</tspan><tspan fill="url(#g)">s</tspan>
-  </text>
+  <g transform="translate(86 86) scale(14.1667)">
+    <rect x="2.5"  y="3.2"  width="19"   height="2.8" rx="1.4" fill="#ffffff" opacity=".55"/>
+    <rect x="6.25" y="9"    width="11.5" height="2.8" rx="1.4" fill="#ffffff" opacity=".85"/>
+    <rect x="8.9"  y="14.8" width="6.2"  height="6.2" rx="2"   fill="url(#fsGrad)"/>
+  </g>
 </svg>

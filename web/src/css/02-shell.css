@@ -54,10 +54,84 @@
   min-height: var(--tap); display: flex; align-items: center; padding: 0 2px;
   touch-action: manipulation;
 }
-.brand span {
-  background: var(--grad);
+/*
+ * ⚠ NO `gap` ON THIS ROW, EVER. The wordmark is one span but the mark beside it
+ * is a second flex item, and a `gap` here would also open up between any two
+ * items — the logo-options preview did exactly that and the bar printed
+ * "filtr soft" with a hole through the middle of the word. The mark carries its
+ * own margin instead, which cannot leak into the text.
+ */
+.brand .mark { flex: none; color: var(--ink-2); margin-right: 8px; }
+
+/* ==========================================================================
+   THE WORDMARK: all ink, gradient on the dot of the i and nowhere else.
+   Shared with `.mkbrand` on the landing page — this is the only place the
+   treatment is defined.
+   ========================================================================== */
+
+/*
+ * ⚠ THE TITTLE IS A BACKGROUND STOP, NOT A SEPARATE ELEMENT, AND THE 0.46em IS
+ * MEASURED RATHER THAN EYEBALLED.
+ *
+ * Two obvious ways to colour a dot and both are wrong. Putting the gradient on
+ * the <span> paints the STEM as well, so the whole letter turns blue — that is
+ * what the first draft did. Swapping in a dotless i (U+0131) and drawing a
+ * square over it looks right but writes "fıltrsoft" into the DOM, so copy,
+ * find-in-page and the accessibility tree all get a word that is not the
+ * product's name.
+ *
+ * So the real "i" stays and two background layers are clipped to the glyph: the
+ * gradient over the top 0.46em of the inline box, flat ink under everything.
+ * The seam lands in the blank gap between the tittle and the stem.
+ *
+ * The number comes from `scripts/measure-tittle.mjs`, which renders Space
+ * Grotesk 700 at 400px into a canvas and reads the empty rows back:
+ *
+ *     tittle       0.7150em .. 0.5525em above the baseline
+ *     stem starts  0.4975em above the baseline
+ *     ascent       0.9850em
+ *     gap middle   0.9850 - 0.5250 = 0.46em below the top of the inline box
+ *
+ * The gap is only 0.055em tall, so the slack is about half a pixel at 19px.
+ * ⚠ RE-RUN THAT SCRIPT IF THE HEADING FONT EVER CHANGES — a different face
+ * puts its dot somewhere else and this silently paints half a stem instead.
+ *
+ * The unit is `em` and not a percentage on purpose: a percentage resolves
+ * against the inline box, which changes with the font's metrics, while em
+ * tracks the font size. That is what lets one rule serve the 19px top bar and
+ * the 21px landing wordmark.
+ */
+.wmi {
+  /*
+   * ⚠ `inline-block` IS LOAD-BEARING AND IT IS NOT ABOUT LAYOUT.
+   *
+   * Chrome shapes text ACROSS inline element boundaries, so in
+   * `f<span>i</span>ltrsoft` the span reports a bounding box of **width 0** —
+   * the glyph's advance is accounted to the run, not to the element. A
+   * background positioning area 0px wide paints nothing, so both layers
+   * vanished and the letter fell back to plain `color`. The rule looked
+   * perfectly correct in devtools: background-clip computed to `text, text`,
+   * the sizes were right, and it still did nothing.
+   *
+   * `inline-block` gives the span its own box, the background gets an area,
+   * and the tittle paints. Verified by painting layer 1 red and layer 2 green
+   * and looking at the glyph — inline came out white, inline-block came out
+   * red over green with the seam exactly in the gap.
+   */
+  display: inline-block;
+  /*
+   * The kerning that inline-block costs, handed straight back. "fi" is a kern
+   * pair in Space Grotesk and an element boundary breaks it, so the word came
+   * out 0.028em wider than the same letters typed plainly. Measured, not
+   * nudged: at 1000px, fi is 28px narrower than f + i, and "filtrsoft" is
+   * 3.782em against 3.810em for the split parts. This puts it back to 3.782em.
+   */
+  margin-left: -.028em;
+  background-image: var(--grad), linear-gradient(var(--ink), var(--ink));
+  background-size: 100% .46em, 100% 100%;
+  background-repeat: no-repeat;
   -webkit-background-clip: text; background-clip: text;
-  color: transparent;
+  -webkit-text-fill-color: transparent;
 }
 .topbar .spacer { flex: 1; }
 .iconbtn {

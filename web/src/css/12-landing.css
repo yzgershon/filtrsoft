@@ -33,13 +33,18 @@
   backdrop-filter: blur(16px) saturate(1.3);
 }
 .mknavr { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+/*
+ * ⚠ THE GRADIENT-ON-"soft" RULE IS GONE, NOT MISSING. The wordmark is all ink
+ * with the brand gradient on the dot of the i, and that treatment is `.wmi` in
+ * 02-shell.css so the landing page and the app cannot drift apart. A
+ * `.mkbrand span` rule here would win on source order (12 loads after 02) and
+ * repaint the whole letter, which is the bug it used to be.
+ */
 .mkbrand {
   font-size: 21px; font-weight: 800; letter-spacing: -.03em; color: var(--ink);
+  display: inline-flex; align-items: center;
 }
-.mkbrand span {
-  background: var(--grad); -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
+.mkbrand .mark { flex: none; color: var(--ink-2); margin-right: 7px; }
 .mkbrand.sm { font-size: 15px; }
 .mklink {
   background: none; border: 0; color: var(--ink-2);

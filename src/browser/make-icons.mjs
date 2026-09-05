@@ -13,14 +13,28 @@
  * indefinitely while every screen inside the app said the new one. **A brand
  * asset that cannot be regenerated is a brand asset that goes stale.**
  *
- * The mark is the wordmark's own split: `filtr` + `soft`, so the monogram is
- * `f` in ink and `s` in the accent — the icon and the wordmark say the same
- * thing rather than being two designs that happen to share a colour.
+ * ── THE MARK ───────────────────────────────────────────────────────────────
+ *
+ * Three shapes: a wide bar, a narrower bar, one rounded square. Wide, narrower,
+ * the one — the product's own funnel. It replaced an `fs` monogram on
+ * 2026-09-05; the options it was chosen from are in
+ * docs/20260905-logo-options-preview.html.
+ *
+ * ⚠ THIS IS THE SAME GEOMETRY AS `web/src/brand.tsx` AND `web/public/icon.svg`,
+ * ON THE SAME 24-UNIT GRID. Three files draw this mark and there is no build
+ * step that derives one from another, so a change to the shape is a change in
+ * three places. The grid is what makes that checkable: the numbers should be
+ * character-for-character identical in all three.
+ *
+ * ⚠ THE INKS ARE NOT THE APP'S INKS. brand.tsx draws the bars at 40% and 75% of
+ * --ink-2 so the logo loses the fight against the BUY and VERIFY chips beside
+ * it. Alone on a home screen there is nothing to defer to, and at small sizes
+ * those opacities read as dust, so the standalone icon uses 55% and 85% white.
  *
  * ⚠ THE MASKABLE ONE IS NOT JUST THE SAME IMAGE. Android crops a maskable icon
  * to whatever shape the launcher uses — circle, squircle, teardrop — and only
- * the middle 80% is guaranteed to survive. So it is full-bleed with the mark at
- * 60%, while the plain icons carry their own rounded corners because nothing
+ * the middle 80% is guaranteed to survive. So it is full-bleed with a smaller
+ * mark, while the plain icons carry their own rounded corners because nothing
  * crops those.
  */
 import { chromium } from "playwright-core";
@@ -51,7 +65,20 @@ const BRAND_2 = "#7b61ff";   // --brand-2
  * other. 112/512 is what the hand-made set used; keeping it means the new icon
  * sits at the same weight on the home screen as the old one did.
  */
-const mark = ({ size, rx, scale }) => `<!doctype html>
+/**
+ * `rx` is a FRACTION of the side, not pixels, so the corner radius stays
+ * proportional at 192 and 512 rather than reading tight on one and soft on the
+ * other. 112/512 is what the hand-made set used; keeping it means the new icon
+ * sits at the same weight on the home screen as the old one did.
+ *
+ * `box` is how many of the 512 units the mark spans. 340 is 66% of the tile,
+ * which puts the drawn shapes at about 53% — a normal icon weight. The maskable
+ * variant shrinks it so the whole mark clears the guaranteed-safe circle.
+ */
+const mark = ({ size, rx, box }) => {
+  const scale = box / 24;
+  const off = (512 - box) / 2;
+  return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
   html,body { margin:0; padding:0; background:transparent; }
   svg { display:block; }
@@ -64,25 +91,31 @@ const mark = ({ size, rx, scale }) => `<!doctype html>
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="${rx}" fill="${BG}"/>
-  <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central"
-        font-family="Inter,system-ui,-apple-system,sans-serif" font-weight="800"
-        font-size="${Math.round(188 * scale)}" letter-spacing="${-8 * scale}">
-    <tspan fill="${INK}">f</tspan><tspan fill="url(#g)">s</tspan>
-  </text>
+  <g transform="translate(${off} ${off}) scale(${scale})">
+    <rect x="2.5"  y="3.2"  width="19"   height="2.8" rx="1.4" fill="${INK}" opacity=".55"/>
+    <rect x="6.25" y="9"    width="11.5" height="2.8" rx="1.4" fill="${INK}" opacity=".85"/>
+    <rect x="8.9"  y="14.8" width="6.2"  height="6.2" rx="2"   fill="url(#g)"/>
+  </g>
 </svg>
 </body></html>`;
+};
 
 const TARGETS = [
-  { file: "icon-192.png", size: 192, rx: 112, scale: 1 },
-  { file: "icon-512.png", size: 512, rx: 112, scale: 1 },
-  { file: "apple-touch-icon.png", size: 180, rx: 112, scale: 1 },
+  { file: "icon-192.png", size: 192, rx: 112, box: 340 },
+  { file: "icon-512.png", size: 512, rx: 112, box: 340 },
+  { file: "apple-touch-icon.png", size: 180, rx: 112, box: 340 },
   /**
    * ⚠ `rx: 0` AND A SMALLER MARK. A maskable icon that draws its own rounded
    * corners gets those corners cropped again by the launcher, which reads as a
    * dark ring around the icon on exactly the devices the maskable variant
    * exists to serve.
+   *
+   * 260 units puts the drawn shapes inside a 206x188 box, whose diagonal is 279
+   * — comfortably inside the 410px circle Android guarantees. At the full 340
+   * the diagonal is 366, which still fits a circle but leaves nothing for a
+   * teardrop or a squircle corner to take.
    */
-  { file: "icon-maskable-512.png", size: 512, rx: 0, scale: 0.62 },
+  { file: "icon-maskable-512.png", size: 512, rx: 0, box: 260 },
 ];
 
 const browser = await chromium.launch({ executablePath: CHROME, headless: true });

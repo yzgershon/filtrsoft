@@ -8,6 +8,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Back, Bell, Clip, Link, Again, Sliders, User } from "./icons.tsx";
+import { BrandMark, Wordmark } from "./brand.tsx";
 import type { Comp, Hist, Listing, Meta, Signal, Verdict } from "./types.ts";
 import {
   LABEL, Toaster, pushHist, readHist, readAsked, readWatch, writeWatch,
@@ -628,7 +629,7 @@ export default function App() {
           </button>
         )}
         <button className="brand" onClick={() => goTab("deals")}
-          aria-label="Filtrsoft home">filtr<span>soft</span></button>
+          aria-label="Filtrsoft home"><BrandMark className="mark" /><Wordmark /></button>
         {/* The desktop header nav is GONE: above 1024px the app is a phone
             in a frame (10-desktop.css), so there is no wide bar to put it
             in. It lived in commit 6017540. */}

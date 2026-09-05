@@ -32,6 +32,7 @@ import {
   Alert, Bell, Check, Cross, Grid, Scan, Shield, Star, Tag, User,
 } from "./icons.tsx";
 import { deviceRef, toast } from "./lib.tsx";
+import { BrandMark, Wordmark } from "./brand.tsx";
 
 // ─────────────────────────────────────────────────────────────────── types
 
@@ -68,7 +69,7 @@ export function Landing({ onStart, onSignIn }: {
     <div className="mk">
       {/* ── nav ──────────────────────────────────────────────────────── */}
       <header className="mknav">
-        <span className="mkbrand">filtr<span>soft</span></span>
+        <span className="mkbrand"><BrandMark size={21} className="mark" /><Wordmark /></span>
         <div className="mknavr">
           <button className="mklink" onClick={onSignIn}>Sign in</button>
           <button className="mkcta sm" onClick={onStart}>Get started</button>
@@ -109,7 +110,7 @@ export function Landing({ onStart, onSignIn }: {
       <section className="mkshot">
         <div className="mkphone" aria-hidden="true">
           <div className="mkphonebar">
-            <span className="mkbrand sm">filtr<span>soft</span></span>
+            <span className="mkbrand sm"><BrandMark size={16} className="mark" /><Wordmark /></span>
           </div>
           <div className="mkseg">
             <span className="on">Buy it <i>2</i></span>
@@ -219,7 +220,7 @@ export function Landing({ onStart, onSignIn }: {
       </section>
 
       <footer className="mkfoot">
-        <span className="mkbrand sm">filtr<span>soft</span></span>
+        <span className="mkbrand sm"><BrandMark size={16} className="mark" /><Wordmark /></span>
         <span>Greater Boston · Used tech, priced honestly</span>
       </footer>
     </div>
@@ -357,7 +358,7 @@ export function AuthScreen({ mode, providers, onDone, onMode, onBack }: {
       </button>
 
       <div className="authhd">
-        <span className="mkbrand">filtr<span>soft</span></span>
+        <span className="mkbrand"><BrandMark size={21} className="mark" /><Wordmark /></span>
         <h1>{signup ? "Create your account" : "Welcome back"}</h1>
         <p>
           {signup
