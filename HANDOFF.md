@@ -298,6 +298,67 @@ Do not re-raise them.** His hardware, and the ranking:
   needs the paid developer membership. No password reset either — that needs
   outbound email.
 
+### 0l. The logo — 2026-09-05, SHIPPED
+
+Nine options were drawn and shown at real sizes:
+`docs/20260905-logo-options-preview.html`. Yish picked **01 The Cut** with the
+brand gradient on the dot of the i — *"i want 01 filter and a gradient dot on
+the i uncapitalized f filtrsoft"*. **That page is a record now, not a menu.**
+
+**The mark is three shapes: a wide bar, a narrower bar, one rounded square.**
+Wide, narrower, the one — 4,482 live listings down to the 28 worth driving for.
+
+**⚠ THE BOTTOM SHAPE IS A SQUARE, NOT A THIRD BAR.** Three narrowing bars is the
+generic filter glyph that ships in every data table on the internet, *including
+the filter control in Filtrsoft's own feed toolbar*. The square stops being part
+of the stack and starts being the thing the stack produced. Simplify it back to
+a bar and the logo collides with a button.
+
+**`web/src/brand.tsx` is the only definition of either.** The wordmark had been
+literal JSX in five places (App.tsx once, landing.tsx four) and the icon was
+hand-made, which is how it was still painting an August orange after the palette
+changed. Three files draw the mark now — `brand.tsx`, `web/public/icon.svg` and
+`src/browser/make-icons.mjs` — all on the same 24-unit grid, with no build step
+deriving one from another, so **the numbers should be character-for-character
+identical in all three.**
+
+**Two inks, deliberately.** In the app the bars are 40% and 75% of the muted ink
+so the logo *loses* the fight against the BUY and VERIFY chips one line below
+it. The standalone icon has nothing to defer to and uses 55% and 85% white,
+because at 16px the in-app opacities are dust.
+
+Three traps this cost, none of which were visible by reading the code:
+
+- **AN INLINE SPAN AROUND A SINGLE LETTER HAS WIDTH 0.** Chrome shapes text
+  across inline element boundaries, so in `f<span>i</span>ltrsoft` the span's
+  box is zero wide, its background has no area to paint, and both layers
+  silently do nothing — while devtools reports `background-clip: text, text`
+  and the right sizes. The letter just renders plain white. `display:
+  inline-block` on `.wmi` is the fix and it is load-bearing.
+- **TWO HYPHENS IN A ROW ARE ILLEGAL INSIDE AN XML COMMENT.** The first
+  `icon.svg` carried a comment naming the CSS custom properties it copies, and
+  every one of those starts with two hyphens, so the document was malformed and
+  Chrome refused it. Every PNG beside it kept working, so the only symptom was
+  a broken favicon. Name the tokens in prose in that file, never with their
+  leading hyphens.
+- **A flex `gap` on `.brand`** splits `filtr<span>soft</span>` into separate
+  flex items and prints a hole through the middle of the word. The mark carries
+  its own margin instead.
+
+**The tittle is a BACKGROUND STOP, not a dotless i.** Swapping in U+0131 and
+drawing a square over it looks identical and puts *"fıltrsoft"* into copy-paste,
+find-in-page and the accessibility tree. Instead the real "i" stays and two
+background layers are clipped to the glyph — gradient over the top `0.46em`,
+flat ink under everything — with the seam landing in the blank gap between the
+tittle and the stem. **0.46em and the -0.028em `fi` kern compensation are
+measured by `scripts/measure-tittle.mjs`, not eyeballed. Re-run it if the
+heading font ever changes**, or it silently paints half a stem.
+
+`scripts/shot-preview.mjs` renders any local preview headless and reports font
+load, dangling `<use>` refs and console errors. It exists because the Claude in
+Chrome extension was not connected, and every one of the three traps above was
+found by looking at a render rather than at the source.
+
 ## 1. What Filtrsoft is
 
 **A marketplace of only the good deals.** Open it, see used-tech listings the
