@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Filtrsoft — logo options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/*
+ * Filtrsoft logo options. Nine marks, one recommendation.
+ *
+ * MEASUREMENT MANIFEST — every value traced to a source, read this session.
+ *
+ * From web/src/css/01-base.css (the VaultX token block):
+ *   --bg          #0a0e17
+ *   --grad        linear-gradient(135deg, #00d4ff 0%, #7b61ff 100%)
+ *   --brand       #00d4ff        --brand-2  #7b61ff
+ *   --ink         #ffffff        --ink-2    #94a3b8    --ink-3  #94a3b8
+ *   --surface     rgba(255,255,255,.05)     --line     rgba(255,255,255,.1)
+ *   --buy         #00ff88        --verify   #ffc53d
+ *   --risk        #ff4757        --fair     #7b61ff    --pass   #94a3b8
+ *   --r-sm 8  --r-md 12  --r-lg 20  --r-pill 999
+ *   --glow        0 0 60px rgba(0,212,255,.2)
+ *   fonts         Space Grotesk headings / DM Sans body / JetBrains Mono numerals
+ *
+ * From web/src/css/02-shell.css:
+ *   .brand        19px, weight 700, letter-spacing normal, min-height 44px
+ *   .brand span   carries the gradient via background-clip:text
+ *   comment       "THE WORDMARK IS THE GRADIENT ... nothing else does"
+ *
+ * From web/public/icon.svg (what ships today):
+ *   512 box, rx 112 (21.9%), fill #0a0e17, letters "fs" at 188px weight 800
+ *
+ * From src/engine/index.ts:423   ENGINE_VERSION = "0.3.31"
+ *
+ * From filtrsoft.db, read 2026-09-05 (live rows only, engine 0.3.31):
+ *   4,482 live listings
+ *   OUT_OF_SCOPE 3072 · INSUFFICIENT_DATA 981 · PASS 301 · RISK 61
+ *   FAIR 39 · VERIFY 21 · BUY 7
+ *   every listing title on this page is a real row, unedited
+ *
+ * Icon corner radius here is 22.37% of the box, the iOS squircle ratio.
+ * Today's icon.svg is 21.9%, close enough that the change is invisible.
+ */
+:root{
+  --bg:#0a0e17;
+  --surface:rgba(255,255,255,.05);
+  --surface-2:rgba(255,255,255,.08);
+  --line:rgba(255,255,255,.1);
+  --line-soft:rgba(255,255,255,.06);
+  --ink:#fff; --ink-2:#94a3b8; --ink-3:#94a3b8;
+  --brand:#00d4ff; --brand-2:#7b61ff;
+  --grad:linear-gradient(135deg,#00d4ff 0%,#7b61ff 100%);
+  --buy:#00ff88; --verify:#ffc53d; --risk:#ff4757; --fair:#7b61ff; --pass:#94a3b8;
+  --r-sm:8px; --r-md:12px; --r-lg:20px; --r-pill:999px;
+  --glow:0 0 60px rgba(0,212,255,.2);
+
+  /* Mark colour switches. These are custom properties so they inherit through
+     the use/shadow boundary, which is how one symbol renders in gradient,
+     in one flat colour and on a light ground without being drawn three times. */
+  --mk:url(#G);
+  --mk-buy:#00ff88; --mk-verify:#ffc53d; --mk-risk:#ff4757; --mk-pass:#94a3b8;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:#06090f;color:var(--ink);
+  font:400 15px/1.6 "DM Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  display:flex;justify-content:center;padding:44px 0 90px;
+}
+.sheet{width:1200px}
+h1{font:700 34px/1.15 "Space Grotesk",system-ui,sans-serif;margin:0 0 10px;letter-spacing:-.5px}
+h2{font:600 21px/1.3 "Space Grotesk",system-ui,sans-serif;margin:52px 0 6px}
+h3{font:600 15px/1.3 "Space Grotesk",system-ui,sans-serif;margin:0 0 4px}
+p{margin:0 0 12px;max-width:78ch;color:#c8cfda}
+.lede{font-size:16px;color:#c8cfda}
+.cap{font-size:13.5px;color:var(--ink-2);margin:10px 0 0;max-width:82ch}
+.num{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;font-weight:600}
+b,strong{color:#fff;font-weight:700}
+
+.note{
+  border:1px solid var(--line);background:var(--surface);border-radius:var(--r-md);
+  padding:14px 16px;margin:16px 0;font-size:14px;color:#c8cfda;
+}
+.note b{color:#fff}
+.note.warn{border-color:rgba(255,197,61,.35);background:rgba(255,197,61,.07)}
+
+/* ---- the funnel stat strip, real numbers ---- */
+.stat{display:flex;gap:0;align-items:stretch;border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;margin:20px 0 4px}
+.stat div{flex:1;padding:16px 18px;border-right:1px solid var(--line-soft)}
+.stat div:last-child{border-right:0}
+.stat .k{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.stat .v{font:600 25px/1.2 "JetBrains Mono",monospace;font-variant-numeric:tabular-nums;margin-top:3px}
+.stat .v.hit{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* ---- option grid ---- */
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:18px}
+.card{
+  border:1px solid var(--line);background:var(--surface);border-radius:var(--r-lg);
+  padding:20px;position:relative;
+}
+.card.rec{border-color:rgba(0,212,255,.45);box-shadow:var(--glow)}
+.rec-badge{
+  position:absolute;top:-9px;left:20px;font:600 10.5px/1 "Space Grotesk",sans-serif;
+  letter-spacing:.09em;text-transform:uppercase;padding:5px 9px;border-radius:var(--r-pill);
+  background:var(--grad);color:#04121a;
+}
+.card .row1{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+.card .opt{font:600 11px/1 "JetBrains Mono",monospace;color:var(--ink-3);letter-spacing:.1em}
+.card p{font-size:13.5px;margin:6px 0 0;color:var(--ink-2)}
+
+/* ---- the icon tile ---- */
+.icon{
+  width:var(--sz,88px);height:var(--sz,88px);flex:none;
+  border-radius:calc(var(--sz,88px)*.2237);
+  background:var(--bg);display:grid;place-items:center;color:var(--ink-2);
+  border:1px solid rgba(255,255,255,.07);
+}
+.icon svg{width:62%;height:62%;display:block}
+.icon.full{border:0;overflow:hidden}
+.icon.full svg{width:100%;height:100%}
+
+/* ---- the lockup ---- */
+.lockup{display:flex;align-items:center;gap:9px;color:var(--ink-2)}
+.lockup svg{width:26px;height:26px;flex:none;display:block}
+.wm{font:700 24px/1 "Space Grotesk",system-ui,sans-serif;letter-spacing:-.2px;color:#fff}
+.wm span{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* ---- stress rows ---- */
+.strip{
+  display:flex;gap:0;border:1px solid var(--line);border-radius:var(--r-md);
+  overflow:hidden;margin-top:14px;
+}
+.strip .cell{
+  flex:1;padding:20px 8px 12px;display:flex;flex-direction:column;align-items:center;gap:10px;
+  border-right:1px solid var(--line-soft);background:var(--bg);color:var(--ink-2);
+}
+.strip .cell:last-child{border-right:0}
+.strip .cell .lbl{font:500 10.5px/1 "JetBrains Mono",monospace;color:var(--ink-3);letter-spacing:.05em}
+.strip.light .cell{background:#f4f6fa;color:#2b3444}
+.strip.light .cell .lbl{color:#5b6678}
+.strip.light .icon{background:#fff;border-color:rgba(0,0,0,.1)}
+
+/* One flat colour. --mk is what every accent in every symbol paints with, so
+   pointing it at currentColor collapses the gradient without a second drawing. */
+.mono{--mk:currentColor;--mk-buy:currentColor;--mk-verify:currentColor;--mk-risk:currentColor;--mk-pass:currentColor}
+.mono .icon{background:var(--bg);color:#fff}
+.strip.light.mono .cell{color:#0a0e17}
+.strip.light.mono .icon{background:#fff}
+
+/* true-pixel row: no scaling tricks, these really are 16 and 32 css px */
+.tiny{display:flex;gap:0;border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden;margin-top:14px}
+.tiny .cell{flex:1;padding:18px 6px 12px;display:flex;flex-direction:column;align-items:center;gap:12px;
+  border-right:1px solid var(--line-soft);background:var(--bg);color:var(--ink-2)}
+.tiny .cell:last-child{border-right:0}
+.tiny .lbl{font:500 10.5px/1 "JetBrains Mono",monospace;color:var(--ink-3)}
+.tiny .pair{display:flex;align-items:flex-end;gap:14px;height:34px}
+
+/* ---- in-situ app chrome, at the app's real sizes ---- */
+.phone{
+  width:360px;border:1px solid var(--line);border-radius:26px;overflow:hidden;
+  background:var(--bg);flex:none;
+}
+.topbar{
+  display:flex;align-items:center;gap:8px;padding:6px 10px;
+  border-bottom:1px solid var(--line-soft);background:rgba(10,14,23,.86);
+}
+.topbar .brand{
+  font:700 19px/1 "Space Grotesk",system-ui,sans-serif;color:var(--ink);
+  min-height:44px;display:flex;align-items:center;padding:0 2px;
+}
+/* No `gap` here, and that is not a style choice. `filtr<span>soft</span>` is a
+   bare text node plus a span, so flex makes them TWO items and a gap prints
+   "filtr soft" with a hole in the middle of the word. The app's real .brand
+   has no gap for the same reason; the mark gets a margin instead. */
+.topbar .brand span{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.topbar .brand svg{width:22px;height:22px;color:var(--ink-2);display:block;margin-right:8px}
+.topbar .spacer{flex:1}
+.iconbtn{width:34px;height:34px;display:grid;place-items:center;color:var(--ink-2);
+  border-radius:var(--r-md);font-size:15px}
+.feed{padding:12px}
+.gcard{
+  border:1px solid var(--line);background:var(--surface);border-radius:var(--r-lg);
+  padding:12px;margin-bottom:10px;
+}
+.gcard .t{font:500 14px/1.35 "DM Sans",sans-serif;color:#fff}
+.gcard .m{display:flex;align-items:center;gap:8px;margin-top:8px}
+.gcard .p{font:600 16px/1 "JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+.gcard .loc{font-size:12px;color:var(--ink-3);margin-left:auto}
+.chip{font:600 10.5px/1 "Space Grotesk",sans-serif;letter-spacing:.08em;padding:5px 8px;border-radius:var(--r-sm)}
+.chip.buy{background:rgba(0,255,136,.14);color:var(--buy)}
+.chip.verify{background:rgba(255,197,61,.14);color:var(--verify)}
+.situ{display:flex;gap:28px;align-items:flex-start;margin-top:18px;flex-wrap:wrap}
+
+/* ---- wordmark treatments ---- */
+.wmrow{display:flex;flex-direction:column;gap:0;border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden;margin-top:14px}
+.wmrow .r{display:flex;align-items:center;gap:20px;padding:16px 20px;background:var(--bg);border-bottom:1px solid var(--line-soft)}
+.wmrow .r:last-child{border-bottom:0}
+.wmrow .tag{font:500 11px/1 "JetBrains Mono",monospace;color:var(--ink-3);width:150px;flex:none}
+/* The i with a gradient tittle. The letter is a DOTLESS i (U+0131) and the
+   square is drawn on top, because replacing the whole "i" with a square is how
+   the first draft of this page printed "f ltrsoft" — the stem went with it. */
+.idot{position:relative;display:inline-block}
+/* ⚠ .wm span is the gradient-text rule, and .idot IS a span inside .wm — so
+   without this reset the dotless i itself came out gradient, stem and all, and
+   the row showed a fully blue "i" instead of an ink stem with a blue tittle. */
+.wm .idot{background:none;-webkit-background-clip:border-box;background-clip:border-box;color:var(--ink)}
+.idot::before{content:"\0131"}
+.idot::after{
+  content:"";position:absolute;left:50%;transform:translateX(-50%);
+  bottom:.70em;width:.155em;height:.155em;border-radius:.03em;background:var(--grad);
+}
+
+/* ---- tables ---- */
+table{border-collapse:collapse;width:100%;margin-top:12px;font-size:14px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+th{font:600 11.5px/1 "Space Grotesk",sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+td:first-child{color:#fff;font-weight:500;width:32%}
+td{color:#c8cfda}
+
+ul{margin:8px 0 0;padding-left:20px;color:#c8cfda;max-width:78ch}
+li{margin-bottom:7px}
+li b{color:#fff}
+.hr{height:1px;background:var(--line-soft);margin:44px 0 0}
+#fontwarn{display:none}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- ================= symbol library ================= -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="G" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#00d4ff"/><stop offset="1" stop-color="#7b61ff"/>
+    </linearGradient>
+    <mask id="fcut">
+      <rect width="24" height="24" fill="#fff"/>
+      <path d="M15.7 5.2a2.9 2.9 0 0 0-4.1 2.75V19.2" fill="none" stroke="#000"
+            stroke-width="2.7" stroke-linecap="round"/>
+      <path d="M7.5 11.5H17.3" fill="none" stroke="#000" stroke-width="2.7" stroke-linecap="round"/>
+    </mask>
+  </defs>
+
+  <!-- 1 · The Cut : many, fewer, the one -->
+  <symbol id="m-cut" viewBox="0 0 24 24">
+    <rect x="2.5"  y="3.2"  width="19"   height="2.8" rx="1.4" style="fill:currentColor;opacity:.4"/>
+    <rect x="6.25" y="9"    width="11.5" height="2.8" rx="1.4" style="fill:currentColor;opacity:.75"/>
+    <rect x="8.9"  y="14.8" width="6.2"  height="6.2" rx="2"   style="fill:var(--mk)"/>
+  </symbol>
+
+  <!-- 2 · The Funnel : it goes in at the top, one falls out -->
+  <symbol id="m-funnel" viewBox="0 0 24 24">
+    <path d="M4.8 6.4H19.2L14.1 12.6H9.9Z" style="fill:currentColor;stroke:currentColor;opacity:.45"
+          stroke-width="2.2" stroke-linejoin="round"/>
+    <rect x="10.25" y="13.5" width="3.5" height="3.3" rx="1.3" style="fill:var(--mk);opacity:.85"/>
+    <circle cx="12" cy="19.6" r="2.5" style="fill:var(--mk)"/>
+  </symbol>
+
+  <!-- 3 · Chevrons : narrowing, drawn as motion rather than as objects -->
+  <symbol id="m-chev" viewBox="0 0 24 24">
+    <path d="M4.5 6.2 12 12.4 19.5 6.2"  fill="none" style="stroke:currentColor;opacity:.34"
+          stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M6.9 11.5 12 15.7 17.1 11.5" fill="none" style="stroke:currentColor;opacity:.68"
+          stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M9.2 16.7 12 19.1 14.8 16.7" fill="none" style="stroke:var(--mk)"
+          stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+
+  <!-- 4 · The Verdict ladder : the app's own four calls -->
+  <symbol id="m-ladder" viewBox="0 0 24 24">
+    <rect x="2.75"  y="14.7" width="3.2" height="6.5"  rx="1.6" style="fill:var(--mk-risk)"/>
+    <rect x="7.85"  y="10.7" width="3.2" height="10.5" rx="1.6" style="fill:var(--mk-pass)"/>
+    <rect x="12.95" y="6.7"  width="3.2" height="14.5" rx="1.6" style="fill:var(--mk-verify)"/>
+    <rect x="18.05" y="2.7"  width="3.2" height="18.5" rx="1.6" style="fill:var(--mk-buy)"/>
+  </symbol>
+
+  <!-- 5 · The Lens : look closer before you drive -->
+  <symbol id="m-lens" viewBox="0 0 24 24">
+    <path d="M12 3 19.8 7.5 19.8 16.5 12 21 4.2 16.5 4.2 7.5Z" fill="none"
+          style="stroke:currentColor;opacity:.5" stroke-width="2" stroke-linejoin="round"/>
+    <circle cx="12" cy="12" r="4.1" style="fill:var(--mk)"/>
+  </symbol>
+
+  <!-- 6 · The Sieve : one got through -->
+  <symbol id="m-sieve" viewBox="0 0 24 24">
+    <g style="fill:currentColor;opacity:.26">
+      <rect x="2.2"  y="2.2"  width="5.2" height="5.2" rx="1.8"/>
+      <rect x="9.4"  y="2.2"  width="5.2" height="5.2" rx="1.8"/>
+      <rect x="16.6" y="2.2"  width="5.2" height="5.2" rx="1.8"/>
+      <rect x="2.2"  y="9.4"  width="5.2" height="5.2" rx="1.8"/>
+      <rect x="9.4"  y="9.4"  width="5.2" height="5.2" rx="1.8"/>
+      <rect x="16.6" y="9.4"  width="5.2" height="5.2" rx="1.8"/>
+      <rect x="2.2"  y="16.6" width="5.2" height="5.2" rx="1.8"/>
+      <rect x="16.6" y="16.6" width="5.2" height="5.2" rx="1.8"/>
+    </g>
+    <rect x="9.4" y="16.6" width="5.2" height="5.2" rx="1.8" style="fill:var(--mk)"/>
+  </symbol>
+
+  <!-- 7 · The Scan : we read the listing, not just the price -->
+  <symbol id="m-scan" viewBox="0 0 24 24">
+    <rect x="3.6" y="4.2" width="16.8" height="15.6" rx="3.6" fill="none"
+          style="stroke:currentColor;opacity:.42" stroke-width="2"/>
+    <rect x="6.6" y="8"    width="8.2" height="1.8" rx=".9" style="fill:currentColor;opacity:.34"/>
+    <rect x="6.6" y="14.2" width="5.6" height="1.8" rx=".9" style="fill:currentColor;opacity:.34"/>
+    <rect x="1.9" y="10.9" width="20.2" height="2.4" rx="1.2" style="fill:var(--mk)"/>
+  </symbol>
+
+  <!-- 8 · The f tile : a monogram, knocked out of a solid gradient -->
+  <symbol id="m-f" viewBox="0 0 24 24">
+    <rect width="24" height="24" rx="5.4" style="fill:var(--mk)" mask="url(#fcut)"/>
+  </symbol>
+
+  <!-- 9 · No mark : the wordmark stands alone. Drawn as an em dash placeholder
+       so the grid keeps its rhythm. -->
+  <symbol id="m-none" viewBox="0 0 24 24">
+    <rect x="4" y="10.9" width="16" height="2.2" rx="1.1" style="fill:currentColor;opacity:.28"/>
+  </symbol>
+</svg>
+
+<div class="sheet">
+
+<h1>Filtrsoft — nine logo options</h1>
+<p class="lede"><b>Nothing is built.</b> No file in the app has changed. This is a specimen
+sheet: nine marks drawn in the app's real palette, shown as an app icon, as a lockup, at
+16&nbsp;px, in one flat colour, and on a white background. Pick one, or tell me which two to
+cross.</p>
+
+<div class="note warn" id="fontwarn">
+  <b>Space Grotesk did not load.</b> The wordmarks below are rendering in a fallback face, so
+  judge the marks but not the letterforms. Reconnect and refresh.
+</div>
+
+<div class="note">
+  <b>Why this sheet is not 1440×900.</b> Every other preview I build is a fixed window at 1:1,
+  because proportion is the thing being judged. A logo is judged at its <i>real</i> sizes
+  instead, so the sizes below are literal: the 16&nbsp;px row really is 16&nbsp;px, the icons
+  really are 88. The one place a window matters, the app's top bar, is drawn at the real
+  360&nbsp;px phone width further down.
+</div>
+
+<h2>The thing the mark has to say</h2>
+<p>Read out of <span class="num">filtrsoft.db</span> just now, live rows only, engine
+<span class="num">0.3.31</span>. This is the product in four numbers, and it is why most of
+these marks narrow.</p>
+
+<div class="stat">
+  <div><div class="k">live listings</div><div class="v">4,482</div></div>
+  <div><div class="k">in scope</div><div class="v">1,410</div></div>
+  <div><div class="k">it has an opinion on</div><div class="v">429</div></div>
+  <div><div class="k">worth your time</div><div class="v hit">28</div></div>
+</div>
+<p class="cap">4,482 down to 28. Seven <span style="color:var(--buy)">BUY</span> and twenty-one
+<span style="color:var(--verify)">VERIFY</span>. The mark's whole job is that arrow.</p>
+
+<h2>The nine</h2>
+
+<div class="grid">
+
+  <div class="card rec">
+    <div class="rec-badge">recommended</div>
+    <div class="row1">
+      <div class="icon" style="--sz:88px"><svg viewBox="0 0 24 24"><use href="#m-cut"/></svg></div>
+      <div>
+        <div class="opt">01</div>
+        <h3>The Cut</h3>
+        <div class="lockup" style="margin-top:8px">
+          <svg viewBox="0 0 24 24"><use href="#m-cut"/></svg>
+          <span class="wm">filtr<span>soft</span></span>
+        </div>
+      </div>
+    </div>
+    <p>Many, fewer, the one. The gradient lands on a single element, which is the rule the app
+    already follows. Three shapes, so it survives 16&nbsp;px intact.</p>
+  </div>
+
+  <div class="card">
+    <div class="row1">
+      <div class="icon" style="--sz:88px"><svg viewBox="0 0 24 24"><use href="#m-funnel"/></svg></div>
+      <div>
+        <div class="opt">02</div>
+        <h3>The Funnel</h3>
+        <div class="lockup" style="margin-top:8px">
+          <svg viewBox="0 0 24 24"><use href="#m-funnel"/></svg>
+          <span class="wm">filtr<span>soft</span></span>
+        </div>
+      </div>
+    </div>
+    <p>Literal, and it has a story: the listings pour in, one deal drops out. The most obvious
+    of the nine, which is both the argument for it and against it.</p>
+  </div>
+
+  <div class="card">
+    <div class="row1">
+      <div class="icon" style="--sz:88px"><svg viewBox="0 0 24 24"><use href="#m-chev"/></svg></div>
+      <div>
+        <div class="opt">03</div>
+        <h3>Chevrons</h3>
+        <div class="lockup" style="margin-top:8px">
+          <svg viewBox="0 0 24 24"><use href="#m-chev"/></svg>
+          <span class="wm">filtr<span>soft</span></span>
+        </div>
+      </div>
+    </div>
+    <p>The same narrowing drawn as motion instead of objects. Lighter and more modern than 01,
+    but strokes thin out badly when the icon gets small.</p>
+  </div>
+
+  <div class="card">
+    <div class="row1">
+      <div class="icon" style="--sz:88px"><svg viewBox="0 0 24 24"><use href="#m-ladder"/></svg></div>
+      <div>
+        <div class="opt">04</div>
+        <h3>The Verdict</h3>
+        <div class="lockup" style="margin-top:8px">
+          <svg viewBox="0 0 24 24"><use href="#m-ladder"/></svg>
+          <span class="wm">filtr<span>soft</span></span>
+        </div>
+      </div>
+    </div>
+    <p>Risky, pass, verify, buy — the app's own four calls, in the app's own four colours.
+    Nothing else here is this specific to Filtrsoft. It also puts a red bar in your logo.</p>
+  </div>
+
+  <div class="card">
+    <div class="row1">
+      <div class="icon" style="--sz:88px"><svg viewBox="0 0 24 24"><use href="#m-lens"/></svg></div>
+      <div>
+        <div class="opt">05</div>
+        <h3>The Lens</h3>
+        <div class="lockup" style="margin-top:8px">
+          <svg viewBox="0 0 24 24"><use href="#m-lens"/></svg>
+          <span class="wm">filtr<span>soft</span></span>
+        </div>
+      </div>
+    </div>
+    <p>Look closer before you drive. Handsome and it holds up small, but a hexagon with a dot
+    in it is the most-used shape in crypto and it says nothing about filtering.</p>
+  </div>
+
+  <div class="card">
+    <div class="row1">
+      <div class="icon" style="--sz:88px"><svg viewBox="0 0 24 24"><use href="#m-sieve"/></svg></div>
+      <div>
+        <div class="opt">06</div>
+        <h3>The Sieve</h3>
+        <div class="lockup" style="margin-top:8px">
+          <svg viewBox="0 0 24 24"><use href="#m-sieve"/></svg>
+          <span class="wm">filtr<span>soft</span></span>
+        </div>
+      </div>
+    </div>
+    <p>Nine cells, one got through. Filtering as selection rather than as a funnel. Reads well
+    at 88&nbsp;px and turns to mush at 16 — see the small row.</p>
+  </div>
+
+  <div class="card">
+    <div class="row1">
+      <div class="icon" style="--sz:88px"><svg viewBox="0 0 24 24"><use href="#m-scan"/></svg></div>
+      <div>
+        <div class="opt">07</div>
+        <h3>The Scan</h3>
+        <div class="lockup" style="margin-top:8px">
+          <svg viewBox="0 0 24 24"><use href="#m-scan"/></svg>
+          <span class="wm">filtr<span>soft</span></span>
+        </div>
+      </div>
+    </div>
+    <p>A listing with a line read across it. This is the only mark that says <i>we read the
+    description and the photos</i>, which is the part competitors do not do.</p>
+  </div>
+
+  <div class="card">
+    <div class="row1">
+      <div class="icon full" style="--sz:88px"><svg viewBox="0 0 24 24"><use href="#m-f"/></svg></div>
+      <div>
+        <div class="opt">08</div>
+        <h3>The f tile</h3>
+        <div class="lockup" style="margin-top:8px">
+          <svg viewBox="0 0 24 24"><use href="#m-f"/></svg>
+          <span class="wm">filtr<span>soft</span></span>
+        </div>
+      </div>
+    </div>
+    <p>A monogram knocked out of solid gradient, and the f's crossbar doubles as a filter bar.
+    Strongest of the nine on a crowded home screen. Weakest at saying what the app does.</p>
+  </div>
+
+  <div class="card">
+    <div class="row1">
+      <div class="icon" style="--sz:88px"><svg viewBox="0 0 24 24"><use href="#m-none"/></svg></div>
+      <div>
+        <div class="opt">09</div>
+        <h3>No mark</h3>
+        <div class="lockup" style="margin-top:8px">
+          <span class="wm">filtr<span>soft</span></span>
+        </div>
+      </div>
+    </div>
+    <p>What ships today: type only, gradient on the second half. Costs nothing and is honest.
+    But an app needs a square icon, and today's is the letters "fs" in a box.</p>
+  </div>
+
+</div>
+<p class="cap">Icons are 88&nbsp;px on <span class="num">#0a0e17</span> with a 22.37% corner
+radius. Lockup wordmark is Space Grotesk 700, the app's heading face. The gradient is
+<span class="num">#00d4ff → #7b61ff</span> at 135°, read from <span class="num">--grad</span>,
+not chosen.</p>
+
+<h2>At the size that actually decides it</h2>
+<p>A favicon is 16&nbsp;px and a tab strip shows it next to twenty others. These are real
+16&nbsp;px and real 32&nbsp;px, not scaled-down pictures.</p>
+
+<div class="tiny">
+  <div class="cell"><div class="pair">
+    <div class="icon" style="--sz:16px"><svg viewBox="0 0 24 24"><use href="#m-cut"/></svg></div>
+    <div class="icon" style="--sz:32px"><svg viewBox="0 0 24 24"><use href="#m-cut"/></svg></div>
+  </div><div class="lbl">01 cut</div></div>
+  <div class="cell"><div class="pair">
+    <div class="icon" style="--sz:16px"><svg viewBox="0 0 24 24"><use href="#m-funnel"/></svg></div>
+    <div class="icon" style="--sz:32px"><svg viewBox="0 0 24 24"><use href="#m-funnel"/></svg></div>
+  </div><div class="lbl">02 funnel</div></div>
+  <div class="cell"><div class="pair">
+    <div class="icon" style="--sz:16px"><svg viewBox="0 0 24 24"><use href="#m-chev"/></svg></div>
+    <div class="icon" style="--sz:32px"><svg viewBox="0 0 24 24"><use href="#m-chev"/></svg></div>
+  </div><div class="lbl">03 chevrons</div></div>
+  <div class="cell"><div class="pair">
+    <div class="icon" style="--sz:16px"><svg viewBox="0 0 24 24"><use href="#m-ladder"/></svg></div>
+    <div class="icon" style="--sz:32px"><svg viewBox="0 0 24 24"><use href="#m-ladder"/></svg></div>
+  </div><div class="lbl">04 verdict</div></div>
+  <div class="cell"><div class="pair">
+    <div class="icon" style="--sz:16px"><svg viewBox="0 0 24 24"><use href="#m-lens"/></svg></div>
+    <div class="icon" style="--sz:32px"><svg viewBox="0 0 24 24"><use href="#m-lens"/></svg></div>
+  </div><div class="lbl">05 lens</div></div>
+  <div class="cell"><div class="pair">
+    <div class="icon" style="--sz:16px"><svg viewBox="0 0 24 24"><use href="#m-sieve"/></svg></div>
+    <div class="icon" style="--sz:32px"><svg viewBox="0 0 24 24"><use href="#m-sieve"/></svg></div>
+  </div><div class="lbl">06 sieve</div></div>
+  <div class="cell"><div class="pair">
+    <div class="icon" style="--sz:16px"><svg viewBox="0 0 24 24"><use href="#m-scan"/></svg></div>
+    <div class="icon" style="--sz:32px"><svg viewBox="0 0 24 24"><use href="#m-scan"/></svg></div>
+  </div><div class="lbl">07 scan</div></div>
+  <div class="cell"><div class="pair">
+    <div class="icon full" style="--sz:16px"><svg viewBox="0 0 24 24"><use href="#m-f"/></svg></div>
+    <div class="icon full" style="--sz:32px"><svg viewBox="0 0 24 24"><use href="#m-f"/></svg></div>
+  </div><div class="lbl">08 f tile</div></div>
+</div>
+<p class="cap"><b>06 and 03 fail here.</b> The sieve's nine cells collapse into a grey square
+with a smudge, and the chevrons' 2.4&nbsp;px strokes go to under one device pixel. 02, 04 and
+08 are still themselves; 08 is far and away the strongest. That is most of the decision.</p>
+<div class="note warn">
+  <b>And 01 has a real problem at 16&nbsp;px, which I only saw after rendering it.</b> Its top
+  bar is drawn at 40% opacity and its middle bar at 75%, which is the contrast that makes the
+  narrowing readable at 88&nbsp;px. At 16 those two bars nearly disappear and it reads as one
+  gradient dot with dust above it. The fix is not to abandon the mark, it is to ship a
+  <i>separate favicon variant</i> at 70/90/100% — logos routinely have a small-size cut, and
+  <span class="num">make-icons.mjs</span> already writes four files from one source so the hook
+  exists. But it is extra work that 08 does not need, and you should know that before picking.
+</div>
+
+<h2>One flat colour, and on white</h2>
+<p>Every logo eventually gets printed on a receipt, stamped on an invoice, or dropped on
+someone else's white page. If it only works as a gradient on navy, it is not a logo yet.</p>
+
+<div class="strip mono">
+  <div class="cell"><div class="icon" style="--sz:56px"><svg viewBox="0 0 24 24"><use href="#m-cut"/></svg></div><div class="lbl">01</div></div>
+  <div class="cell"><div class="icon" style="--sz:56px"><svg viewBox="0 0 24 24"><use href="#m-funnel"/></svg></div><div class="lbl">02</div></div>
+  <div class="cell"><div class="icon" style="--sz:56px"><svg viewBox="0 0 24 24"><use href="#m-chev"/></svg></div><div class="lbl">03</div></div>
+  <div class="cell"><div class="icon" style="--sz:56px"><svg viewBox="0 0 24 24"><use href="#m-ladder"/></svg></div><div class="lbl">04</div></div>
+  <div class="cell"><div class="icon" style="--sz:56px"><svg viewBox="0 0 24 24"><use href="#m-lens"/></svg></div><div class="lbl">05</div></div>
+  <div class="cell"><div class="icon" style="--sz:56px"><svg viewBox="0 0 24 24"><use href="#m-sieve"/></svg></div><div class="lbl">06</div></div>
+  <div class="cell"><div class="icon" style="--sz:56px"><svg viewBox="0 0 24 24"><use href="#m-scan"/></svg></div><div class="lbl">07</div></div>
+  <div class="cell"><div class="icon full" style="--sz:56px"><svg viewBox="0 0 24 24"><use href="#m-f"/></svg></div><div class="lbl">08</div></div>
+</div>
+<p class="cap">One colour, white on navy. <b>04 dies here</b> — strip the four verdict colours
+and it is four bars with no meaning, which is a bar chart. Everything else survives.</p>
+
+<div class="strip light">
+  <div class="cell"><div class="icon" style="--sz:56px"><svg viewBox="0 0 24 24"><use href="#m-cut"/></svg></div><div class="lbl">01</div></div>
+  <div class="cell"><div class="icon" style="--sz:56px"><svg viewBox="0 0 24 24"><use href="#m-funnel"/></svg></div><div class="lbl">02</div></div>
+  <div class="cell"><div class="icon" style="--sz:56px"><svg viewBox="0 0 24 24"><use href="#m-chev"/></svg></div><div class="lbl">03</div></div>
+  <div class="cell"><div class="icon" style="--sz:56px"><svg viewBox="0 0 24 24"><use href="#m-ladder"/></svg></div><div class="lbl">04</div></div>
+  <div class="cell"><div class="icon" style="--sz:56px"><svg viewBox="0 0 24 24"><use href="#m-lens"/></svg></div><div class="lbl">05</div></div>
+  <div class="cell"><div class="icon" style="--sz:56px"><svg viewBox="0 0 24 24"><use href="#m-sieve"/></svg></div><div class="lbl">06</div></div>
+  <div class="cell"><div class="icon" style="--sz:56px"><svg viewBox="0 0 24 24"><use href="#m-scan"/></svg></div><div class="lbl">07</div></div>
+  <div class="cell"><div class="icon full" style="--sz:56px"><svg viewBox="0 0 24 24"><use href="#m-f"/></svg></div><div class="lbl">08</div></div>
+</div>
+<p class="cap">On white, gradient kept. The dim parts of each mark are
+<span class="num">currentColor</span>, so they darken to slate here instead of staying
+<span class="num">#94a3b8</span> — which would be a 1.9:1 ghost. That switch is one CSS
+variable, and it is the reason these were drawn with <span class="num">currentColor</span>
+rather than a hardcoded grey.</p>
+
+<h2>01, in the app, at real size</h2>
+<p>The app's top bar is <span class="num">.brand</span> at 19&nbsp;px in a 44&nbsp;px row. The
+mark has to live to the left of it without crowding the back arrow. Real listings below, pulled
+from the database.</p>
+
+<div class="situ">
+  <div class="phone">
+    <div class="topbar">
+      <div class="brand"><svg viewBox="0 0 24 24"><use href="#m-cut"/></svg>filtr<span>soft</span></div>
+      <div class="spacer"></div>
+      <div class="iconbtn">⌕</div><div class="iconbtn">☰</div>
+    </div>
+    <div class="feed">
+      <div class="gcard">
+        <div class="t">MSI GeForce RTX 4090 SUPRIM LIQUID X 24G - Pristine</div>
+        <div class="m"><span class="chip buy">BUY IT</span><span class="p">$1,500</span>
+          <span class="loc">East Boston</span></div>
+      </div>
+      <div class="gcard">
+        <div class="t">iPhone 14 Pro White</div>
+        <div class="m"><span class="chip verify">VERIFY FIRST</span><span class="p">$200</span>
+          <span class="loc">Framingham</span></div>
+      </div>
+      <div class="gcard">
+        <div class="t">Dell OptiPlex 7080 XE Micro Form Factor</div>
+        <div class="m"><span class="chip verify">VERIFY FIRST</span><span class="p">$125</span>
+          <span class="loc">Winchester</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phone">
+    <div class="topbar">
+      <div class="brand"><svg viewBox="0 0 24 24"><use href="#m-f"/></svg>filtr<span>soft</span></div>
+      <div class="spacer"></div>
+      <div class="iconbtn">⌕</div><div class="iconbtn">☰</div>
+    </div>
+    <div class="feed">
+      <div class="gcard">
+        <div class="t">Rtx 5090 FE</div>
+        <div class="m"><span class="chip buy">BUY IT</span><span class="p">$2,800</span>
+          <span class="loc">East Boston</span></div>
+      </div>
+      <div class="gcard">
+        <div class="t">Apple Macbook Pro M4 PRO 24GB RAM 512GB SSD FULL SET</div>
+        <div class="m"><span class="chip verify">VERIFY FIRST</span><span class="p">$1,600</span>
+          <span class="loc">Lynn, MA</span></div>
+      </div>
+      <div class="gcard">
+        <div class="t">MacBook Pro 14” M2 Pro for Sale (Broken Screen)</div>
+        <div class="m"><span class="chip verify">VERIFY FIRST</span><span class="p">$450</span>
+          <span class="loc">Boston, MA</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<p class="cap">Left is <b>01 The Cut</b>, right is <b>08 The f tile</b>. Watch what the f tile
+does: it is a solid gradient block sitting one line above a green BUY chip and an amber VERIFY
+chip, and it competes with them. 01 is drawn mostly in <span class="num">#94a3b8</span> with
+one small gradient square, so the verdict chips stay the loudest thing on the screen. In an app
+whose whole output is a coloured verdict, <b>the logo has to lose that fight on purpose.</b></p>
+
+<h2>The wordmark, four ways</h2>
+<p>Independent of which mark wins. What ships today is the first row.</p>
+
+<div class="wmrow">
+  <div class="r"><span class="tag">today — split</span>
+    <span class="wm" style="font-size:30px">filtr<span>soft</span></span></div>
+  <div class="r"><span class="tag">gradient on the f only</span>
+    <span class="wm" style="font-size:30px"><span>f</span>iltrsoft</span></div>
+  <div class="r"><span class="tag">gradient dot on the i</span>
+    <span class="wm" style="font-size:30px">f<span class="idot"></span>ltrsoft</span></div>
+  <div class="r"><span class="tag">all ink, mark carries it</span>
+    <span class="wm" style="font-size:30px">filtrsoft</span></div>
+  <div class="r"><span class="tag">capitalised</span>
+    <span class="wm" style="font-size:30px">Filtr<span>soft</span></span></div>
+</div>
+<p class="cap">Rows two and three put the brand colour in one small place instead of across
+half the word, which starts to matter once a mark is also carrying the gradient. Row two ties
+the wordmark to option 08. Row three swaps the i for a dotless i and draws the tittle as a
+gradient square, so at 19&nbsp;px the colour is a single 3&nbsp;px dot. <b>Row four is the one
+to use if you pick a gradient mark</b>, because otherwise the gradient appears twice in one
+lockup and the identity gets diluted, which is exactly what
+<span class="num">02-shell.css</span> already warns against.</p>
+
+<h2>What made me pick 01</h2>
+<ul>
+  <li><b>It is the only one that survives all four stress tests.</b> 16&nbsp;px, one colour, on
+  white, and beside a coloured verdict chip. 03 and 06 fail small, 04 fails in mono, 08 fails
+  next to the chips.</li>
+  <li><b>The gradient lands on exactly one element.</b> <span class="num">02-shell.css</span>
+  says the gradient's repetition <i>is</i> the identity and spreading it dilutes it. 01 uses it
+  once, on the shape that means "the deal".</li>
+  <li><b>It draws the actual number.</b> 4,482 to 28. Wide, narrower, one.</li>
+  <li><b>Three rectangles.</b> No curves to get wrong at small sizes, no stroke weights to
+  rebalance per size, and it is trivially animatable later: the bars can settle in sequence on
+  app launch, 90&nbsp;ms apart.</li>
+</ul>
+
+<h2>The failure mode to design against</h2>
+<p><b>01 is one dot away from the generic filter icon</b> that ships in every data table on the
+internet, including the one in Filtrsoft's own feed. If the third element were a third bar, the
+logo would be indistinguishable from a sort control, and worse, it would collide with the
+filter button in the app's own toolbar. That is why the bottom element is a rounded
+<i>square</i>, not a bar: it stops being part of the stack and starts being the thing the stack
+produced. If it ever gets "simplified" back into a bar, the mark is gone.</p>
+
+<div class="note">
+  <b>The second failure mode, and it applies to all nine.</b> Nothing here has been drawn as
+  outlined paths yet. The wordmark on this page is live Space Grotesk from Google Fonts, which
+  means a shipped logo built this way would change shape if the font failed to load. The real
+  deliverable is an SVG with the letters converted to paths and no font dependency at all.
+</div>
+
+<h2>One thing to weigh before I build it</h2>
+<p><b>01 says "filter". It does not say "value".</b> Half of what Filtrsoft does is telling you
+what a thing is really worth, and a narrowing stack says nothing about money or about hidden
+defects. 07 The Scan is the only mark that gestures at the reading-the-listing half, and it is a
+worse icon in every other respect.</p>
+<p>What would flip me: <b>if the pitch you actually give people is "it catches the stuff you
+can't see"</b> rather than "it cuts 4,000 listings to 28", then 07 is the right mark and I would
+redraw it to hold up at 16&nbsp;px. Say which sentence you use when you describe the app to
+someone and I will take the mark from that.</p>
+
+<h2>What gets deleted</h2>
+<table>
+  <tr><th>Thing</th><th>Where its job lands</th></tr>
+  <tr><td>web/public/icon.svg — the "fs" letters</td>
+      <td>Replaced by the chosen mark on the same <span class="num">#0a0e17</span> tile.
+      The "fs" monogram was never shown anywhere except the browser tab and the installed
+      PWA icon.</td></tr>
+  <tr><td>icon-192.png, icon-512.png, icon-maskable-512.png, apple-touch-icon.png</td>
+      <td>Regenerated from the new SVG by <span class="num">src/browser/make-icons.mjs</span>,
+      which already exists and already writes all four.</td></tr>
+  <tr><td>Nothing in <span class="num">.brand</span></td>
+      <td>The wordmark markup stays as it is unless you pick a different treatment. The mark is
+      an added element, not a replacement.</td></tr>
+  <tr><td>The maskable icon's safe zone</td>
+      <td>This is the one that bites. Android crops maskable icons to a circle at 80%, so the
+      mark has to shrink inside that file specifically or the top bar of 01 loses its ends.
+      <span class="num">make-icons.mjs</span> needs a separate inset for that size.</td></tr>
+</table>
+
+<h2>Order I would build it</h2>
+<ul>
+  <li><b>1. The SVG, letters outlined, no font.</b> Reversible, and it is the only artifact that
+  matters. Everything else derives from it.</li>
+  <li><b>2. Swap <span class="num">web/public/icon.svg</span> and rerun make-icons.</b> Four PNGs
+  regenerate. Check the maskable one on a circle before anything else.</li>
+  <li><b>3. Add the mark to <span class="num">.brand</span>.</b> One element, 22&nbsp;px, in the
+  existing 44&nbsp;px row. This is the only app code that changes.</li>
+  <li><b>4. Favicon and the landing page.</b> Last, because it is the only one anyone who is not
+  you will ever see.</li>
+</ul>
+
+<h2>What this page cannot show you</h2>
+<ul>
+  <li><b>Real font rendering at your DPI.</b> Space Grotesk here is Chrome on your monitor, not
+  the phone screen where you actually use the app.</li>
+  <li><b>The icon on a real Android home screen</b>, cropped to whatever mask your launcher
+  uses, next to other apps' icons competing for attention. That test needs a real install.</li>
+  <li><b>How it ages.</b> Every one of these looks fine today. The only one I would still be
+  happy with in two years is the one that is three shapes.</li>
+</ul>
+
+<div class="hr"></div>
+<p class="cap" style="margin-top:20px"><b>Nothing is coded and no file in the app has
+changed.</b> Tell me a number, or tell me to cross two off and redraw the rest. If you want 07
+The Scan because the pitch is about hidden defects, say so and I will rebuild it to survive
+16&nbsp;px before you decide.</p>
+
+</div>
+
+<script>
+// Honesty check: if the heading face did not load, say so rather than letting
+// him judge letterforms that are not the ones that will ship.
+document.fonts.ready.then(function () {
+  if (!document.fonts.check('700 24px "Space Grotesk"')) {
+    document.getElementById('fontwarn').style.display = 'block';
+  }
+});
+</script>
+</body>
+</html>
