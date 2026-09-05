@@ -24,91 +24,94 @@ filename, the browser-profile root `~/.filtrsoft`, the repo, the folder
 `C:\Dev\filtrsoft`, the icons, every string — moved. Quotes from Yish in code
 comments had the product name substituted; the words are otherwise his.
 
-### What is still on Railway, and is his to do
+### The Railway cutover is DONE (2026-09-04)
 
-**Nothing in the container reads `ASSYZE_*` any more**, so until these are done
-the deployed app runs on defaults: no vision (fails closed), no crawl PIN, and
-`/v1/push` rejects his local crawls.
+All of it. Recorded because the ORDER mattered and would matter again:
 
-1. **Variables -> Raw Editor -> replace every `ASSYZE_` with `FILTRSOFT_`.**
-   One find-and-replace over the whole block, which is exhaustive by
-   construction — a hand-typed list is how one gets missed. The values do not
-   change and he never has to re-type a secret.
-2. **Settings -> rename the service to `filtrsoft`.** This changes the generated
-   domain to `filtrsoft-production.up.railway.app`; nothing depends on the old
-   one except a line in this file.
-3. **Networking -> REMOVE `assyze.com`, then add `filtrsoft.com`.** In that
-   order, because **the plan allows one custom domain** (§11f) — this is not a
-   cutover with an overlap, and there is no redirect from the old address.
-   Then the three DNS records at the registrar: ALIAS `@`, CNAME `www`, TXT
-   `_railway-verify`. **Copy the TXT value with the modal's copy control, never
-   by selecting the visible text** — the displayed string ends in an ellipsis
-   that looks like a hex digit, and pasting it truncated cost a day in August.
-4. **Redeploy.** `db()` renames `/data/assyze.db` to `/data/filtrsoft.db` on the
-   boot that finds it, WAL and SHM included. That code is a one-shot; delete
-   `carryOverTheRenamedDatabase` once the volume shows the new name.
-5. **`FILTRSOFT_CRAWL_PIN=2008`** is new and has never been set. Without it the
-   crawl button reports itself unconfigured rather than doing nothing, which is
-   the intended failure but is still not the feature working.
-6. **`EBAY_DELETION_ENDPOINT` — LAST, AND ONLY AFTER `filtrsoft.com` ANSWERS.**
+1. `ASSYZE_` -> `FILTRSOFT_` across every variable, via the Raw Editor.
+2. Service renamed, `assyze.com` detached, `filtrsoft.com` added.
+3. DNS at Namecheap: **ALIAS on `@`** (Railway's modal says CNAME; a CNAME at
+   the apex is invalid DNS and Namecheap rejects it), plus the
+   `_railway-verify` TXT — **copied with the modal's copy control**, because
+   the displayed value ends in an ellipsis that reads as a hex digit.
+4. Certificate issued a few minutes later. Until it does, the edge serves its
+   own `*.up.railway.app` wildcard and you get `SEC_E_WRONG_PRINCIPAL` /
+   `ERR_TLS_CERT_ALTNAME_INVALID`. **That is normal waiting, not a
+   misconfiguration.**
+5. `FILTRSOFT_CRAWL_PIN` and `FILTRSOFT_VISION_TOKEN` set.
+6. `EBAY_DELETION_ENDPOINT` moved LAST, and that ordering is the one worth
+   keeping. The endpoint URL is hashed into eBay's challenge response, so
+   Railway has to answer with the new URL BEFORE the portal is changed —
+   otherwise eBay computes one digest, the server returns another, and the
+   error blames the verification token. Verified by computing both digests by
+   hand before touching the portal.
 
-   ⚠ **A find-and-replace on the `ASSYZE_` prefix does not reach this one.** It
-   is an `EBAY_`-prefixed variable whose VALUE is
-   `https://assyze.com/v1/ebay/deletion`, so step 1 leaves it pointing at a
-   domain that stops existing the moment step 3 detaches it.
+⚠ **`EBAY_DELETION_ENDPOINT` is an `EBAY_`-prefixed variable holding an
+`assyze.com` VALUE**, so the prefix find-and-replace walks straight past it. A
+dead deletion endpoint eventually disables the keyset.
 
-   ⚠ **And a dead endpoint disables the eBay keyset**, which is what fetches
-   sold comps — the single thing keeping the feed priced. eBay retries, marks
-   the endpoint down, and the failure surfaces days later as prices going stale
-   rather than as anything about a URL.
+**Two corrections to earlier claims in this file.** The one-custom-domain limit
+is GONE — he moved to Railway premium. And the keyset does NOT power sold comps:
+comps come from `bun run ebay:comps`, which drives a signed-in Chrome against
+eBay's WEBSITE. The API keyset feeds `bun run ebay:search` only.
 
-   So: get the new domain serving, THEN change the URL in the eBay Developer
-   portal, THEN set this variable to the **byte-exact** same string. The URL is
-   hashed into the challenge response, so a trailing slash difference fails
-   validation with a message that blames the token.
+### www, HSTS, and why the bare domain looked broken
 
-**Everyone gets signed out once.** The cookie is `filtrsoft_session` now, and a
-browser holding an `assyze_session` simply has no session. The `users` table is
-untouched, so his existing email and password still work.
+`https://filtrsoft.com` worked while bare `filtrsoft.com` served the Namecheap
+parking page, on the same machine, with correct DNS at every level — verified
+against Google DNS, his own resolvers, the Windows cache, curl, and a fresh
+Chrome profile carrying his own settings.
 
-Last updated **2026-09-03**. **Section 2 is the current state and section 15
-is what to do next**; section 18 is the most recent pass in detail. The one
-thing bigger than everything else on the list is §18g — 78% of the feed cannot
-be priced, and §0 below now says exactly why.
+**Railway does 301 http -> https, but a 301 is a RESPONSE.** The browser has to
+make the plaintext request to receive it, and Chrome's cached copy of
+`http://filtrsoft.com/` won first. Different cache key from the https URL, which
+is exactly why one worked and the other did not.
 
-## 0. READ THIS FIRST — what "can't tell" actually is (2026-09-04)
+`src/api/index.ts` now sends `Strict-Transport-Security: max-age=15552000` on
+https responses, which deletes the plaintext request entirely. **No `preload`
+and no `includeSubDomains`** — preload is effectively irreversible and baked
+into browser binaries.
 
-**Yish's guess was more comps. The measurement says otherwise, and the
-difference decides weeks of work.** Of 1,193 unpriceable listings:
+`www.filtrsoft.com` **301s to the apex rather than serving**, and that is a
+product decision, not the old plan limit: the session cookie is host-scoped and
+`localStorage` is per-origin, so two hostnames both serving would hand a user a
+second empty account with their Saved list missing and no way to tell why. Still
+needs the Railway domain + a Namecheap CNAME to exist at all.
+
+Last updated **2026-09-05**. **Read §0 first — it is the most recent session
+and it supersedes anything below that disagrees with it.** Section 2 onward is
+older material kept for the reasoning behind decisions, not for current state.
+
+## 0. READ THIS FIRST — the 2026-09-04/05 session, in full
+
+Everything below shipped. Engine **0.3.31**, comps **25,171**, priceable models
+**381 of 441**, production live on `filtrsoft.com`.
+
+### 0a. What "can't tell" actually is — his guess was 10% of it
+
+Yish: *"the cant tells start around listing 200 out of 1000 ... so a solution to
+this could be to just get more comps and get a ton of them."* Comps were the
+obvious answer and the smallest bucket. Measured over 1,193:
 
 | count | why | what fixes it |
 |---|---|---|
-| **692** | a spec is not STATED in the text — storage 326, gpu 162, cpu 133, ram 71 | **vision, and descriptions** |
-| **384** | could not be matched to a model at all | catalog + matcher |
-| **117** | genuinely no sold comps inside 90 days | **more comps** |
+| 692 | a spec is not STATED — storage 326, gpu 162, cpu 133, ram 71 | vision + descriptions |
+| 384 | no model could be matched at all | catalog + matcher |
+| 117 | genuinely no sold comps inside 90 days | more comps |
 
-So comps fix about **10%** of it. The dominant bucket is listings whose text
-never says the one number that decides the price — and **653 of those 692 have
-photos, of which vision had read 37.** A photo of a spec sticker or an iPhone
-Settings screen is exactly where that number lives.
+**Then running vision showed even that was too optimistic: 122 photo reads
+produced 2 verdict changes.** Vision was never the problem — see §0c.
 
-Vision was running at ~96 reads/day against a **$2 daily ceiling with five
-cents spent.** The whole 653-listing backlog costs about **$3.60**.
-`FILTRSOFT_CRAWL_VISION` is 10 now (was 3); the budget check before every
-listing is the real bound, so raising it cannot overspend.
+After the session: **INSUFFICIENT_DATA 1,229 -> 1,005**, almost entirely from
+dropping consoles (§0d). The two remaining buckets are **384 "exact model"** and
+**~250 storage**.
 
-⚠ **AND THE OTHER HALF OF THAT BUCKET IS DESCRIPTIONS, NOT PHOTOS.** A search
-card on OfferUp and Mercari carries a title and a price. `ou:photos` fixed
-OfferUp — 146 listings went from 2 descriptions to 143 and **two BUYs appeared
-that had been sitting there unreadable**. `mc:detail` is the same fix for
-Mercari, which arrived 99 listings / 90 INSUFFICIENT_DATA.
-
-## 0b. Over half the actionable feed was a scam farm (2026-09-04)
+### 0b. Over half the actionable feed was a scam farm
 
 Yish spotted it by hand before the engine did: *"all of them were $66 or $85 or
 $67 ... the titles were too perfect like Iphone 14 Pro Max Blue 128gb VXG9I."*
-**34 of 59 BUY/VERIFY listings matched.** Every one ended in a random
-4-6 character token and asked 3-29% of its own comps.
+**34 of 59 BUY/VERIFY listings matched.** Every one ended in a random 4-6
+character token and asked 3-29% of its own comps.
 
 `src/verdict/scam.ts`. **The token alone never convicts** — a real Gigabyte card
 titled `... 32G GV-N5090` ends in a part number at 0.59 of market. Two traps
@@ -118,54 +121,182 @@ looking for a vowel lets `SAQR` through as a word.
 
 VERIFY 52 -> 23, RISK 35 -> 69, BUY 7 unchanged.
 
-## 0. READ THIS FIRST — why the feed is mostly "can't tell" (2026-09-03)
+### 0c. Vision read the GPU off the photo and the engine threw it away
 
-Yish: *"there hasnt been a verify first or buy it listing thats come in in the
-past 3 days."* 800 listings pulled off production and taken apart. **The
-crawler is fine** — 57 arrived in the hour it was measured. Three real causes:
+**Remember this one, because every observable said vision was broken and vision
+was fine.** It read a Dell OptiPlex 7080 perfectly —
 
-**1. THE COMPS ARE FROZEN AND THEY EXPIRE. This is the big one.**
-`valueSku` only counts a sale inside a **90-day window**, and comps ship in a
-static archive that nothing refills. Newest sale held: **2026-08-26**. So the
-priceable share of the catalog falls every single day, with no error anywhere,
-and the feed slowly turns into "can't tell".
+    gpu: "Intel UHD Graphics 630"   cpu: "Intel Core i5-10500T"
+    ram: "8GB"                      storage: "119GB"
 
-Already true: **RTX 4080 SUPER 0 comps, RX 9070 XT 0 comps, Mac Mini M4 0
-comps** — all three ARE in the catalog, all three are what is trading now.
-**59 of the unpriced listings are identified target gear waiting only on a
-price**, including a $700 4080 Super and a $600 9070 XT that are probably BUYs.
+— and the verdict still returned **"Can't be valued: gpu not stated."** The
+accepted vocabulary in `signals/index.ts` was
+`integrated|igpu|iris|radeon graphics`, missing the most common integrated GPU
+on earth, plus `HD Graphics`, `Vega 8`, `Arc`, and the plain statement that a
+machine has no card in it. **We paid for the read and discarded the answer,
+which is worse than never reading it.**
 
-    /v1/health -> comps.daysOfRunway    82 days as of 2026-09-03
-    /v1/health -> comps.skusPriceable   282 of 435
+Also added: **a micro-form-factor office desktop has nowhere to PUT a GPU.**
+OptiPlex Micro, ThinkCentre Tiny, EliteDesk Mini, NUC — one-litre boxes with no
+PCIe slot. 28 of the 157 gpu-blocked listings were these. Same shape as the
+Apple rule beside it: a field only makes sense for products that have one.
 
-**The fix is `bun run ebay:comps` then `bun run archive`, commit the archive,
-redeploy.** It needs his machine and his eBay login. Nothing in the container
-can do it. This has been the top recommendation for weeks and it is now the
-whole answer to "no BUYs".
+gpu-blocked 157 -> 132.
 
-**2. VISION HAD DEADLOCKED FOR THREE DAYS.** `visionCandidates` ordered
-BUY/VERIFY/RISK first, and on this feed those are overwhelmingly Facebook
-(Risky was 33 of 34). Production has no browser, so fetching one throws, and
-the old `catch {}` wrote nothing — so `NOT EXISTS` kept the same three at the
-head of the queue and every tick retried exactly those three. `reads24h: 0`
-against a 645 backlog.
+⚠ **`bun run vision` runs the pass LOCALLY and is not redundant with the
+container loop.** `visionPass` re-fetches each listing to reach its photos, and
+**338 of the 692 are on Facebook, OfferUp or Mercari, which Railway cannot fetch
+at all** — which is why `visionCandidates` deprioritises them. This machine has
+the browser and the sessions. The shared `vision_spend` ledger is checked before
+EVERY listing, so local and container runs cannot together exceed
+`FILTRSOFT_DAILY_BUDGET_USD`. Per-run count is 10 (was 3); ~$0.008 a read.
 
-Fixed two ways: `vision_misses` counts attempts and drops a listing after 3
-(the `listing_thumb_misses` pattern), and **fetchability now outranks call
-priority in the ordering** — an unreadable BUY is worth zero reads. Confirmed
-recovering: reads 0 -> 23, spend $0.20, pool 640 -> 617.
+### 0d. Consoles are out entirely
 
-**3. Two engine bugs.** Every CPU pattern required the literal word "ryzen", so
-a $1,155 build titled "…AMD 7600X" reported "cpu not stated" for a CPU in its
-own title (`amdCpusIn` maps the tier from the second digit). And home audio was
-being asked for a GPU — "Ion USB Turntable" -> "gpu and cpu not stated".
+Yish: *"get rid of all the consoles on the app they are hard to resell. I dont
+want ANY consoles on it."* **224 of the can't-tells were consoles.**
 
-⚠ **Health now reports all of this** so it can never hide again: `comps`
-(runway, priceable SKUs) and `vision` (reads24h, candidatePool, unreadable,
-lastPass.outcome, and BOTH vision switches — they read different env vars and
-only one was ever reported).
+⚠ **The `CONSOLES` check is NOT gated on `!match.skuId`, unlike every other
+exclusion beside it.** That gate is right for the rest — a matched SKU is
+evidence we cover the thing — and exactly wrong here, because consoles ARE in
+the catalog with comps and their own `VALUE_FIELDS` entry. An Xbox Series X
+matches a SKU and would sail straight past a rule written to exclude it.
 
----
+It takes **games and controllers** with it, intentionally. `ps5` and
+`xbox series` were also removed from `DEFAULT_QUERIES` in `marketplace-crawl.ts`.
+
+**VR is deliberately NOT in the list.** A Quest is a headset, not a console, and
+he named consoles. One word each if he ever says so — his call, not one to slip
+in under this rule.
+
+### 0e. Alerts existed but could never fire
+
+Yish: *"the entire point of the app was to send me a notification when there is
+a buy and a verify first but its still not working. this may be because the
+alerts only work for custom alerts that i make."* He diagnosed it exactly:
+`runAlerts` iterates `saved_searches`, and health showed **3 subscriptions, 0
+saved searches** — the loop body had never run once.
+
+A standing ROW rather than a parallel code path, because dedupe (`alert_sent`),
+the `created_at` backlog guard, dead-subscription cleanup and `matches()`
+already work on rows.
+
+- **`created_at` is NOW, not the subscription's date.** Backdating fires one
+  notification per historical match on ship — about thirty — and the existing
+  comment on that guard already records what happens next.
+- **The standing row cannot be DELETED, only narrowed to Buy-it-only.** Delete
+  returns the device to silence through a control that looks like tidying up.
+- **The lock-screen title names the CALL.** "Buy it" vs "Verify first" is the
+  entire decision.
+
+Health now separates `push.usable` (VAPID keys load) from `subscriptions` /
+`standingAlerts` / `lastAlertAt`. It reported `usable: true` the whole time
+alerts did not work.
+
+### 0f. Sold listings, and the probe that was wired to nothing
+
+`bun run probe` was built on 2026-08-28 for this exact complaint and **called by
+nothing**, so it only ran when someone ran it by hand. Meanwhile the server-side
+sweep covers **Craigslist only** (`tracker/index.ts` filters
+`source = 'craigslist'`, because the rest need a logged-in browser) — so
+Facebook, OfferUp and Mercari were never checked for being sold by anything at
+all. It is a step in every crawl now.
+
+**Both probe queues sort by what he can ACT on before staleness.** They were
+ordered dustiest-first, which spends a bounded budget on whichever rows happen
+to be oldest: all seven Facebook VERIFY listings had gone unchecked for over two
+days while unpriceable monitors were probed. 34 sold listings retired.
+
+### 0g. Mercari: dead for nine days, reporting "ok"
+
+**Mercari had produced 10 listings ever, all on 2026-08-26.** Cause: a Cloudflare
+interstitial — "Just a moment...", a Ray ID — served to headless Chrome. The
+scraper read that as "the search returned nothing", for every query, and
+**exited 0**, so the agent reported `mercari: ok` over a source reading a block
+page.
+
+- The worker detects the challenge by title and body and emits an ERROR naming
+  the page.
+- `marketplace-crawl.ts` exits **3** when every query returns zero LINKS. Gated
+  on links, never on parsed cards — a search returning 200 brackets and RGB
+  strips with nothing in scope is a normal day.
+
+⚠ **HEADED IS REQUIRED EVERY TIME, NOT ONCE.** A headed run does NOT leave a
+clearance headless can use. Measured back to back on the same profile: headed
+read 28 links per query, headless immediately afterwards read zero and was
+challenged seven of seven. Cloudflare fingerprints the browser, not a cookie.
+`mc:crawl` runs without `--headless` in the agent for this reason alone.
+
+**`mc:detail`** is the Mercari equivalent of `ou:photos`: a search card carries a
+title and a price and nothing else, so the first working crawl produced 99
+listings of which 90 were INSUFFICIENT_DATA. Descriptions **0 -> 97 of 109**.
+
+⚠ Its parser reads **backwards from the LAST "Description" heading**. The item's
+own text sits ~300 lines down, under checkout copy and a "Similar items"
+carousel repeating dozens of OTHER listings' titles and prices. Scanning
+forwards gets a competitor's listing.
+
+### 0h. Crawling without being asked, and windows that stay out of the way
+
+- **The server queues a crawl by itself every 45 minutes** (`autoQueueCrawl`),
+  but ONLY while an agent is actively polling — otherwise it builds a pile that
+  all fires at once when his machine next boots, three crawls against one
+  browser profile.
+- **`bun run agent:install`** puts a launcher in the Startup folder so the agent
+  starts at logon and restarts itself if it dies. **The Startup folder, not
+  `schtasks /SC ONLOGON`** — that needs admin and fails with a bare "Access is
+  denied". The session matters: a task that runs whether or not the user is
+  logged on gets session 0, which has no desktop, and Mercari's headed Chrome
+  would hang until the agent's 12-minute timeout. **Never as SYSTEM** — the
+  Chrome profiles holding the logins live under this user.
+- **Automated browser windows launch at `--window-position=-32000,-32000`.**
+  Headless is not available (Mercari), and `--start-minimized` is not a real
+  Chrome flag — Chromium ignores it, so the window keeps stealing focus while
+  looking configured not to. Measured: `screenX=-16384` with it, on screen
+  without. `fb:login` and `ebay:login` pass `background: false`, because a
+  sign-in he cannot see is one he cannot complete.
+
+### 0i. WAL, because one lock killed a 120-listing probe
+
+A Facebook probe died at ~40 with `SQLITE_BUSY: database is locked` — a comps
+backfill was writing — after having already retired 13 sold listings, and threw
+away the rest. Several writers against one file is the NORMAL case here.
+
+    journal_mode = WAL    readers and one writer proceed together
+    busy_timeout = 5000   "locked" becomes a wait, not an exception
+
+SQLite's default is `busy_timeout = 0`, i.e. fail instantly. The probe also no
+longer loses a whole run to one failed write.
+
+### 0j. Hardware — the always-on question
+
+Facebook needs a logged-in session, so background crawling needs a machine that
+is on. **Yish has waived both the credential-location and account-ban concerns.
+Do not re-raise them.** His hardware, and the ranking:
+
+- **Surface Pro (gen 5 or 7) — recommended.** Windows, so this codebase runs
+  unported: profile paths, the `taskkill /T` process-tree kill, the
+  Startup-folder installer.
+- **2015 MacBook Air — works, needs porting.** `CHROME_PATH` default, a launchd
+  plist instead of Startup, and the POSIX branch of the tree-kill has never been
+  exercised. An hour or two.
+- Leaving his desktop on already works today.
+- A VPS with the session copied up plus a residential proxy is the only
+  genuinely fragile option — expect to re-copy the session periodically.
+
+### 0k. Open, and what he asked for next
+
+- **"Limit it to around 10 listings"** so he can start training the engine on
+  what tech to skip. He was explicit that this comes AFTER the can't-tells are
+  fixed. Not done.
+- **`bun run ebay:comps` crashed near the end** of a 130-model run on the
+  SQLITE_BUSY that §0i now prevents. It still landed 4,844 comps. Re-run
+  `--skus 60` to reach the models it missed.
+- **`www.filtrsoft.com`** needs the Railway custom domain plus a Namecheap
+  CNAME. The app already 301s it to the apex.
+- **Google / Apple sign-in are off.** Google needs `GOOGLE_CLIENT_ID`; Apple
+  needs the paid developer membership. No password reset either — that needs
+  outbound email.
 
 ## 1. What Filtrsoft is
 
@@ -191,12 +322,13 @@ components. **Out:** furniture, accessories, cameras.
 
 ## 2. Current state — 2026-08-31
 
-**The app is LIVE, pricing real listings, and has now found a real deal.**
-`filtrsoft.com` is the address from the rebrand on — but see §11f, it is bought
-and **not yet serving**; production answers on `assyze.com` until the Railway
-steps at the top of this file are done. The generated
-`<service>-production.up.railway.app` name is a debugging fallback, never the
-address of the product.
+**The app is LIVE at `https://filtrsoft.com`, pricing real listings, and has
+found real deals.** Valid certificate, HSTS, `assyze.com` detached and returning
+404 by design. The generated `<service>-production.up.railway.app` name is a
+debugging fallback, never the address of the product.
+
+**Everything below this line predates the 2026-09-04/05 session. Where §0
+contradicts it, §0 is right.**
 
 > **2026-08-31, and this is the first one that matters.** The feed surfaced an
 > **RTX 5090 FE at $2,800 on Craigslist, 30 minutes after it posted**, and Yish
@@ -1011,13 +1143,18 @@ DRAM-less and TLC vs QLC for SSDs, 80+ tier and modularity for PSUs. The
 
 ---
 
-## 11f. The domain — read the date before believing this section
+## 11f. The domain — DNS reference, the cutover is done
 
-**As of 2026-09-04, `filtrsoft.com` is BOUGHT AND NOT YET SERVING.** The live
-production URL is still `assyze.com` until the Railway and DNS steps at the top
-of this file are done. Everything below describes what was set up for
-`assyze.com` on 2026-08-26; it is here because **the same three records, the
-same trap and the same plan limit apply verbatim to the new domain.**
+**`filtrsoft.com` is live and serving** as of 2026-09-04 (see §0, "The Railway
+cutover is DONE"). What follows was written for `assyze.com` on 2026-08-26 and
+is kept because **the records and the traps are identical for any future
+domain** — the truncated-TXT one in particular cost a day.
+
+⚠ **The one-custom-domain limit no longer applies.** He moved to Railway
+premium on 2026-09-04, so more than one domain can be attached at once and a
+future move does not need a hard cutover. `www` still must not SERVE — see §0
+for why that is a product decision about host-scoped cookies rather than a plan
+limit.
 
 The generated `<service>-production.up.railway.app` name always works and is a
 fallback for debugging, **not the address of the product** — never quote it to
