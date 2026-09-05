@@ -30,9 +30,16 @@ if (!MARKETPLACES.includes(source)) {
 /**
  * Default queries are the categories Yish trades, not "electronics".
  * These sites have no useful category browse — search is the only way in.
+ *
+ * ⚠ `ps5` AND `xbox series` WERE REMOVED ON 2026-09-04. Yish: *"get rid of all
+ * the consoles on the app they are hard to resell. I dont want ANY consoles on
+ * it."* The verdict engine now refuses them outright, but leaving the queries
+ * here would keep spending crawl budget, browser time and description passes on
+ * listings guaranteed to be thrown away — the Mercari run that finally worked
+ * came back dominated by Xbox 360 games for exactly this reason.
  */
 const DEFAULT_QUERIES = [
-  "graphics card", "gaming pc", "macbook", "iphone", "laptop", "ps5", "xbox series",
+  "graphics card", "gaming pc", "macbook", "iphone", "laptop",
 ];
 const queries = arg("query") ? [arg("query")!] : DEFAULT_QUERIES;
 const limit = Number(arg("limit")) || 25;

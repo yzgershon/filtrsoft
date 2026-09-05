@@ -12,7 +12,7 @@ import { runWorker, PROFILE_DIR, CHROME_PATH } from "../sources/facebook.ts";
 console.log(`chrome : ${CHROME_PATH}`);
 console.log(`profile: ${PROFILE_DIR}\n`);
 
-for await (const ev of runWorker("login", { headless: false })) {
+for await (const ev of runWorker("login", { headless: false, background: false })) {
   if (ev.type === "log") console.log(`  ${ev.msg}`);
   else if (ev.type === "error") console.error(`\x1b[31m  ${ev.msg}\x1b[0m`);
   else if (ev.type === "done") {

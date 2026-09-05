@@ -77,6 +77,14 @@ const ctx = await openContext({
   profile: `retail-${command}`,
   chromePath: opts.chromePath,
   headless: opts.headless ?? false,
+  /**
+   * ⚠ HEADED BUT OFF-SCREEN BY DEFAULT. Every automated run here opens a real
+   * Chrome window, and Yish uses this machine — a window that appears and takes
+   * focus mid-crawl is the automation interrupting the person it exists to
+   * serve. The login commands opt OUT, because a sign-in he cannot see is a
+   * sign-in he cannot complete.
+   */
+  background: opts.background ?? true,
 });
 
 try {

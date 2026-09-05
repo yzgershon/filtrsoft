@@ -21,7 +21,14 @@ export const profilePath = (name) =>
     ? join(process.env.FILTRSOFT_BROWSER_PROFILE_ROOT, name)
     : join(homedir(), ".filtrsoft", `${name}-profile`);
 
-export async function openContext({ profile, chromePath, headless = false }) {
+/**
+ * @param {object} o
+ * @param {string} o.profile      which logged-in Chrome profile to use
+ * @param {string} [o.chromePath] real Chrome, not the bundled Chromium
+ * @param {boolean} [o.headless]
+ * @param {boolean} [o.background] keep a HEADED window off Yish's screen
+ */
+export async function openContext({ profile, chromePath, headless = false, background = false }) {
   const dir = profilePath(profile);
   mkdirSync(dir, { recursive: true });
   return chromium.launchPersistentContext(dir, {
@@ -35,6 +42,27 @@ export async function openContext({ profile, chromePath, headless = false }) {
       "--disable-blink-features=AutomationControlled",
       "--no-first-run",
       "--no-default-browser-check",
+      /**
+       * ⚠ OFF-SCREEN, NOT MINIMISED, AND NOT HEADLESS. Yish, 2026-09-04:
+       * *"whenever you run a crawl or anything that opens anything on my
+       * computer it should be minimized so that its not interupting me."*
+       *
+       * Headless is not available as an answer here — Mercari's Cloudflare
+       * check fails it every single time, which is the whole reason that crawl
+       * runs headed. And `--start-minimized` is not a real Chrome flag;
+       * Chromium ignores it, so the window would keep stealing focus while
+       * appearing to be configured not to.
+       *
+       * Moving it to a coordinate far outside any monitor is the thing that
+       * actually works: the page renders, the compositor runs, Cloudflare sees
+       * a real browser, and nothing ever appears on his desktop or takes the
+       * keyboard. `-32000` is the classic value because it is beyond any
+       * plausible multi-monitor arrangement while staying inside a signed
+       * 16-bit window coordinate.
+       */
+      ...(background && !headless
+        ? ["--window-position=-32000,-32000", "--window-size=1400,950"]
+        : []),
     ],
   });
 }

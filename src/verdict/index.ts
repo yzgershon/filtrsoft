@@ -85,6 +85,32 @@ const NEVER_OUR_MARKET =
   /\b(server|poweredge|proliant|rack ?mount(ed)?|blade server|kvm|(smart|network|ethernet|gigabit|managed|poe)[- ]?switch|switch[- ]?\d{1,2}[- ]?port|\d{1,2}[- ]port|turntable|record player|cassette|tape deck|vcr|subwoofer|amplifier|boombox)\b/i;
 
 /**
+ * ⚠ GAME CONSOLES ARE OUT ENTIRELY. Yish, 2026-09-04: *"get rid of all the
+ * consoles on the app they are hard to resell. I dont want ANY consoles on it."*
+ *
+ * His call, and the data agreed before he made it: **110 of the 362 listings
+ * blocked on "storage not stated" were consoles**, and they were the single
+ * largest thing the engine kept asking questions about. A category he will not
+ * buy costs the same crawl budget, description pass and photo read as one he
+ * will.
+ *
+ * ⚠ THIS TAKES GAMES AND CONTROLLERS WITH IT, AND THAT IS INTENDED. Matching
+ * the platform word means "Call of Duty ... Xbox 360" and "PS5 DualSense
+ * controller" go too. They are the same market and worth less; the Mercari
+ * crawl that finally worked came back mostly Xbox 360 discs.
+ *
+ * ⚠ VR IS DELIBERATELY NOT HERE. A Quest is a headset, not a console, and he
+ * named consoles. If Quest and Vive should go too it is one word each — but
+ * that is his call to make, not one to slip in under a rule about consoles.
+ *
+ * Raw title, like the rest of this list, and for the same reason: head-noun
+ * gating cannot see the word that decides. "Xbox Series X Construction
+ * Simulator" resolves to no head noun at all.
+ */
+const CONSOLES =
+  /\b(xbox|playstation|\bps[2345]\b|nintendo|game ?cube|gamecube|\bwii\b|wii ?u|switch (oled|lite|console)|nintendo switch|steam ?deck|sega|dreamcast|atari|game ?boy|nintendo ?ds|\b3ds\b|\bpsp\b|ps vita)\b/i;
+
+/**
  * Bulk and multi-item listings. "24 Computers, Printers, Monitors left starting
  * at just $30" is a shop's inventory dump, not a unit with a price, and pricing
  * it against one machine's comps is meaningless.
@@ -483,6 +509,23 @@ export function buildVerdict(input: {
    *     there is.
    */
   const head = resolveProductType(input.title, input.description ?? "");
+  /**
+   * ⚠ CHECKED BEFORE THE RULE BELOW AND *NOT* GATED ON `!match.skuId`.
+   *
+   * That gate is right for the rest of the list — a matched SKU is evidence we
+   * do cover the thing — and it is exactly wrong here. **Consoles are in the
+   * catalog**, with comps and a `console` entry in `VALUE_FIELDS`, so an
+   * "Xbox Series X" matches a SKU and would sail straight past a rule written
+   * to exclude it. Being well-known is not the same as being wanted.
+   */
+  if (CONSOLES.test(input.title)) {
+    return {
+      ...base, call: "OUT_OF_SCOPE", confidence: "high",
+      headline: "Consoles are out of scope.",
+      reasoning: `Yish's call on 2026-09-04: consoles are hard to resell, so Filtrsoft does not carry them. That includes their games and controllers, which trade in the same market for less. Nothing here is a judgement about the listing.`,
+    };
+  }
+
   if (!match.skuId && (NOT_OUR_MARKET.test(head.head ?? input.title) || NEVER_OUR_MARKET.test(input.title))) {
     return {
       ...base, call: "OUT_OF_SCOPE", confidence: "high",
@@ -490,7 +533,7 @@ export function buildVerdict(input: {
       // `head.head` is null whenever the title carries no recognised product
       // noun, which is exactly the router/switch case that reaches here via the
       // title fallback above. Name the matched word instead of crashing.
-      reasoning: `That reads as ${(input.title.match(NEVER_OUR_MARKET)?.[0] ?? head.head ?? input.title.match(NOT_OUR_MARKET)?.[0] ?? "peripheral").toLowerCase()} gear. Filtrsoft covers phones, laptops, GPUs, consoles, tablets and PC components, the things with deep enough sold-comp data to price confidently. There are no comps here because nobody has ever asked for any.`,
+      reasoning: `That reads as ${(input.title.match(NEVER_OUR_MARKET)?.[0] ?? head.head ?? input.title.match(NOT_OUR_MARKET)?.[0] ?? "peripheral").toLowerCase()} gear. Filtrsoft covers phones, laptops, GPUs, tablets and PC components, the things with deep enough sold-comp data to price confidently. There are no comps here because nobody has ever asked for any.`,
     };
   }
 
@@ -506,7 +549,7 @@ export function buildVerdict(input: {
     return {
       ...base, call: "OUT_OF_SCOPE", confidence: "high",
       headline: "Not something Filtrsoft covers.",
-      reasoning: `Nothing in "${input.title.slice(0, 60)}" reads as a device Filtrsoft knows how to price: no recognisable product type and no model number. Filtrsoft covers phones, laptops, GPUs, consoles, tablets and PC components.`,
+      reasoning: `Nothing in "${input.title.slice(0, 60)}" reads as a device Filtrsoft knows how to price: no recognisable product type and no model number. Filtrsoft covers phones, laptops, GPUs, tablets and PC components.`,
     };
   }
 

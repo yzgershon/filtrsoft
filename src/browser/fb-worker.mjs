@@ -62,6 +62,15 @@ const ctx = await chromium.launchPersistentContext(opts.profileDir, {
     "--disable-blink-features=AutomationControlled",
     "--no-first-run",
     "--no-default-browser-check",
+    /**
+     * ⚠ HEADED BUT OFF-SCREEN. Same rule as `launch.mjs`: a real window is
+     * needed, a visible one is not, and Yish uses this machine. `fb:login`
+     * passes `background: false` because a sign-in he cannot see is a sign-in
+     * he cannot complete.
+     */
+    ...((opts.background ?? true) && !(opts.headless ?? false)
+      ? ["--window-position=-32000,-32000", "--window-size=1280,900"]
+      : []),
   ],
 });
 

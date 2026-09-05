@@ -9,7 +9,7 @@
  */
 import { runEbayWorker } from "../sources/ebay.ts";
 
-for await (const ev of runEbayWorker("login", { headless: false })) {
+for await (const ev of runEbayWorker("login", { headless: false, background: false })) {
   if (ev.type === "log") console.log(`  ${ev.msg}`);
   else if (ev.type === "error") console.error(`\x1b[31m  ${ev.msg}\x1b[0m`);
   else if (ev.type === "done") {
