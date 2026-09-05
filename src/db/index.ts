@@ -25,6 +25,37 @@ export function db(): Database {
   refuseToShadowAnExistingDatabase();
 
   _db = new Database(DB_PATH, { create: true });
+
+  /**
+   * ⚠ WITHOUT THESE TWO PRAGMAS, ANY SECOND PROCESS KILLS THE FIRST ONE
+   * MID-RUN, AND IT KILLS IT WITH AN UNCAUGHT EXCEPTION.
+   *
+   * Measured 2026-09-04: a 120-listing Facebook delisting probe died at listing
+   * ~40 with `SQLITE_BUSY: database is locked`, because an eBay comps backfill
+   * happened to be writing at the same moment. It had already retired thirteen
+   * sold listings and it threw away the rest of the run.
+   *
+   * That is not an exotic situation here, it is the normal one. This project
+   * routinely has several writers against one file: the API's crawl loop and
+   * sweep, `bun run agent` shelling out to a crawl, a probe, a photo pass and a
+   * comps backfill — and the agent's own steps are sequential but nothing stops
+   * the daily scheduled task overlapping with a manual command.
+   *
+   *   · **WAL** lets readers and one writer proceed at the same time instead of
+   *     taking a whole-file lock. It is also a persistent property of the
+   *     database file, so setting it once is enough — it is set on every open
+   *     anyway because that is cheaper than remembering whether it took.
+   *   · **`busy_timeout`** turns "locked" from an exception into a wait. Five
+   *     seconds is far longer than any write here takes and far shorter than a
+   *     human notices.
+   *
+   * The default is `busy_timeout = 0`, i.e. **fail instantly**, which is a
+   * defensible default for a library and the wrong one for every program in
+   * this repo.
+   */
+  _db.exec("PRAGMA journal_mode = WAL");
+  _db.exec("PRAGMA busy_timeout = 5000");
+
   _db.exec(readFileSync(join(here, "schema.sql"), "utf8"));
   migrate(_db);
   return _db;

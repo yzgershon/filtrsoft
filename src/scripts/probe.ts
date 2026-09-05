@@ -76,7 +76,7 @@ function due(source: string, limit: number) {
  * source (144 listings vs 107 and 10) and the one Yish found a sold listing in.
  */
 const SOURCES = (ONLY ? [ONLY] : ["facebook", "offerup", "mercari"]) as Marketplace[];
-let checked = 0, gone = 0, unsure = 0;
+let checked = 0, gone = 0, unsure = 0, failedWrites = 0;
 
 for (const source of SOURCES) {
   const rows = due(source, LIMIT);
@@ -106,16 +106,33 @@ for (const source of SOURCES) {
       console.log(`  ? ${p.id} no opinion${p.error ? ` (${p.error.slice(0, 40)})` : ""}`);
       continue;
     }
-    if (v.gone) {
-      gone++;
-      markGone.run({ $t: now(), $r: "gone", $id: p.id });
-      console.log(`  \x1b[33mGONE\x1b[0m ${p.id} — ${v.reason}`);
-    } else {
-      // Still up: record that we looked, so the next run starts elsewhere.
-      touch.run({ $t: now(), $id: p.id });
+    /**
+     * ⚠ ONE FAILED WRITE MUST NOT END THE RUN.
+     *
+     * A 120-listing pass died at about forty on 2026-09-04 with
+     * `SQLITE_BUSY: database is locked` — a comps backfill was writing at the
+     * same moment — and threw away the remaining eighty after having already
+     * retired thirteen sold listings. `busy_timeout` (see `db/index.ts`) makes
+     * that collision wait rather than throw, but a probe is minutes of browser
+     * work per run and should not be one unlucky write away from losing all of
+     * it. Same rule as the eBay worker's navigation retry.
+     */
+    try {
+      if (v.gone) {
+        gone++;
+        markGone.run({ $t: now(), $r: "gone", $id: p.id });
+        console.log(`  \x1b[33mGONE\x1b[0m ${p.id} — ${v.reason}`);
+      } else {
+        // Still up: record that we looked, so the next run starts elsewhere.
+        touch.run({ $t: now(), $id: p.id });
+      }
+    } catch (e) {
+      failedWrites++;
+      console.error(`  \x1b[31mwrite failed\x1b[0m ${p.id} — ${(e as Error).message.slice(0, 60)}`);
     }
   }
 }
 
-console.log(`\n\x1b[1mprobe\x1b[0m  ${checked} checked · ${gone} delisted · ${unsure} left alone`);
+console.log(`
+[1mprobe[0m  ${checked} checked · ${gone} delisted · ${unsure} left alone${failedWrites ? ` · [31m${failedWrites} writes failed[0m` : ""}`);
 if (unsure) console.log("  \x1b[90m'left alone' means the page proved nothing — a login wall, a timeout, or an empty body.\x1b[0m");
