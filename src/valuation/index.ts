@@ -97,6 +97,53 @@ export function storageOf(title: string): number | null {
   return gb.length ? Math.max(...gb) : null;
 }
 
+/**
+ * ⚠ A WHOLE MACHINE OFTEN NEVER SAYS "PC", AND THE HEAD-NOUN CHECK ONLY CATCHES
+ * THE ONES THAT DO.
+ *
+ * Real comp, stored 2026-09-06 against the `HP OMEN 45L` case SKU:
+ *
+ *     $680  HP OMEN 45L GT22-0182 | AMD RYZEN 9 5900X | 1TB | 32GB | NO OS
+ *
+ * There is no head noun to catch — no "desktop", no "tower", no "computer",
+ * just an OEM model number. It sailed through and became the ONLY comp for that
+ * SKU, so a chassis worth about $180 was priced at $680.
+ *
+ * The reliable signal is not the noun, it is the SPEC LIST. A bare part names
+ * its own spec and nothing else; a machine enumerates what is inside it. Two or
+ * more DIFFERENT component families in one title means the thing being sold
+ * contains them.
+ *
+ * ⚠ IT COUNTS FAMILIES, NOT MENTIONS, and that distinction is the whole reason
+ * it is safe. "Samsung 990 PRO 1TB NVMe M.2 PCIe 4.0 SSD" names storage four
+ * ways and is one family; "Kingston FURY Beast 32GB (2x16GB) DDR5-6000" is
+ * memory three ways. Counting mentions would throw away every good comp in the
+ * categories this exists to protect.
+ */
+const COMPONENT_FAMILIES: RegExp[] = [
+  // ⚠ NO TRAILING : a CPU keeps its variant letters (5900X, 14900KF,
+  // 5800X3D) and requiring a word boundary after the digits rejected every
+  // one of them — which is most desktop CPUs.
+  /\b(?:i[3579][-\s]?\d{4,5}|ryzen\s+[3579]\s+\d{4}|core\s+ultra\s+[579]|xeon)/i,
+  /\b(?:rtx|gtx|rx)\s?\d{3,4}\b/i,
+  /\bddr[45]\b|\b\d{1,3}\s?gb\s+(?:ram|memory)\b/i,
+  /**
+   * ⚠ A BARE `1TB` COUNTS AS STORAGE, AND THAT IS WHAT CATCHES THE OEM TITLES.
+   *
+   * The comp that started this reads `... | AMD RYZEN 9 5900X | 1TB | 32GB |
+   * NO OS` — pipe-delimited, with not one of "SSD", "NVMe" or "RAM" anywhere
+   * in it. A first pass required a drive word nearby, matched only the CPU
+   * family, and the count came to 1 — so the machine sailed through a SECOND
+   * time. In this domain TB is storage essentially always, and a part that IS
+   * storage names one capacity, not a CPU as well.
+   */
+  /\b\d+\s?tb\b|\b\d+\s?gb\b(?=[^|]*\b(?:ssd|nvme|hdd|hard drive)\b)/i,
+];
+
+export function looksLikeWholeMachine(title: string): boolean {
+  return COMPONENT_FAMILIES.reduce((n, re) => n + (re.test(title) ? 1 : 0), 0) >= 2;
+}
+
 export function valueSku(
   skuId: number | null,
   opts?: {
@@ -225,6 +272,7 @@ export function valueSku(
   const rows = raw
     .filter((r) => {
       if (!partLike) return true;
+      if (looksLikeWholeMachine(r.raw_title)) return false;
       try {
         const head = resolveProductType(r.raw_title, "");
         return !MACHINE_HEAD.test(String(head.head ?? ""));

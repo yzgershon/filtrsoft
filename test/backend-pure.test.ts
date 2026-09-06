@@ -38,7 +38,7 @@ import { buildVerdict } from "../src/verdict/index.ts";
 import { BY_SIGNAL, BY_FIELD, FALLBACK } from "../src/verdict/questions.ts";
 import { parseBestBuy, parseMicroCenter, parseNewegg } from "../src/sources/retail.ts";
 import { normalizeCondition } from "../src/valuation/condition.ts";
-import { storageOf } from "../src/valuation/index.ts";
+import { storageOf, looksLikeWholeMachine } from "../src/valuation/index.ts";
 import { upsertListingFacts } from "../src/db/listings.ts";
 import { storeVerdictWithDb } from "../src/db/verdicts.ts";
 import {
@@ -677,6 +677,66 @@ describe("eBay sold parser", () => {
       why: 'title is the "ti" variant, which the query did not ask for',
     });
     expect("RTX 4070 Super".match(variantPattern("gpu"))).toContain("Super");
+  });
+
+  /**
+   * A unit is not a variant. eBay writes memory speed as "6000MT/s", and the
+   * boundary check read the trailing letters as a different product — 81 of 122
+   * rows on one real Fury Beast pull, every one correct. See UNIT_SUFFIX.
+   */
+  test("a unit suffix after a number is not a variant", () => {
+    for (const title of [
+      "Kingston FURY Beast 32GB (2x16GB) DDR5 6000MT/s CL36 AMD EXPO",
+      "Kingston FURY Beast 32GB DDR5 6000MHz CL30 Desktop Memory",
+      "Kingston Fury Beast 32GB DDR5 6000 MT/s Gaming RAM",
+    ]) {
+      expect(compMatchesQuery(title, "Kingston Fury Beast 32GB DDR5 6000").ok).toBe(true);
+    }
+  });
+
+  /**
+   * ...and the check it modifies must still hold. These letters are the ones
+   * that actually separate parts, so none of them may be read as a unit.
+   */
+  test("still rejects a variant letter welded to the model number", () => {
+    expect(compMatchesQuery("Dell OptiPlex 3070 i5-8500T 16GB", "Intel i5-8500").ok).toBe(false);
+    expect(compMatchesQuery("AMD Ryzen 7 5800X3D CPU", "AMD Ryzen 7 5800X").ok).toBe(false);
+    expect(compMatchesQuery("ASUS B850M-PLUS Micro ATX", "ASUS B850 motherboard").ok).toBe(false);
+  });
+});
+
+describe("a parts comp set must not contain whole machines", () => {
+  /**
+   * The comp that motivated it. It became the ONLY comp for the HP OMEN 45L
+   * case SKU, pricing a ~$180 chassis at $680, and there is no head noun to
+   * catch it by -- no "desktop", no "tower", no "PC", just an OEM model number.
+   */
+  test("a spec list is a machine even with no head noun", () => {
+    for (const title of [
+      "HP OMEN 45L GT22-0182 | AMD RYZEN 9 5900X | 1TB | 32GB | NO OS",
+      "Custom Gaming Rig Ryzen 7 5800X RTX 3080 32GB DDR4",
+      "Dell OptiPlex i7-10700 16GB RAM 512GB SSD",
+      "Lian Li O11 Build - i9-13900K, RTX 4090, 64GB DDR5",
+    ]) {
+      expect(looksLikeWholeMachine(title)).toBe(true);
+    }
+  });
+
+  /**
+   * The other direction matters more: counting MENTIONS instead of FAMILIES
+   * would throw away every good comp in the categories this protects.
+   */
+  test("a bare part naming its own spec several ways is still a part", () => {
+    for (const title of [
+      "Samsung 990 PRO 1TB NVMe M.2 2280 PCIe 4.0 SSD",
+      "Kingston FURY Beast 32GB (2x16GB) DDR5-6000 CL36 Desktop Memory",
+      "Corsair RM1000x 1000W 80+ Gold Fully Modular ATX Power Supply",
+      "ASUS TUF Gaming B850-PLUS WiFi AM5 Motherboard DDR5",
+      "WD_BLACK SN850X 2TB NVMe M.2 PCIe Gen4 Gaming SSD with Heatsink",
+      "Lian Li O11 Dynamic EVO Mid Tower PC Case Black",
+    ]) {
+      expect(looksLikeWholeMachine(title)).toBe(false);
+    }
   });
 });
 
