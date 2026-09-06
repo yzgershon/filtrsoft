@@ -43,7 +43,8 @@
     "vision": "bun run src/scripts/vision.ts",
     "agent:install": "bun run src/scripts/agent-install.ts",
     "pause": "bun run src/scripts/pause.ts",
-    "seed:parts": "bun run src/scripts/seed-parts.ts"
+    "seed:parts": "bun run src/scripts/seed-parts.ts",
+    "seed:builds": "bun run src/scripts/seed-builds.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
