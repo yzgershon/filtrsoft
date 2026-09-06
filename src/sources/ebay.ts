@@ -259,6 +259,28 @@ export async function* runEbayWorker(
  * rather than distinguishing them. See the variant check below. */
 const DIGITAL_ONLY_LINE = /\b(series s|switch|steam deck|quest)\b/i;
 
+/**
+ * ⚠ A UNIT IS NOT A VARIANT, AND TREATING IT AS ONE MADE THE ENGINE UNABLE TO
+ * PRICE MEMORY AT ALL.
+ *
+ * The boundary check below exists to stop `i5-8500` matching `i5-8500T`, which
+ * is a real, cheaper chip. But it rejects on ANY trailing letter, and eBay
+ * writes memory speed as `DDR5 6000MT/s` — so the token `6000` was read as a
+ * prefix of some other variant and the row was thrown away.
+ *
+ * Measured on 2026-09-06: a `Kingston Fury Beast 32GB DDR5 6000` pull returned
+ * 122 rows and this line rejected **81 of them**, every one a correct match,
+ * including `Kingston FURY Beast 32GB (2x16GB) DDR5 6000MT/s` at $405 and $549.
+ * That is not a small sampling loss — it silently biases the median of the one
+ * component class whose price has moved the most.
+ *
+ * Only units that cannot be a model suffix belong here. `t`, `x`, `s` and `w`
+ * are deliberately ABSENT: they are exactly the letters that distinguish real
+ * parts (8500T, 5800X, 265F), and admitting them would undo the check this
+ * modifies.
+ */
+const UNIT_SUFFIX = "(?:mt\\/s|mts|mhz|ghz|gbps|hz|gb|tb|mb)";
+
 export function compMatchesQuery(
   title: string, query: string, skuCategory?: string | null,
 ): { ok: boolean; why: string } {
@@ -284,7 +306,7 @@ export function compMatchesQuery(
       .join("[\\s\\-_.]*");
     // A model number is a PREFIX of its own variants, so a bare substring test
     // silently merges products that do not share a price.
-    if (!new RegExp(`${pattern}(?![a-z0-9])`, "i").test(title)) {
+    if (!new RegExp(`${pattern}${UNIT_SUFFIX}?(?![a-z0-9])`, "i").test(title)) {
       const loose = new RegExp(pattern, "i").test(title);
       return {
         ok: false,

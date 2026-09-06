@@ -34,6 +34,7 @@
  * is one failed job, reported as one failed job.
  */
 import { spawn, execSync } from "node:child_process";
+import { isPaused, pausedFor } from "./pause.ts";
 
 const API = (process.env.FILTRSOFT_API ?? "https://filtrsoft.com").replace(/\/$/, "");
 const TOKEN = (process.env.FILTRSOFT_PUSH_TOKEN ?? "").trim();
@@ -263,8 +264,33 @@ console.log(`Filtrsoft agent watching ${API}`);
 console.log("Leave this window open. Tap Start crawl in the app to trigger a run.\n");
 
 let warnedOffline = false;
+let announcedPause = false;
 
 while (true) {
+  /**
+   * ⚠ PAUSED MEANS DO NOT POLL, NOT "POLL AND IGNORE".
+   *
+   * `/v1/jobs/next` hands a job out exactly once, so an agent that kept polling
+   * while paused would DRAIN the queue and bin the work. Going quiet instead
+   * means the server stops seeing an agent inside AGENT_FRESH_MS and never
+   * queues anything, which is also the whole point on a laptop: no poll, no
+   * crawl, no browser window, no battery.
+   *
+   * Toggle it with `bun run pause`, or the Filtrsoft Crawls shortcut.
+   */
+  if (isPaused()) {
+    if (!announcedPause) {
+      console.log(`PAUSED${pausedFor() ? ` (${pausedFor()} ago)` : ""} — not polling. Run \`bun run pause\` to resume.`);
+      announcedPause = true;
+    }
+    await new Promise((r) => setTimeout(r, POLL_MS));
+    continue;
+  }
+  if (announcedPause) {
+    console.log("resumed — polling again");
+    announcedPause = false;
+  }
+
   try {
     const res = await fetch(`${API}/v1/jobs/next`, { headers: auth });
     if (res.status === 401) {

@@ -37,6 +37,21 @@
  */
 import { spawn } from "node:child_process";
 import { db } from "../db/index.ts";
+import { isPaused, pausedFor } from "./pause.ts";
+
+/**
+ * ⚠ THE 10:00 TASK CHECKS THE PAUSE FLAG TOO, AND THIS IS THE HALF A SWITCH
+ * THAT ONLY STOPPED THE AGENT WOULD MISS.
+ *
+ * `Filtrsoft Daily Crawl` runs this file directly from Task Scheduler. It never
+ * asks the server for a job, so pausing the agent does nothing to it — a switch
+ * that ignored this would still open a browser at ten in the morning, which is
+ * exactly the interruption it exists to prevent.
+ */
+if (isPaused()) {
+  console.log(`daily: PAUSED${pausedFor() ? ` (${pausedFor()} ago)` : ""} — skipping. \`bun run pause\` to resume.`);
+  process.exit(0);
+}
 
 const has = (k: string) => process.argv.includes(`--${k}`);
 const DRY = has("dry");
