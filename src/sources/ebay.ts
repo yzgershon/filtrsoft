@@ -485,6 +485,20 @@ export function queryForSku(sku: { brand: string; model: string; category: strin
   const base = `${sku.brand} ${sku.model}`;
   if (sku.category === "component") return `${base} CPU processor`;
   if (sku.category === "gpu") return `${base} graphics card`;
+  /**
+   * The parts catalog added 2026-09-06. Yish: *"you should definetly be
+   * tracking computer components parts because they move frequently depending
+   * on shortages."*
+   *
+   * The suffix steers eBay's search, and it costs nothing in matching:
+   * `compMatchesQuery` only REQUIRES query tokens that contain a digit, so
+   * "desktop memory" narrows the search without rejecting a title that words it
+   * differently.
+   */
+  if (sku.category === "ram") return `${base} desktop memory`;
+  if (sku.category === "psu") return `${base} power supply`;
+  if (sku.category === "motherboard") return `${base} motherboard`;
+  if (sku.category === "case") return `${base} PC case`;
   return base;
 }
 

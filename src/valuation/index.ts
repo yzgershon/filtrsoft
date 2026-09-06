@@ -208,7 +208,18 @@ export function valueSku(
    * ONLY for component-shaped categories. A prebuilt SKU WANTS whole machines;
    * they are the entire point of `Gaming PC RTX 2080`.
    */
-  const partLike = opts?.category === "component" || opts?.category === "gpu";
+  /**
+   * ⚠ EVERY PARTS CATEGORY BELONGS HERE, NOT JUST CPUs AND GPUs.
+   *
+   * A search for "Corsair RM1000x power supply" returns whole gaming PCs that
+   * happen to list their PSU, and those sell for ten times what the part does.
+   * The categories added on 2026-09-06 (ram, psu, motherboard, case) have
+   * exactly the failure this filter was written for, and worse: a $200 stick of
+   * RAM sitting in a comp set with $2,500 machines does not skew the median,
+   * it replaces it.
+   */
+  const PART_LIKE = new Set(["component", "gpu", "ram", "psu", "motherboard", "case"]);
+  const partLike = PART_LIKE.has(opts?.category ?? "");
   const MACHINE_HEAD = /^(desktop|tower|pc|computer|laptop|notebook|optiplex|precision|thinkcentre|thinkpad|prodesk|elitedesk|workstation|all-in-one|aio|imac|macbook|server)$/i;
 
   const rows = raw

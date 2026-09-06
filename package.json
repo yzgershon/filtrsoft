@@ -42,7 +42,8 @@
     "mc:detail": "bun run src/scripts/mc-detail.ts",
     "vision": "bun run src/scripts/vision.ts",
     "agent:install": "bun run src/scripts/agent-install.ts",
-    "pause": "bun run src/scripts/pause.ts"
+    "pause": "bun run src/scripts/pause.ts",
+    "seed:parts": "bun run src/scripts/seed-parts.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
