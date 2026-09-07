@@ -460,6 +460,22 @@ export function skusNeedingComps(limit = 20): Array<{ id: number; brand: string;
        *
        * Total comps stays as the tie-break, so between two unpriceable models
        * the one that has never been fetched goes first.
+       *
+       * ⚠ AND THE LAST TIE-BREAK IS RANDOM, NOT `s.category`, BECAUSE
+       * ALPHABETICAL ORDER SYSTEMATICALLY STARVES WHOLE CATEGORIES.
+       *
+       * The categories sort: case, component, console, gpu, laptop,
+       * motherboard, phone, prebuilt, **psu, ram**. Those last two are always
+       * last. Measured 2026-09-06: eight runs of `--skus 15` fetched 120 SKU
+       * slots and reached **not one** of the 20 ram or 9 psu SKUs, so a
+       * re-verdict off the back of that work moved INSUFFICIENT_DATA by 19
+       * listings out of 1,007 and the whole bare-parts bucket stayed
+       * unpriceable.
+       *
+       * A stable tie-break is what makes that repeatable rather than a one-off:
+       * every run starts at the same alphabetical head and works forward, so a
+       * category at the tail is never reached until everything before it is
+       * done. Randomising means each run samples across the whole backlog.
        */
       `SELECT s.id, s.brand, s.model, s.category,
               COUNT(c.id) comps,
@@ -468,7 +484,7 @@ export function skusNeedingComps(limit = 20): Array<{ id: number; brand: string;
                        THEN 1 ELSE 0 END) usable
        FROM skus s LEFT JOIN comps c ON c.sku_id = s.id
        GROUP BY s.id
-       ORDER BY usable ASC, comps ASC, s.category, s.model
+       ORDER BY usable ASC, comps ASC, RANDOM()
        LIMIT $lim`,
     )
     .all({ $lim: limit }) as Array<{ id: number; brand: string; model: string; category: string; comps: number }>;
