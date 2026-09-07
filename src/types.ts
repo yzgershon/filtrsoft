@@ -19,6 +19,7 @@ export interface RawListing {
   updatedAt: string | null;
   photoUrls: string[];
   attributes: Record<string, string>;
+  sellerRef?: string | null;
   raw: unknown;
 }
 

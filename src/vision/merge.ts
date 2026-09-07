@@ -30,6 +30,32 @@ export function loadVision(listingId: number, model?: string, promptVersion?: st
   try { return JSON.parse(row.payload) as VisionResult; } catch { return null; }
 }
 
+/** A re-score must use evidence for these photos and this model/prompt only.
+ * An incomplete hash set cannot prove that every current photo was analyzed.
+ */
+export function loadCurrentVision(listingId: number, model: string, promptVersion: string): VisionResult | null {
+  const counts = db().query("SELECT COUNT(*) total,COUNT(phash) hashed FROM listing_photos WHERE listing_id=?").get(listingId) as {total:number;hashed:number};
+  if (!counts.total || counts.total !== counts.hashed) return null;
+  const fp = photoFingerprint(listingId);
+  const row = db().query(`SELECT payload FROM vision_results WHERE listing_id=? AND model=? AND prompt_version=? AND photo_fingerprint=? ORDER BY id DESC LIMIT 1`)
+    .get(listingId,model,promptVersion,fp) as {payload:string} | null;
+  try { return row ? JSON.parse(row.payload) as VisionResult : null; } catch { return null; }
+}
+
+/** Update URL metadata synchronously; background hash jobs never replace facts.
+ * Reuse exact-URL hashes, and drop old URLs before a stored re-score can see them.
+ */
+export function syncPhotoUrls(listingId: number, urls: string[]) {
+  const d=db();
+  d.transaction(()=>{
+    const old=d.query("SELECT url,phash,local_path,captured_at FROM listing_photos WHERE listing_id=?").all(listingId) as Array<{url:string;phash:string|null;local_path:string|null;captured_at:string}>;
+    const byUrl=new Map(old.map(r=>[r.url,r]));
+    d.run("DELETE FROM listing_photos WHERE listing_id=?",[listingId]);
+    const put=d.prepare("INSERT INTO listing_photos(listing_id,url,phash,local_path,position,captured_at) VALUES(?,?,?,?,?,?)");
+    for(const [i,url] of urls.entries()) { const prior=byUrl.get(url);put.run(listingId,url,prior?.phash??null,prior?.local_path??null,i,prior?.captured_at??new Date().toISOString()); }
+  })();
+}
+
 /** Flatten components and high-confidence facts into matchable text. */
 export function visionToText(v: VisionResult | null): string {
   if (!v) return "";

@@ -87,6 +87,13 @@ CREATE TABLE IF NOT EXISTS listings (
 CREATE INDEX IF NOT EXISTS idx_listings_seller ON listings(seller_ref);
 CREATE INDEX IF NOT EXISTS idx_listings_posted ON listings(posted_at);
 
+-- Pending fact changes survive a crash before the derived verdict is stored.
+CREATE TABLE IF NOT EXISTS listing_rechecks (
+  listing_id INTEGER PRIMARY KEY REFERENCES listings(id),
+  reason TEXT NOT NULL,
+  requested_at TEXT NOT NULL
+);
+
 -- Photos, with perceptual hash for cross-platform duplicate detection.
 -- See RISK-MODEL 3.4 — this catches both benign cross-posting AND photo theft.
 CREATE TABLE IF NOT EXISTS listing_photos (

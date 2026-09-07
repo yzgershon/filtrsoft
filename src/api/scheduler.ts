@@ -427,12 +427,12 @@ export function reverdictWhenPricingDataChanges(): DataReverdictStats {
   return { checked: rows.length, changed };
 }
 
-function reverdictStale(limit = 400): number {
+export function reverdictStale(limit = 400): number {
   const d = db();
   const rows = d.query(
     `SELECT l.id FROM listings l
-       JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
-      WHERE v.engine_version IS NOT $v
+       LEFT JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
+      WHERE v.engine_version IS NOT $v OR EXISTS (SELECT 1 FROM listing_rechecks q WHERE q.listing_id=l.id)
       ORDER BY l.id LIMIT $lim`,
   ).all({ $v: ENGINE_VERSION, $lim: limit }) as Array<{ id: number }>;
   if (!rows.length) return 0;
@@ -442,6 +442,7 @@ function reverdictStale(limit = 400): number {
     try {
       const { verdict } = checkStored(r.id, {});
       storeVerdict(r.id, ENGINE_VERSION, verdict);
+      d.run("DELETE FROM listing_rechecks WHERE listing_id=?",[r.id]);
       n++;
     } catch {
       // One unparseable listing must not stop the sweep.

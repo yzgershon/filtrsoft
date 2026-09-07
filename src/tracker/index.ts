@@ -26,6 +26,7 @@ import { fetchSearchResults, probeListing, type DelistReason } from "../sources/
 import { CATEGORIES } from "../crawler/index.ts";
 import { distance } from "../photos/index.ts";
 import { db, now } from "../db/index.ts";
+import { observePrice } from "../db/price.ts";
 
 export interface SweepStats {
   liveBefore: number;
@@ -151,10 +152,6 @@ export async function sweep(opts: {
 
   // ---- 2. still up: touch last_seen, record any price move -------------
   const missing: LiveRow[] = [];
-  const touch = db().prepare(`UPDATE listings SET last_seen=$t, last_price_cents=$p WHERE id=$id`);
-  const addPrice = db().prepare(
-    `INSERT INTO listing_prices (listing_id, price_cents, observed_at) VALUES ($id,$p,$t)`,
-  );
 
   for (const l of live) {
     if (!current.has(l.source_id)) { missing.push(l); continue; }
@@ -179,13 +176,7 @@ export async function sweep(opts: {
 
     // Seed the baseline on first sight, then only write on an actual change.
     // A row per sweep per listing would be 341 rows a day of pure noise.
-    if (price !== null && known === null) {
-      addPrice.run({ $id: l.id, $p: price, $t: t });
-    } else if (price !== null && known !== null && price !== known) {
-      addPrice.run({ $id: l.id, $p: price, $t: t });
-      st.priceMoves++;
-    }
-    touch.run({ $t: t, $p: price ?? known, $id: l.id });
+    if (observePrice(db(),l.id,price,t) && known !== null) st.priceMoves++;
   }
   log(`${st.stillUp} still up · ${st.priceMoves} price changes · ${missing.length} not seen`);
 
@@ -225,7 +216,7 @@ export async function sweep(opts: {
         st.probed++;
         if (r.alive) {
           // Deeper in pagination than we crawled. Not dead.
-          touch.run({ $t: t, $p: l.last_price_cents ?? l.asking_price_cents, $id: l.id });
+          observePrice(db(),l.id,null,t);
           st.stillUp++;
           return;
         }

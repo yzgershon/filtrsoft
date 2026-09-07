@@ -15,7 +15,7 @@ import { fetchListing } from "../sources/craigslist.ts";
 import { analyze } from "../signals/index.ts";
 import { matchSku, type Match } from "../catalog/match.ts";
 import { buildVerdict, type VerdictResult } from "../verdict/index.ts";
-import { loadVision, loadVisionByFingerprint, photoFingerprint, photosUnchanged, visionToText, visionSignals } from "../vision/merge.ts";
+import { loadCurrentVision, syncPhotoUrls, loadVisionByFingerprint, photoFingerprint, photosUnchanged, visionToText, visionSignals } from "../vision/merge.ts";
 import { analyzePhotos, VISION_MODEL, PROMPT_VERSION, type VisionResult } from "../vision/index.ts";
 import { releasePhotos, KEEP_PHOTOS } from "../photos/index.ts";
 import { downloadPhoto, fetchPhoto, dhash } from "../photos/index.ts";
@@ -24,6 +24,7 @@ import { getEconomics, type UserEconomics } from "../valuation/index.ts";
 import { db, now } from "../db/index.ts";
 import { upsertListingFacts } from "../db/listings.ts";
 import { storeVerdict } from "../db/verdicts.ts";
+import { normalizedListing, rawObject, storedAttributes } from "../db/facts.ts";
 import type { RawListing, Signal, SignalReport } from "../types.ts";
 
 export type StageName = "fetched" | "signals" | "valued" | "vision_start" | "vision" | "done";
@@ -96,7 +97,7 @@ export function runPipeline(
   // specs, not a fallback. The Dedham build's entire spec sheet was in photo 3.
   const match = matchSku(
     listing.title,
-    `${listing.description}\n${vText}`,
+    `${listing.description}\n${Object.entries(listing.attributes).map(([k,v])=>`${k}: ${v}`).join("\n")}\n${vText}`,
     signals.category,
   );
 
@@ -138,18 +139,20 @@ function persistListing(l: RawListing): number {
     postedAt: l.postedAt,
     updatedAt: l.updatedAt,
     photoCount: l.photoUrls.length,
+    sellerRef: l.sellerRef,
     raw: l.raw,
   }).id;
 }
 
 async function persistPhotos(listingId: number, urls: string[], keepFiles: boolean) {
   const d = db();
-  d.query("DELETE FROM listing_photos WHERE listing_id=$id").run({ $id: listingId });
   const ins = d.query(
-    `INSERT INTO listing_photos (listing_id, url, local_path, phash, position, captured_at)
-     VALUES ($lid,$url,$path,$phash,$pos,$cap)`,
+    `UPDATE listing_photos SET local_path=COALESCE($path,local_path),phash=COALESCE($phash,phash)
+      WHERE listing_id=$lid AND url=$url`,
   );
   for (const [i, u] of urls.entries()) {
+    if (!photosUnchanged(listingId, urls)) return;
+    if (!keepFiles && (d.query("SELECT phash FROM listing_photos WHERE listing_id=? AND url=?").get(listingId,u) as {phash:string|null}|null)?.phash) continue;
     let path: string | null = null, phash: string | null = null;
     try {
       const got = keepFiles
@@ -174,7 +177,7 @@ async function persistPhotos(listingId: number, urls: string[], keepFiles: boole
         if (t) putThumb(listingId, u, t);
       }
     } catch { /* a dead image URL must not kill the check */ }
-    ins.run({ $lid: listingId, $url: u, $path: path, $phash: phash, $pos: i, $cap: now() });
+    ins.run({ $lid: listingId, $url: u, $path: path, $phash: phash });
   }
 }
 
@@ -229,6 +232,7 @@ export async function checkListing(url: string, opts: CheckOptions = {}): Promis
  * them branches on `source`, the eval set stops meaning anything.
  */
 export async function checkFetched(listing: RawListing, opts: CheckOptions = {}): Promise<CheckResult> {
+  listing = normalizedListing(listing);
   const t0 = Date.now();
   const since = () => Date.now() - t0;
   const emit = (stage: StageName, data: unknown) =>
@@ -245,11 +249,17 @@ export async function checkFetched(listing: RawListing, opts: CheckOptions = {})
   });
 
   let listingId: number | null = null;
-  if (opts.persist) listingId = persistListing(listing);
+  if (opts.persist) {
+    listingId = persistListing(listing);
+    syncPhotoUrls(listingId, listing.photoUrls);
+  }
+  const evidenceId = listingId ?? (db().query("SELECT id FROM listings WHERE source=? AND source_id=?").get(listing.source,listing.sourceId) as {id:number}|null)?.id;
+  let vision = evidenceId && photosUnchanged(evidenceId, listing.photoUrls)
+    ? loadCurrentVision(evidenceId,VISION_MODEL,PROMPT_VERSION) : null;
 
-  // --- text-only pass: instant, and usually the whole story ------------
-  const cluster = clusterSize(null);
-  let out = runPipeline(listing, null, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster });
+  // Paid work is optional; preserving applicable stored evidence is not.
+  const cluster = clusterSize(listing.sellerRef);
+  let out = runPipeline(listing, vision, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster });
   emit("signals", { signals: out.signals.signals, category: out.signals.category,
     listingQuality: out.signals.listingQuality, sellerSophistication: out.signals.sellerSophistication });
   emit("valued", { match: out.match, verdict: out.verdict });
@@ -260,7 +270,6 @@ export async function checkFetched(listing: RawListing, opts: CheckOptions = {})
   // the full cost and the full wait for photos that haven't changed.
   // Paid work is opt-in at every caller. A missing option must never spend.
   const wantVision = opts.vision === true;
-  let vision: VisionResult | null = null;
 
   /**
    * TIER 1 — same listing, same photos, no download.
@@ -270,16 +279,7 @@ export async function checkFetched(listing: RawListing, opts: CheckOptions = {})
    * URL set is a free staleness check, because Craigslist image ids change when
    * a photo changes.
    */
-  if (wantVision && listingId) {
-    const cached = photosUnchanged(listingId, listing.photoUrls)
-      ? loadVision(listingId, VISION_MODEL, PROMPT_VERSION)
-      : null;
-    if (cached) {
-      vision = cached;
-      out = runPipeline(listing, vision, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster });
-      emit("vision", { vision, verdict: out.verdict, cached: "listing" });
-    }
-  }
+  if (vision) emit("vision", { vision, verdict: out.verdict, cached: "listing" });
 
   if (wantVision && listingId && !vision) {
     emit("vision_start", { photoCount: listing.photoUrls.length });
@@ -363,7 +363,7 @@ export function checkStored(
   const r = db()
     .query(
       `SELECT source, source_id, url, title, description, asking_price_cents,
-              location, posted_at, updated_at, photo_count, seller_ref
+              location, posted_at, updated_at, photo_count, seller_ref, raw_json
        FROM listings WHERE id = $id`,
     )
     .get({ $id: listingId }) as any;
@@ -373,10 +373,11 @@ export function checkStored(
     source: r.source, sourceId: r.source_id, url: r.url, title: r.title ?? "",
     description: r.description ?? "", askingPriceCents: r.asking_price_cents,
     location: r.location, postedAt: r.posted_at, updatedAt: r.updated_at,
-    photoUrls: new Array(r.photo_count ?? 0).fill(""), attributes: {}, raw: {},
+    photoUrls: (db().query("SELECT url FROM listing_photos WHERE listing_id=? ORDER BY position").all(listingId) as Array<{url:string}>).map(p=>p.url),
+    attributes: storedAttributes(r.raw_json), raw: rawObject(r.raw_json), sellerRef:r.seller_ref,
   };
 
-  const out = runPipeline(listing, loadVision(listingId), {
+  const out = runPipeline(listing, loadCurrentVision(listingId,VISION_MODEL,PROMPT_VERSION), {
     econ: opts.econ, driveMinutes: opts.driveMinutes, clusterSize: clusterSize(r.seller_ref),
   });
   return { ...out, listing };
