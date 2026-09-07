@@ -3,6 +3,11 @@
 **Master plan AND current state. Update before you stop working.** A stale line
 here is worse than a missing one, because a fresh session will believe it.
 
+**Last updated 2026-09-06.** Read section 0 first and in order; it is the record
+of every session since the rename and it supersedes anything below it that
+disagrees. Sections 1 onward are older material kept for the reasoning, not for
+current numbers.
+
 ## THE PRODUCT WAS CALLED ASSYZE UNTIL 2026-09-04
 
 Yish: *"I want a complete rebrand of assyze. COMPLETE REBRAND. I dont like the
@@ -82,10 +87,26 @@ Last updated **2026-09-05**. **Read §0 first — it is the most recent session
 and it supersedes anything below that disagrees with it.** Section 2 onward is
 older material kept for the reasoning behind decisions, not for current state.
 
-## 0. READ THIS FIRST — the 2026-09-04/05 session, in full
+## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
-Everything below shipped. Engine **0.3.31**, comps **25,171**, priceable models
-**381 of 441**, production live on `filtrsoft.com`.
+Everything below shipped. Production is live on `filtrsoft.com`.
+
+**Measured 2026-09-06, after the parts pass:**
+
+| | |
+|---|---|
+| engine | **0.3.31** |
+| comps | **28,546** |
+| SKUs | **559**, of which **446** have comps |
+| live listings | **4,499** |
+| live verdicts | OUT_OF_SCOPE 3,049 · INSUFFICIENT_DATA 1,013 · PASS 313 · RISK 62 · FAIR 39 · VERIFY 21 · BUY 7 |
+
+⚠ **The verdict counts above are BEFORE a re-verdict pass.** The 2026-09-06
+session added 5 whole component categories, 39 build SKUs and ~3,400 comps, and
+fixed three bugs that were silently discarding good comps — but `ENGINE_VERSION`
+was NOT bumped, so nothing has been re-scored against any of it. **Bumping it is
+the single highest-value action available**, and until someone does, the
+INSUFFICIENT_DATA number means nothing.
 
 ### 0a. What "can't tell" actually is — his guess was 10% of it
 
@@ -286,17 +307,31 @@ Do not re-raise them.** His hardware, and the ranking:
 
 ### 0k. Open, and what he asked for next
 
-- **"Limit it to around 10 listings"** so he can start training the engine on
-  what tech to skip. He was explicit that this comes AFTER the can't-tells are
-  fixed. Not done.
-- **`bun run ebay:comps` crashed near the end** of a 130-model run on the
-  SQLITE_BUSY that §0i now prevents. It still landed 4,844 comps. Re-run
-  `--skus 60` to reach the models it missed.
-- **`www.filtrsoft.com`** needs the Railway custom domain plus a Namecheap
-  CNAME. The app already 301s it to the apex.
-- **Google / Apple sign-in are off.** Google needs `GOOGLE_CLIENT_ID`; Apple
-  needs the paid developer membership. No password reset either — that needs
-  outbound email.
+**Ranked. The first one is worth more than the rest combined.**
+
+1. **RE-VERDICT EVERYTHING.** Bump `ENGINE_VERSION` past 0.3.31 and let
+   `reverdictStale` re-score production. Five new component categories, 39 new
+   build SKUs, ~3,400 new comps and three fixed comp-discarding bugs have all
+   landed since the last scoring pass, and **not one listing has seen any of
+   it.** Measure INSUFFICIENT_DATA before and after; do not assume it drops.
+2. **Dealer spam — 151 listings across 45 repeated ads.** One Craigslist
+   reseller posting microwaves, ice makers, washing machines and food
+   processors into the electronics category, the same title 4 to 14 times each
+   at a fixed price with 20+ showroom photos. Bigger than the furniture pile
+   was. Detector is cheap: identical title, same seller, 4+ live copies.
+   **Yish has NOT authorised clearing these** — he authorised furniture. Ask.
+3. **50 listings whose ask is a placeholder.** "Ram For Sale" at $1 carries
+   `1x32gb DDR4-2400 $100 / 2x32gb $200 / 8x32gb DDR4-2666 $800` in the
+   description with five photos. Yish, 2026-09-06: *"this is the exact scenerio
+   where you need to go into the description and images and figure out what ram
+   it is if you want to price it out."* Most of the 50 are dealer ads (see 2),
+   but the genuine ones are real inventory the engine currently throws away.
+4. **"Limit it to around 10 listings"** so he can start training the engine on
+   what tech to skip. He was explicit this comes AFTER the can't-tells. Not done.
+5. **`www.filtrsoft.com`** needs the Railway custom domain plus a Namecheap
+   CNAME. The app already 301s it to the apex.
+6. **Google / Apple sign-in are off.** Google needs `GOOGLE_CLIENT_ID`; Apple
+   needs the paid membership. No password reset — that needs outbound email.
 
 ### 0l. The logo — 2026-09-05, SHIPPED
 
@@ -358,6 +393,194 @@ heading font ever changes**, or it silently paints half a stem.
 load, dangling `<use>` refs and console errors. It exists because the Claude in
 Chrome extension was not connected, and every one of the three traps above was
 found by looking at a render rather than at the source.
+
+### 0m. The engine could not price RAM, storage, PSUs, boards or cases
+
+**2026-09-06. The biggest correctness gap the project has had, and Yish found
+it, not the app.**
+
+He said a 2TB NVMe was $300+; I said $90 from memory. He was right. The reason
+the app could not correct me is the reason this section exists:
+
+- The `component` category was **56 CPUs and nothing else.** No RAM, no
+  storage, no motherboards, no PSUs, no cases.
+- The comps crawler is driven by the SKU catalog. It had run **382 queries, all
+  GPUs, phones, MacBooks and prebuilts.** It never asked eBay about memory.
+- So all 25,171 comps were real and none of them answered the question. Every
+  "2TB NVMe" row in the database was a whole machine (a 2019 iMac, a Dell
+  Inspiron) whose title happened to name the spec.
+
+**A bill-of-materials estimate built from a model's priors is fiction.** Get the
+price from the comps, from `bun run retail`, or from Yish.
+
+**Now in the catalog:** `ram` 20, `motherboard` 12, `psu` 9, `case` 7, plus CPU
+gaps filled (Intel Core Ultra, 10th-gen-and-newer i3/i5/i7/i9, AMD 5000 / 7000 /
+9000 Ryzen 5/7/9). 559 SKUs, 446 with comps, 28,546 comps.
+
+**Measured prices, eBay sold, so nobody quotes these from memory again:**
+
+| part | n | new | used |
+|---|---|---|---|
+| Kingston Fury Beast 32GB DDR5-6000 | 110 | **$419** | **$350** |
+| 1TB NVMe M.2 | 97 | **$150** | **$118** |
+| Ryzen 7 9700X | 79 | | **$239** |
+| RTX 5070 bare card | 62 | $700 | $600 |
+| RTX 5070 Ti bare card | 106 | | **$948** |
+| RTX 5080 bare card | 111 | | **$1,325** |
+
+#### Three bugs that were silently throwing away correct comps
+
+**A UNIT IS NOT A VARIANT.** `compMatchesQuery` required a non-alphanumeric
+character right after any number in the query, so `i5-8500` could not match
+`i5-8500T` — correct, different chips. But eBay writes memory speed as
+`6000MT/s`, so the token `6000` read as a prefix of another variant. **One Fury
+Beast pull returned 122 rows and this rejected 81 of them, every one correct**,
+including `Kingston FURY Beast 32GB (2x16GB) DDR5 6000MT/s` at $405 and $549.
+Fixed with a `UNIT_SUFFIX` allowance in `src/sources/ebay.ts`; the same query
+then rejected 8, all genuinely different products. NOTE: `t`, `x`, `s` and `w`
+are deliberately ABSENT from that unit list. They are exactly the letters that
+separate real parts (8500T, 5800X, 265F).
+
+**A WHOLE MACHINE OFTEN NEVER SAYS "PC".** The `partLike` filter in
+`valuation/index.ts` drops comps whose head noun is a machine word. Real comp
+stored against the `HP OMEN 45L` case SKU:
+
+    $680  HP OMEN 45L GT22-0182 | AMD RYZEN 9 5900X | 1TB | 32GB | NO OS
+
+No head noun to catch, just an OEM model number. It became the ONLY comp for
+that SKU, so a case worth about $180 was priced at $680. The reliable signal is
+the **spec list**: a bare part names its own spec, a machine enumerates what is
+inside it. Two or more different component FAMILIES in one title means machine.
+It counts families, not mentions, so "Samsung 990 PRO 1TB NVMe" (storage twice)
+and "Kingston Fury Beast 32GB DDR5-6000" (memory three ways) both stay parts.
+
+**`queryForSku` HARDCODES A SEARCH SUFFIX PER CATEGORY.** `component` appends
+"CPU processor". A RAM SKU filed as `component` would search eBay for *"Corsair
+Vengeance 32GB CPU processor"*. A new category needs its own suffix there or it
+silently collects garbage.
+
+### 0n. One switch to stop every crawl on this laptop
+
+Yish, 2026-09-06: *"sometimes I want to conserve battery or im doing something
+on my computer that wont allow popups ... there should be like 1 shortcut or
+button on my computer to turn it on and off."*
+
+**Desktop shortcut "Filtrsoft Crawls"** runs `scripts/toggle-crawls.cmd`, which
+runs `bun run pause`. Double-click stops it, double-click starts it, and it
+prints which state it landed in. Flag file: `~/.filtrsoft/paused`.
+
+**TWO SCHEDULES RUN HERE, AND A SWITCH THAT CAUGHT ONE WOULD BE WORSE THAN
+NONE**, because it would look like it worked:
+
+1. `Filtrsoft Agent.cmd` in the **Startup folder** — loops forever, polls
+   `/v1/jobs/next` every 15s, runs whatever the server queued. The server
+   queues a crawl every 45 min but ONLY while an agent polled inside
+   `AGENT_FRESH_MS` (120s).
+2. The **`Filtrsoft Daily Crawl` scheduled task at 10:00** — runs `daily.ts`
+   DIRECTLY and never asks the server for a job.
+
+Both read the flag. Verified: paused, then `bun run daily` exited with
+`daily: PAUSED - skipping` instead of opening a browser.
+
+**PAUSED MEANS THE AGENT STOPS POLLING, and that is the mechanism rather than a
+side effect.** `/v1/jobs/next` hands a job out exactly once, so
+polling-and-discarding would drain the queue and bin the work. Going quiet means
+the server stops seeing an agent and never queues anything. **The visible cost:
+the app shows the agent as OFFLINE while paused.** That is honest, and the
+toggle says so on screen.
+
+Pausing also closes any crawl browser already open, matched on the
+`~/.filtrsoft` profile path in the command line and **never on the image name**,
+or it would close his own Chrome with every tab in it. `taskkill /T`, because
+Chrome is a process tree and a surviving renderer keeps the profile locked.
+
+### 0o. Why a custom tower says "can't tell"
+
+A custom build has no model number, so it cannot match a SKU the way a MacBook
+does. `valueWholeBuild` handles that with exactly one lookup:
+
+    SELECT id FROM skus WHERE category='prebuilt' AND model = 'Gaming PC ' || <GPU>
+
+and returns null on a miss. **Measured 2026-09-06: 50 of 64 GPUs had no such
+row**, and 9 more had a row with zero comps, so six GPUs in the entire catalog
+could price a build. `bun run seed:builds` added the 39 missing ones.
+
+**THE MODEL STRING MUST BE EXACTLY `Gaming PC <gpu model>`.** That is a literal
+equality on a built string, not a search. "Gaming Desktop RTX 3070" or "Gaming
+PC RTX3070" are invisible to it. The GPU half is read out of the `gpu` SKUs so
+the two cannot drift apart.
+
+**NOT EVERY GPU GETS ONE.** A "Gaming PC GTX 480" search returns e-waste, and a
+comp set built from junk is worse than no comp set: the engine would stop saying
+"I do not know" and start being confidently wrong, which this project refuses to
+do.
+
+### 0p. "Computer desk" is a desk
+
+**13 of 23 furniture listings in the live feed were classified `tech`**, every
+one reported as `bundle listing led by "computer"`. That rule exists for
+`"Acer XB271HU Monitor, Black Desk, and Chair"` — a real monitor sale with
+furniture thrown in — and it was firing on **compound nouns**, where the tech
+word is an adjective: computer desk, laptop stand, laptop bag, laptop tote. A
+leopard-print Betsey Johnson tote was being priced as a laptop.
+
+Fixed by **adjacency**: a tech noun within two characters of a following
+furniture or accessory noun is a modifier and drops out. The gap in "monitor,
+black desk" is eight characters, so the case the rule exists for still works.
+**There is a test that fails if that window is ever widened.**
+
+The bundle rule now also requires the tech noun to appear BEFORE the furniture
+noun, which is what "led by" means. "Bunny Ear Gaming Chair + Optional Mic / PC
+Gamer" was led by a `pc` at the end describing who the chair is for. And "tote",
+"carryall", "handbag", "briefcase" joined the accessory lexicon.
+
+**105 live furniture listings retired** as `out_of_scope` by `bun run retire:oos`.
+
+**DELISTED, NOT DELETED, AND THE ROW STAYING IS THE POINT.** The crawlers skip a
+`source_id` they have already seen, including a delisted one, so the row is what
+stops the same desk being re-added on tonight's sweep. A hard DELETE would clear
+the feed today and let every one of them back in by morning.
+
+**RETIREMENT ASKS `resolveProductType`, NEVER A KEYWORD SWEEP.** A regex for
+`desk|chair|stand|bag` also finds *"Hp Gaming computer with Brand new gaming
+monitor microphone and mount"*, which is a real gaming PC. `--only accessory`
+exists and would take **869 more rows**; Yish authorised furniture only.
+
+### 0q. What "can't tell" is actually made of — measured 2026-09-06
+
+1,018 live INSUFFICIENT_DATA, re-bucketed by what the listings actually ARE
+rather than by what the engine called them:
+
+| count | what |
+|---|---|
+| ~356 | laptops, tablets, phones |
+| **147** | **genuine desktop PCs** - the 0o gap |
+| **140** | **genuine bare parts** - the 0m gap |
+| ~200 | phones inside the "other" pile |
+| ~151 | dealer spam (see 0k item 2) |
+| 105 | furniture, now retired |
+
+**DO NOT CLASSIFY THESE BY HEAD NOUN.** `resolveProductType("HP Laptop
+17-cn2775st 8GB RAM 480GB SSD i5")` returns head **`ssd`**. It is a laptop whose
+spec list ends on a component noun. A first pass using head nouns reported 57
+listings as "ram" and 32 as "ssd" that were all laptops.
+
+### 0r. Corrections Yish made, and what they cost
+
+**Each one was a confident wrong answer the app could not catch.**
+
+- **2TB NVMe is $300+, not $90.** Quoted from training data during a NAND price
+  run-up. See 0m.
+- **The Ryzen 5 X3D chips are real.** I called the 7600X3D fake. It is a real
+  Zen 4 chip with 3D V-Cache and a Micro Center launch exclusive, which is
+  likely why a catalog built from marketplace observation never saw it. The
+  catalog had **every X3D except the Ryzen 5 ones**; 5600X3D, 7600X3D and
+  9600X3D are now added. Yish: *"You CANNOT make this mistake."*
+- **A $1 ask is not an unpriceable listing.** See 0k item 3.
+- **Brand matters within a GPU model.** Yish: *"asus gpus price differently than
+  gigabyte."* True, and NOT yet modelled: the catalog is one SKU per chip. The
+  AIB brand is present in `comps.raw_title` and could be read at valuation time
+  without exploding the catalog into 5 brands x 60 chips.
 
 ## 1. What Filtrsoft is
 
@@ -529,7 +752,32 @@ bun run verdict                   re-score every stored listing
 bun run score                     engine vs Yish's 69-listing audit
 bun run stats                     archive health
 bun run backup                    verified snapshot -> backups/ + OneDrive
+
+bun run agent                     the local worker: polls filtrsoft.com for jobs
+bun run daily                     the 10:00 routine (FB + OfferUp + push)
+bun run probe                     is each listing still up? marks delistings
+bun run vision [--limit N]        read specs off listing photos
+bun run mc:detail                 Mercari description pass
+
+--- added 2026-09-06 ---
+bun run pause [--on|--off|--status]
+                                  ONE SWITCH for every crawl on this laptop.
+                                  Desktop shortcut "Filtrsoft Crawls" runs it.
+                                  Flag: ~/.filtrsoft/paused . See 0n.
+bun run seed:builds [--dry]       a `Gaming PC <GPU>` SKU per gaming GPU. See 0o.
+bun run retire:oos [--dry] [--only furniture|accessory|all]
+                                  retire live listings the classifier does not
+                                  call `tech`. Defaults to furniture. See 0p.
+bun run typecheck                 tsc --noEmit
+bun test                          194 pass / 0 fail as of 2026-09-06
+node scripts/shot-preview.mjs <html> <out.png> [full|top]
+                                  render a preview headless and report font
+                                  load, dangling <use> refs, console errors
+node scripts/measure-tittle.mjs   where the dot on the wordmark's "i" sits
 ```
+
+**Two runtimes, and mixing them hangs the process.** Anything driving a browser
+is `node`, everything else is `bun`. See section 3.
 
 ---
 
