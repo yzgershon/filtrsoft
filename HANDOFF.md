@@ -89,17 +89,19 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
-### Current checkpoint: 2026-09-07, backend implementation started
+### Current checkpoint: 2026-09-07, exact-identity batch verified
 
 Yish read the complete backend audit and authorized implementation of all findings, with a structured plan and frequent handoff updates. This checkpoint supersedes older status/next-step claims below.
 
 - Active worktree: **C:/Dev/filtrsoft-backend**, branch **codex/backend-hardening**, based on main e5a7023. Shared C:/Dev/filtrsoft and original inventory worktree are preserved.
 - Saved inventory implementation e7863ae was reconciled into this branch as **6d3b804**. Only the version comment conflicted. Both predecessor changes use 0.3.33; new verdict work must receive a fresh engine revision.
-- Implementation tracker: **docs/BACKEND-IMPLEMENTATION-PLAN.md**, all F01-F20 mapped to six phases and acceptance checks. Phase 1 is starting; no audit finding is claimed fixed yet.
+- Implementation tracker: **docs/BACKEND-IMPLEMENTATION-PLAN.md**, all F01-F20 mapped to six phases and acceptance checks. Phase 1 is in progress. F01/F02 core regressions are fixed locally: explicit parts categories, legacy storage interpretation and correct query suffix, canonical catalog names independent of aliases, strict brand/model/RAM layout/ECC variants, complete Ti Super/XTX extraction, and no sparse capacity/tier fallback to known mismatches.
+- Engine is **0.3.34**, not deployed. RAM SKUs without explicit kit layout remain unpriceable; no kit layout was invented to increase coverage. Existing wrongly linked parts comps are rechecked against strict identity at valuation time.
+- Verification: **209 tests passed, 0 failed, 698 assertions**, including the preserved inventory suite and six new identity regressions. TypeScript `--noEmit` passed. The BUY-copy test now seeds synthetic prices/economics in its own process instead of depending on current market data.
 - Audit and evidence: **C:/Dev/filtrsoft-backend-audit-2026-09-07/BACKEND-AUDIT.md**. Audit measured 31,900 local comps versus 25,171 production comps at its recorded times, not current continuously updated counts.
 - The inherited archive contains 31,210 comps and is older than the audit's local snapshot. Do not restore it over newer data. Regenerate a consistent archive later after coordination.
 - Existing dependencies are junctions; no installation. Tests, comparisons and migrations must use isolated database paths. No shared re-score, crawl, push or deployment has occurred in this implementation session.
-- Next: exact catalog/category/configuration fixes, evidence-preserving refresh, canonical prices, and personal record ownership, verified in independent batches.
+- Next: evidence-preserving refresh, canonical prices, and personal record ownership, verified in independent batches. Broader provenance/configuration uncertainty remains tracked under F15/F16; this checkpoint does not claim all audit findings are complete.
 
 ### Current checkpoint: 2026-09-06, late evening
 

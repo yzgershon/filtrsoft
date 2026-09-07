@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { isolated } from "./isolated.ts";
 import { Database } from "bun:sqlite";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -1311,12 +1312,18 @@ describe("engine copy", () => {
      * own row in The Numbers, where a number you can change belongs. It does
      * not get the headline.
      */
-    const buys = verdicts().filter((v) => v.call === "BUY");
-    expect(buys.length).toBeGreaterThan(0);
-    for (const v of buys) {
-      expect(v.headline.toLowerCase()).not.toContain("floor");
-      expect(v.headline).toMatch(/\$[\d,]+/);
-    }
+    // Copy tests must not depend on today's production prices or seeded DB.
+    isolated(`
+      import {db} from '@/src/db/index.ts';
+      import {runPipeline} from '@/src/engine/index.ts';
+      const d=db(),at=new Date().toISOString();
+      d.run("INSERT INTO user_economics(label,min_absolute_profit_cents,effective_hourly_floor_cents,transaction_minutes,relist_minutes,prefers_channel,updated_at) VALUES ('yish',5000,8000,15,20,'facebook',?)",[at]);
+      d.run("INSERT INTO skus(id,category,brand,model,created_at) VALUES (1,'gpu','NVIDIA','RTX 4090',?)",[at]);
+      for(let i=0;i<8;i++)d.run("INSERT INTO comps(source,source_item_id,raw_title,sold_price_cents,condition_norm,sold_at,captured_at,sku_id,raw_json) VALUES ('test',?,'NVIDIA RTX 4090 24GB',300000,'used',?,?,1,'{}')",[String(i),at,at]);
+      const {verdict:v}=runPipeline({source:'craigslist',sourceId:'copy',url:'https://example.invalid/copy',title:'NVIDIA RTX 4090 24GB',description:'Tested and working, local cash pickup.',askingPriceCents:220000,location:'Newton, MA',postedAt:at,updatedAt:null,photoUrls:['https://example.invalid/photo'],attributes:{},raw:{}},null);
+      assert.equal(v.call,'BUY');assert(!v.headline.toLowerCase().includes('floor'));assert(v.headline.includes('$'));
+      d.close();
+    `);
   });
 });
 

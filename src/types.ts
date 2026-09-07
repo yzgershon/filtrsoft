@@ -1,5 +1,6 @@
 export type Category =
-  | "phone" | "laptop" | "gpu" | "prebuilt" | "console" | "tablet" | "component" | "unknown";
+  | "phone" | "laptop" | "gpu" | "prebuilt" | "console" | "tablet" | "component"
+  | "ram" | "storage" | "psu" | "motherboard" | "case" | "unknown";
 
 export type Verdict =
   | "BUY" | "FAIR" | "PASS" | "VERIFY" | "RISK" | "INSUFFICIENT_DATA" | "OUT_OF_SCOPE";

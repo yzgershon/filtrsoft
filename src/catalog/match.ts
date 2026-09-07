@@ -10,6 +10,7 @@
  */
 import { parseModel, findOrCreateSku } from "./derive.ts";
 import { db, now } from "../db/index.ts";
+import { catalogCategory, EXACT_PARTS, exactPartIdentity } from "./identity.ts";
 import { DEAD_PATTERNS } from "../reference/catalog.ts";
 import { variantPattern } from "../signals/variants.ts";
 
@@ -236,8 +237,9 @@ export function extractAttributes(text: string): Record<string, string | number>
   if (cpu) a.cpu = cpu;
 
   const gpu = fullestVariant(
-    [...t.matchAll(/\b((?:rtx|gtx|rx)\s?\d{3,4}\s?(?:ti|super|xt)?)\b/g)]
-      .map((m) => m[1].replace(/\s+/g, " ").trim()),
+    [...t.matchAll(/\b((?:rtx|gtx|rx)\s?\d{3,4}\s*(?:ti\s*super|super|ti|xtx|xt)?)\b/g)]
+      .map((m) => m[1].replace(/(rtx|gtx|rx)\s*(\d+)/, "$1 $2")
+        .replace(/(\d)\s*(ti|super|xtx|xt)/, "$1 $2").replace(/ti\s*super/, "ti super").replace(/\s+/g, " ").trim()),
     GPU_BASE,
   );
   if (gpu) a.gpu = gpu;
@@ -291,9 +293,15 @@ export function matchSku(title: string, description = "", categoryHint?: string)
   let aliasRows = d
     .query(
       `SELECT a.alias, s.id, s.brand, s.model, s.category, s.liquidity
-       FROM sku_aliases a JOIN skus s ON s.id = a.sku_id`,
+       FROM sku_aliases a JOIN skus s ON s.id = a.sku_id
+       UNION ALL
+       SELECT '', id, brand, model, category, liquidity FROM skus`,
     )
     .all() as Array<{ alias: string; id: number; brand: string; model: string; category: string; liquidity: string }>;
+
+  // Canonical identities pass the same guards, including before an alias exists.
+  aliasRows = aliasRows.map(r => ({ ...r, category: catalogCategory(r.category, r.model), alias: r.alias || norm(`${r.brand} ${r.model}`) }));
+  if (categoryHint && EXACT_PARTS.has(categoryHint)) aliasRows = aliasRows.filter(r => r.category === categoryHint);
 
   // A whole machine is not the sum of a component SKU. Filter parts out.
   const WHOLE = new Set(["prebuilt", "laptop", "phone", "tablet", "console"]);
@@ -357,6 +365,8 @@ export function matchSku(title: string, description = "", categoryHint?: string)
     new Set((s.toLowerCase().match(variantPattern(cat)) ?? []).map((v) => v.toLowerCase()));
 
   const clean = hits.filter((h) => {
+    if (EXACT_PARTS.has(h.category) && norm(`${h.brand} ${h.model}`) !== n
+        && !exactPartIdentity(title, `${h.brand} ${h.model}`, h.category)) return false;
     const tv = variantsIn(n, h.category);
     const mv = variantsIn(norm(h.model), h.category);
     for (const v of tv) if (!mv.has(v)) return false;
@@ -423,6 +433,7 @@ export function matchSku(title: string, description = "", categoryHint?: string)
 
   let best: { r: (typeof aliasRows)[number]; score: number; matched: number } | null = null;
   for (const r of aliasRows) {
+    if (EXACT_PARTS.has(r.category) && !exactPartIdentity(title, `${r.brand} ${r.model}`, r.category)) continue;
     const mt = norm(r.model).split(" ").filter(keep);
     if (!mt.length) continue;
 

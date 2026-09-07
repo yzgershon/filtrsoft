@@ -31,6 +31,7 @@
  * string, where the search finds them and a human can read them.
  */
 import { db, now } from "../db/index.ts";
+import { catalogCategory } from "../catalog/identity.ts";
 
 const dry = process.argv.includes("--dry");
 
@@ -161,7 +162,8 @@ const insert = d.prepare(
 
 let added = 0, skipped = 0;
 const byCat: Record<string, number> = {};
-for (const [category, brand, model, liquidity] of SKUS) {
+for (const [legacyCategory, brand, model, liquidity] of SKUS) {
+  const category = catalogCategory(legacyCategory, model);
   if (existing.has(`${brand} ${model}`.toLowerCase())) { skipped++; continue; }
   if (!dry) insert.run({ $c: category, $b: brand, $m: model, $l: liquidity ?? null, $t: now() });
   added++;

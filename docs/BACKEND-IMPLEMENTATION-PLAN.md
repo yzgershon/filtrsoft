@@ -8,8 +8,8 @@ Status meanings: pending, in progress, implemented (checks pending), verified lo
 
 ## Phase 1: correctness barriers — in progress
 
-- F01: one category contract; searchable catalog identities without aliases; exact part brand/model/configuration matching; correct storage queries.
-- F02: complete GPU variants; strict known capacity and board-tier guards; RAM brand/layout/ECC/variant exclusions at common boundaries.
+- F01 — verified locally: parts category contract; searchable catalog identities without aliases; exact part brand/model/configuration matching; correct storage queries and seed category. Legacy storage rows are interpreted compatibly rather than rewriting the active crawl DB.
+- F02 — verified locally for audit regressions: complete GPU variants; strict known capacity and board-tier guards; RAM brand/layout/ECC/variant exclusions in comp acceptance and valuation. Broader provenance/AIB configuration work remains F15/F16.
 - F04: normalized stored facts and reusable current vision; stable refresh/re-score evidence; explicit unknown seller context.
 - F06: canonical price/history update and scoring invalidation on accepted observations.
 - F08: account ownership for subscriptions, searches, overrides and outcomes; preserve existing legitimate device data without an insecure claim-by-ID shortcut.
@@ -59,3 +59,4 @@ Update HANDOFF and this file after each verified batch and before stopping. Comm
 ## Completed checkpoints
 
 - 2026-09-07: inspected current main and active process inventory; created isolated worktree; reconciled saved inventory commit. No shared data edits, crawl, or deployment.
+- 2026-09-07: exact-identity batch, engine 0.3.34, 209 tests / 698 assertions / zero failures; typecheck passed. Test prices live only in temporary isolated databases. Fresh-check/stored-check equivalence and ownership are next, not yet complete.

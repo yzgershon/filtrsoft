@@ -49,6 +49,7 @@ export function isUnsupportedPrinter(title: string): boolean {
  * entries are matched first so "graphics card" is not read as "card".
  */
 const TECH = [
+  "pc case", "computer case", "desktop case", "tower case", "pc chassis",
   "gaming pc", "desktop computer", "all-in-one", "all in one", "gaming desktop",
   "graphics card", "video card", "hard drive", "solid state drive", "power supply",
   // "Desktop Processor" is a CPU, not a desktop. Longest-match ordering makes
@@ -377,6 +378,11 @@ const DEVICE_CATEGORY: Array<[string, string[]]> = [
                "vr headset", "virtual reality headset", "mixed reality headset", "quest", "psvr", "psvr2", "playstation vr", "playstation vr2"]],
   ["monitor", ["monitor", "display"]],
   ["gpu", ["graphics card", "video card", "gpu"]],
+  ["case", ["pc case", "computer case", "desktop case", "tower case", "pc chassis"]],
+  ["ram", ["ram", "memory"]],
+  ["storage", ["ssd", "hdd", "nvme", "hard drive", "solid state drive"]],
+  ["psu", ["psu", "power supply"]],
+  ["motherboard", ["motherboard", "mobo"]],
   ["component", ["cpu", "processor", "desktop processor", "mobile processor",
                  "motherboard", "mobo", "ssd", "hdd", "nvme",
                  "ram", "memory", "psu", "power supply", "hard drive", "solid state drive"]],
@@ -409,6 +415,7 @@ export function resolveCategory(title: string): string | null {
    */
   if (/\b(rtx|gtx|radeon\s*rx|\brx)\s?\d{3,4}/i.test(title)) return "gpu";
   if (/\b(i[3579][- ]\d{4,5}|ryzen\s?[3579]\s?\d{4})/i.test(title) && !present.size) return "component";
+  if (/\bddr[345](?:\b|[- ]\d)/i.test(title)) return "ram";
   return null;
 }
 

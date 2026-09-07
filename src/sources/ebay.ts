@@ -20,6 +20,7 @@ import { insertComp, db, now } from "../db/index.ts";
 import { normalizeCondition, type Condition } from "../valuation/condition.ts";
 import { resolveProductType, resolveCategory, isMultiUnit } from "../signals/product-type.ts";
 import { variantPattern } from "../signals/variants.ts";
+import { catalogCategory, exactPartIdentity } from "../catalog/identity.ts";
 
 const WORKER = join(import.meta.dir, "../browser/ebay-worker.mjs");
 
@@ -284,6 +285,10 @@ const UNIT_SUFFIX = "(?:mt\\/s|mts|mhz|ghz|gbps|hz|gb|tb|mb)";
 export function compMatchesQuery(
   title: string, query: string, skuCategory?: string | null,
 ): { ok: boolean; why: string } {
+  skuCategory = skuCategory ? catalogCategory(skuCategory, query) : skuCategory;
+  if (skuCategory && !exactPartIdentity(title, query, skuCategory)) {
+    return { ok: false, why: "part brand/model/configuration is not explicit and identical" };
+  }
   /**
    * Compare with separators removed. eBay writes the same part as "i5-10310U",
    * "i5 10310U" and "i5_10310U", and a literal `includes` rejected real matches
@@ -499,6 +504,8 @@ export function skusNeedingComps(limit = 20): Array<{ id: number; brand: string;
  */
 export function queryForSku(sku: { brand: string; model: string; category: string }): string {
   const base = `${sku.brand} ${sku.model}`;
+  sku = { ...sku, category: catalogCategory(sku.category, sku.model) };
+  if (sku.category === "storage") return `${base} solid state drive`;
   if (sku.category === "component") return `${base} CPU processor`;
   if (sku.category === "gpu") return `${base} graphics card`;
   /**

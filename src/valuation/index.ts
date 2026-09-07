@@ -13,6 +13,7 @@ import { resolveProductType } from "../signals/product-type.ts";
 import { db } from "../db/index.ts";
 import { adjustPrice, normalizeCondition, comparable, type Condition } from "./condition.ts";
 import { boardTier, tierComparable, type BoardTier } from "../signals/board-tier.ts";
+import { catalogCategory, EXACT_PARTS, exactPartIdentity } from "../catalog/identity.ts";
 
 export type Channel = "ebay" | "facebook";
 
@@ -169,6 +170,12 @@ export function valueSku(
     )
     .all({ $sku: skuId, $win: `-${opts?.windowDays ?? 90} days` }) as Array<{ total: number; condition_norm: string | null; raw_title: string }>;
 
+  const identity = db().query("SELECT brand,model,category FROM skus WHERE id=?").get(skuId) as {brand:string;model:string;category:string} | null;
+  if (identity) {
+    const category = catalogCategory(identity.category, identity.model);
+    if (EXACT_PARTS.has(category)) raw = raw.filter(r => exactPartIdentity(r.raw_title, `${identity.brand} ${identity.model}`, category));
+  }
+
   /**
    * A SKU IS NOT A PRICE POINT. Storage tiers inside one model differ by
    * hundreds of dollars, and pooling them values every unit as the average one.
@@ -177,18 +184,17 @@ export function valueSku(
    * included 256GB sales, came out looking overpriced, and the engine said PASS
    * where Yish said BUY. The comps were correct; the bucket was too coarse.
    *
-   * Comps whose title states a DIFFERENT capacity are dropped. Comps that state
-   * none are kept — silence is not disagreement, and dropping them would gut
-   * the sample. If too few survive, the filter is abandoned rather than
-   * returning a confident number from four rows.
+   * Require stated matching capacity even if only two rows survive. The audit
+   * reproduced a 512GB request returning the 128GB median at high confidence
+   * because the previous minimum-sample fallback abandoned this guard.
    */
   const want = opts?.attributes?.storage_gb ?? opts?.attributes?.storage_tier;
   if (typeof want === "number" && want >= 64) {
     const matched = raw.filter((r) => {
       const got = storageOf(r.raw_title);
-      return got === null || Math.abs(got - want) / want < 0.2;
+      return got !== null && got === want;
     });
-    if (matched.length >= 5) raw = matched;
+    raw = matched;
   }
 
   /**
@@ -201,18 +207,12 @@ export function valueSku(
    * base at the median. On the used side an MSI Ventus 2X cleared $450 and an
    * ASUS TUF $1,555, both filed under one SKU whose median is $639.
    *
-   * The threshold is 8, not the storage filter's 5, because tier is a WEAKER
-   * discriminator than capacity: the interquartile spread of used GPU comps is
-   * only 1.08x-1.25x, so the median already absorbs most of this, and a thin
-   * tier-matched sample would trade a small bias for a large variance.
-   *
-   * Cards naming no known line are KEPT — silence is not disagreement, and
-   * treating an unnamed card as budget is the direction that turns a good deal
-   * into a PASS.
+   * A known tier requires evidence of the same tier. More rows cannot justify
+   * importing a contradictory or unnamed tier into a premium card's price.
    */
   if (opts?.boardTier) {
-    const matched = raw.filter((r) => tierComparable(boardTier(r.raw_title), opts.boardTier!));
-    if (matched.length >= 8) raw = matched;
+    const matched = raw.filter((r) => boardTier(r.raw_title) === opts.boardTier);
+    raw = matched;
   }
 
   /**
@@ -265,7 +265,7 @@ export function valueSku(
    * RAM sitting in a comp set with $2,500 machines does not skew the median,
    * it replaces it.
    */
-  const PART_LIKE = new Set(["component", "gpu", "ram", "psu", "motherboard", "case"]);
+  const PART_LIKE = new Set(["component", "gpu", "ram", "storage", "psu", "motherboard", "case"]);
   const partLike = PART_LIKE.has(opts?.category ?? "");
   const MACHINE_HEAD = /^(desktop|tower|pc|computer|laptop|notebook|optiplex|precision|thinkcentre|thinkpad|prodesk|elitedesk|workstation|all-in-one|aio|imac|macbook|server)$/i;
 

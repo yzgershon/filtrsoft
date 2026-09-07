@@ -10,6 +10,7 @@
  */
 import { isAppleWholeUnit, isUnsupportedPrinter, resolveCategory } from "./product-type.ts";
 import type { RawListing, Signal, SignalReport, Category } from "../types.ts";
+import { EXACT_PARTS } from "../catalog/identity.ts";
 import { findContradictions } from "../reference/compatibility.ts";
 
 /**
@@ -328,6 +329,8 @@ const HIGH_KNOWLEDGE =
  */
 export function detectCategory(title: string, description = ""): Category {
   if (isUnsupportedPrinter(title)) return "unknown";
+  const part = resolveCategory(title);
+  if (part && EXACT_PARTS.has(part)) return part as Category;
   // Whole-device and GPU evidence outranks embedded component specs. Keep the
   // compact high-precision patterns first, but do not let the broad component
   // regex fire until the grammatical resolver has had a chance to see the
