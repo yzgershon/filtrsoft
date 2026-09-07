@@ -122,8 +122,28 @@ The laptop half runs through `bun run agent`, which polls `/v1/jobs/next` every
 
 **Working with Yish**
 
-- **Push freely when reasonable.** Do NOT tag a release, install anything,
-  publish, or spend money without asking.
+- **ACT. DO NOT ASK PERMISSION FOR ORDINARY WORK.** Yish, 2026-09-06: *"it
+  should act freely for the most part."* He does not want to be an approval
+  queue. Write the code, run it, commit it, push it, and tell him what you did
+  and what it measured. A question is a cost he pays in attention, so spend it
+  only where the answer actually changes what you build.
+
+  The line is **reversible vs not**, not big vs small:
+
+  | do it | ask first |
+  |---|---|
+  | edit code, refactor, add tests | spend money |
+  | run crawls and scripts | tag or publish a release |
+  | retire listings (delisted, recoverable) | install software on his machine |
+  | commit and push to `main` | send anything to a person or post publicly |
+  | bump `ENGINE_VERSION`, re-verdict | delete data with no undo |
+  | add or change SKUs | change his Railway or DNS settings |
+
+  If something is reversible and you think it is right, do it and say so. If
+  you are wrong, he will tell you and you will change it back — that costs far
+  less than stopping.
+- Do NOT tag a release, install anything, publish, or spend money without
+  asking. Those four are the standing exceptions and they predate this file.
 - **Never pass `-c user.email` on a commit.** A previous agent did and put 27
   commits under the wrong GitHub account, because GitHub attributes by email.
 - **Never add `Co-Authored-By: Claude`** or any AI attribution to a commit.
@@ -196,7 +216,12 @@ there for the detail:**
    `INSUFFICIENT_DATA` before and after. Do not assume it drops.
 2. **Dealer spam: 151 listings across 45 repeated ads.** One Craigslist
    reseller posting microwaves and ice makers into the electronics category,
-   the same title 4 to 14 times. **Not yet authorised — ask Yish first.**
+   the same title 4 to 14 times. Retire them and say so.
+   **One caution, and it is about correctness rather than permission:** a
+   repeated title is not proof by itself. "Macbook Air 2017 @350" appears ten
+   times and may well be a reseller with ten real MacBook Airs, which is a
+   listing worth keeping. Pair the repetition with something else — the product
+   is not tech, or the ad names no single item — before retiring.
 3. **50 listings whose asking price is a placeholder** with the real prices in
    the description. His instruction: *"this is the exact scenerio where you
    need to go into the description and images and figure out what ram it is if
@@ -233,8 +258,8 @@ bun run typecheck              # tsc --noEmit
 bun run stats                  # archive health
 ```
 
-Then read `HANDOFF.md` section 0. Then ask Yish what he wants, or pick item 1
-from section 6 and tell him you are starting it.
+Then read `HANDOFF.md` section 0, take the top item from section 6, and start.
+Tell him what you are doing as you do it; do not wait for him to pick.
 
 **One agent edits at a time.** Claude Code and Codex share `C:\Dev`. Check
 `HANDOFF.md`, `git status` and recent commits before editing, and write
