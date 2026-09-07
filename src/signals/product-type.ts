@@ -105,6 +105,14 @@ const ACCESSORY = [
   "keyboard", "mouse", "headset", "headphones", "earbuds", "microphone", "mic",
   "webcam", "speaker", "remote", "controller", "carrying case",
   /**
+   * Bags by their other names. "Laptop tote" and "computer carryall" were
+   * reaching the feed as TECH — the compound-noun rule drops the tech word
+   * only when the thing after it is a known bag, and these were not in the
+   * list, so "laptop" and "computer" survived as the head noun. A leopard-print
+   * Betsey Johnson tote was being priced as a laptop.
+   */
+  "tote", "carryall", "handbag", "purse", "satchel", "briefcase", "messenger bag",
+  /**
    * PC-part accessories. A search for a graphics card returns waterblocks,
    * backplates and mounting brackets FOR that card, and each one stored as a
    * comp drags the median toward $10. Bare "fan" is deliberately absent — real
@@ -228,7 +236,7 @@ export function resolveProductType(title: string, description = ""): ProductType
    * unrelated clause.
    */
   const lower = title.toLowerCase();
-  const nouns = afterCompat.filter((n) => !NEGATED.test(lower.slice(Math.max(0, n.index - 24), n.index)));
+  let nouns = afterCompat.filter((n) => !NEGATED.test(lower.slice(Math.max(0, n.index - 24), n.index)));
   if (!nouns.length && all.length) {
     return {
       kind: "accessory", head: all[0].term,
@@ -250,6 +258,36 @@ export function resolveProductType(title: string, description = ""): ProductType
   }
 
   /**
+   * ⚠ A TECH WORD GLUED TO A FURNITURE WORD IS AN ADJECTIVE, NOT A PRODUCT.
+   *
+   * "Computer desk" is a desk. "Laptop stand" is a stand. "Laptop bag" is a
+   * bag. The tech word says what the furniture is FOR, exactly like the
+   * head-noun rule below already understands — but the bundle rule underneath
+   * runs FIRST and reads that same word as the item being sold.
+   *
+   * Measured 2026-09-06: 13 of the 23 furniture listings sitting in the live
+   * feed got there this way, every one reported as `bundle listing led by
+   * "computer"`. Wood desks, a laptop tote, a leopard-print bag and a monitor
+   * riser were all being priced as computers.
+   *
+   * ⚠ ADJACENCY IS THE WHOLE TEST, AND IT HAS TO STAY TIGHT. The rule below
+   * exists for "Acer XB271HU Monitor, Black Desk, and Chair" — a real monitor
+   * sale with furniture thrown in — and that must keep working. There the gap
+   * between "monitor" and "desk" is ", black " and the two are plainly
+   * separate items. A gap of one or two characters is a compound noun; more
+   * than that is a list.
+   */
+  const compounded = new Set<number>();
+  for (let i = 0; i < nouns.length - 1; i++) {
+    const gap = nouns[i + 1].index - (nouns[i].index + nouns[i].term.length);
+    const modifiesNext = nouns[i].kind === "tech"
+      && (nouns[i + 1].kind === "furniture" || nouns[i + 1].kind === "accessory");
+    if (modifiesNext && gap >= 0 && gap <= 2) compounded.add(i);
+  }
+  const standalone = nouns.filter((_, i) => !compounded.has(i));
+  if (standalone.length) nouns = standalone;
+
+  /**
    * A real list needs a separator sitting BETWEEN two product nouns — not one
    * joining adjectives ("Glass and Metal Computer Table") or introducing a
    * feature ("PC gaming chair with RGB").
@@ -267,8 +305,17 @@ export function resolveProductType(title: string, description = ""): ProductType
      * thrown-in extra. "Acer XB271HU Monitor, Black Desk, and Chair" is a
      * monitor sale, and head-last would have called it a chair.
      */
+    /**
+     * ⚠ AND THE TECH NOUN HAS TO COME FIRST, WHICH IS WHAT "LED BY" MEANS.
+     *
+     * The comment above says the furniture is the thrown-in extra, so the
+     * item has to be named BEFORE it. Without the ordering check, "Bunny Ear
+     * Gaming Chair + Optional Mic / PC Gamer" was "led by" a `pc` that appears
+     * at the very end describing who the chair is for.
+     */
     const firstTech = nouns.find((n) => n.kind === "tech");
-    if (firstTech) {
+    const firstNonTech = nouns.find((n) => n.kind === "furniture" || n.kind === "accessory");
+    if (firstTech && (!firstNonTech || firstTech.index < firstNonTech.index)) {
       return {
         kind: "tech", head: firstTech.term,
         reason: `bundle listing led by "${firstTech.term}"`,

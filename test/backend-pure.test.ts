@@ -1844,3 +1844,43 @@ describe("scam-farm detection", () => {
     expect(codes).not.toContain("PRICE_IMPOSSIBLE");
   });
 });
+
+/**
+ * A tech word glued to a furniture word is an adjective. 13 of the 23 furniture
+ * listings in the live feed on 2026-09-06 were classified `tech` by the bundle
+ * rule, every one reported as `bundle listing led by "computer"`.
+ */
+describe("computer desk is a desk", () => {
+  test("a tech word next to a furniture word is a modifier", () => {
+    for (const title of [
+      "Wood Grain Computer Desk with Glass Monitor Shelf and CD Rack",
+      "White Computer Desk - Black Metal X-Frame, 55in, with Side Storage",
+      "Moving Sale! Two Person Computer Desk with Removable Middle Storage",
+      "VARI DESK ELECTRIC PRO PLUS 32 COMPUTER DESK STAND",
+      "Mission Style Wood Furniture Set - Bookshelf, Computer Desk, Coffee Table",
+      "Adjustable Laptop Stand with Cooling Fans",
+      "Free Laptop Bag with Shoulder Strap",
+      "Betsey Johnson Betseyville Leopard Print Laptop Tote - Padded",
+      "Vintage leather Wilson computer carryall",
+    ]) {
+      expect(resolveProductType(title, "").kind).not.toBe("tech");
+    }
+  });
+
+  /**
+   * ⚠ THE CASE THE BUNDLE RULE EXISTS FOR. A real device sold with furniture
+   * thrown in is still a device sale, and the fix above must not take it. If
+   * this ever fails, the adjacency window in `compounded` has been widened too
+   * far and it is now eating list separators.
+   */
+  test("a real device sold alongside furniture is still the device", () => {
+    for (const title of [
+      "Acer XB271HU Monitor, Black Desk, and Chair",
+      "Gaming PC, 32GB RAM, RTX 3070, and a desk",
+      "Hp Gaming computer with Brand new gaming monitor microphone and mount.",
+      "Dell XPS 8930 Desktop PC Gaming Setup",
+    ]) {
+      expect(resolveProductType(title, "").kind).toBe("tech");
+    }
+  });
+});

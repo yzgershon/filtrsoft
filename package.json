@@ -44,7 +44,8 @@
     "agent:install": "bun run src/scripts/agent-install.ts",
     "pause": "bun run src/scripts/pause.ts",
     "seed:parts": "bun run src/scripts/seed-parts.ts",
-    "seed:builds": "bun run src/scripts/seed-builds.ts"
+    "seed:builds": "bun run src/scripts/seed-builds.ts",
+    "retire:oos": "bun run src/scripts/retire-out-of-scope.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
