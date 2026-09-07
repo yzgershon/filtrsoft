@@ -89,6 +89,18 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
+### Current checkpoint: 2026-09-07, backend implementation started
+
+Yish read the complete backend audit and authorized implementation of all findings, with a structured plan and frequent handoff updates. This checkpoint supersedes older status/next-step claims below.
+
+- Active worktree: **C:/Dev/filtrsoft-backend**, branch **codex/backend-hardening**, based on main e5a7023. Shared C:/Dev/filtrsoft and original inventory worktree are preserved.
+- Saved inventory implementation e7863ae was reconciled into this branch as **6d3b804**. Only the version comment conflicted. Both predecessor changes use 0.3.33; new verdict work must receive a fresh engine revision.
+- Implementation tracker: **docs/BACKEND-IMPLEMENTATION-PLAN.md**, all F01-F20 mapped to six phases and acceptance checks. Phase 1 is starting; no audit finding is claimed fixed yet.
+- Audit and evidence: **C:/Dev/filtrsoft-backend-audit-2026-09-07/BACKEND-AUDIT.md**. Audit measured 31,900 local comps versus 25,171 production comps at its recorded times, not current continuously updated counts.
+- The inherited archive contains 31,210 comps and is older than the audit's local snapshot. Do not restore it over newer data. Regenerate a consistent archive later after coordination.
+- Existing dependencies are junctions; no installation. Tests, comparisons and migrations must use isolated database paths. No shared re-score, crawl, push or deployment has occurred in this implementation session.
+- Next: exact catalog/category/configuration fixes, evidence-preserving refresh, canonical prices, and personal record ownership, verified in independent batches.
+
 ### Current checkpoint: 2026-09-06, late evening
 
 **This checkpoint supersedes the historical counts and pending tasks below.**
