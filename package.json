@@ -45,7 +45,8 @@
     "pause": "bun run src/scripts/pause.ts",
     "seed:parts": "bun run src/scripts/seed-parts.ts",
     "seed:builds": "bun run src/scripts/seed-builds.ts",
-    "retire:oos": "bun run src/scripts/retire-out-of-scope.ts"
+    "retire:oos": "bun run src/scripts/retire-out-of-scope.ts",
+    "retire:ads": "bun run src/scripts/retire-shop-ads.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
