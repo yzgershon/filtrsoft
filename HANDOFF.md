@@ -89,7 +89,7 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
-### Current checkpoint: 2026-09-07, phase 1 verified locally
+### Current checkpoint: 2026-09-07, phase 2 delivery and time batch verified
 
 Yish read the complete backend audit and authorized implementation of all findings, with a structured plan and frequent handoff updates. This checkpoint supersedes older status/next-step claims below.
 
@@ -97,14 +97,16 @@ Yish read the complete backend audit and authorized implementation of all findin
 - Saved inventory implementation e7863ae was reconciled into this branch as **6d3b804**. Only the version comment conflicted. Both predecessor changes use 0.3.33; new verdict work must receive a fresh engine revision.
 - Implementation tracker: **docs/BACKEND-IMPLEMENTATION-PLAN.md**, all F01-F20 mapped to six phases and acceptance checks. Phase 1 is in progress. F01/F02 core regressions are fixed locally: explicit parts categories, legacy storage interpretation and correct query suffix, canonical catalog names independent of aliases, strict brand/model/RAM layout/ECC variants, complete Ti Super/XTX extraction, and no sparse capacity/tier fallback to known mismatches.
 - Engine is **0.3.34**, not deployed. RAM SKUs without explicit kit layout remain unpriceable; no kit layout was invented to increase coverage. Existing wrongly linked parts comps are rechecked against strict identity at valuation time.
-- Verification: **217 tests passed, 0 failed, 706 assertions**, including preserved inventory, identity/evidence regressions and four two-account route tests. TypeScript `--noEmit` and Vite production build passed. No authenticated production UI run is claimed. The BUY-copy test now uses its own synthetic prices/economics.
+- Verification: **222 tests passed, 0 failed, 711 assertions**; current TypeScript check passed. Vite production build passed at phase 1. No authenticated production UI run is claimed. The BUY-copy test uses its own synthetic prices/economics.
+- F07 fixed locally: eligibility before delivery limits, account override and availability revalidation at send time, durable retry/terminal/delivered states, a 60-second claim lease, bounded backoff and a 15-second transport timeout. Only transport success writes alert_sent. Mocked tests cover starvation, 503 recovery, concurrent attempts, abandoned leases and terminal 410. A crash after remote acceptance but before acknowledgement can still retry; the existing service-worker per-listing notification tag replaces the same visible notification rather than promising impossible exactly-once transport.
+- F11 fixed: job expiry and rolling vision/feed counts compare ISO T/Z timestamps consistently. Tests cover same-day expiry, midnight and exact TTL boundaries. Persistent agent heartbeats remain F12.
 - F08 fixed locally: subscriptions/searches/test-send, overrides and purchases enforce session ownership. Existing unowned push subscriptions require possession of their exact browser subscription keys to adopt; the UI re-registers the browser-held subscription without a new permission prompt. Numeric IDs alone never claim a record. Legacy personal outcomes migrate only when one existing account makes ownership unambiguous; multi-account unassigned rows stay private for explicit reconciliation. Device refs retain their existing first-owner association.
 - F04 core fixed: stored attributes and seller references reach the same pipeline as fresh facts; applicable vision survives text refreshes, and stale prompt/model or changed/incompletely hashed photo sets cannot supply cached evidence. Actual photo URLs replace dummy placeholders. Synchronous photo metadata preserves unchanged hashes; background jobs update only still-current URLs.
 - F06 fixed for sweeps: accepted price observations atomically update both canonical/displayed asks and history, then create a durable listing_rechecks row. Stale observations and missing/zero prices do not reverse an accepted ask. The scheduler now also recovers listings with no verdict and clears successful rechecks. Broader sync and batch retry/cursor work remains F03/F09.
 - Audit and evidence: **C:/Dev/filtrsoft-backend-audit-2026-09-07/BACKEND-AUDIT.md**. Audit measured 31,900 local comps versus 25,171 production comps at its recorded times, not current continuously updated counts.
 - The inherited archive contains 31,210 comps and is older than the audit's local snapshot. Do not restore it over newer data. Regenerate a consistent archive later after coordination.
 - Existing dependencies are junctions; no installation. Tests, comparisons and migrations must use isolated database paths. No shared re-score, crawl, push or deployment has occurred in this implementation session.
-- Next: phase 2 alert delivery/retry and timestamp correctness, followed by durable listing synchronization and source-aware enrichment. Broader provenance/configuration uncertainty remains F15/F16. F03/F05/F07/F09-F20 are not claimed complete.
+- Next: durable listing synchronization and source-aware enrichment (F03/F05). Broader provenance/configuration uncertainty remains F15/F16. F03/F05/F09/F10/F12-F20 are not claimed complete.
 
 ### Current checkpoint: 2026-09-06, late evening
 

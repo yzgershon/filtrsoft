@@ -37,6 +37,7 @@ import {
 } from "./auth.ts";
 import { getEconomics } from "../valuation/index.ts";
 import { db, DB_PATH } from "../db/index.ts";
+import { isoAgo } from "../db/time.ts";
 import { getThumb, thumbStats, pruneThumbs, THUMBS_OFF } from "../photos/thumb.ts";
 import {
   loadAccountOverrides, applyOverride, handleSetOverride, handleClearOverride,
@@ -1046,8 +1047,8 @@ app.get("/v1/feed", (c) => {
   const lastCrawl = db().query("SELECT started_at, analysed FROM crawls ORDER BY id DESC LIMIT 1").get() as any;
   const freshCount = (db().query(
     `SELECT COUNT(*) n FROM listings
-      WHERE delisted_at IS NULL AND captured_at >= datetime('now', '-1 hour')`,
-  ).get() as { n: number }).n;
+      WHERE delisted_at IS NULL AND captured_at >= ?`,
+  ).get(isoAgo(3_600_000)) as { n: number }).n;
 
   return c.json({
     items,

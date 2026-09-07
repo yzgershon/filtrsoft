@@ -65,17 +65,17 @@ export const JOB_TTL_MIN = 45;
  */
 export const RUNNING_TIMEOUT_MIN = 40;
 
-function sweepStaleJobs() {
+export function sweepStaleJobs(at = Date.now()) {
   const d = db();
   d.run(
     `UPDATE crawl_jobs SET status='expired', finished_at=?, error='no agent picked this up in time'
-      WHERE status='queued' AND created_at < datetime('now', ?)`,
-    [now(), `-${JOB_TTL_MIN} minutes`],
+      WHERE status='queued' AND created_at < ?`,
+    [new Date(at).toISOString(), new Date(at-JOB_TTL_MIN*60_000).toISOString()],
   );
   d.run(
     `UPDATE crawl_jobs SET status='failed', finished_at=?, error='the agent stopped reporting'
-      WHERE status='running' AND COALESCE(started_at, created_at) < datetime('now', ?)`,
-    [now(), `-${RUNNING_TIMEOUT_MIN} minutes`],
+      WHERE status='running' AND COALESCE(started_at, created_at) < ?`,
+    [new Date(at).toISOString(), new Date(at-RUNNING_TIMEOUT_MIN*60_000).toISOString()],
   );
 }
 

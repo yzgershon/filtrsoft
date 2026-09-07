@@ -24,6 +24,7 @@
  * goes down.
  */
 import { db } from "../db/index.ts";
+import { isoAgo } from "../db/time.ts";
 
 export interface CompsHealth {
   total: number;
@@ -125,9 +126,9 @@ export function visionHealth(model: string, promptVersion: string): VisionHealth
   const one = <T>(sql: string, ...a: unknown[]) => d.query(sql).get(...(a as [])) as T;
 
   const reads24h = one<{ n: number }>(
-    "SELECT COUNT(*) n FROM vision_results WHERE created_at >= datetime('now','-1 day')").n;
+    "SELECT COUNT(*) n FROM vision_results WHERE created_at >= ?",isoAgo(86_400_000)).n;
   const reads7d = one<{ n: number }>(
-    "SELECT COUNT(*) n FROM vision_results WHERE created_at >= datetime('now','-7 days')").n;
+    "SELECT COUNT(*) n FROM vision_results WHERE created_at >= ?",isoAgo(7*86_400_000)).n;
   const lastReadAt = one<{ m: string | null }>("SELECT MAX(created_at) m FROM vision_results").m;
 
   const candidatePool = one<{ n: number }>(`

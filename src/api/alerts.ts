@@ -30,6 +30,7 @@ import type { Context } from "hono";
 import webpush from "web-push";
 import { db, now } from "../db/index.ts";
 import { currentUser } from "./auth.ts";
+import { loadAccountOverrides } from "./overrides.ts";
 
 /** Push works if a keypair resolves — env, stored, or freshly generated. */
 export const pushConfigured = () => configure();
@@ -246,6 +247,12 @@ export function ensureAlertTables() {
       sent_at    TEXT NOT NULL,
       PRIMARY KEY (search_id, listing_id)
     )`);
+  db().run(`CREATE TABLE IF NOT EXISTS alert_deliveries (
+    search_id INTEGER NOT NULL,listing_id INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',attempts INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TEXT NOT NULL,lease_until TEXT,last_error TEXT,updated_at TEXT NOT NULL,
+    PRIMARY KEY(search_id,listing_id)
+  )`);
 
   backfillStandingAlerts();
 }
@@ -287,6 +294,7 @@ interface SearchRow {
   max_price_cents: number | null; min_profit_cents: number | null;
   calls: string | null; created_at: string; standing?: number;
   endpoint: string; p256dh: string; auth: string;
+  user_id?: number | null;
 }
 
 /** Does this listing satisfy the search? All stated criteria must hold. */
@@ -332,13 +340,15 @@ export async function runAlerts(): Promise<number> {
   ensureAlertTables();
 
   const searches = db().query(`
-    SELECT s.*, p.endpoint, p.p256dh, p.auth
+    SELECT s.*, p.endpoint, p.p256dh, p.auth,p.user_id
     FROM saved_searches s JOIN push_subs p ON p.id = s.sub_id
   `).all() as SearchRow[];
   if (!searches.length) return 0;
 
   let sent = 0;
   for (const s of searches) {
+    const overrides=s.user_id ? loadAccountOverrides(s.user_id) : new Map();
+    const at=now();
     /**
      * `captured_at > s.created_at` is the backlog guard. Without it, saving a
      * search fires one notification per historical match — fifteen at once for
@@ -352,12 +362,35 @@ export async function runAlerts(): Promise<number> {
         AND l.captured_at > ?
         AND v.call NOT IN ('OUT_OF_SCOPE')
         AND NOT EXISTS (SELECT 1 FROM alert_sent a WHERE a.search_id = ? AND a.listing_id = l.id)
-      ORDER BY l.id DESC LIMIT 40
-    `).all(s.created_at, s.id) as any[];
+        AND NOT EXISTS (SELECT 1 FROM alert_deliveries a WHERE a.search_id=? AND a.listing_id=l.id
+          AND (a.status IN ('delivered','failed') OR a.next_attempt_at>? OR a.lease_until>?))
+      ORDER BY l.id DESC
+    `).all(s.created_at,s.id,s.id,at,at) as any[];
 
-    for (const r of rows) {
-      const net = r.payload ? (JSON.parse(r.payload).netProfitCents ?? null) : null;
-      if (!matches(s, { title: r.title, price: r.price, call: r.call, net })) continue;
+    // Match first, then bound delivery work. A newer nonmatch must not hide an
+    // older BUY forever. Personal risk labels also apply before this limit.
+    const eligible=rows.map(r=>({...r,call:overrides.get(r.id)?.call??r.call})).filter(r=>{
+      let net=null;try{net=r.payload?JSON.parse(r.payload).netProfitCents??null:null;}catch{return false;}
+      return matches(s,{title:r.title,price:r.price,call:r.call,net});
+    }).slice(0,40);
+    for (const candidate of eligible) {
+      // A slow earlier delivery may give Yish time to relabel or retire the
+      // next candidate. Revalidate immediately before claiming its delivery.
+      const r=db().query(`SELECT l.id,l.title,l.asking_price_cents price,v.call,v.payload FROM listings l
+        JOIN verdicts v ON v.id=(SELECT MAX(id) FROM verdicts WHERE listing_id=l.id)
+        WHERE l.id=? AND l.delisted_at IS NULL`).get(candidate.id) as any;
+      if(!r)continue;
+      if(s.user_id)r.call=loadAccountOverrides(s.user_id).get(r.id)?.call??r.call;
+      let net=null;try{net=r.payload?JSON.parse(r.payload).netProfitCents??null:null;}catch{continue;}
+      if(!matches(s,{title:r.title,price:r.price,call:r.call,net}))continue;
+      const claimed=db().transaction(()=>{
+        db().run("INSERT OR IGNORE INTO alert_deliveries(search_id,listing_id,next_attempt_at,updated_at) VALUES(?,?,?,?)",[s.id,r.id,at,at]);
+        return db().run(`UPDATE alert_deliveries SET status='sending',attempts=attempts+1,lease_until=?,updated_at=?
+          WHERE search_id=? AND listing_id=? AND status NOT IN ('delivered','failed')
+            AND next_attempt_at<=? AND (lease_until IS NULL OR lease_until<=?)`,
+          [new Date(Date.now()+60_000).toISOString(),at,s.id,r.id,at,at]).changes>0;
+      })();
+      if(!claimed)continue;
 
       /**
        * ⚠ THE TITLE NAMES THE CALL, and for the standing alert that is the
@@ -368,16 +401,20 @@ export async function runAlerts(): Promise<number> {
       const heading = s.standing
         ? (r.call === "BUY" ? "Buy it" : r.call === "VERIFY" ? "Verify first" : r.call)
         : s.label;
-      const ok = await send(s, {
+      const result = await send(s, {
         title: heading,
         body: `${r.title.slice(0, 70)}, ${r.price ? `$${Math.round(r.price / 100)}` : "no price"}`,
         url: `/c/${r.id}`,
       });
-      // Recorded even on failure. A listing that could not be delivered once
-      // should not be retried on every crawl forever.
-      db().run("INSERT OR IGNORE INTO alert_sent (search_id, listing_id, sent_at) VALUES (?,?,?)",
-        [s.id, r.id, now()]);
-      if (ok) sent++;
+      db().transaction(()=>{
+        const attempts=(db().query("SELECT attempts FROM alert_deliveries WHERE search_id=? AND listing_id=?").get(s.id,r.id) as {attempts:number}).attempts;
+        const status=result.ok?'delivered':result.permanent||attempts>=6?'failed':'retry';
+        const next=new Date(Date.now()+Math.min(3_600_000,30_000*2**Math.max(0,attempts-1))).toISOString();
+        db().run("UPDATE alert_deliveries SET status=?,next_attempt_at=?,lease_until=NULL,last_error=?,updated_at=? WHERE search_id=? AND listing_id=?",[status,next,result.error,now(),s.id,r.id]);
+        if(result.ok)db().run("INSERT OR IGNORE INTO alert_sent(search_id,listing_id,sent_at) VALUES(?,?,?)",[s.id,r.id,now()]);
+      })();
+      if(result.ok)sent++;
+      if(result.permanent)break;
     }
   }
   return sent;
@@ -388,9 +425,10 @@ async function send(s: SearchRow, payload: { title: string; body: string; url: s
     await webpush.sendNotification(
       { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
       JSON.stringify(payload),
+      {timeout:15_000},
     );
     db().run("UPDATE push_subs SET last_ok=? WHERE id=?", [now(), s.sub_id]);
-    return true;
+    return {ok:true,permanent:false,error:null};
   } catch (e) {
     const code = (e as { statusCode?: number }).statusCode;
     const msg = (e as Error).message ?? "";
@@ -414,7 +452,7 @@ async function send(s: SearchRow, payload: { title: string; body: string; url: s
     } else {
       console.error(`alerts: send failed (${code ?? "?"}) —`, msg);
     }
-    return false;
+    return {ok:false,permanent:dead,error:msg.slice(0,500)};
   }
 }
 
@@ -541,12 +579,12 @@ export async function handleTestPush(c: Context) {
   const subId = Number(c.req.query("subId"));
   const row = db().query("SELECT id sub_id, endpoint, p256dh, auth FROM push_subs WHERE id=?").get(subId) as SearchRow | null;
   if (!row) return c.json({ error: "unknown subscription" }, 404);
-  const ok = await send(row, {
+  const result = await send(row, {
     title: "Filtrsoft alerts are on",
     body: "This is what a match will look like.",
     url: "/",
   });
-  return c.json({ sent: ok });
+  return c.json({ sent: result.ok });
 }
 
 /**

@@ -19,8 +19,8 @@ Status meanings: pending, in progress, implemented (checks pending), verified lo
 
 - F03: durable versioned local outbox, per-change server acknowledgement, retirement propagation, rich/newer evidence precedence, reconnect/replay convergence.
 - F05: source-aware stored-photo enrichment, Mercari galleries, synced vision revisions and explicit outcomes.
-- F07: match before limiting, persistent retryable alert deliveries, deduplication and personal overrides.
-- F11: consistent sortable timestamps, correct TTLs, cross-midnight boundary tests.
+- F07 — verified locally: match before limiting, persistent retryable/terminal/delivered states, concurrent claim leases, personal overrides and send-time availability revalidation. Remote acceptance followed by a crash can retry; existing notification tags deduplicate the visible listing notification.
+- F11 — verified locally: consistent ISO comparisons for TTLs and rolling metrics; same-day, cross-midnight and exact-boundary tests. Heartbeats remain F12.
 - Acceptance: forced transport failures and replays, missed-deal fixture, transient delivery retry exactly once, stale-job expiry. No real notification required.
 
 ## Phase 3: archive and scoring completion — pending
@@ -62,3 +62,4 @@ Update HANDOFF and this file after each verified batch and before stopping. Comm
 - 2026-09-07: exact-identity batch, engine 0.3.34, 209 tests / 698 assertions / zero failures; typecheck passed. Test prices live only in temporary isolated databases. Fresh-check/stored-check equivalence and ownership are next, not yet complete.
 - 2026-09-07: evidence and sweep-price batch, 213 tests / 702 assertions / zero failures; typecheck passed. Four process-isolated regressions cover preserved facts, current vs stale vision, no refetch for unchanged hashes, and price recheck recovery. Ownership is next.
 - 2026-09-07: ownership batch completes phase 1 locally: 217 tests / 706 assertions / zero failures; typecheck and Vite production build passed. Actual router tested with two synthetic accounts and blocked transports. No production changes. Next F07/F11, then F03/F05.
+- 2026-09-07: F07/F11 batch, 222 tests / 711 assertions / zero failures; typecheck passed. Five isolated delivery/time regressions. Next durable fact synchronization and source-aware enrichment.
