@@ -15,10 +15,10 @@ Status meanings: pending, in progress, implemented (checks pending), verified lo
 - F08 — verified locally: session ownership for subscriptions, searches/test-send, overrides, outcome writes/counts and purchases. Legacy push adoption proves browser-held keys. Only unambiguous single-account historical outcomes migrate automatically; ambiguous rows remain private and need explicit reconciliation. Frontend silently re-registers an existing browser subscription after upgrade.
 - Acceptance: exact-product positive and negative fixtures, stored/fresh equivalence, price-drop regression, two-account route matrix, existing tests and typecheck. Bump ENGINE_VERSION before commit.
 
-## Phase 2: reliable synchronization and delivery — in progress
+## Phase 2: reliable synchronization and delivery — verified locally
 
-- F03: durable versioned local outbox, per-change server acknowledgement, retirement propagation, rich/newer evidence precedence, reconnect/replay convergence.
-- F05: source-aware stored-photo enrichment, Mercari galleries, synced vision revisions and explicit outcomes.
+- F03 — verified locally: durable versioned local outbox, per-change server acknowledgement, retirement propagation, rich/newer evidence precedence, reconnect/replay convergence.
+- F05 — verified locally: source-aware stored-photo enrichment, Mercari galleries, synced vision revisions and explicit outcomes.
 - F07 — verified locally: match before limiting, persistent retryable/terminal/delivered states, concurrent claim leases, personal overrides and send-time availability revalidation. Remote acceptance followed by a crash can retry; existing notification tags deduplicate the visible listing notification.
 - F11 — verified locally: consistent ISO comparisons for TTLs and rolling metrics; same-day, cross-midnight and exact-boundary tests. Heartbeats remain F12.
 - Acceptance: forced transport failures and replays, missed-deal fixture, transient delivery retry exactly once, stale-job expiry. No real notification required.
@@ -63,3 +63,5 @@ Update HANDOFF and this file after each verified batch and before stopping. Comm
 - 2026-09-07: evidence and sweep-price batch, 213 tests / 702 assertions / zero failures; typecheck passed. Four process-isolated regressions cover preserved facts, current vs stale vision, no refetch for unchanged hashes, and price recheck recovery. Ownership is next.
 - 2026-09-07: ownership batch completes phase 1 locally: 217 tests / 706 assertions / zero failures; typecheck and Vite production build passed. Actual router tested with two synthetic accounts and blocked transports. No production changes. Next F07/F11, then F03/F05.
 - 2026-09-07: F07/F11 batch, 222 tests / 711 assertions / zero failures; typecheck passed. Five isolated delivery/time regressions. Next durable fact synchronization and source-aware enrichment.
+
+- 2026-09-07: F03/F05 batch, 230 tests / 719 assertions / zero failures; typecheck passed. Eight isolated/pure regressions plus disposable snapshot queue coverage: 461 Facebook, 440 OfferUp, 109 Mercari. No transport, paid vision, shared data edits or deployment. Next F09/F10.

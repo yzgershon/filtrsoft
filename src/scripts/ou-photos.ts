@@ -1,3 +1,4 @@
+import { syncPhotoUrls } from "../vision/merge.ts";
 /**
  * bun run ou:photos [--limit 40] [--all] [--headless] [--dry]
  *
@@ -116,7 +117,11 @@ for await (const ev of runMarketWorker("offerup", {
   const desc = offerUpDescription(detail);
   if (desc) {
     described++;
-    if (!has("dry")) setDesc.run({ $d: desc, $id: ev.id });
+    if (!has("dry")) {
+      setDesc.run({ $d: desc, $id: ev.id });
+      db().run("UPDATE listings SET updated_at=?,last_seen=? WHERE id=?",[now(),now(),ev.id]);
+      db().run("INSERT INTO listing_rechecks VALUES(?, 'detail', ?) ON CONFLICT(listing_id) DO UPDATE SET requested_at=excluded.requested_at",[ev.id,now()]);
+    }
   }
 
   const best = bestPhotos(ev.urls);
@@ -133,10 +138,10 @@ for await (const ev of runMarketWorker("offerup", {
 
   if (has("dry")) continue;
   db().transaction(() => {
-    delPhotos.run({ $id: ev.id });
-    for (const [i, u] of best.entries()) {
-      insPhoto.run({ $lid: ev.id, $url: u, $pos: i, $now: now() });
-    }
+    syncPhotoUrls(ev.id,best);
+    db().run("UPDATE listings SET updated_at=?,last_seen=? WHERE id=?",[now(),now(),ev.id]);
+    db().run("DELETE FROM vision_misses WHERE listing_id=?",[ev.id]);
+    db().run("INSERT INTO listing_rechecks VALUES(?, 'photos', ?) ON CONFLICT(listing_id) DO UPDATE SET requested_at=excluded.requested_at",[ev.id,now()]);
     setCount.run({ $n: best.length, $id: ev.id });
   })();
 }

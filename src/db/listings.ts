@@ -1,6 +1,7 @@
 /** Shared listing-fact persistence for crawls, checks and authenticated pushes. */
 import type { Database } from "bun:sqlite";
 import { now } from "./index.ts";
+import { rawObject } from "./facts.ts";
 
 export interface ListingFacts {
   source: string;
@@ -15,9 +16,11 @@ export interface ListingFacts {
   photoCount: number;
   sellerRef?: string | null;
   raw?: unknown;
+  /** Discovery cards cannot erase details previously read from the item page. */
+  partial?: boolean;
 }
 
-export interface UpsertListingResult { id: number; inserted: boolean }
+export interface UpsertListingResult { id: number; inserted: boolean; stale?: boolean }
 
 const positivePrice = (n: number | null | undefined): number | null =>
   typeof n === "number" && Number.isFinite(n) && n > 0 ? Math.round(n) : null;
@@ -38,13 +41,15 @@ export function upsertListingFacts(
 ): UpsertListingResult {
   const price = positivePrice(facts.askingPriceCents);
   const existing = d.query(
-    `SELECT id, asking_price_cents, last_price_cents, captured_at
+    `SELECT id, asking_price_cents, last_price_cents, captured_at, last_seen, raw_json
        FROM listings WHERE source=$source AND source_id=$sourceId`,
   ).get({ $source: facts.source, $sourceId: facts.sourceId }) as {
     id: number;
     asking_price_cents: number | null;
     last_price_cents: number | null;
     captured_at: string;
+    last_seen: string | null;
+    raw_json: string | null;
   } | null;
 
   if (!existing) {
@@ -81,6 +86,8 @@ export function upsertListingFacts(
     return { id: row.id, inserted: true };
   }
 
+  if (observedAt < (existing.last_seen ?? existing.captured_at)) return {id:existing.id,inserted:false,stale:true};
+
   const prior = positivePrice(existing.last_price_cents) ?? positivePrice(existing.asking_price_cents);
   if (prior !== null) {
     d.query(
@@ -96,18 +103,18 @@ export function upsertListingFacts(
     `UPDATE listings SET
        url=$url,
        title=CASE WHEN $title != '' THEN $title ELSE title END,
-       description=$description,
-       asking_price_cents=$price,
+       description=CASE WHEN $partial=1 AND $description='' THEN description ELSE $description END,
+       asking_price_cents=CASE WHEN $partial=1 THEN COALESCE($price,asking_price_cents) ELSE $price END,
        location=COALESCE($location, location),
        posted_at=COALESCE($postedAt, posted_at),
        updated_at=COALESCE($updatedAt, updated_at),
-       photo_count=$photoCount,
+       photo_count=CASE WHEN $partial=1 THEN MAX(photo_count,$photoCount) ELSE $photoCount END,
        seller_ref=COALESCE($sellerRef, seller_ref),
        raw_json=$raw,
        last_seen=$observedAt,
        last_price_cents=COALESCE($price, last_price_cents),
-       delisted_at=NULL,
-       delist_reason=NULL
+       delisted_at=CASE WHEN delist_reason IN ('gone','expired','deleted_by_author') AND $observedAt > delisted_at THEN NULL ELSE delisted_at END,
+       delist_reason=CASE WHEN delist_reason IN ('gone','expired','deleted_by_author') AND $observedAt > delisted_at THEN NULL ELSE delist_reason END
      WHERE id=$id`,
   ).run({
     $id: existing.id,
@@ -120,7 +127,8 @@ export function upsertListingFacts(
     $updatedAt: facts.updatedAt ?? null,
     $photoCount: facts.photoCount,
     $sellerRef: facts.sellerRef ?? null,
-    $raw: JSON.stringify(facts.raw ?? {}),
+    $raw: JSON.stringify({...rawObject(existing.raw_json),...rawObject(facts.raw),attributes:{...rawObject(rawObject(existing.raw_json).attributes),...rawObject(rawObject(facts.raw).attributes)}}),
+    $partial: facts.partial || !facts.description ? 1 : 0,
     $observedAt: observedAt,
   });
 

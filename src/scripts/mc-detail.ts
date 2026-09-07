@@ -32,9 +32,10 @@
  * it will simply find nothing.
  */
 import {
-  runMarketWorker, bestPhotos, photoArea,
+  runMarketWorker, mercariPhotos, photoArea,
   parseMercariDetail, mercariDescription,
 } from "../sources/marketplace.ts";
+import { syncPhotoUrls } from "../vision/merge.ts";
 import { CHROME_PATH } from "../sources/facebook.ts";
 import { db, now } from "../db/index.ts";
 
@@ -142,13 +143,17 @@ for await (const ev of runMarketWorker("mercari", {
    * failure — the description is what makes the listing priceable and it has
    * already been written above.
    */
-  const best = bestPhotos(ev.urls);
+  const best = mercariPhotos(ev.urls,row.url);
   if (best.length && !has("dry")) {
-    delPhotos.run({ $id: ev.id });
-    best.forEach((url, i) => insPhoto.run({ $lid: ev.id, $url: url, $pos: i, $now: now() }));
+    syncPhotoUrls(ev.id,best);
     setCount.run({ $n: best.length, $id: ev.id });
   }
   if (best.length) withPhotos++;
+  if(!has("dry") && (desc || best.length)) {
+    db().run("UPDATE listings SET updated_at=?,last_seen=? WHERE id=?",[now(),now(),ev.id]);
+    db().run("DELETE FROM vision_misses WHERE listing_id=?",[ev.id]);
+    db().run("INSERT INTO listing_rechecks VALUES(?, 'detail', ?) ON CONFLICT(listing_id) DO UPDATE SET requested_at=excluded.requested_at",[ev.id,now()]);
+  }
 
   const biggest = best.length ? Math.round(Math.sqrt(Math.max(...best.map(photoArea)))) : 0;
   console.log(

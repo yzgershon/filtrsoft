@@ -151,6 +151,8 @@ if (!DRY) {
   steps.push({ label: "probe delisted", ok: r.ok, added: 0, note: line.replace(/\[[0-9;]*m/g, "").slice(0, 90) });
 }
 
+for(const source of ["facebook","offerup","mercari"]) await push(source);
+
 console.log("");
 console.log("\x1b[1mdaily routine\x1b[0m");
 for (const s of steps) {

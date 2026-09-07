@@ -250,11 +250,17 @@ async function doJob(job: { id: number; sources: string[] }) {
   const vision = await run(["run", "vision", "--limit", "60"], "vision");
   summary.vision = vision.ok ? "ok" : `failed: ${vision.tail.slice(0, 120)}`;
 
-  const anyOk = Object.values(summary).some((v) => v === "ok");
+  // Vision is produced after the initial push. Flush every participating source
+  // again even after a partial crawl, so useful facts and retirements converge.
+  for(const source of job.sources.filter(s=>STEPS[s])) {
+    const flushed=await run(["run","push","--source",source],`${source}/final-sync`);
+    if(!flushed.ok) summary[source]=`sync failed: ${flushed.tail.slice(0,120)}`;
+  }
+  const anyOk = job.sources.length>0 && job.sources.every(s=>summary[s]==="ok");
   await report(job.id, {
     status: anyOk ? "done" : "failed",
     result: summary,
-    error: anyOk ? undefined : "every source failed",
+    error: anyOk ? undefined : "one or more sources failed; partial results preserved",
     progress: Object.entries(summary).map(([k, v]) => `${k}: ${v === "ok" ? "ok" : "failed"}`).join(" · "),
   });
   console.log(`job #${job.id} finished: ${JSON.stringify(summary)}`);

@@ -140,7 +140,7 @@ try {
 
       const urls = await page.evaluate(() => {
         const out = [];
-        const push = (u) => { if (u && u.includes("images.offerup.com")) out.push(u); };
+        const push = (u) => { if (u && /^https?:/.test(u)) out.push(u); };
         for (const img of document.querySelectorAll("img")) {
           push(img.getAttribute("src"));
           const set = img.getAttribute("srcset") || "";

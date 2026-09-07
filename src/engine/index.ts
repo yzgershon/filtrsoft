@@ -59,6 +59,8 @@ export interface CheckOptions {
   vision?: boolean;
   /** Write the listing and photos to the database. */
   persist?: boolean;
+  /** Internal enrichment uses saved facts without claiming a fresh source visit. */
+  storedListingId?: number;
   /** Called as each stage completes, for streaming. */
   onStage?: (s: Stage) => void;
 }
@@ -250,8 +252,14 @@ export async function checkFetched(listing: RawListing, opts: CheckOptions = {})
 
   let listingId: number | null = null;
   if (opts.persist) {
-    listingId = persistListing(listing);
-    syncPhotoUrls(listingId, listing.photoUrls);
+    if(opts.storedListingId) listingId=opts.storedListingId;
+    else {
+      const prior=db().query("SELECT id,description FROM listings WHERE source=? AND source_id=?").get(listing.source,listing.sourceId) as {id:number;description:string}|null;
+      listingId = persistListing(listing);
+      if(listing.description || !prior?.description) syncPhotoUrls(listingId, listing.photoUrls);
+      // Pricing the card alone would throw away the details we just preserved.
+      if(!listing.description && prior) listing=checkStored(listingId).listing;
+    }
   }
   const evidenceId = listingId ?? (db().query("SELECT id FROM listings WHERE source=? AND source_id=?").get(listing.source,listing.sourceId) as {id:number}|null)?.id;
   let vision = evidenceId && photosUnchanged(evidenceId, listing.photoUrls)

@@ -27,7 +27,8 @@ import { db, now } from "../db/index.ts";
 import { upsertListingFacts } from "../db/listings.ts";
 import { storeVerdict } from "../db/verdicts.ts";
 import { checkStored, ENGINE_VERSION } from "../engine/index.ts";
-import { cacheThumb } from "../photos/thumb.ts";
+import { receiveChanges } from "../sync/receive.ts";
+import { syncPhotoUrls } from "../vision/merge.ts";
 
 export interface PushListing {
   source: string;
@@ -57,19 +58,13 @@ export async function ingestPushed(listings: PushListing[]): Promise<PushResult>
   const d = db();
   const res: PushResult = { received: listings.length, inserted: 0, updated: 0, scored: 0, calls: {} };
 
-  const delPhotos = d.query(`DELETE FROM listing_photos WHERE listing_id=$id`);
-  const insPhoto = d.query(
-    `INSERT INTO listing_photos (listing_id, url, position, captured_at)
-     VALUES ($lid,$url,$pos,$now)`,
-  );
   const ids: number[] = [];
-  /** id -> the first photo url, collected in the transaction and used after it. */
-  const heroes: Array<{ id: number; url: string | undefined }> = [];
   d.transaction(() => {
     for (const l of listings) {
       if (!l.sourceId || !l.url || !l.title) continue;
       const photoUrls = [...new Set(l.photoUrls ?? [])];
-      const at = now();
+      const existing = d.query("SELECT last_seen,captured_at FROM listings WHERE source=? AND source_id=?").get(l.source,l.sourceId) as {last_seen:string|null;captured_at:string}|null;
+      const at = existing?.last_seen ?? existing?.captured_at ?? now();
       const stored = upsertListingFacts(d, {
         source: l.source,
         sourceId: l.sourceId,
@@ -83,17 +78,16 @@ export async function ingestPushed(listings: PushListing[]): Promise<PushResult>
         photoCount: photoUrls.length,
         sellerRef: l.sellerRef,
         raw: l.raw,
+        partial: true,
       }, at);
       if (stored.inserted) res.inserted++;
       else res.updated++;
 
       // Replace even when the new set is empty. Keeping yesterday's thumbnails
       // after a seller removes every photo is stale evidence, not a cache.
-      delPhotos.run({ $id: stored.id });
-      photoUrls.forEach((u, i) =>
-        insPhoto.run({ $lid: stored.id, $url: u, $pos: i, $now: at }));
+      if (stored.inserted) syncPhotoUrls(stored.id,photoUrls);
+      d.run("INSERT INTO listing_rechecks VALUES(?, 'legacy_sync', ?) ON CONFLICT(listing_id) DO UPDATE SET requested_at=excluded.requested_at",[stored.id,now()]);
       ids.push(stored.id);
-      heroes.push({ id: stored.id, url: photoUrls[0] });
     }
   })();
 
@@ -109,44 +103,8 @@ export async function ingestPushed(listings: PushListing[]): Promise<PushResult>
       // One bad listing must not fail the batch.
     }
   }
-  res.thumbed = await cacheThumbs(heroes);
+  // The scheduler thumbnail backfill owns image I/O after the facts are accepted.
   return res;
-}
-
-/**
- * Take our own copy of each listing's first photo, WHILE THE URL STILL WORKS.
- *
- * ⚠ THE TIMING IS THE ENTIRE FEATURE. Facebook signs its CDN urls with a ~2-day
- * life (measured: every 403 on the live feed carried an `oe=` expiry in the
- * past, every 200 one about 40 hours ahead), and the feed keeps a listing for
- * 28 days. A push arrives MINUTES after the crawl that captured the url, which
- * is the only moment production is ever able to fetch it — it cannot re-crawl
- * Facebook, because that needs his signed-in browser.
- *
- * ⚠ AFTER THE TRANSACTION AND AFTER SCORING, NEVER INSIDE EITHER. This is
- * network I/O, one request per listing; holding a write lock across it would
- * block the crawl loop, and a hung CDN would turn one slow image into a failed
- * push. `cacheThumb` swallows its own failures and has an 8s timeout, so the
- * worst case here is a card that falls back to the remote url — which is
- * exactly today's behaviour.
- *
- * Bounded concurrency rather than `Promise.all`: 300 simultaneous fetches out of
- * a small container is a good way to trip a rate limit and lose all of them.
- */
-async function cacheThumbs(rows: Array<{ id: number; url: string | undefined }>): Promise<number> {
-  let done = 0;
-  const queue = rows.filter((r) => r.url);
-  const WORKERS = 6;
-  await Promise.all(Array.from({ length: WORKERS }, async () => {
-    for (;;) {
-      const next = queue.pop();
-      if (!next) return;
-      try {
-        if ((await cacheThumb(next.id, next.url)) === "cached") done++;
-      } catch { /* a photo must never fail a push */ }
-    }
-  }));
-  return done;
 }
 
 /** `POST /v1/push` — bearer-token guarded. */
@@ -157,7 +115,11 @@ export async function handlePush(c: Context) {
   const auth = c.req.header("authorization") ?? "";
   if (auth !== `Bearer ${token}`) return c.json({ error: "unauthorized" }, 401);
 
-  const body = await c.req.json().catch(() => null) as { listings?: PushListing[] } | null;
+  const body = await c.req.json().catch(() => null) as { version?:number; listings?: PushListing[] } | null;
+  if(body?.version===2) {
+    try { return c.json(receiveChanges(body)); }
+    catch { return c.json({error:"invalid sync envelope or conflicting revision"},400); }
+  }
   if (!body?.listings?.length) return c.json({ error: "no listings" }, 400);
   if (body.listings.length > 300) return c.json({ error: "max 300 per push" }, 400);
 

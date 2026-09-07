@@ -35,8 +35,9 @@
  * Actionable calls (BUY / VERIFY / RISK) also qualify — those are listings
  * somebody may act on, where a photo either confirms the case or kills it.
  */
+import { loadCurrentVision } from "../vision/merge.ts";
 import { db } from "../db/index.ts";
-import { checkListing } from "../engine/index.ts";
+import { checkFetched, checkStored } from "../engine/index.ts";
 import { budgetAvailable, visionKilled } from "../api/guard.ts";
 import { resolveProductType } from "../signals/product-type.ts";
 import { PROMPT_VERSION, VISION_MODEL } from "../vision/index.ts";
@@ -85,10 +86,7 @@ export function visionCandidates(limit: number): Candidate[] {
     FROM listings l
     JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
     WHERE l.delisted_at IS NULL
-      AND NOT EXISTS (
-        SELECT 1 FROM vision_results r
-         WHERE r.listing_id = l.id AND r.model = $model AND r.prompt_version = $prompt
-      )
+      AND EXISTS (SELECT 1 FROM listing_photos p WHERE p.listing_id=l.id)
       -- AND NOT ONE THAT HAS BURNED ITS ATTEMPT BUDGET. Without this the pass
       -- deadlocks on listings this process cannot fetch: see the catch in
       -- visionPass and the vision_misses schema comment.
@@ -100,28 +98,10 @@ export function visionCandidates(limit: number): Candidate[] {
         OR (v.call = 'INSUFFICIENT_DATA' AND json_extract(v.payload, '$.headline') LIKE '%not stated%')
       )
     ORDER BY
-      -- FETCHABILITY OUTRANKS VALUE, AND THAT INVERSION IS DELIBERATE.
-      --
-      -- Facebook, OfferUp and Mercari listings are PUSHED here from a machine
-      -- with a browser and a real session; this process has neither, so it
-      -- cannot re-fetch one to read its photos. An unreadable BUY has an
-      -- expected value of exactly zero reads, while a Craigslist "cpu not
-      -- stated" might turn into a BUY.
-      --
-      -- Measured 2026-09-03: with call priority first, the head of the queue
-      -- was 33-of-34 Facebook and the pass reported "tried 3: read 0,
-      -- unreadable 3" every tick. The miss budget alone would have ground
-      -- through the backlog at about 20 listings an hour; this reaches the
-      -- readable ones on the very next tick.
-      --
-      -- They are DEPRIORITISED, not excluded: on his own machine the browser
-      -- is there and the fetch succeeds, so they still get read, just after
-      -- everything cheap.
-      CASE WHEN l.source IN ('facebook','offerup','mercari') THEN 1 ELSE 0 END,
       CASE v.call WHEN 'BUY' THEN 0 WHEN 'VERIFY' THEN 1 WHEN 'RISK' THEN 2 ELSE 3 END,
       l.id DESC
-    LIMIT $lim
-  `).all({ $lim: limit * 3, $model: VISION_MODEL, $prompt: PROMPT_VERSION, $budget: VISION_MISS_BUDGET }) as Candidate[];
+
+  `).all({ $budget: VISION_MISS_BUDGET }) as Candidate[];
 
   /**
    * Never pay to look at furniture. A "computers" category crawl surfaces
@@ -131,6 +111,7 @@ export function visionCandidates(limit: number): Candidate[] {
   return rows
     .filter((r) => resolveProductType(r.title ?? "").kind === "tech")
     .filter((r) => !isAccessoryFor(r.title ?? ""))
+    .filter((r) => !loadCurrentVision(r.id,VISION_MODEL,PROMPT_VERSION))
     .slice(0, limit);
 }
 
@@ -184,7 +165,10 @@ export async function visionPass(
   for (const c of cands) {
     if (!budgetAvailable()) { onProgress("daily budget reached mid-pass"); break; }
     try {
-      const r = await checkListing(c.url, { persist: true, vision: true });
+      const { listing }=checkStored(c.id);
+      const r = await checkFetched(listing, { persist: true, storedListingId:c.id, vision: true });
+      if(!r.vision) throw new Error("No usable photo analysis returned");
+      db().run("DELETE FROM vision_misses WHERE listing_id=?",[c.id]);
       read++;
       if (r.verdict.call !== c.call) {
         changed++;

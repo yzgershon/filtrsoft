@@ -204,6 +204,25 @@ export function bestPhotos(urls: string[], max = 20): string[] {
   return order.slice(0, max).map((id) => best.get(id)!.url);
 }
 
+/** Snapshot evidence: Mercari photos use /photos/m<item>_<slide>.jpg.
+ * Require the page's item ID; recommendation cards share the same CDN.
+ */
+export function mercariPhotos(urls:string[],listingUrl:string,max=20):string[] {
+  const item=new URL(listingUrl).pathname.match(/\/item\/(m\d+)\/?/)?.[1];
+  if(!item) return [];
+  const slides=new Map<string,{url:string;width:number}>();
+  for(const value of urls) {
+    let u:URL;try {u=new URL(value);}catch {continue;}
+    if(u.protocol!=="https:" || u.hostname!=="u-mercari-images.mercdn.net") continue;
+    const photo=u.pathname.match(/^\/photos\/(m\d+)_(\d+)\.(?:jpg|jpeg|png|webp)$/i);
+    if(!photo || photo[1]!==item) continue;
+    const width=Number(u.searchParams.get("width"))||0;
+    const prior=slides.get(photo[2]);
+    if(!prior || width>prior.width) slides.set(photo[2],{url:value,width});
+  }
+  return [...slides.entries()].sort(([a],[b])=>Number(a)-Number(b)).slice(0,max).map(([,p])=>p.url);
+}
+
 /* ───────────────────────────── OfferUp detail text: the description and specs
  *
  * ⚠ **OFFERUP AND MERCARI HAD 0% DESCRIPTION COVERAGE — 161 LIVE LISTINGS WITH
