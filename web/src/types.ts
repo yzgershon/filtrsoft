@@ -16,6 +16,14 @@ export interface Retail {
   quotes: Array<{ source: string; priceCents: number }>;
 }
 export interface Verdict {
+  inventory?: {
+    sellerContext: string;
+    offers: Array<{
+      evidence: string; item: string; quantity: number; askingPriceCents: number | null;
+      priceBasis: "bundle" | "each" | "ambiguous";
+      valuation: Verdict["valuation"] | null; valuationNote: string;
+    }>;
+  };
   call: Call; confidence: string; headline: string; reasoning: string;
   /** Present only when HE relabelled it — what the engine had said. */
   overriddenFrom?: Call | null;
@@ -34,6 +42,7 @@ export interface Meta {
   match?: { model: string | null; brand: string | null; confidence: string; method: string };
 }
 export interface FeedItem {
+  priceIsPlaceholder?: boolean;
   id: number; title: string; url: string; source: string;
   askingPriceCents: number | null; location: string | null; postedAt: string | null;
   thumb: string | null; call: Call; headline: string | null; netProfitCents: number | null;

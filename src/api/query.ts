@@ -20,6 +20,8 @@
 export interface Scoped {
   call: string;
   askingPriceCents?: number | null;
+  reviewed?: boolean;
+  gone?: boolean;
 }
 
 /**
@@ -54,6 +56,7 @@ export interface Scoped {
 const NEVER_IN_ALL = ["RISK"];
 
 export const QUALITY: Record<string, string[] | null> = {
+  review: ["BUY", "VERIFY", "FAIR", "PASS"],
   all: null,
   ready: ["BUY"],
   verify: ["VERIFY"],
@@ -71,6 +74,11 @@ export const QUALITIES = Object.keys(QUALITY);
  * "no quality selected".
  */
 export const applyQuality = <T extends Scoped>(rows: T[], quality: string): T[] => {
+  // Yish wants about ten listings to label. Keep this a bounded review batch,
+  // not a deletion or a ten-row SQL pool that would empty every other segment.
+  // An agreement counts as reviewed too, even when it changes no verdict.
+  if (quality === "review") return rows.filter((r) =>
+    QUALITY.review!.includes(r.call) && !r.reviewed && !r.gone).slice(0, 10);
   const wanted = QUALITY[quality] ?? null;
   if (wanted) return rows.filter((r) => wanted.includes(r.call));
   return rows.filter((r) => !NEVER_IN_ALL.includes(r.call));
@@ -234,7 +242,7 @@ export interface FeedFilters {
 }
 
 export const NO_FILTERS: FeedFilters = {
-  quality: "all", q: "", category: "", source: "", maxPrice: null, sort: "best",
+  quality: "review", q: "", category: "", source: "", maxPrice: null, sort: "best",
 };
 
 /** Reads one request's worth of query params into the filter model. */
@@ -242,7 +250,7 @@ export function parseFilters(get: (k: string) => string | undefined): FeedFilter
   const price = Number(get("maxPrice"));
   const sort = (get("sort") ?? "best").toLowerCase() as Sort;
   return {
-    quality: (get("quality") ?? "all").toLowerCase(),
+    quality: (get("quality") ?? "review").toLowerCase(),
     q: (get("q") ?? "").trim().slice(0, 80),
     category: (get("category") ?? "").toLowerCase(),
     source: (get("source") ?? "").toLowerCase(),

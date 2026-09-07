@@ -103,13 +103,15 @@ export function MyCall({ id, call, overriddenFrom, onChange }: {
     try {
       const ref = deviceRef();
       if (next === null) {
-        await fetch(`/v1/checks/${id}/override?ref=${encodeURIComponent(ref)}`, { method: "DELETE" });
+        const response = await fetch(`/v1/checks/${id}/override?ref=${encodeURIComponent(ref)}`, { method: "DELETE" });
+        if (!response.ok) throw new Error("Label was not saved");
         toast("Back to the engine's call");
       } else {
-        await fetch(`/v1/checks/${id}/override`, {
+        const response = await fetch(`/v1/checks/${id}/override`, {
           method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ ref, call: next }),
         });
+        if (!response.ok) throw new Error("Label was not saved");
         toast(`Marked ${LABEL[next]}`);
       }
       setOpen(false);
@@ -260,6 +262,33 @@ export function Numbers({ v, ask }: { v: Verdict; ask: number | null }) {
       {!canSwitch && ch?.channel === "facebook" && (
         <p className="chnote">Too bulky to post, so it is a local sale only and there are no fees to take out.</p>
       )}
+    </section>
+  );
+}
+
+export function Inventory({ inventory }: { inventory: NonNullable<Verdict["inventory"]> }) {
+  const quotedMoney = (cents: number) => `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })}`;
+  return (
+    <section className="sec rise">
+      <SecHead tone="alt" icon={<Tag size={18} />} title="Item prices"
+        note="Quoted from the description. The headline price is a placeholder." />
+      {inventory.sellerContext && <p>Seller says: {inventory.sellerContext}</p>}
+      <div className="panel">
+        {inventory.offers.map((offer, i) => (
+          <div className="flag" key={i}>
+            <div className="txt">
+              <strong>{offer.quantity} × {offer.item}</strong>
+              <p>{offer.askingPriceCents == null ? "Multiple prices or conditions: check the seller's quote below."
+                : `${quotedMoney(offer.askingPriceCents)} ${offer.priceBasis === "each" ? "each" : "for this offer"}`}</p>
+              {offer.valuation?.lowCents != null && offer.valuation.highCents != null && (
+                <p>Resale: {money(offer.valuation.lowCents)} to {money(offer.valuation.highCents)} · {offer.valuation.compCount} sold comps</p>
+              )}
+              <p className="ev">{offer.valuationNote}</p>
+              <details><summary>Seller's exact wording</summary><p>{offer.evidence}</p></details>
+            </div>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
@@ -809,7 +838,7 @@ export function Report({
                 at level 2 with nothing above it. */}
             <h1>{listing.title}</h1>
             <div className="meta">
-              <span className="price num">{money(listing.askingPriceCents)}</span>
+              <span className="price num">{verdict?.inventory ? "Item prices below" : money(listing.askingPriceCents)}</span>
               <span className="facts">
                 {[listing.location, ago(listing.postedAt)].filter(Boolean).join(" · ")}
               </span>
@@ -867,6 +896,7 @@ export function Report({
           {verdict && <Numbers v={verdict} ask={listing?.askingPriceCents ?? null} />}
         </div>
       </div>
+      {verdict?.inventory && <Inventory inventory={verdict.inventory} />}
       {verdict && (
         <CompsAndOffer v={verdict} comps={comps ?? []} ask={listing.askingPriceCents} />
       )}
