@@ -404,6 +404,22 @@ export function checkStored(
  * 0.3.19 — unresolved category hard blockers always veto BUY.
  * 0.3.20 — category agreement, brand boundaries, printer purge, 256G storage.
  *
+ * 0.3.32 — THE PARTS PASS. The engine could not price RAM, storage, PSUs,
+ *           motherboards or cases at all: the `component` category was 56 CPUs
+ *           and nothing else, so the comps crawler had never asked eBay about
+ *           any of them. Five categories added, CPU gaps filled, and a
+ *           `Gaming PC <GPU>` prebuilt SKU created per gaming GPU — 50 of 64
+ *           GPUs had none, which is why a custom tower could not be valued.
+ *           Comps 25,171 -> 28,546; SKUs 441 -> 559.
+ *
+ *           Three comp-discarding bugs fixed in the same pass, each of which
+ *           was throwing away CORRECT rows: a unit suffix read as a variant
+ *           ("6000MT/s" rejected 81 of 122 real Fury Beast sales), a whole
+ *           machine with no head noun surviving the parts filter (one $680
+ *           Omen 45L PC became the only comp for a ~$180 case), and a tech
+ *           word glued to a furniture word read as the product ("computer
+ *           desk" priced as a computer).
+ *
  * 0.3.27 — the profit floor is $100 flat to a 20-minute drive. The hourly rate
  *           goes $125 -> $80, which puts the crossover exactly there; at $125
  *           the clock was the binding term at EVERY distance and the $100 floor
@@ -420,4 +436,4 @@ export function checkStored(
  * the current version. Exactly the failure this constant was made load-bearing
  * to prevent, two days after writing that down.
  */
-export const ENGINE_VERSION = "0.3.31";
+export const ENGINE_VERSION = "0.3.32";
