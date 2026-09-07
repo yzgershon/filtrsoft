@@ -416,15 +416,29 @@ export function Thumb({ src, size = 22 }: { src: string | null; size?: number })
  */
 export const SUBKEY = "filtrsoft:subId";
 
+/** Re-register the browser's actual subscription after sign-in or an upgrade.
+ * A cached numeric ID proves no ownership; getSubscription needs no new prompt.
+ */
+export async function reconcilePushSubscription(): Promise<number | null> {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return null;
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = await reg?.pushManager.getSubscription();
+  if (!sub) { localStorage.removeItem(SUBKEY); return null; }
+  const response=await fetch("/v1/push/subscribe",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(sub.toJSON())});
+  const data=await response.json();
+  if(!response.ok || !data.subId)throw new Error(data.error??"Couldn't register this device.");
+  localStorage.setItem(SUBKEY,String(data.subId));
+  return data.subId;
+}
+
 /**
  * A stable per-device id.
  *
  * ⚠ IT LIVES HERE, NOT IN `screens.tsx`, BECAUSE THREE SCREENS NEED IT NOW.
  * It was minted for Stripe's `client_reference_id`; the verdict override reuses
  * it as the owner of a relabelled listing, which is what lets an
- * UNAUTHENTICATED public endpoint be safe — an override belongs to the browser
- * that made it and can never change what anyone else sees. Full reasoning in
- * `src/api/overrides.ts`.
+ * account_devices link survive the transition to authenticated ownership.
+ * The ref locates records; the server session authorizes them.
  */
 export const REFKEY = "filtrsoft:ref";
 export function deviceRef(): string {

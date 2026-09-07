@@ -20,7 +20,7 @@ import {
 } from "./nav.ts";
 import {
   LABEL, money, ago, markAsked, toast, writeWatch, readWatch, toggleWatch,
-  SUBKEY, urlB64ToBytes, deviceRef, Thumb, readSettings, HKEY, AKEY,
+  SUBKEY, reconcilePushSubscription, urlB64ToBytes, deviceRef, Thumb, readSettings, HKEY, AKEY,
 } from "./lib.tsx";
 import { Gcard } from "./feed.tsx";
 import { CrawlPanel } from "./crawl.tsx";
@@ -587,9 +587,14 @@ export function Alerts() {
   const [note, setNote] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!subId) return;
-    fetch(`/v1/searches?subId=${subId}`).then((r) => r.json())
-      .then((d) => setList(d.items ?? [])).catch(() => {});
+    let active=true;
+    reconcilePushSubscription().then(async id=>{
+      if(!active)return;setSubId(id);if(!id){setList([]);return;}
+      const response=await fetch(`/v1/searches?subId=${id}`);const d=await response.json();
+      if(!response.ok)throw new Error(d.error??"Couldn't load alerts.");
+      if(active)setList(d.items??[]);
+    }).catch(e=>{if(active){setList([]);setNote((e as Error).message);}});
+    return()=>{active=false;};
   }, [subId]);
 
   async function enable() {

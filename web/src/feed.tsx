@@ -18,7 +18,7 @@ import {
 } from "./nav.ts";
 import {
   LABEL, money, ago, listedAge, readWatch, toggleWatch, readSettings, toast, Thumb,
-  SUBKEY, urlB64ToBytes, onOpenFilters, publishFilterCount,
+  SUBKEY, reconcilePushSubscription, urlB64ToBytes, onOpenFilters, publishFilterCount,
   popSpot, restoreScroll, setFeedRows, deviceRef, publishFreshness, publishAuthLost,
 } from "./lib.tsx";
 
@@ -308,7 +308,7 @@ export function SaveSearch({ f }: { f: Filters }) {
   async function save() {
     setState("busy"); setMsg(null);
     try {
-      let subId = Number(localStorage.getItem(SUBKEY)) || null;
+      let subId = await reconcilePushSubscription();
       if (!subId) {
         if (typeof Notification === "undefined" || !("serviceWorker" in navigator)) {
           throw new Error("This browser can't do alerts.");

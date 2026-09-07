@@ -33,13 +33,13 @@ import {
 } from "./billing.ts";
 import {
   handleSignup, handleSignin, handleSignout, handleMe, handleGoogle, handleApple,
-  currentUser, authProviders, pruneSessions,
+  currentUser, ownsDevice, authProviders, pruneSessions,
 } from "./auth.ts";
 import { getEconomics } from "../valuation/index.ts";
 import { db, DB_PATH } from "../db/index.ts";
 import { getThumb, thumbStats, pruneThumbs, THUMBS_OFF } from "../photos/thumb.ts";
 import {
-  loadOverrides, applyOverride, handleSetOverride, handleClearOverride,
+  loadAccountOverrides, applyOverride, handleSetOverride, handleClearOverride,
 } from "./overrides.ts";
 import { archiveStatus } from "../db/archive.ts";
 import { compsHealth, visionHealth } from "./pipeline-health.ts";
@@ -55,7 +55,7 @@ import {
   singleFlight, guardStatus,
 } from "./guard.ts";
 
-const app = new Hono();
+export const app = new Hono();
 
 /** Facet counts, so a filter chip never offers a value with nothing behind it. */
 function countBy<T>(rows: T[], key: (r: T) => string | null | undefined): Record<string, number> {
@@ -231,6 +231,8 @@ app.use("/v1/*", async (c, next) => {
      */
     return c.json({ error: "sign in to use Filtrsoft", auth: "required" }, 401);
   }
+  const ref=c.req.query("ref");
+  if(ref && !ownsDevice(currentUser(c)!.id,ref))return c.json({error:"device does not belong to this account"},403);
   await next();
 });
 
@@ -649,16 +651,17 @@ app.post("/v1/checks/:id/outcome", async (c) => {
   try { skuId = checkStored(id, {}).match.skuId ?? null; } catch { /* fine */ }
 
   db().query(
-    `INSERT INTO outcomes (listing_id, sku_id, action, purchase_price_cents, notes, created_at)
-     VALUES ($lid,$sku,$act,$price,$notes,$now)`,
+    `INSERT INTO outcomes (listing_id, sku_id, action, purchase_price_cents, notes, created_at,user_id)
+     VALUES ($lid,$sku,$act,$price,$notes,$now,$user)`,
   ).run({
     $lid: id, $sku: skuId, $act: body.action,
+    $user:currentUser(c)!.id,
     $price: body.pricePaidCents ?? null,
     $notes: (body.notes ?? "").slice(0, 500) || null,
     $now: new Date().toISOString(),
   });
 
-  const n = (db().query("SELECT COUNT(*) n FROM outcomes").get() as { n: number }).n;
+  const n = (db().query("SELECT COUNT(*) n FROM outcomes WHERE user_id=?").get(currentUser(c)!.id) as { n: number }).n;
   return c.json({ ok: true, action: body.action, totalOutcomes: n });
 });
 
@@ -750,10 +753,8 @@ app.delete("/v1/checks/:id/override", handleClearOverride);
  * talked down from $200 to $170 against a $287 median — and the engine had
  * called it FAIR, "doesn't pay for the trip". Both numbers belong on screen.
  *
- * ⚠ NOT SCOPED TO A DEVICE REF, unlike overrides. `outcomes` predates the ref
- * and has no column for it, and a purchase is not a public write — it comes
- * from the outcome prompt, which only someone using the app ever sees. Adding
- * scoping later means a migration, not a redesign.
+ * Outcomes belong to the signed-in account. Unassigned historical rows are
+ * preserved privately; seeing an outcome button is not proof of ownership.
  */
 app.get("/v1/purchases", (c) => {
   const rows = db().query(`
@@ -766,10 +767,10 @@ app.get("/v1/purchases", (c) => {
       FROM outcomes o
       JOIN listings l ON l.id = o.listing_id
       LEFT JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
-     WHERE o.action = 'bought'
+     WHERE o.action = 'bought' AND o.user_id=?
      ORDER BY o.created_at DESC
      LIMIT 200
-  `).all() as any[];
+  `).all(currentUser(c)!.id) as any[];
 
   const items = rows.map((r) => {
     const v = r.payload ? JSON.parse(r.payload) : null;
@@ -858,7 +859,7 @@ app.get("/v1/feed", (c) => {
    */
   const filters = parseFilters((k) => c.req.query(k));
   const { quality } = filters;
-  const overrides = loadOverrides(c.req.query("ref"));
+  const overrides = loadAccountOverrides(currentUser(c)!.id);
 
   const rows = db().query(`
     SELECT l.id, l.title, l.url, l.asking_price_cents, l.location, l.posted_at, l.source,
@@ -1161,7 +1162,7 @@ app.get("/v1/pulse", (c) => {
    * product and ignoring it on the one surface that interrupts him would be
    * the loudest possible place to get it wrong.
    */
-  const overrides = loadOverrides(c.req.query("ref"));
+  const overrides = loadAccountOverrides(currentUser(c)!.id);
   const items = rows
     .map((r) => applyOverride({
       id: r.id, title: r.title, call: r.call,
@@ -1348,7 +1349,7 @@ app.get("/v1/checks/:id", (c) => {
    * listings he has personally checked is the entire point. See
    * `api/overrides.ts`.
    */
-  const ov = loadOverrides(c.req.query("ref")).get(id);
+  const ov = loadAccountOverrides(currentUser(c)!.id).get(id);
   if (ov && verdict && ov.call !== verdict.call) {
     verdict = { ...verdict, call: ov.call, overriddenFrom: verdict.call, overrideNote: ov.note };
   }
@@ -1415,7 +1416,7 @@ if (hasBuild) {
 // (a missing volume, a read-only mount) meant the module never finished
 // evaluating, so the server never listened at all and the platform saw nothing
 // but a timeout. Start first, seed second, survive either way.
-setTimeout(async () => {
+if (import.meta.main) setTimeout(async () => {
   try {
     const n = (db().query("SELECT COUNT(*) n FROM skus").get() as { n: number }).n;
     if (n === 0) {
@@ -1497,7 +1498,7 @@ const port = Number(process.env.PORT) || 3177;
 // Bind all interfaces. Binding loopback inside a container makes the app
 // invisible to the platform's healthcheck even though it "started fine".
 const hostname = "0.0.0.0";
-console.log(
+if (import.meta.main) console.log(
   `filtrsoft  ${hostname}:${port}  engine ${ENGINE_VERSION}  ` +
   `${hasBuild ? "serving web/dist" : "api only (dev)"}  db=${DB_PATH}`,
 );

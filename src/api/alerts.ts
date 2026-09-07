@@ -29,6 +29,7 @@
 import type { Context } from "hono";
 import webpush from "web-push";
 import { db, now } from "../db/index.ts";
+import { currentUser } from "./auth.ts";
 
 /** Push works if a keypair resolves — env, stored, or freshly generated. */
 export const pushConfigured = () => configure();
@@ -203,6 +204,7 @@ export function ensureAlertTables() {
       created_at TEXT NOT NULL,
       last_ok    TEXT
     )`);
+  addColumn("push_subs", "user_id", "INTEGER REFERENCES users(id)");
   db().run(`
     CREATE TABLE IF NOT EXISTS saved_searches (
       id             INTEGER PRIMARY KEY,
@@ -431,20 +433,29 @@ export function handleVapid(c: Context) {
 
 export async function handleSubscribe(c: Context) {
   ensureAlertTables();
+  const user=currentUser(c);
+  if(!user)return c.json({error:"sign in required"},401);
   const b = await c.req.json().catch(() => null) as {
     endpoint?: string; keys?: { p256dh?: string; auth?: string };
   } | null;
-  if (!b?.endpoint || !b.keys?.p256dh || !b.keys?.auth) {
+  if (typeof b?.endpoint !== "string" || !b.endpoint.startsWith("https://") || typeof b.keys?.p256dh !== "string" || typeof b.keys?.auth !== "string" || !b.keys.p256dh || !b.keys.auth) {
     return c.json({ error: "endpoint and keys are required" }, 400);
+  }
+  const existing=db().query("SELECT user_id,p256dh,auth FROM push_subs WHERE endpoint=?").get(b.endpoint) as {user_id:number|null;p256dh:string;auth:string}|null;
+  if(existing && (existing.user_id!==null && existing.user_id!==user.id
+    || existing.user_id===null && (existing.p256dh!==b.keys.p256dh || existing.auth!==b.keys.auth))) {
+    return c.json({error:"subscription does not belong to this account"},403);
   }
   // Upsert on endpoint: re-subscribing the same device must not create a
   // second row, or every alert arrives twice.
   db().run(
-    `INSERT INTO push_subs (endpoint, p256dh, auth, created_at) VALUES (?,?,?,?)
-     ON CONFLICT(endpoint) DO UPDATE SET p256dh=excluded.p256dh, auth=excluded.auth`,
-    [b.endpoint, b.keys.p256dh, b.keys.auth, now()],
+    `INSERT INTO push_subs (endpoint, p256dh, auth, created_at, user_id) VALUES (?,?,?,?,?)
+     ON CONFLICT(endpoint) DO UPDATE SET p256dh=excluded.p256dh, auth=excluded.auth,user_id=excluded.user_id
+       WHERE push_subs.user_id=excluded.user_id OR (push_subs.user_id IS NULL AND push_subs.p256dh=excluded.p256dh AND push_subs.auth=excluded.auth)`,
+    [b.endpoint, b.keys.p256dh, b.keys.auth, now(),user.id],
   );
-  const row = db().query("SELECT id FROM push_subs WHERE endpoint=?").get(b.endpoint) as { id: number };
+  const row = db().query("SELECT id FROM push_subs WHERE endpoint=? AND user_id=?").get(b.endpoint,user.id) as { id: number } | null;
+  if(!row)return c.json({error:"subscription ownership changed; retry"},409);
   /**
    * ⚠ A DEVICE IS SUBSCRIBED TO BUY AND VERIFY THE MOMENT IT ALLOWS
    * NOTIFICATIONS. Granting permission and then receiving nothing is
@@ -459,6 +470,7 @@ export function handleListSearches(c: Context) {
   ensureAlertTables();
   const subId = Number(c.req.query("subId"));
   if (!subId) return c.json({ items: [] });
+  if(!ownsSubscription(c,subId))return c.json({error:"subscription does not belong to this account"},403);
   const items = db().query(
     "SELECT id, label, query, max_price_cents, min_profit_cents, calls, created_at, standing FROM saved_searches WHERE sub_id=? ORDER BY standing DESC, id DESC",
   ).all(subId);
@@ -472,6 +484,7 @@ export async function handleCreateSearch(c: Context) {
     maxPriceCents?: number; minProfitCents?: number; calls?: string[];
   } | null;
   if (!b?.subId) return c.json({ error: "subId is required" }, 400);
+  if(!ownsSubscription(c,b.subId))return c.json({error:"subscription does not belong to this account"},403);
 
   const query = (b.query ?? "").trim() || null;
   const hasCriterion = query || b.maxPriceCents != null || b.minProfitCents != null || b.calls?.length;
@@ -482,8 +495,7 @@ export async function handleCreateSearch(c: Context) {
   const sub = db().query("SELECT id FROM push_subs WHERE id=?").get(b.subId);
   if (!sub) return c.json({ error: "unknown subscription" }, 404);
 
-  // Cap per device. This endpoint is unauthenticated by design, so the bound
-  // is what stops one browser filling the table.
+  // Bound saved searches per owned subscription as well as requiring a session.
   const n = (db().query("SELECT COUNT(*) n FROM saved_searches WHERE sub_id=?").get(b.subId) as { n: number }).n;
   if (n >= 20) return c.json({ error: "that's the limit of 20 saved searches" }, 400);
 
@@ -501,6 +513,7 @@ export function handleDeleteSearch(c: Context) {
   ensureAlertTables();
   const id = Number(c.req.param("id"));
   const subId = Number(c.req.query("subId"));
+  if(!ownsSubscription(c,subId))return c.json({error:"subscription does not belong to this account"},403);
   /**
    * ⚠ THE STANDING ALERT CANNOT BE DELETED, ONLY NARROWED. Deleting it would
    * put the device back in the silent state this whole change exists to end,
@@ -520,6 +533,8 @@ export function handleDeleteSearch(c: Context) {
 
 /** Send one notification to this device so "it works" is provable. */
 export async function handleTestPush(c: Context) {
+  ensureAlertTables();
+  if(!ownsSubscription(c,Number(c.req.query("subId"))))return c.json({error:"subscription does not belong to this account"},403);
   if (!configure()) {
     return c.json({ error: `push is not usable on the server: ${configError ?? "unknown"}` }, 503);
   }
@@ -567,9 +582,15 @@ export async function handleUpdateStanding(c: Context) {
   ensureAlertTables();
   const subId = Number(c.req.query("subId"));
   if (!subId) return c.json({ error: "subId is required" }, 400);
+  if(!ownsSubscription(c,subId))return c.json({error:"subscription does not belong to this account"},403);
   const b = await c.req.json().catch(() => null) as { verify?: boolean } | null;
   const calls = b?.verify === false ? "BUY" : STANDING_CALLS;
   const r = db().run("UPDATE saved_searches SET calls=? WHERE sub_id=? AND standing=1", [calls, subId]);
   if (!r.changes) return c.json({ error: "no standing alert for this device" }, 404);
   return c.json({ calls: calls.split(",") });
+}
+
+function ownsSubscription(c: Context, id: number): boolean {
+  const user=currentUser(c);
+  return !!user && Number.isSafeInteger(id) && id>0 && !!db().query("SELECT 1 FROM push_subs WHERE id=? AND user_id=?").get(id,user.id);
 }

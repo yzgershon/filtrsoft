@@ -8,11 +8,9 @@
  *
  * ── THE THREE DECISIONS THAT MATTER ────────────────────────────────────────
  *
- * ⚠ **SCOPED TO A DEVICE REF, NOT GLOBAL.** filtrsoft.com is public and this is an
- * unauthenticated write. Global overrides would let anyone relabel a scam as a
- * buy for everybody. `deviceRef()` already exists in the web app — a random
- * uuid minted once per browser for Stripe — so an override belongs to whoever
- * made it, with no login and no token typed into a form.
+ * **SCOPED TO AN AUTHENTICATED ACCOUNT.** Existing device refs remain the
+ * storage key, but writes must prove account_devices ownership. Reads combine
+ * only the signed-in account's refs; a ref supplied in a URL is not authority.
  *
  * ⚠ **A SEPARATE TABLE, NEVER AN UPDATE TO `verdicts`.** `reverdictAll`
  * rewrites that table on every engine bump, so an override stored there would
@@ -27,6 +25,7 @@
  */
 import { db } from "../db/index.ts";
 import type { Context } from "hono";
+import { currentUser, ownsDevice } from "./auth.ts";
 
 /** The engine's own vocabulary. An override may only say something it could. */
 export const OVERRIDE_CALLS = [
@@ -35,7 +34,7 @@ export const OVERRIDE_CALLS = [
 
 /** A device ref is opaque to us; bound only so it cannot be used as a payload. */
 const okRef = (r: unknown): r is string =>
-  typeof r === "string" && /^[a-z0-9]{8,64}$/i.test(r);
+  typeof r === "string" && /^[a-z0-9_-]{8,64}$/i.test(r);
 
 export type OverrideMap = Map<number, { call: string; note: string | null }>;
 
@@ -51,6 +50,16 @@ export function loadOverrides(ref: string | undefined | null): OverrideMap {
     .query("SELECT listing_id, call, note FROM verdict_overrides WHERE device_ref=$r")
     .all({ $r: ref }) as Array<{ listing_id: number; call: string; note: string | null }>;
   for (const r of rows) out.set(r.listing_id, { call: r.call, note: r.note });
+  return out;
+}
+
+/** Personal reads use session ownership, not a caller-supplied device ref. */
+export function loadAccountOverrides(userId: number): OverrideMap {
+  const out: OverrideMap = new Map();
+  const rows = db().query(`SELECT o.listing_id,o.call,o.note FROM verdict_overrides o
+    JOIN account_devices a ON a.device_ref=o.device_ref WHERE a.user_id=?
+    ORDER BY o.created_at,o.rowid`).all(userId) as Array<{listing_id:number;call:string;note:string|null}>;
+  for (const r of rows) out.set(r.listing_id,{call:r.call,note:r.note});
   return out;
 }
 
@@ -78,6 +87,9 @@ export async function handleSetOverride(c: Context) {
     ref?: string; call?: string; note?: string;
   };
   if (!okRef(body.ref)) return c.json({ error: "a device ref is required" }, 400);
+  const user = currentUser(c);
+  if (!user) return c.json({error:"sign in required"},401);
+  if (!ownsDevice(user.id,body.ref)) return c.json({error:"device does not belong to this account"},403);
   if (!body.call || !(OVERRIDE_CALLS as readonly string[]).includes(body.call)) {
     return c.json({ error: `call must be one of ${OVERRIDE_CALLS.join(", ")}` }, 400);
   }
@@ -102,6 +114,9 @@ export function handleClearOverride(c: Context) {
   const id = Number(c.req.param("id"));
   const ref = c.req.query("ref");
   if (!okRef(ref)) return c.json({ error: "a device ref is required" }, 400);
+  const user = currentUser(c);
+  if (!user) return c.json({error:"sign in required"},401);
+  if (!ownsDevice(user.id,ref)) return c.json({error:"device does not belong to this account"},403);
   db().query("DELETE FROM verdict_overrides WHERE device_ref=$r AND listing_id=$id")
     .run({ $r: ref, $id: id });
   return c.json({ ok: true });

@@ -6,16 +6,16 @@ Source audit: C:/Dev/filtrsoft-backend-audit-2026-09-07/BACKEND-AUDIT.md. Worktr
 
 Status meanings: pending, in progress, implemented (checks pending), verified locally, deployed. Only record a finding as verified when its acceptance evidence exists. Keep unresolved subparts explicit. No production result is implied by a local check.
 
-## Phase 1: correctness barriers — in progress
+## Phase 1: correctness barriers — verified locally
 
 - F01 — verified locally: parts category contract; searchable catalog identities without aliases; exact part brand/model/configuration matching; correct storage queries and seed category. Legacy storage rows are interpreted compatibly rather than rewriting the active crawl DB.
 - F02 — verified locally for audit regressions: complete GPU variants; strict known capacity and board-tier guards; RAM brand/layout/ECC/variant exclusions in comp acceptance and valuation. Broader provenance/AIB configuration work remains F15/F16.
 - F04 — verified locally for core audit regressions: normalized stored facts, seller references and reusable current vision; stable refresh/re-score evidence; actual photo URLs and safe unchanged-hash reuse. Transport precedence and multi-process photo ownership remain F03/F17.
 - F06 — verified locally: canonical price/history update, stale replay rejection and durable recheck queue on accepted sweep observations; missing-verdict recovery. Broader ingestion revisions remain F03/F09.
-- F08: account ownership for subscriptions, searches, overrides and outcomes; preserve existing legitimate device data without an insecure claim-by-ID shortcut.
+- F08 — verified locally: session ownership for subscriptions, searches/test-send, overrides, outcome writes/counts and purchases. Legacy push adoption proves browser-held keys. Only unambiguous single-account historical outcomes migrate automatically; ambiguous rows remain private and need explicit reconciliation. Frontend silently re-registers an existing browser subscription after upgrade.
 - Acceptance: exact-product positive and negative fixtures, stored/fresh equivalence, price-drop regression, two-account route matrix, existing tests and typecheck. Bump ENGINE_VERSION before commit.
 
-## Phase 2: reliable synchronization and delivery — pending
+## Phase 2: reliable synchronization and delivery — in progress
 
 - F03: durable versioned local outbox, per-change server acknowledgement, retirement propagation, rich/newer evidence precedence, reconnect/replay convergence.
 - F05: source-aware stored-photo enrichment, Mercari galleries, synced vision revisions and explicit outcomes.
@@ -61,3 +61,4 @@ Update HANDOFF and this file after each verified batch and before stopping. Comm
 - 2026-09-07: inspected current main and active process inventory; created isolated worktree; reconciled saved inventory commit. No shared data edits, crawl, or deployment.
 - 2026-09-07: exact-identity batch, engine 0.3.34, 209 tests / 698 assertions / zero failures; typecheck passed. Test prices live only in temporary isolated databases. Fresh-check/stored-check equivalence and ownership are next, not yet complete.
 - 2026-09-07: evidence and sweep-price batch, 213 tests / 702 assertions / zero failures; typecheck passed. Four process-isolated regressions cover preserved facts, current vs stale vision, no refetch for unchanged hashes, and price recheck recovery. Ownership is next.
+- 2026-09-07: ownership batch completes phase 1 locally: 217 tests / 706 assertions / zero failures; typecheck and Vite production build passed. Actual router tested with two synthetic accounts and blocked transports. No production changes. Next F07/F11, then F03/F05.

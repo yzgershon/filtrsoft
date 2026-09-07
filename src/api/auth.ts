@@ -175,6 +175,11 @@ export function devicesFor(userId: number): string[] {
     .map((r) => r.device_ref);
 }
 
+export function ownsDevice(userId: number, ref: unknown): ref is string {
+  return typeof ref === "string" && /^[A-Za-z0-9_-]{8,64}$/.test(ref)
+    && Boolean(db().query("SELECT 1 FROM account_devices WHERE user_id=? AND device_ref=?").get(userId,ref));
+}
+
 /**
  * ─────────────────────────────────────────────────────── brute-force limiting
  *

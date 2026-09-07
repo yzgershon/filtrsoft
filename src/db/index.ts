@@ -200,6 +200,7 @@ function migrate(d: Database) {
   addColumns(d, "listings", LISTING_COLUMNS);
   addColumns(d, "vision_results", VISION_COLUMNS);
   addColumns(d, "retail_prices", RETAIL_COLUMNS);
+  addColumns(d, "outcomes", [["user_id", "INTEGER REFERENCES users(id)"]]);
   d.exec("CREATE INDEX IF NOT EXISTS idx_vision_fingerprint ON vision_results(photo_fingerprint)");
   d.exec("CREATE INDEX IF NOT EXISTS idx_vision_created ON vision_results(created_at)");
   d.exec("CREATE INDEX IF NOT EXISTS idx_vision_spend_created ON vision_spend(created_at)");
@@ -215,6 +216,15 @@ function migrate(d: Database) {
   )`);
   const applied = d.query("SELECT 1 FROM schema_migrations WHERE name=?");
   const mark = d.query("INSERT INTO schema_migrations (name, applied_at) VALUES (?,?)");
+  // Preserve the pre-account owner's personal records only when ownership is
+  // unambiguous at upgrade. Multi-account legacy rows stay unassigned, private.
+  const ownership = "2026-09-07-personal-outcome-ownership";
+  if (!applied.get(ownership)) d.transaction(()=>{
+    d.run(`UPDATE outcomes SET user_id=(SELECT id FROM users LIMIT 1)
+      WHERE user_id IS NULL AND action IN ('bought','passed','no_reply','was_scam')
+        AND (SELECT COUNT(*) FROM users)=1`);
+    mark.run(ownership,new Date().toISOString());
+  })();
   /**
    * ⚠ $100 AT A 20-MINUTE DRIVE. Yish, 2026-08-31: *"right now you're saying my
    * floor is $135 for a 15 min drive — can you change it to like $100 profit
