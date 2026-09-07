@@ -21,6 +21,8 @@ import { latestRetail, retailMeaning, type RetailPrice } from "../sources/retail
 import { boardTier } from "../signals/board-tier.ts";
 import type { VisionResult } from "../vision/index.ts";
 import { isScamFarm, scamSignals, scamHeadline } from "./scam.ts";
+import { listingInventory } from "../signals/listing-offers.ts";
+import { valueInventory, type PricedOffer } from "../valuation/inventory.ts";
 
 const OUT_OF_SCOPE = /\b(lens|dslr|mirrorless|camera body|tripod|nikon|canon ef|sigma \d|tamron|zeiss|leica|scanner|camcorder)\b/i;
 
@@ -175,6 +177,7 @@ const RETAILER_NAME: Record<string, string> = {
 };
 
 export interface VerdictResult {
+  inventory?: { sellerContext: string; offers: PricedOffer[] };
   call: Verdict;
   confidence: Confidence;
   headline: string;
@@ -243,6 +246,7 @@ export function buildVerdict(input: {
   vision?: VisionResult | null;
 }): VerdictResult {
   const { signals, match } = input;
+  const inventory = listingInventory(input.title, input.description, input.askingPriceCents);
   const econ = input.econ ?? getEconomics();
   const drive = input.driveMinutes ?? 15;
   const blockers = signals.signals.filter((s) => s.severity === "blocker").map((s) => s.evidence);
@@ -537,7 +541,7 @@ export function buildVerdict(input: {
     };
   }
 
-  if (BULK_LISTING.test(input.title) || RESELLER_AD.test(input.title)) {
+  if (!inventory && (BULK_LISTING.test(input.title) || RESELLER_AD.test(input.title))) {
     return {
       ...base, call: "OUT_OF_SCOPE", confidence: "high",
       headline: "Bulk listing, not a single item.",
@@ -565,6 +569,23 @@ export function buildVerdict(input: {
   }
 
   // --- 3. Missing the field that determines value ----------------------
+  if (inventory) {
+    const offers = valueInventory(inventory);
+    return {
+      ...base,
+      // A whole-listing median here would mix distinct products, while the
+      // price arithmetic would subtract $1. Only individual offers get comps.
+      valuation: { status: "no_comps", lowCents: null, highCents: null, medianCents: null, compCount: 0, confidence: "low" },
+      retail: null,
+      inventory: { sellerContext: inventory.sellerContext, offers },
+      call: "INSUFFICIENT_DATA", confidence: "high",
+      headline: "Item prices are in the description.",
+      reasoning: `Found ${offers.length} separately priced offers. The headline price is a placeholder. Each quantity and price is shown below; resale values appear only where the archive has matching sold comps.`,
+      decidingUnknown: "which item and quantity you want, and matching sold comps for it",
+      questions: ["Which of these items are still available, and what is the total price for the quantity I choose?"],
+    };
+  }
+
   if (signals.missingValueFields.length) {
     return {
       ...base, call: "INSUFFICIENT_DATA", confidence: "high",

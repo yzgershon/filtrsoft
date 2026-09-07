@@ -964,6 +964,7 @@ app.get("/v1/feed", (c) => {
       capturedAt: r.captured_at,
       thumb: thumbUrl(r), call: r.call, confidence: r.confidence,
       headline: v?.headline ?? null,
+      priceIsPlaceholder: Boolean(v?.inventory),
       netProfitCents: v?.netProfitCents ?? null,
       flagCount: (v?.blockers?.length ?? 0),
       ...tracker(r),
@@ -989,7 +990,7 @@ app.get("/v1/feed", (c) => {
      * lie `segmentCounts`' invariant exists to prevent. See `api/overrides.ts`
      * for why these are scoped to a device rather than global.
      */
-    .map((i) => applyOverride(i, overrides))
+    .map((i) => ({ ...applyOverride(i, overrides), reviewed: overrides.has(i.id) }))
     .sort((a, b) => b.score - a.score);
 
   // Rank globally, then page. Paging before ranking would make page 2 a

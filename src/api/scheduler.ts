@@ -42,6 +42,7 @@ import { pruneSessions } from "./auth.ts";
 import { checkStored, ENGINE_VERSION } from "../engine/index.ts";
 import { db, now } from "../db/index.ts";
 import { storeVerdict } from "../db/verdicts.ts";
+import { retireRepeatedAppliances } from "../db/retire-appliances.ts";
 
 /** Gap between ticks. A tick is 5 requests when nothing is new. */
 const INTERVAL_MS = Number(process.env.FILTRSOFT_CRAWL_INTERVAL_MS ?? 3 * 60 * 1000);
@@ -201,6 +202,8 @@ async function runOnce(reason: string) {
   try {
     // Engine changes reach the FEED only through this. Cheap when nothing is
     // stale, which is every run after the one following a deploy.
+    const retiredAppliances = retireRepeatedAppliances();
+    if (retiredAppliances.length) console.log(`retired ${retiredAppliances.length} repeated household appliance listings`);
     const rescored = reverdictAll();
     if (rescored) console.log(`re-scored ${rescored} listings on engine ${ENGINE_VERSION}`);
 

@@ -89,7 +89,59 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
-Everything below shipped. Production is live on `filtrsoft.com`.
+### Current checkpoint: 2026-09-06, late evening
+
+**This checkpoint supersedes the historical counts and pending tasks below.**
+Work was isolated in `backups/worktrees/placeholder-inventory`, branch
+`codex/placeholder-inventory`, because another session was editing the comp picker
+in the main checkout. Do not overwrite that session's ongoing crawl work.
+
+- Engine **0.3.33** adds itemized placeholder-price handling. The preceding
+  **0.3.32** re-verdict already happened: commit `ee9c3d8` measured local live
+  INSUFFICIENT_DATA **1,007 -> 988**. The old "not bumped" warning below is history.
+- `918567a` already retired **83 shop advertisements locally**. This pass adds
+  recoverable retirement for repeated household appliances: **76 candidates**,
+  requiring at least four Craigslist copies at the same price AND an appliance
+  noun, with a separate computer/GPU exclusion. MacBook and Gaming PC duplicates
+  survive. The scheduler runs the same cleanup on production before re-verdicting.
+- **Shipped archive prepared: 31,210 comps / 559 SKUs / 35 retail quotes.**
+  Production health at **2026-09-07 03:10 UTC** still reported engine 0.3.32,
+  25,171 comps and the September 5 archive. Local comp counts are NOT production
+  counts. Check `/v1/health` after deployment before claiming these are live.
+- On an isolated, consistent database snapshot, importing that archive,
+  re-scoring and retiring the 76 appliance rows produced **4,340 live listings**:
+  BUY 13 / VERIFY 25 / FAIR 42 / PASS 334 / RISK 62 / INSUFFICIENT_DATA 949 /
+  OUT_OF_SCOPE 2,915. Baseline: 4,416 live and 988 INSUFFICIENT_DATA. Of the
+  39 fewer can't-tells, **27 got priced using new comps and 12 were appliances**.
+  There were zero failed re-score checks. These are snapshot measurements,
+  not an assertion about production's independently crawled inventory.
+- The default feed is now **Review**, up to **10 priced, unreviewed live rows**.
+  BUY / VERIFY / FAIR / PASS qualify. Your existing `Your call` label removes
+  the item from this batch, including an agreement with the engine. Removing
+  that label makes it eligible again. All / Buy it / Verify / Risky still serve
+  their full populations. No listings are deleted to make this batch.
+- Placeholder inventory now exposes item, quantity, asking-price basis and the
+  seller's exact quote. Four real ads yielded **43 offer rows**: #590 14,
+  #648 3, #651 12, #1984 14. #590/#1984 are repeated watercooling inventory.
+  **None has matching sold comps**, so all four correctly remain can't-tells.
+  A per-stick tier or price range is never guessed into one total. Memory
+  valuation requires brand, generation, speed, total capacity AND explicit kit
+  layout; the current catalog does not establish the latter for these offers.
+- Tests: **203 passing**, TypeScript check and Vite build passed; inventory
+  visually inspected at 360px using the built stylesheet. No paid vision run.
+
+**Next data-quality investigation:** the new `ram` / `psu` / `motherboard` /
+`case` catalog categories are not consistently recognized by `resolveCategory`.
+It can still report `component` for bare RAM or SSDs, while `compMatchesQuery`
+requires category equality. The live backfill log showed 122 WD SN850X rows
+rejected and zero saved, and storage SKUs currently get a `desktop memory`
+search suffix. Correct this taxonomy/search mismatch with product-specific
+regressions; do NOT relax variant, unit, or whole-machine comp guards.
+
+See `docs/sessions/2026-09-06-inventory-review.md` for the photo discrepancies,
+the remaining placeholder population, commands and validation limits.
+
+The sections below are historical unless explicitly superseded above.
 
 **Measured 2026-09-06, after the parts pass:**
 
@@ -307,7 +359,7 @@ Do not re-raise them.** His hardware, and the ranking:
 
 ### 0k. Open, and what he asked for next
 
-**Ranked. The first one is worth more than the rest combined.**
+**Historical queue, now superseded by the current checkpoint above.**
 
 1. **RE-VERDICT EVERYTHING.** Bump `ENGINE_VERSION` past 0.3.31 and let
    `reverdictStale` re-score production. Five new component categories, 39 new
@@ -319,7 +371,9 @@ Do not re-raise them.** His hardware, and the ranking:
    processors into the electronics category, the same title 4 to 14 times each
    at a fixed price with 20+ showroom photos. Bigger than the furniture pile
    was. Detector is cheap: identical title, same seller, 4+ live copies.
-   **Yish has NOT authorised clearing these** — he authorised furniture. Ask.
+   **Authorization corrected:** Yish's pasted brief explicitly authorizes
+   recoverable retirement. Repetition still requires independent non-tech or
+   inventory-ad evidence; it never justifies deleting real repeated devices.
 3. **50 listings whose ask is a placeholder.** "Ram For Sale" at $1 carries
    `1x32gb DDR4-2400 $100 / 2x32gb $200 / 8x32gb DDR4-2666 $800` in the
    description with five photos. Yish, 2026-09-06: *"this is the exact scenerio

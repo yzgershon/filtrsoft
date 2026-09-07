@@ -46,7 +46,7 @@ export function Gcard({ i, saved, onSave, onOpen }: {
   const descId = `gd${i.id}`;
   const desc = [
     i.overriddenFrom ? `${LABEL[i.call]}, your own label` : LABEL[i.call],
-    money(price),
+    i.priceIsPlaceholder ? "See item prices" : money(price),
     i.priceDropCents ? `dropped ${money(i.priceDropCents)}` : null,
     i.netProfitCents && i.netProfitCents > 0 ? `${money(i.netProfitCents)} net profit` : null,
     i.location,
@@ -94,7 +94,7 @@ export function Gcard({ i, saved, onSave, onOpen }: {
           )}
           {i.gone ? <span className="gghost">Gone</span> : null}
           <span className="gstats">
-            <span className="num gprice">{money(price)}</span>
+            <span className="num gprice">{i.priceIsPlaceholder ? "Item prices" : money(price)}</span>
             {i.priceDropCents
               ? <span className="num gdrop"><Cut size={12} />{money(i.priceDropCents)}</span>
               : i.netProfitCents && i.netProfitCents > 0
@@ -598,6 +598,7 @@ export function Feed({ onOpen, onWatchChange }: {
   useEffect(() => onOpenFilters(() => setSheet(true)), []);
 
   const SEGS: Array<{ id: Quality; label: string; n: number; fresh: number; tone: string }> = [
+    { id: "review", label: "Review", n: segments.review ?? 0, fresh: 0, tone: "mute" },
     /**
      * ⚠ "BUY IT", NOT "READY". Yish, 2026-08-31: *"change the ready tag in the
      * filter bar to Buy it."* The card on a BUY listing has said "BUY IT" since
@@ -643,6 +644,7 @@ export function Feed({ onOpen, onWatchChange }: {
         * The chips get the whole row now. See `openFilters` in `lib.tsx`.
         */}
       <Segmented value={quality} onChange={setQuality} options={SEGS} />
+      {quality === "review" && <p className="dnote">Up to 10 listings to review. Open one and set Your call; the next unreviewed listing takes its place.</p>}
 
       {sheet && (
         <FilterSheet f={filters} facets={facets} onApply={applyFilters} onClose={() => setSheet(false)} />

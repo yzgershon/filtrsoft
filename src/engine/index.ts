@@ -436,4 +436,6 @@ export function checkStored(
  * the current version. Exactly the failure this constant was made load-bearing
  * to prevent, two days after writing that down.
  */
+// 0.3.33: preserve item/quantity/price pairs in placeholder inventory ads.
+// Never compare the headline $1 with a median assembled from different items.
 export const ENGINE_VERSION = "0.3.33";

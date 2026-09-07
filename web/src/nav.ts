@@ -182,7 +182,7 @@ export const clampDrive = (n: number): number =>
 
 // --------------------------------------------------------------- feed query
 
-export type Quality = "all" | "ready" | "verify" | "risky" | "browse";
+export type Quality = "review" | "all" | "ready" | "verify" | "risky" | "browse";
 
 /**
  * ⚠ THE SEGMENT IS A SERVER QUERY, NOT A CLIENT-SIDE `.filter()`.
@@ -277,16 +277,16 @@ export interface Filters {
 }
 
 export const NO_FILTERS: Filters = {
-  quality: "all", q: "", category: "", source: "", maxPrice: null, sort: "best",
+  quality: "review", q: "", category: "", source: "", maxPrice: null, sort: "best",
 };
 
-const QUALITIES: Quality[] = ["all", "ready", "verify", "risky", "browse"];
+const QUALITIES: Quality[] = ["review", "all", "ready", "verify", "risky", "browse"];
 
 /** Read filters out of a `?a=b` string. Anything unrecognised falls back. */
 export function filtersFromSearch(search: string): Filters {
   const p = new URLSearchParams(search);
   const price = Number(p.get("maxPrice"));
-  const quality = (p.get("quality") ?? "all") as Quality;
+  const quality = (p.get("quality") ?? "review") as Quality;
   const sort = (p.get("sort") ?? "best") as Sort;
   return {
     quality: QUALITIES.includes(quality) ? quality : "all",
@@ -307,7 +307,7 @@ export function filtersFromSearch(search: string): Filters {
  */
 export function searchFromFilters(f: Filters): string {
   const p = new URLSearchParams();
-  if (f.quality !== "all") p.set("quality", f.quality);
+  if (f.quality !== "review") p.set("quality", f.quality);
   if (f.q) p.set("q", f.q);
   if (f.category) p.set("category", f.category);
   if (f.source) p.set("source", f.source);
