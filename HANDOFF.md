@@ -89,7 +89,7 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
-### Current checkpoint: 2026-09-08, phase 5 build uncertainty and learning batch verified
+### Current checkpoint: 2026-09-08, phase 6 operations and billing verified locally; final artifacts in progress
 
 Yish read the complete backend audit and authorized implementation of all findings, with a structured plan and frequent handoff updates. This checkpoint supersedes older status/next-step claims below.
 
@@ -97,7 +97,7 @@ Yish read the complete backend audit and authorized implementation of all findin
 - Saved inventory implementation e7863ae was reconciled into this branch as **6d3b804**. Only the version comment conflicted. Both predecessor changes use 0.3.33; new verdict work must receive a fresh engine revision.
 - Implementation tracker: **docs/BACKEND-IMPLEMENTATION-PLAN.md**, all F01-F20 mapped to six phases and acceptance checks. Phases 1 and 2 are verified locally. F01/F02 core regressions are fixed locally: explicit parts categories, legacy storage interpretation and correct query suffix, canonical catalog names independent of aliases, strict brand/model/RAM layout/ECC variants, complete Ti Super/XTX extraction, and no sparse capacity/tier fallback to known mismatches.
 - Engine is **0.3.34**, not deployed. RAM SKUs without explicit kit layout remain unpriceable; no kit layout was invented to increase coverage. Existing wrongly linked parts comps are rechecked against strict identity at valuation time.
-- Verification: **253 tests passed, 0 failed, 746 assertions**; current TypeScript check passed. Vite production build passed again for the cursor client integration. No authenticated production UI run is claimed. The BUY-copy test uses its own synthetic prices/economics.
+- Verification: **259 tests passed, 0 failed, 752 assertions**; current TypeScript check passed. Vite production build passed again for the cursor client integration. No authenticated production UI run is claimed. The BUY-copy test uses its own synthetic prices/economics.
 - F07 fixed locally: eligibility before delivery limits, account override and availability revalidation at send time, durable retry/terminal/delivered states, a 60-second claim lease, bounded backoff and a 15-second transport timeout. Only transport success writes alert_sent. Mocked tests cover starvation, 503 recovery, concurrent attempts, abandoned leases and terminal 410. A crash after remote acceptance but before acknowledgement can still retry; the existing service-worker per-listing notification tag replaces the same visible notification rather than promising impossible exactly-once transport.
 - F11 fixed: job expiry and rolling vision/feed counts compare ISO T/Z timestamps consistently. Tests cover same-day expiry, midnight and exact TTL boundaries. Persistent agent heartbeats remain F12.
 - F08 fixed locally: subscriptions/searches/test-send, overrides and purchases enforce session ownership. Existing unowned push subscriptions require possession of their exact browser subscription keys to adopt; the UI re-registers the browser-held subscription without a new permission prompt. Numeric IDs alone never claim a record. Legacy personal outcomes migrate only when one existing account makes ownership unambiguous; multi-account unassigned rows stay private for explicit reconciliation. Device refs retain their existing first-owner association.
@@ -129,6 +129,11 @@ Yish read the complete backend audit and authorized implementation of all findin
 - The feed client cursor file is tracked as web/src/feed.tsx (lowercase). Its verified local edits were missed by an earlier uppercase path-specific stage on Windows; they are included in this batch. Use the tracked case from git ls-files when staging.
 - Next: phase 6 F19 verified backups/restore/build repeatability and F20 billing ownership/webhook recovery. Final current-crawl archive/rollback, combined snapshot comparison, and production checks remain pending. All work remains local, engine 0.3.34.
 
+
+- F19 verified locally: unique WAL-consistent backups, integrity/hash manifests, restore rehearsal before publication, refusal to overwrite restore targets, verified-only retention, explicit secondary-copy failures. Docker/CI pin installed Node 24.15.0 and Bun 1.3.14 and require both lockfiles. Clean-install CI and pinned-image Docker build remain unrun; images are not cached and no installation/pull occurred. Runbook: docs/BACKEND-OPERATIONS.md.
+- F20 verified with synthetic transports: authenticated customer ownership, stable checkout retry keys, current-subscription checks, signed-event verification, durable event status/attempts, retryable 503 responses, per-customer lease fencing and authoritative out-of-order reconciliation. Legacy customer bindings require verified reconciliation; no Stripe calls or billing activation occurred.
+- The old manual ingest script now preserves unchanged photo hashes, carries seller references, bounds galleries and refuses partial/changed paid reads, matching the modern pipeline's guarantees. It was typechecked; no live ingest or paid vision was run.
+- Final shared Git inspection: main remains e5a7023 and has uncommitted web/src/detail.tsx and web/src/types.ts changes. Preserve them; inspect overlap before integration. The shared database remains untouched. Next: consistent current filtered snapshot, exact archive manifest/import checks, combined snapshot comparison/rollback evidence, final build and report.
 
 ### Current checkpoint: 2026-09-06, late evening
 

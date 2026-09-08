@@ -21,3 +21,12 @@
 # Test-set photos are large and unneeded in production. The audit JSON beside
 # them is small and IS needed — it seeds the eval set.
 /docs/testset/cl-*
+
+# Local snapshots, worktrees, reports and environment files never enter images.
+/backups
+/.worktrees
+/.codex
+/.env.*
+/*.db
+/*.db-wal
+/*.db-shm

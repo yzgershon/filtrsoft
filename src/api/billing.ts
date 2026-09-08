@@ -1,264 +1,155 @@
-/**
- * Stripe billing.
- *
- * ── IT IS BUILT AND IT IS OFF, DELIBERATELY ────────────────────────────────
- *
- * The Phase 3 gate in MASTER-PLAN.md is "10 payers AND >=3% conversion of
- * active users". Filtrsoft currently has no users, so switching this on would put
- * a paywall in front of an audience of one and cost the only thing that
- * matters right now, which is people using the feed at all. Yish was told this
- * and asked for it anyway, so it exists in full — but nothing gates until
- * `STRIPE_PRICE_ID` is set. `billingEnabled()` is false without it, every
- * endpoint 503s, and the UI shows the free plan.
- *
- * Flipping it on is one environment variable, not a deploy.
- *
- * ── WHY CHECKOUT SESSIONS AND NOT A CARD FORM ──────────────────────────────
- *
- * **No card details ever reach this server, and none ever will.** Stripe
- * Checkout is a hosted page: we create a session, redirect, and Stripe handles
- * the card. That keeps every PCI obligation on Stripe's side and means a
- * compromise of this box cannot leak a card number, because it never had one.
- * The same rule as everywhere else in this project — Filtrsoft does not handle
- * credentials.
- *
- * ── THE WEBHOOK IS THE SOURCE OF TRUTH, NOT THE REDIRECT ───────────────────
- *
- * A user who pays and then closes the tab before the redirect has still paid.
- * A user who fakes the success URL has not. So entitlement is written ONLY by
- * the webhook, and `?paid=1` on the return URL is a hint to refresh, never a
- * grant. This is the single most common way a checkout integration ends up
- * giving away the product.
+/** Billing stays disabled until configured. Account identity comes from the
+ * session; webhook event order never substitutes for current provider state.
  */
-import type { Context } from "hono";
+import type {Context} from "hono";
 import Stripe from "stripe";
-import { db, now } from "../db/index.ts";
+import {randomUUID,createHash} from "node:crypto";
+import {z} from "zod";
+import {db,now} from "../db/index.ts";
+import {currentUser,ownsDevice} from "./auth.ts";
+const KEY=()=>(process.env.STRIPE_SECRET_KEY??'').trim();
+const PRICE=()=>(process.env.STRIPE_PRICE_ID??'').trim();
+const WHSEC=()=>(process.env.STRIPE_WEBHOOK_SECRET??'').trim();
+const SITE=()=>(process.env.FILTRSOFT_SITE_URL??'https://filtrsoft.com').replace(/\/$/,'');
+export const billingEnabled=()=>Boolean(KEY()&&PRICE());
+let client:Stripe|null=null;
+const stripe=()=>client??=new Stripe(KEY(),{apiVersion:'2025-08-27.basil' as Stripe.LatestApiVersion,timeout:20000,maxNetworkRetries:0});
+export function ensureBillingTables(){
+  db().exec(`CREATE TABLE IF NOT EXISTS entitlements(ref TEXT PRIMARY KEY,customer_id TEXT,subscription_id TEXT,status TEXT NOT NULL,current_period_end TEXT,updated_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS billing_accounts(user_id INTEGER PRIMARY KEY,customer_id TEXT UNIQUE,create_key TEXT NOT NULL UNIQUE,checkout_key TEXT NOT NULL,checkout_started_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS billing_events(event_id TEXT PRIMARY KEY,event_type TEXT NOT NULL,customer_id TEXT,event_hash TEXT NOT NULL,status TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,last_error TEXT,received_at TEXT NOT NULL,processed_at TEXT);
+    CREATE TABLE IF NOT EXISTS billing_locks(customer_id TEXT PRIMARY KEY,token TEXT NOT NULL,lease_until TEXT NOT NULL);`);
+}
+const accountRef=(id:number)=>`account:${id}`;
+const owner=(id:number)=>ownsDevice(id,(process.env.FILTRSOFT_OWNER_REF??'').trim());
+export function entitlementFor(userId:number){
+  if(owner(userId))return {active:true,status:'owner',until:null};
+  ensureBillingTables();
+  const r=db().query('SELECT status,current_period_end FROM entitlements WHERE ref=?').get(accountRef(userId)) as {status:string;current_period_end:string|null}|null;
+  return {active:Boolean(r && ['active','trialing'].includes(r.status) && r.current_period_end && r.current_period_end>now()),status:r?.status??'none',until:r?.current_period_end??null};
+}
+export function handleBillingStatus(c:Context){
+  const user=currentUser(c);if(!user)return c.json({error:'sign in required'},401);
+  const ref=c.req.query('ref');if(ref && !ownsDevice(user.id,ref))return c.json({error:'device does not belong to this account'},403);
+  const e=entitlementFor(user.id),isOwner=e.status==='owner';
+  return c.json({enabled:billingEnabled(),plan:isOwner?'owner':e.active?'pro':'free',owner:isOwner,...e});
+}
+const input=z.object({ref:z.string().min(8).max(64).optional()}).strict();
+async function accountRequest(c:Context){
+  const user=currentUser(c);if(!user)return {error:c.json({error:'sign in required'},401)};
+  const body=input.safeParse(await c.req.json().catch(()=>null));
+  if(!body.success)return {error:c.json({error:'Invalid billing input'},400)};
+  if(body.data.ref && !ownsDevice(user.id,body.data.ref))return {error:c.json({error:'device does not belong to this account'},403)};
+  return {user};
+}
+export interface CurrentSubscription {id:string;customerId:string;status:string;periodEnd:number|null;priceIds:string[]}
+export type SubscriptionReader=(customerId:string)=>Promise<CurrentSubscription[]>;
+async function subscriptions(customerId:string):Promise<CurrentSubscription[]> {
+  const rows=await stripe().subscriptions.list({customer:customerId,status:'all',limit:100}).autoPagingToArray({limit:1000});
+  if(rows.length>=1000)throw new Error('Subscription history exceeds safe reconciliation limit');
+  return rows.map(s=>({id:s.id,customerId:typeof s.customer==='string'?s.customer:s.customer.id,status:s.status,
+    periodEnd:((s as any).current_period_end??Math.max(0,...s.items.data.filter(i=>i.price.id===PRICE()).map(i=>(i as any).current_period_end??0)))||null,
+    priceIds:s.items.data.map(i=>i.price.id)}));
+}
+async function boundedRead(read:SubscriptionReader,customerId:string){
+  let timer:ReturnType<typeof setTimeout>|undefined;
+  try{return await Promise.race([read(customerId),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error('Subscription reconciliation timed out')),25000);})]);}
+  finally{if(timer)clearTimeout(timer);}
+}
+const activeSubscription=(rows:CurrentSubscription[])=>rows.filter(s=>['active','trialing'].includes(s.status)&&s.priceIds.includes(PRICE())&&s.periodEnd!=null&&s.periodEnd>Date.now()/1000).sort((a,b)=>b.periodEnd!-a.periodEnd!)[0];
+const relevant=new Set(['checkout.session.completed','customer.subscription.created','customer.subscription.updated','customer.subscription.deleted','customer.subscription.paused','customer.subscription.resumed','invoice.paid','invoice.payment_failed']);
 
-const KEY = () => (process.env.STRIPE_SECRET_KEY ?? "").trim();
-const PRICE = () => (process.env.STRIPE_PRICE_ID ?? "").trim();
-const WHSEC = () => (process.env.STRIPE_WEBHOOK_SECRET ?? "").trim();
-const SITE = () => (process.env.FILTRSOFT_SITE_URL ?? "https://filtrsoft.com").replace(/\/$/, "");
-
-/** Both a key AND a price. A key alone cannot sell anything. */
-export const billingEnabled = () => Boolean(KEY() && PRICE());
-
-let client: Stripe | null = null;
-const stripe = () => (client ??= new Stripe(KEY(), { apiVersion: "2025-08-27.basil" as Stripe.LatestApiVersion }));
-
-export function ensureBillingTables() {
-  /**
-   * Keyed on a CLIENT-GENERATED account ref, not an email.
-   *
-   * There are no accounts in this product yet, and inventing an email login
-   * purely to attach a subscription would be the largest change on this list
-   * for the least benefit. The browser mints a random ref, stores it, and sends
-   * it as `client_reference_id`; Stripe hands it back on the webhook. When real
-   * accounts exist, this table gets a user_id column and nothing else changes.
-   */
-  db().run(`
-    CREATE TABLE IF NOT EXISTS entitlements (
-      ref            TEXT PRIMARY KEY,
-      customer_id    TEXT,
-      subscription_id TEXT,
-      status         TEXT NOT NULL,
-      current_period_end TEXT,
-      updated_at     TEXT NOT NULL
-    )`);
+/** A bounded per-customer lease serializes reconciliation; a fencing token
+ * prevents a timed-out older request from committing over its successor.
+ * See https://docs.stripe.com/webhooks#event-ordering .
+ */
+export async function processBillingEvent(event:{id:string;type:string;data:{object:any}},read:SubscriptionReader=subscriptions) {
+  ensureBillingTables();const d=db(),object=event.data.object;
+  const customerId=typeof object.customer==='string'?object.customer:object.customer?.id??null;
+  const hash=createHash('sha256').update(JSON.stringify({type:event.type,customerId,objectId:object.id??null})).digest('hex');
+  d.run("INSERT OR IGNORE INTO billing_events(event_id,event_type,customer_id,event_hash,status,received_at) VALUES(?,?,?,?,'pending',?)",[event.id,event.type,customerId,hash,now()]);
+  const previous=d.query('SELECT status,event_hash FROM billing_events WHERE event_id=?').get(event.id) as {status:string;event_hash:string};
+  if(previous.event_hash!==hash)throw new Error('Conflicting event identity');
+  if(previous.status==='done')return {duplicate:true};
+  if(!relevant.has(event.type)){d.run("UPDATE billing_events SET status='done',processed_at=? WHERE event_id=?",[now(),event.id]);return {ignored:true};}
+  d.run("UPDATE billing_events SET attempts=attempts+1 WHERE event_id=? AND status<>'done'",[event.id]);
+  const token=randomUUID();let timer:ReturnType<typeof setTimeout>|undefined;
+  try {
+    if(!PRICE())throw new Error('Billing price is not configured');
+    if(!customerId)throw new Error('Missing customer reference');
+    const account=d.query('SELECT user_id FROM billing_accounts WHERE customer_id=?').get(customerId) as {user_id:number}|null;
+    // Never claim a customer using a client_reference_id supplied by old clients.
+    if(!account)throw new Error('Customer has no verified local account binding');
+    const acquired=d.run(`INSERT INTO billing_locks VALUES(?,?,?) ON CONFLICT(customer_id) DO UPDATE SET token=excluded.token,lease_until=excluded.lease_until WHERE billing_locks.lease_until<=?`,
+      [customerId,token,new Date(Date.now()+60000).toISOString(),now()]);
+    if(!acquired.changes)throw new Error('Customer reconciliation already running');
+    d.run("UPDATE billing_events SET status='processing',last_error=NULL WHERE event_id=? AND status<>'done'",[event.id]);
+    const rows=await Promise.race([read(customerId),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error('Subscription reconciliation timed out')),25000);})]);
+    if(rows.some(s=>s.customerId!==customerId))throw new Error('Provider customer mismatch');
+    const active=activeSubscription(rows);
+    const status=active?.status??'inactive',end=active?.periodEnd?new Date(active.periodEnd*1000).toISOString():null;
+    d.transaction(()=>{
+      if(!d.query('SELECT 1 FROM billing_locks WHERE customer_id=? AND token=? AND lease_until>?').get(customerId,token,now()))throw new Error('Reconciliation lease expired');
+      d.run(`INSERT INTO entitlements(ref,customer_id,subscription_id,status,current_period_end,updated_at) VALUES(?,?,?,?,?,?)
+        ON CONFLICT(ref) DO UPDATE SET customer_id=excluded.customer_id,subscription_id=excluded.subscription_id,status=excluded.status,current_period_end=excluded.current_period_end,updated_at=excluded.updated_at`,
+        [accountRef(account.user_id),customerId,active?.id??null,status,end,now()]);
+      d.run("UPDATE billing_events SET status='done',processed_at=?,last_error=NULL WHERE event_id=?",[now(),event.id]);
+    })();return {reconciled:true};
+  } catch(e){
+    d.run("UPDATE billing_events SET status='retry',last_error=? WHERE event_id=? AND status<>'done'",[(e as Error).message.slice(0,500),event.id]);throw e;
+  } finally {if(timer)clearTimeout(timer);if(customerId)d.run('DELETE FROM billing_locks WHERE customer_id=? AND token=?',[customerId,token]);}
 }
 
-/**
- * ─────────────────────────────────────────────────────────── the owner tier
- *
- * Yish, 2026-09-01: *"you can turn on the stripe payment and add the plans
- * section (mine will always be the best one)."*
- *
- * `FILTRSOFT_OWNER_REF` is his device ref, set as an env var on the server. That
- * device reads as the top tier for good: no checkout, no subscription, no
- * expiry.
- *
- * ⚠ IT IS AN ENV VAR AND NOT A CLIENT-SIDE `if`, and the difference matters.
- * The ref travels in a query string, so a UI-only check would mean anyone who
- * read the JS could grant themselves the paid tier by typing his ref — and
- * every one of his API responses carries it. Deciding it server-side keeps the
- * entitlement a fact about the server's configuration rather than a claim the
- * client makes about itself.
- *
- * ⚠ IT IS ALSO NOT A ROW IN `entitlements`. A row would be silently
- * overwritten by any webhook that later mentions the same ref (a cancellation,
- * a failed payment on a card he tested with), and he would lose access to his
- * own product for a reason no screen could explain.
- */
-const OWNER_REF = () => (process.env.FILTRSOFT_OWNER_REF ?? "").trim();
-export const isOwner = (ref: string) => Boolean(ref) && ref === OWNER_REF();
-
-/** `active` and `trialing` are the only states that grant access. */
-export function entitlementFor(ref: string): { active: boolean; status: string; until: string | null } {
-  if (isOwner(ref)) return { active: true, status: "owner", until: null };
-  ensureBillingTables();
-  const row = db().query("SELECT status, current_period_end FROM entitlements WHERE ref=?").get(ref) as
-    { status: string; current_period_end: string | null } | null;
-  if (!row) return { active: false, status: "none", until: null };
+/** Factory keeps transport tests synthetic without a production bypass flag. */
+export function billingRoutes(getClient:()=>Pick<Stripe,'customers'|'checkout'|'billingPortal'|'webhooks'>=stripe,read:SubscriptionReader=subscriptions){
   return {
-    active: row.status === "active" || row.status === "trialing",
-    status: row.status,
-    until: row.current_period_end,
+    checkout:async(c:Context)=>{
+      const request=await accountRequest(c);if(request.error)return request.error;
+      if(!billingEnabled())return c.json({error:'billing is not configured'},503);
+      const user=request.user!;ensureBillingTables();
+      if(entitlementFor(user.id).active)return c.json({error:'This account already has access'},409);
+      try {
+        const d=db();d.run('INSERT OR IGNORE INTO billing_accounts(user_id,create_key,checkout_key,checkout_started_at) VALUES(?,?,?,?)',[user.id,randomUUID(),randomUUID(),now()]);
+        let account=d.query('SELECT * FROM billing_accounts WHERE user_id=?').get(user.id) as any;
+        if(!account.customer_id){
+          const customer=await getClient().customers.create({metadata:{filtrsoft_user_id:String(user.id)}},{idempotencyKey:account.create_key});
+          d.run('UPDATE billing_accounts SET customer_id=? WHERE user_id=? AND customer_id IS NULL',[customer.id,user.id]);
+          account=d.query('SELECT * FROM billing_accounts WHERE user_id=?').get(user.id);
+          if(account.customer_id!==customer.id)throw new Error('Customer binding conflict');
+        }
+        // Reconcile the remote state before offering a second subscription when a
+        // completed checkout's webhook has not arrived yet. Fail closed on outages.
+        const existing=await boundedRead(read,account.customer_id);
+        if(existing.some(s=>s.customerId!==account.customer_id))throw new Error('Provider customer mismatch');
+        if(activeSubscription(existing))return c.json({error:'This account already has an active subscription'},409);
+        if(Date.parse(account.checkout_started_at)+86400000<Date.now()){
+          d.run('UPDATE billing_accounts SET checkout_key=?,checkout_started_at=? WHERE user_id=? AND checkout_key=?',[randomUUID(),now(),user.id,account.checkout_key]);
+          account=d.query('SELECT * FROM billing_accounts WHERE user_id=?').get(user.id);
+        }
+        const session=await getClient().checkout.sessions.create({mode:'subscription',customer:account.customer_id,
+          line_items:[{price:PRICE(),quantity:1}],client_reference_id:accountRef(user.id),subscription_data:{metadata:{filtrsoft_user_id:String(user.id)}},
+          allow_promotion_codes:true,success_url:SITE()+'/?paid=1',cancel_url:SITE()+'/'},{idempotencyKey:account.checkout_key+':'+PRICE()});
+        return c.json({url:session.url});
+      }catch{return c.json({error:'could not start checkout; retry safely'},502);}
+    },
+    portal:async(c:Context)=>{
+      const request=await accountRequest(c);if(request.error)return request.error;
+      if(!billingEnabled())return c.json({error:'billing is not configured'},503);
+      ensureBillingTables();const row=db().query('SELECT customer_id FROM billing_accounts WHERE user_id=?').get(request.user!.id) as {customer_id:string|null}|null;
+      if(!row?.customer_id)return c.json({error:'no subscription on this account'},404);
+      try {const session=await getClient().billingPortal.sessions.create({customer:row.customer_id,return_url:SITE()+'/'});return c.json({url:session.url});}
+      catch{return c.json({error:'could not open the billing portal'},502);}
+    },
+    webhook:async(c:Context)=>{
+      if(!billingEnabled()||!WHSEC())return c.json({error:'billing is not configured'},503);
+      const signature=c.req.header('stripe-signature');if(!signature)return c.json({error:'missing signature'},400);
+      let event:Stripe.Event;
+      try{event=await getClient().webhooks.constructEventAsync(await c.req.text(),signature,WHSEC());}
+      catch{return c.json({error:'bad signature'},400);}
+      try{return c.json({received:true,...await processBillingEvent(event,read)});}
+      catch{return c.json({error:'billing reconciliation pending retry'},503);}
+    },
   };
 }
-
-function upsert(ref: string, patch: {
-  customerId?: string | null; subscriptionId?: string | null;
-  status: string; periodEnd?: number | null;
-}) {
-  ensureBillingTables();
-  db().run(
-    `INSERT INTO entitlements (ref, customer_id, subscription_id, status, current_period_end, updated_at)
-     VALUES (?,?,?,?,?,?)
-     ON CONFLICT(ref) DO UPDATE SET
-       customer_id=COALESCE(excluded.customer_id, entitlements.customer_id),
-       subscription_id=COALESCE(excluded.subscription_id, entitlements.subscription_id),
-       status=excluded.status,
-       current_period_end=COALESCE(excluded.current_period_end, entitlements.current_period_end),
-       updated_at=excluded.updated_at`,
-    [ref, patch.customerId ?? null, patch.subscriptionId ?? null, patch.status,
-     patch.periodEnd ? new Date(patch.periodEnd * 1000).toISOString() : null, now()],
-  );
-}
-
-// ------------------------------------------------------------------ routes
-
-export function handleBillingStatus(c: Context) {
-  const ref = (c.req.query("ref") ?? "").trim();
-  const owner = isOwner(ref);
-  /**
-   * ⚠ THE OWNER IS ANSWERED BEFORE THE `billingEnabled()` GATE. His tier is a
-   * property of the ref, not of whether a Stripe price happens to be
-   * configured — otherwise unsetting `STRIPE_PRICE_ID` would silently demote
-   * him to Free on his own app.
-   */
-  if (owner) {
-    return c.json({
-      enabled: billingEnabled(), plan: "owner", active: true,
-      status: "owner", until: null, owner: true,
-    });
-  }
-  if (!billingEnabled()) {
-    return c.json({
-      enabled: false, plan: "free", active: false, owner: false,
-      reason: "no paid plan configured",
-    });
-  }
-  const e = ref ? entitlementFor(ref) : { active: false, status: "none", until: null };
-  return c.json({ enabled: true, plan: e.active ? "pro" : "free", owner: false, ...e });
-}
-
-export async function handleCheckout(c: Context) {
-  if (!billingEnabled()) return c.json({ error: "billing is not configured" }, 503);
-  const b = await c.req.json().catch(() => null) as { ref?: string } | null;
-  const ref = (b?.ref ?? "").trim();
-  if (!/^[A-Za-z0-9_-]{8,64}$/.test(ref)) return c.json({ error: "a valid ref is required" }, 400);
-
-  try {
-    const s = await stripe().checkout.sessions.create({
-      mode: "subscription",
-      line_items: [{ price: PRICE(), quantity: 1 }],
-      client_reference_id: ref,
-      allow_promotion_codes: true,
-      // `?paid=1` only tells the app to REFRESH its status. It is not proof.
-      success_url: `${SITE()}/?paid=1`,
-      cancel_url: `${SITE()}/`,
-    });
-    return c.json({ url: s.url });
-  } catch (e) {
-    console.error("stripe checkout failed:", (e as Error).message);
-    return c.json({ error: "could not start checkout" }, 502);
-  }
-}
-
-/** The Stripe-hosted page where someone cancels or changes their card. */
-export async function handlePortal(c: Context) {
-  if (!billingEnabled()) return c.json({ error: "billing is not configured" }, 503);
-  const b = await c.req.json().catch(() => null) as { ref?: string } | null;
-  const row = db().query("SELECT customer_id FROM entitlements WHERE ref=?").get(b?.ref ?? "") as
-    { customer_id: string | null } | null;
-  if (!row?.customer_id) return c.json({ error: "no subscription on this device" }, 404);
-  try {
-    const s = await stripe().billingPortal.sessions.create({
-      customer: row.customer_id,
-      return_url: `${SITE()}/`,
-    });
-    return c.json({ url: s.url });
-  } catch (e) {
-    console.error("stripe portal failed:", (e as Error).message);
-    return c.json({ error: "could not open the billing portal" }, 502);
-  }
-}
-
-/**
- * The webhook. THE ONLY thing that grants or revokes access.
- *
- * **The signature check is not optional and the RAW body is required.** Stripe
- * signs the exact bytes it sent; parsing to JSON and re-serialising changes
- * key order and whitespace, the signature no longer matches, and the usual
- * "fix" is to skip verification — which turns this into an endpoint where
- * anyone who knows the URL can grant themselves a subscription by POSTing a
- * fake `checkout.session.completed`.
- */
-export async function handleWebhook(c: Context) {
-  if (!KEY() || !WHSEC()) return c.json({ error: "billing is not configured" }, 503);
-  const sig = c.req.header("stripe-signature");
-  if (!sig) return c.json({ error: "missing signature" }, 400);
-
-  let evt: Stripe.Event;
-  try {
-    const raw = await c.req.text();
-    evt = await stripe().webhooks.constructEventAsync(raw, sig, WHSEC());
-  } catch (e) {
-    console.error("stripe webhook rejected:", (e as Error).message);
-    return c.json({ error: "bad signature" }, 400);
-  }
-
-  try {
-    switch (evt.type) {
-      case "checkout.session.completed": {
-        const s = evt.data.object as Stripe.Checkout.Session;
-        if (s.client_reference_id) {
-          upsert(s.client_reference_id, {
-            customerId: typeof s.customer === "string" ? s.customer : null,
-            subscriptionId: typeof s.subscription === "string" ? s.subscription : null,
-            status: "active",
-          });
-          console.log(`billing: activated ${s.client_reference_id}`);
-        }
-        break;
-      }
-      case "customer.subscription.updated":
-      case "customer.subscription.deleted": {
-        const sub = evt.data.object as Stripe.Subscription;
-        /**
-         * The subscription payload carries no client_reference_id, so the row
-         * is found by subscription id — which is why it is stored on the way
-         * in. Without that, a cancellation cannot be matched to anyone and
-         * access would never be revoked.
-         */
-        const row = db().query("SELECT ref FROM entitlements WHERE subscription_id=?").get(sub.id) as
-          { ref: string } | null;
-        if (row) {
-          const end = (sub as unknown as { current_period_end?: number }).current_period_end ?? null;
-          upsert(row.ref, {
-            status: evt.type === "customer.subscription.deleted" ? "canceled" : sub.status,
-            periodEnd: end,
-          });
-          console.log(`billing: ${row.ref} -> ${sub.status}`);
-        }
-        break;
-      }
-      default:
-        break;
-    }
-  } catch (e) {
-    // A 500 makes Stripe retry, which is right for a transient fault but a
-    // permanent loop for a bug. Logged and acknowledged.
-    console.error("stripe webhook handler error:", (e as Error).message);
-  }
-  return c.json({ received: true });
-}
+const routes=billingRoutes();
+export const handleCheckout=routes.checkout,handlePortal=routes.portal,handleWebhook=routes.webhook;

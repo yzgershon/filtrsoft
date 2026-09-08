@@ -10,7 +10,7 @@ import { db, now } from "../db/index.ts";
 import { upsertListingFacts } from "../db/listings.ts";
 import { downloadPhoto, dhash, distance, KEEP_PHOTOS, releasePhotos } from "../photos/index.ts";
 import { analyzePhotos, PROMPT_VERSION, VISION_MODEL } from "../vision/index.ts";
-import { photoFingerprint } from "../vision/merge.ts";
+import { photoFingerprint, syncPhotoUrls, photosUnchanged } from "../vision/merge.ts";
 
 const CL = "https://www.craigslist.org/view/d/";
 const TESTSET: Array<[string, string]> = [
@@ -37,11 +37,6 @@ if (!targets.length) {
 }
 
 const d = db();
-const insPhoto = d.query(
-  `INSERT INTO listing_photos (listing_id, url, local_path, phash, position, captured_at)
-   VALUES ($lid,$url,$path,$phash,$pos,$cap)`,
-);
-
 /**
  * Cross-platform / cross-listing duplicate check (RISK-MODEL 3.4).
  * Hamming distance <= 10 on a 64-bit dhash is a near-duplicate. Same seller
@@ -82,26 +77,32 @@ for (const { url, note } of targets) {
       updatedAt: l.updatedAt,
       photoCount: l.photoUrls.length,
       raw: l.raw,
+      sellerRef: l.sellerRef,
     });
     listingId = row.id;
+    if(row.stale)continue;
+    if(l.photoUrls.length>40)throw new Error("Gallery exceeds the 40-photo analysis limit");
     workspace=createPhotoWorkspace(row.id);
 
     // Download EVERY photo and hash it. Never sample — the Phase 0 miss was a
     // skipped third photo that contained the entire spec sheet.
-    d.query("DELETE FROM listing_photos WHERE listing_id=$id").run({ $id: row.id });
+    syncPhotoUrls(row.id,l.photoUrls);
+    let downloaded=0;
     const dupes: string[] = [];
     for (const [i, u] of l.photoUrls.entries()) {
+      if(!photosUnchanged(row.id,l.photoUrls))throw new Error("Gallery changed during ingest");
       let path: string | null = null, phash: string | null = null;
       try {
         const got = await downloadPhoto(u, row.id, i,workspace);
         path = got.path;
         phash = await dhash(got.buf);
+        downloaded++;
         for (const dup of findDuplicates(phash, row.id)) {
           const msg = `photo ${i} matches ${dup.source} listing "${dup.title.slice(0, 40)}" (posted ${dup.posted_at?.slice(0, 10)})`;
           if (!dupes.includes(msg)) dupes.push(msg);
         }
       } catch { /* a dead image URL must not kill the ingest */ }
-      insPhoto.run({ $lid: row.id, $url: u, $path: path, $phash: phash, $pos: i, $cap: now() });
+      d.run("UPDATE listing_photos SET local_path=COALESCE(?,local_path),phash=COALESCE(?,phash) WHERE listing_id=? AND url=?",[path,phash,row.id,u]);
     }
 
     const price = l.askingPriceCents ? `$${(l.askingPriceCents / 100).toLocaleString()}` : "—";
@@ -121,10 +122,11 @@ for (const { url, note } of targets) {
       console.log(`  ${color}${SEV[s.severity]} ${s.code}\x1b[0m — ${s.evidence}`);
     }
     if (useVision) {
+      if(downloaded!==l.photoUrls.length || !photosUnchanged(row.id,l.photoUrls))throw new Error("Incomplete or changed gallery; no paid analysis attempted");
       const t0 = Date.now();
       const v = await analyzePhotos(row.id,workspace.path);
       const ms = Date.now() - t0;
-      if (v) {
+      if (v && photosUnchanged(row.id,l.photoUrls)) {
         d.query(
           `INSERT INTO vision_results (
              listing_id, model, payload, duration_ms, created_at, cost_micros,

@@ -3,21 +3,22 @@
 # "MemoryExhaustion"). It passed locally on arm64 and failed every time on
 # Railway, which is a miserable way to discover an architecture difference.
 # Node builds it without drama; Bun still runs the server in stage 2.
-FROM node:22-slim AS web
+FROM node:24.15.0-bookworm-slim AS web
+COPY --from=oven/bun:1.3.14 /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /web
-COPY web/package.json ./
-RUN npm install --no-audit --no-fund
+COPY web/package.json web/bun.lock ./
+RUN bun install --frozen-lockfile
 COPY web/ ./
-RUN npm run build
+RUN node node_modules/vite/bin/vite.js build
 
 # ── stage 2: server ──────────────────────────────────────────────────────────
 # Debian-based, not alpine: sharp needs glibc.
-FROM oven/bun:1
+FROM oven/bun:1.3.14
 WORKDIR /app
 
 # Dependencies first so a source-only change doesn't reinstall everything.
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile || bun install
+RUN bun install --frozen-lockfile
 
 COPY . .
 # Built frontend from stage 1. The server serves it from the same origin.

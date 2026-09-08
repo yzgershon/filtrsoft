@@ -31,7 +31,7 @@ Status meanings: pending, in progress, implemented (checks pending), verified lo
 - Acceptance: comparison on an isolated consistent current snapshot, import twice and after a correction, simulated interrupted scoring, exact before/after counts and rollback artifact.
 - Fresh archive generation requires a coordinated snapshot of current crawl data. Deployment is a final separate authorization step explicitly naming main and Railway.
 
-## Phase 4: bounded work and useful collection — in progress
+## Phase 4: bounded work and useful collection — code verified locally; live transports unexercised
 
 - F12 — core verified locally; actual browser/process/provider integration remains unexercised: persisted job heartbeats/stages, request deadlines, resumable batch work, independent discovery/enrichment cadence, profile ownership, Windows process-tree cleanup.
 - F13 — verified locally: explicit sold/date/provenance eligibility at ingestion, valuation and export; recoverable quarantine, provisional seeder disabled, historical dated evidence retained.
@@ -46,10 +46,10 @@ Status meanings: pending, in progress, implemented (checks pending), verified lo
 - F18 — verified locally: account-bound displayed-decision snapshots, append-only judgment history and immutable engine revisions, current-label evaluation/export/frozen replay, separate disappearance/transaction evidence, contemporaneous SKU and decision, known-cost realized-margin reporting. Legacy missing evidence remains unknown; no real-price calibration claimed.
 - Acceptance: replayable decision evidence, concurrent economics isolation, pagination bursts, no inferred sale represented as a realized price. Report remaining data requirements honestly.
 
-## Phase 6: operations and billing readiness — pending
+## Phase 6: operations and billing readiness — code verified locally; clean-image/provider checks pending
 
-- F19: reproducible dependency/runtime build, consistent archive export, atomic verified backup and restore, build-context exclusions, CI checks.
-- F20: billing account ownership, durable event processing, retryable webhook errors and out-of-order reconciliation before activation.
+- F19 — verified locally; clean-install CI/image build and provider backup coverage pending: reproducible dependency/runtime build, consistent archive export, atomic verified backup and restore, build-context exclusions, CI checks.
+- F20 — verified with synthetic transports; provider activation checks pending: billing account ownership, durable event processing, retryable webhook errors and out-of-order reconciliation before activation.
 - Acceptance: local restore/integrity drill, build checks possible with existing tools, simulated duplicate/out-of-order webhooks; document provider configuration checks not accessible locally. No installation, paid action, or account login without authorization.
 
 ## Checkpoint discipline
@@ -77,3 +77,5 @@ Update HANDOFF and this file after each verified batch and before stopping. Comm
 - 2026-09-08: F15 pagination/F14 stage funnel, 250 tests / 743 assertions / zero failures; typecheck and Vite build passed. Full-population and inter-page mutation regression, same-time 51-row pulse burst, and explicit unknown-stage metrics. No browser/production workflow claim. Next F16/F18.
 
 - 2026-09-08: F16/F18 batch, 253 tests / 746 assertions / zero failures; TypeScript and Vite build passed. Original dollar priors preserved, unsupported build estimates cannot drive actionable calls, and labels/outcomes retain contemporaneous evidence. Next phase 6 F19/F20 and final artifacts/comparison.
+
+- 2026-09-08: F19/F20 batch, 259 tests / 752 assertions / zero failures; TypeScript passed. Backup/restore failure drills and four billing ownership/retry/order/fencing regressions. No provider call, installation, deployment or shared-data mutation. Final current snapshot/archive/comparison is next.
