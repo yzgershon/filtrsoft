@@ -34,6 +34,7 @@ export interface SoldComp {
   soldPriceCents: number;
   shippingCents: number | null;
   soldAt: string | null;
+  soldEvidence?: { line: string; capturedAt: string };
   conditionRaw: string | null;
   conditionNorm: Condition | null;
 }
@@ -63,8 +64,7 @@ export function parseShipping(lines: string[]): number | null {
  * "Sold Mar 14, 2026" / "Sold  14 Mar 2026" -> ISO date.
  *
  * The date is what makes a comp decay correctly — `valueSku` filters to a 90-day
- * window, and a comp with no date is treated as always-current, which quietly
- * keeps stale prices alive forever.
+ * window. Missing or impossible dates are quarantined, never treated as current.
  */
 export function parseSoldDate(lines: string[], nowMs = Date.now()): string | null {
   const line = lines.find((l) => /^sold\b/i.test(l));
@@ -85,7 +85,9 @@ export function parseSoldDate(lines: string[], nowMs = Date.now()): string | nul
     // the same captured line does not become 00:00 in production (Linux/UTC)
     // and 04:00 locally (Windows/Eastern).
     const t = Date.parse(`${cleaned} UTC`);
-    if (!Number.isNaN(t)) return new Date(t).toISOString();
+    const day=cleaned.match(/^(?:[A-Za-z]+\.?\s+(\d{1,2})|(?:(\d{1,2})\s+[A-Za-z]+))[, ]+\d{4}$/);
+    if (day && !Number.isNaN(t) && new Date(t).getUTCDate()===Number(day[1]??day[2])) return new Date(t).toISOString();
+    return null;
   }
 
   // No year stated: it is within the last 12 months by construction.
@@ -96,7 +98,7 @@ export function parseSoldDate(lines: string[], nowMs = Date.now()): string | nul
     if (!Number.isNaN(p)) {
       // A date in the future means eBay meant last year.
       const d = p > nowMs ? Date.parse(`${md[1]} ${md[2]}, ${year - 1} UTC`) : p;
-      return new Date(d).toISOString();
+      if(new Date(d).getUTCDate()===Number(md[2]))return new Date(d).toISOString();
     }
   }
   return null;
@@ -153,7 +155,9 @@ export function parseSoldRow(
 
   const priceLine = row.text.find((l) => /^\$[\d,]/.test(l));
   const price = parseMoney(priceLine);
-  if (!price) return null;
+  if (!price || /\bto\b|[-–]\s*\$/.test(priceLine ?? "")) return null;
+  const soldAt = parseSoldDate(row.text, nowMs);
+  if (!soldAt || Date.parse(soldAt)>nowMs) return null;
 
   /**
    * eBay's **"NEW LISTING"** badge is not a condition, and it is glued to the
@@ -188,7 +192,8 @@ export function parseSoldRow(
     title,
     soldPriceCents: price,
     shippingCents: parseShipping(row.text),
-    soldAt: parseSoldDate(row.text, nowMs),
+    soldAt,
+    soldEvidence: {line:row.text.find(l=>/^sold\b/i.test(l))!,capturedAt:new Date(nowMs).toISOString()},
     conditionRaw,
     conditionNorm: normalizeCondition(conditionRaw),
   };
@@ -446,53 +451,9 @@ export function saveComps(comps: SoldComp[], query: string, skuId: number | null
  * already has fifteen sales adds nothing, while the empty ones are the reason
  * 332 listings read INSUFFICIENT_DATA.
  */
-export function skusNeedingComps(limit = 20): Array<{ id: number; brand: string; model: string; category: string; comps: number }> {
-  return db()
-    .query(
-      /**
-       * ⚠ RANKED BY **USABLE** COMPS, NOT TOTAL, AND THE DIFFERENCE IS THE
-       * WHOLE POINT OF THIS FUNCTION.
-       *
-       * `valueSku` only counts a sale inside 90 days. A model holding 100 comps
-       * that are all older than that is exactly as unpriceable as one holding
-       * none — but ordered by `COUNT(c.id)` it sorted LAST, so the models most
-       * in need of a refill were the ones this never offered.
-       *
-       * Measured 2026-09-03: 147 of 430 SKUs had no comps at all, including
-       * RTX 4080 SUPER, RX 9070 XT and Mac Mini M4 — the three that were
-       * actively blocking BUY verdicts on the live feed. The old ordering would
-       * have reached them only after everything else.
-       *
-       * Total comps stays as the tie-break, so between two unpriceable models
-       * the one that has never been fetched goes first.
-       *
-       * ⚠ AND THE LAST TIE-BREAK IS RANDOM, NOT `s.category`, BECAUSE
-       * ALPHABETICAL ORDER SYSTEMATICALLY STARVES WHOLE CATEGORIES.
-       *
-       * The categories sort: case, component, console, gpu, laptop,
-       * motherboard, phone, prebuilt, **psu, ram**. Those last two are always
-       * last. Measured 2026-09-06: eight runs of `--skus 15` fetched 120 SKU
-       * slots and reached **not one** of the 20 ram or 9 psu SKUs, so a
-       * re-verdict off the back of that work moved INSUFFICIENT_DATA by 19
-       * listings out of 1,007 and the whole bare-parts bucket stayed
-       * unpriceable.
-       *
-       * A stable tie-break is what makes that repeatable rather than a one-off:
-       * every run starts at the same alphabetical head and works forward, so a
-       * category at the tail is never reached until everything before it is
-       * done. Randomising means each run samples across the whole backlog.
-       */
-      `SELECT s.id, s.brand, s.model, s.category,
-              COUNT(c.id) comps,
-              SUM(CASE WHEN c.id IS NOT NULL
-                        AND (c.sold_at IS NULL OR c.sold_at >= date('now','-90 days'))
-                       THEN 1 ELSE 0 END) usable
-       FROM skus s LEFT JOIN comps c ON c.sku_id = s.id
-       GROUP BY s.id
-       ORDER BY usable ASC, comps ASC, RANDOM()
-       LIMIT $lim`,
-    )
-    .all({ $lim: limit }) as Array<{ id: number; brand: string; model: string; category: string; comps: number }>;
+export function skusNeedingComps(limit = 20) {
+  // Lazy import keeps pure row parsing independent of valuation initialization.
+  return (require("./comp-priority.ts") as typeof import("./comp-priority.ts")).collectionPriority(limit);
 }
 
 /**

@@ -1,3 +1,4 @@
+import { soldEvidenceSql, soldEvidence } from "./comp-evidence.ts";
 /**
  * Shipping the comps archive to production.
  *
@@ -105,7 +106,7 @@ export function exportArchive(): Archive {
     `SELECT source, source_item_id, url, raw_title, sold_price_cents, shipping_cents,
             currency, condition_raw, condition_norm, sold_at, captured_at,
             seller_feedback, region, sku_id, query, raw_json, updated_at
-       FROM comps`,
+       FROM comps WHERE ${soldEvidenceSql()}`,
   ).all() as Array<ArchiveComp & { sku_id: number | null }>).map(({ sku_id, ...c }) => ({
     ...c, sku_key: sku_id ? idToKey.get(sku_id) ?? null : null,
   }));
@@ -227,6 +228,10 @@ export function importArchive(a: Archive): ImportResult {
     }
 
     for (const c of a.comps) {
+      if (!soldEvidence(c)) {
+        d.run("INSERT OR IGNORE INTO comp_quarantine(source,query,captured_at,reason,raw_json) VALUES(?,?,?,?,?)",[c.source,c.query,now(),"Ineligible archive comp",JSON.stringify(c)]);
+        res.skipped++; continue;
+      }
       const skuId = c.sku_key ? keyToId.get(c.sku_key) ?? null : null;
       if (c.sku_key && !skuId) { res.skipped++; continue; }
       const r = insComp.run({

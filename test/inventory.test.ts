@@ -81,7 +81,7 @@ test("inventory valuation requires the same kit layout, not merely the same tota
       const inventory=listingInventory('RAM','2x16gb Corsair Vengeance DDR5-6000 $100',100);
       const unknownLayout=valueInventory(inventory)[0].valuation;
       d.query("INSERT INTO skus(id,category,brand,model,created_at) VALUES(2,'ram','Corsair','Vengeance 32GB (2x16GB) DDR5-6000',?)").run(at);
-      for(let i=0;i<5;i++) d.query("INSERT INTO comps(source,source_item_id,raw_title,sold_price_cents,condition_norm,sold_at,captured_at,sku_id,raw_json) VALUES('test',?,'Corsair Vengeance 32GB (2x16GB) DDR5-6000 RAM',10000,'used',?,?,2,'{}')").run(String(i),at,at);
+      for(let i=0;i<5;i++) d.query("INSERT INTO comps(source,source_item_id,raw_title,sold_price_cents,condition_norm,sold_at,captured_at,sku_id,raw_json) VALUES('ebay',?,'Corsair Vengeance 32GB (2x16GB) DDR5-6000 RAM',10000,'used',?,?,2,json_object('soldAt',?))").run(String(i),at,at,at);
       const exact=valueInventory(inventory)[0].valuation;
       const otherLayout=valueInventory(listingInventory('RAM','1x32gb Corsair Vengeance DDR5-6000 $100',100))[0].valuation;
       const server=valueInventory({...inventory,sellerContext:'All sticks are ECC RDIMMs.'})[0].valuation;

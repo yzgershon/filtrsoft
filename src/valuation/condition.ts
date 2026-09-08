@@ -1,3 +1,4 @@
+import { usableCompSql } from "../db/comp-evidence.ts";
 import {pricingSignature} from "../db/revisions.ts";
 /**
  * Condition normalisation and price adjustment.
@@ -175,7 +176,7 @@ export function measuredMultiplier(category: string | null, c: Condition): numbe
               c.sold_price_cents + COALESCE(c.shipping_cents,0) AS total
        FROM comps c JOIN skus s ON s.id = c.sku_id
        WHERE ($cat IS NULL OR s.category = $cat)
-         AND c.sold_price_cents > 0
+         AND ${usableCompSql('c')}
          AND c.condition_norm IN ($c, 'used')`,
     )
     .all({ $cat: category, $c: c }) as Array<{ sku_id: number; cond: string; total: number }>;
@@ -267,7 +268,7 @@ export function conditionReport(): Array<{
       const comps = (db()
         .query(
           `SELECT COUNT(*) n FROM comps c JOIN skus s ON s.id=c.sku_id
-           WHERE c.condition_norm=$c AND s.category=$cat`,
+           WHERE c.condition_norm=$c AND s.category=$cat AND ${usableCompSql('c')}`,
         )
         .get({ $c: condition, $cat: category }) as { n: number }).n;
       out.push({

@@ -1,3 +1,4 @@
+import {startCollection,finishCollection} from "../sources/comp-priority.ts";
 /**
  * bun run ebay:comps [--query "rtx 3080"] [--skus N] [--headless]
  *
@@ -46,6 +47,8 @@ console.log();
 const bySku = new Map(targets.map((t) => [t.query, t.id]));
 const catBy = new Map(targets.map((t) => [t.query, (t as { category?: string }).category ?? null]));
 let totalRows = 0, totalSaved = 0;
+const attempts=new Map(targets.map(t=>[t.query,startCollection(t.id,t.query)]));
+const completed=new Set<string>();
 
 for await (const ev of runEbayWorker("sold", {
   queries: targets.map((t) => t.query), headless: has("headless"),
@@ -63,7 +66,13 @@ for await (const ev of runEbayWorker("sold", {
       if (!m.ok) dropped.push(`$${(c.soldPriceCents / 100).toFixed(0)} ${c.title.slice(0, 46)} — ${m.why}`);
       return m.ok;
     });
+    for(const row of ev.rows) if(!parseSoldRow(row)) db().run(
+      "INSERT OR IGNORE INTO comp_quarantine(source,query,captured_at,reason,raw_json) VALUES('ebay',?,?,?,?)",
+      [ev.query,new Date().toISOString(),"No unambiguous sold price and valid sale date",JSON.stringify(row)]);
     const saved = saveComps(comps, ev.query, bySku.get(ev.query) ?? null);
+    const attempt=attempts.get(ev.query);
+    if(attempt!=null)finishCollection(attempt,{fetched:ev.rows.length,parsed:parsed.length,accepted:comps.length,saved});
+    completed.add(ev.query);
     if (dropped.length) {
       console.log(`  [90m${dropped.length} rejected as not this product:[0m`);
       for (const d of dropped.slice(0, 6)) console.log(`    [90m${d}[0m`);
@@ -80,6 +89,7 @@ for await (const ev of runEbayWorker("sold", {
   }
 }
 
+for(const [query,id] of attempts)if(!completed.has(query))finishCollection(id,{fetched:0,parsed:0,accepted:0,saved:0,error:'Worker did not complete this query'});
 const stats = db().query("SELECT COUNT(*) n, COUNT(sku_id) classified FROM comps WHERE source='ebay'").get() as any;
 const covered = db().query(
   "SELECT COUNT(DISTINCT sku_id) n FROM comps WHERE sku_id IS NOT NULL").get() as any;

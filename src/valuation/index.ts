@@ -1,3 +1,4 @@
+import { usableCompSql } from "../db/comp-evidence.ts";
 /**
  * Valuation and channel economics.
  *
@@ -166,7 +167,7 @@ export function valueSku(
     .query(
       `SELECT sold_price_cents + COALESCE(shipping_cents,0) AS total, condition_norm, raw_title
        FROM comps WHERE sku_id = $sku
-         AND (sold_at IS NULL OR sold_at >= date('now', $win))`,
+         AND ${usableCompSql('', '$win')}`,
     )
     .all({ $sku: skuId, $win: `-${opts?.windowDays ?? 90} days` }) as Array<{ total: number; condition_norm: string | null; raw_title: string }>;
 

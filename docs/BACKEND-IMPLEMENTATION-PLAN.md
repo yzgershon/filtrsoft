@@ -34,8 +34,8 @@ Status meanings: pending, in progress, implemented (checks pending), verified lo
 ## Phase 4: bounded work and useful collection — in progress
 
 - F12 — core verified locally; actual browser/process/provider integration remains unexercised: persisted job heartbeats/stages, request deadlines, resumable batch work, independent discovery/enrichment cadence, profile ownership, Windows process-tree cleanup.
-- F13: sold/date/provenance eligibility at ingestion and valuation; quarantine uncertain evidence and isolate provisional fixtures.
-- F14: truthful priceability/funnel metrics, demand-ranked collection, zero-result backoff; exclude consoles from collection priority.
+- F13 — verified locally: explicit sold/date/provenance eligibility at ingestion, valuation and export; recoverable quarantine, provisional seeder disabled, historical dated evidence retained.
+- F14 — core verified locally; full discovery-to-visible funnel pending F15 provenance: actual generic used-condition priceability by category, raw linkage named separately, collection attempt funnel and insufficient reasons, demand/freshness/yield priority with zero-result backoff, consoles excluded.
 - F17 — verified locally for bounded intake, task ownership, probe fairness and undated expiry: bounded photo intake, owned temporary paths, preserve current hashes, fair probing and candid unknown dates.
 - Acceptance: deterministic timeout/cancellation/retry tests, bounded work under stalled inputs, meaningful query/coverage measurements. No duplicate comp crawl.
 
@@ -69,3 +69,5 @@ Update HANDOFF and this file after each verified batch and before stopping. Comm
 - 2026-09-07: F09/F10 code batch, 236 tests / 725 assertions / zero failures; typecheck passed. Six new process-isolated regressions. Final comparison on disposable audit copy: 4,416 live, zero failures, INSUFFICIENT_DATA 953 -> 998, BUY unchanged at 12. Caught and corrected laptop board-tier leakage and bare-case routing. Final current-crawl archive deferred to completed provenance/export guard, not replaced with the older snapshot. Next F12/F17.
 
 - 2026-09-07: F12/F17 workflow batch, 242 tests / 731 assertions / zero failures; typecheck and browser-module Node syntax passed. Seven new isolated regressions; replaced the old source-string expiry assertion with a real feed/prune regression. No browser, paid model or actual process-tree kill run. Next F13/F14.
+
+- 2026-09-08: F13/F14 core batch, 245 tests / 738 assertions / zero failures; typecheck passed. Disposable audit copy: 31,900 historical exportable comps, 28,871 eligible inside 90 days, zero quarantined, 492/547 in-scope SKUs generically priceable. Three new regressions and updated isolated positive fixtures. No current shared/production measurement or crawl. Next F15 including full stage funnel.

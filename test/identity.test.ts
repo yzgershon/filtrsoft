@@ -57,7 +57,7 @@ test("sparse exact capacity never falls back to plentiful mismatches or unnamed 
   import {valueSku} from '@/src/valuation/index.ts';
   const d=db(),at=new Date().toISOString();
   d.run("INSERT INTO skus(id,category,brand,model,created_at) VALUES (1,'phone','Audit','Phone',?)",[at]);
-  for(let i=0;i<11;i++)d.run("INSERT INTO comps(source,source_item_id,raw_title,sold_price_cents,condition_norm,sold_at,captured_at,sku_id,raw_json) VALUES ('test',?,?,?,'used',?,?,1,'{}')",[String(i),i<8?'Phone 128GB':i<10?'Phone 512GB':'Phone',i<8?10000:40000,at,at]);
+  for(let i=0;i<11;i++)d.run("INSERT INTO comps(source,source_item_id,raw_title,sold_price_cents,condition_norm,sold_at,captured_at,sku_id,raw_json) VALUES ('ebay',?,?,?,'used',?,?,1,json_object('soldAt',?))",[String(i),i<8?'Phone 128GB':i<10?'Phone 512GB':'Phone',i<8?10000:40000,at,at,at]);
   const v=valueSku(1,{category:'phone',condition:'used',attributes:{storage_gb:512}});
   assert.equal(v.compCount,2);assert.equal(v.medianCents,40000);assert.notEqual(v.confidence,'high');
   assert.equal(valueSku(1,{category:'phone',attributes:{storage_gb:1024}}).status,'no_comps');
@@ -72,7 +72,7 @@ test("a sparse premium board tier never inherits base-tier or unnamed cards",()=
   d.run("INSERT INTO skus(id,category,brand,model,created_at) VALUES (1,'gpu','NVIDIA','RTX 4090',?)",[at]);
   const premium='ASUS ROG Strix RTX 4090',base='MSI Ventus RTX 4090';
   assert.notEqual(boardTier(premium),null);assert.notEqual(boardTier(premium),boardTier(base));
-  for(let i=0;i<11;i++)d.run("INSERT INTO comps(source,source_item_id,raw_title,sold_price_cents,condition_norm,sold_at,captured_at,sku_id,raw_json) VALUES ('test',?,?,?,'used',?,?,1,'{}')",[String(i),i<8?base:i<10?premium:'RTX 4090',i<8?100000:200000,at,at]);
+  for(let i=0;i<11;i++)d.run("INSERT INTO comps(source,source_item_id,raw_title,sold_price_cents,condition_norm,sold_at,captured_at,sku_id,raw_json) VALUES ('ebay',?,?,?,'used',?,?,1,json_object('soldAt',?))",[String(i),i<8?base:i<10?premium:'RTX 4090',i<8?100000:200000,at,at,at]);
   const v=valueSku(1,{category:'gpu',condition:'used',boardTier:boardTier(premium)});
   assert.equal(v.compCount,2);assert.equal(v.medianCents,200000);assert.notEqual(v.confidence,'high');d.close();
 `));

@@ -2,6 +2,7 @@ import { Database } from "bun:sqlite";
 import { readFileSync, mkdirSync, existsSync, readdirSync, renameSync } from "node:fs";
 import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
+import { installCompEvidence, soldEvidence } from "./comp-evidence.ts";
 import { installPricingRevisions } from "./revisions.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -60,6 +61,7 @@ export function db(): Database {
   _db.exec(readFileSync(join(here, "schema.sql"), "utf8"));
   migrate(_db);
   installPricingRevisions(_db);
+  installCompEvidence(_db);
   return _db;
 }
 
@@ -353,6 +355,10 @@ export function insertComp(c: {
   query?: string;
   raw: unknown;
 }) {
+  if (!soldEvidence(c)) {
+    db().run("INSERT OR IGNORE INTO comp_quarantine(source,query,captured_at,reason,raw_json) VALUES(?,?,?,?,?)", [c.source,c.query ?? null,now(),"Unverified sold evidence, price or date",JSON.stringify(c)]);
+    return {changes:0,lastInsertRowid:0};
+  }
   return db()
     .query(
       `INSERT INTO comps (source, source_item_id, url, raw_title, sold_price_cents,
@@ -379,7 +385,7 @@ export function insertComp(c: {
         */
        ON CONFLICT(source, source_item_id) DO UPDATE SET
          sku_id = excluded.sku_id
-       WHERE comps.sku_id IS NULL`,
+       WHERE comps.sku_id IS NULL AND excluded.sku_id IS NOT NULL`,
     )
     .run({
       $source: c.source,

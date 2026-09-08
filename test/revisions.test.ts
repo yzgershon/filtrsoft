@@ -12,7 +12,7 @@ test('laptop dual-port copy cannot activate a GPU board-tier comp filter',()=>is
   const d=db(),at=new Date().toISOString();
   d.run("INSERT INTO skus(category,brand,model,attributes,created_at) VALUES('laptop','Dell','Latitude 7420','{}',?)",[at]);
   const id=d.query('SELECT id FROM skus').get().id;
-  for(let i=0;i<4;i++)d.run("INSERT INTO comps(source,source_item_id,raw_title,sold_price_cents,captured_at,sold_at,sku_id,raw_json,condition_norm) VALUES('ebay',?,'Dell Latitude 7420 i7 32GB RAM 512GB SSD',50000,?,?,?,'{}','used')",[String(i),at,at,id]);
+  for(let i=0;i<4;i++)d.run("INSERT INTO comps(source,source_item_id,raw_title,sold_price_cents,captured_at,sold_at,sku_id,raw_json,condition_norm) VALUES('ebay',?,'Dell Latitude 7420 i7 32GB RAM 512GB SSD',50000,?,?,?,json_object('soldAt',?),'used')",[String(i),at,at,id,at]);
   const r=await checkFetched({source:'audit',sourceId:'one',url:'https://example.invalid',title:'Dell Latitude 7420',description:'Dual USB ports. i7-1185G7 32GB RAM 512GB SSD',askingPriceCents:60000,location:null,postedAt:null,updatedAt:null,photoUrls:[],attributes:{},raw:{}},{persist:false,vision:false,econ:{label:'audit',min_absolute_profit_cents:10000,effective_hourly_floor_cents:8000,transaction_minutes:15,relist_minutes:20,prefers_channel:'facebook'}});
   assert.equal(r.verdict.valuation.compCount,4);
 `));
@@ -65,7 +65,7 @@ test('archive imports retail into nonempty tables, verifies manifests and applie
   const d=db(),at='2026-09-01T00:00:00.000Z';
   d.run("INSERT INTO skus(category,brand,model,attributes,created_at) VALUES('gpu','Nvidia','RTX 4090','{}',?)",[at]);
   const id=d.query('SELECT id FROM skus LIMIT 1').get().id;
-  d.run("INSERT INTO comps(source,source_item_id,raw_title,sold_price_cents,captured_at,sku_id,raw_json) VALUES('audit','one','RTX 4090',100000,?,?,'{}')",[at,id]);
+  d.run("INSERT INTO comps(source,source_item_id,raw_title,sold_price_cents,captured_at,sku_id,raw_json,sold_at) VALUES('ebay','one','RTX 4090',100000,?,?,json_object('soldAt',?),?)",[at,id,at,at]);
   d.run("INSERT INTO retail_prices(sku_id,source,title,price_cents,is_new,query,observed_at) VALUES(?,'bestbuy','RTX 4090',110000,1,'RTX 4090',?)",[id,at]);
   const a=exportArchive();assert.equal(importArchive(a).retail,0);
   const b=structuredClone(a);b.retail.push({...a.retail[0],price_cents:105000,observed_at:'2026-09-02T00:00:00.000Z'});
