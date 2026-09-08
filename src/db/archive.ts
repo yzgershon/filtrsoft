@@ -31,8 +31,9 @@
  * export and are re-resolved against the destination on import.
  */
 import { gunzipSync, gzipSync } from "node:zlib";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { existsSync, readFileSync, writeFileSync, mkdirSync,renameSync,copyFileSync } from "node:fs";
+import { createHash,randomUUID } from "node:crypto";
+import { join, dirname,resolve } from "node:path";
 import { db, now } from "./index.ts";
 
 export const ARCHIVE_PATH = join(import.meta.dir, "../../data/archive.json.gz");
@@ -51,6 +52,7 @@ interface ArchiveComp {
   region: string | null; query: string | null; raw_json: string;
   /** `category|brand|model` of the SKU, or null. NEVER a raw id — see above. */
   sku_key: string | null;
+  updated_at?:string|null;
 }
 
 interface ArchiveRetail {
@@ -60,11 +62,12 @@ interface ArchiveRetail {
 }
 
 export interface Archive {
-  version: 1;
+  version: 1|2;
   exportedAt: string;
   skus: ArchiveSku[];
   comps: ArchiveComp[];
   retail: ArchiveRetail[];
+  manifest?:{sha256:string;comps:number;skus:number;retail:number};
 }
 
 const keyOf = (s: { category: string; brand: string; model: string }) =>
@@ -74,6 +77,7 @@ const keyOf = (s: { category: string; brand: string; model: string }) =>
 
 export function exportArchive(): Archive {
   const d = db();
+  return d.transaction(()=>{
   const skuRows = d.query(
     `SELECT id, category, brand, model, attributes, liquidity FROM skus`,
   ).all() as Array<{ id: number; category: string; brand: string; model: string; attributes: string; liquidity: string | null }>;
@@ -100,7 +104,7 @@ export function exportArchive(): Archive {
   const comps = (d.query(
     `SELECT source, source_item_id, url, raw_title, sold_price_cents, shipping_cents,
             currency, condition_raw, condition_norm, sold_at, captured_at,
-            seller_feedback, region, sku_id, query, raw_json
+            seller_feedback, region, sku_id, query, raw_json, updated_at
        FROM comps`,
   ).all() as Array<ArchiveComp & { sku_id: number | null }>).map(({ sku_id, ...c }) => ({
     ...c, sku_key: sku_id ? idToKey.get(sku_id) ?? null : null,
@@ -113,19 +117,39 @@ export function exportArchive(): Archive {
     ...r, sku_key: sku_id ? idToKey.get(sku_id) ?? null : null,
   }));
 
-  return { version: 1, exportedAt: now(), skus, comps, retail };
+  const a:Archive={version:2,exportedAt:now(),skus,comps,retail};
+  a.manifest=archiveManifest(a);
+  return a;
+  })();
+}
+
+export function archiveManifest(a:Archive) {
+  return {sha256:createHash('sha256').update(JSON.stringify({skus:a.skus,comps:a.comps,retail:a.retail})).digest('hex'),
+    comps:a.comps.length,skus:a.skus.length,retail:a.retail.length};
+}
+
+function validateArchive(a:Archive) {
+  if(![1,2].includes(a.version)||!Array.isArray(a.comps)||!Array.isArray(a.skus)||!Array.isArray(a.retail)) throw new Error('Invalid archive shape');
+  if(a.version===2 && JSON.stringify(a.manifest)!==JSON.stringify(archiveManifest(a))) throw new Error('Archive manifest mismatch');
 }
 
 export function writeArchive(a: Archive, path = ARCHIVE_PATH): number {
+  path=resolve(path);
   mkdirSync(dirname(path), { recursive: true });
+  validateArchive(a);
   const buf = gzipSync(Buffer.from(JSON.stringify(a)), { level: 9 });
-  writeFileSync(path, buf);
+  const temporary=`${path}.${randomUUID()}.tmp`;
+  writeFileSync(temporary, buf);
+  readArchive(temporary); // Validate compressed bytes before replacing the last good artifact.
+  if(existsSync(path)) copyFileSync(path,`${path}.previous`);
+  renameSync(temporary,path);
   return buf.length;
 }
 
 export function readArchive(path = ARCHIVE_PATH): Archive | null {
   if (!existsSync(path)) return null;
-  return JSON.parse(gunzipSync(readFileSync(path)).toString()) as Archive;
+  const a=JSON.parse(gunzipSync(readFileSync(path)).toString()) as Archive;
+  validateArchive(a);return a;
 }
 
 /* ------------------------------------------------------------------ import */
@@ -142,6 +166,7 @@ export interface ImportResult {
  * gets restarted mid-boot would leave the archive in an unknown state.
  */
 export function importArchive(a: Archive): ImportResult {
+  validateArchive(a);
   const d = db();
   const res: ImportResult = { skus: 0, aliases: 0, comps: 0, retail: 0, skipped: 0 };
 
@@ -159,8 +184,8 @@ export function importArchive(a: Archive): ImportResult {
   const insComp = d.query(
     `INSERT INTO comps (source, source_item_id, url, raw_title, sold_price_cents,
         shipping_cents, currency, condition_raw, condition_norm, sold_at,
-        captured_at, seller_feedback, region, sku_id, query, raw_json)
-     VALUES ($src,$sid,$url,$title,$price,$ship,$cur,$craw,$cnorm,$sold,$cap,$fb,$reg,$sku,$q,$raw)
+        captured_at, seller_feedback, region, sku_id, query, raw_json,updated_at)
+     VALUES ($src,$sid,$url,$title,$price,$ship,$cur,$craw,$cnorm,$sold,$cap,$fb,$reg,$sku,$q,$raw,$updated)
      /*
       * Same adoption rule as insertComp, for the same reason.
       *
@@ -172,15 +197,16 @@ export function importArchive(a: Archive): ImportResult {
       */
      ON CONFLICT(source, source_item_id) DO UPDATE SET
        sku_id = excluded.sku_id
-       WHERE comps.sku_id IS NULL`,
+       WHERE comps.sku_id IS NULL AND excluded.sku_id IS NOT NULL`,
   );
   const insRetail = d.query(
-    `INSERT INTO retail_prices (sku_id, source, title, price_cents, is_new,
+    `INSERT OR IGNORE INTO retail_prices (sku_id, source, title, price_cents, is_new,
         storage_gb, board_tier, query, observed_at)
      VALUES ($sku,$src,$title,$price,$new,$gb,$tier,$q,$obs)`,
   );
 
   d.transaction(() => {
+    d.exec("CREATE TABLE IF NOT EXISTS archive_imports(sha256 TEXT PRIMARY KEY,exported_at TEXT,imported_at TEXT,counts TEXT)");
     // 1. SKUs first — comps resolve against them by key, not by id.
     const keyToId = new Map<string, number>();
     for (const s of a.skus) {
@@ -208,30 +234,31 @@ export function importArchive(a: Archive): ImportResult {
         $price: c.sold_price_cents, $ship: c.shipping_cents, $cur: c.currency,
         $craw: c.condition_raw, $cnorm: c.condition_norm, $sold: c.sold_at,
         $cap: c.captured_at, $fb: c.seller_feedback, $reg: c.region,
-        $sku: skuId, $q: c.query, $raw: c.raw_json,
+        $sku: skuId, $q: c.query, $raw: c.raw_json,$updated:c.updated_at??null,
       });
       if (r.changes) res.comps++;
-    }
-
-    /**
-     * Retail has no natural key, so it is imported ONLY into an empty table.
-     *
-     * Unlike comps, these are cheap to re-pull and go stale in weeks, so
-     * duplicating them on every redeploy would grow the table without adding
-     * information — and `latestRetail` reads the newest row per source, which
-     * duplicates would keep churning for no reason.
-     */
-    const have = (d.query("SELECT COUNT(*) n FROM retail_prices").get() as { n: number }).n;
-    if (have === 0) {
-      for (const r of a.retail) {
-        insRetail.run({
-          $sku: r.sku_key ? keyToId.get(r.sku_key) ?? null : null,
-          $src: r.source, $title: r.title, $price: r.price_cents, $new: r.is_new,
-          $gb: r.storage_gb, $tier: r.board_tier, $q: r.query, $obs: r.observed_at,
-        });
-        res.retail++;
+      // Legacy exports cannot prove correction order. V2 corrections carry the
+      // source row's mutation clock and cannot revert a newer destination edit.
+      if(a.version===2 && c.updated_at) {
+        const corrected=d.run(`UPDATE comps SET sku_id=?,raw_title=?,sold_price_cents=?,shipping_cents=?,currency=?,
+          condition_raw=?,condition_norm=?,sold_at=?,raw_json=?,updated_at=? WHERE source=? AND source_item_id=?
+          AND COALESCE(updated_at,captured_at)<?`,
+          [skuId,c.raw_title,c.sold_price_cents,c.shipping_cents,c.currency,c.condition_raw,c.condition_norm,c.sold_at,c.raw_json,c.updated_at,c.source,c.source_item_id,c.updated_at]);
+        if(corrected.changes) res.comps++;
       }
     }
+
+    // Natural observation identity makes imports additive even after the first
+    // retail crawl, without turning a redeploy into duplicate corroboration.
+    for (const r of a.retail) {
+      const result=insRetail.run({
+        $sku:r.sku_key?keyToId.get(r.sku_key)??null:null,
+        $src:r.source,$title:r.title,$price:r.price_cents,$new:r.is_new,
+        $gb:r.storage_gb,$tier:r.board_tier,$q:r.query,$obs:r.observed_at,
+      });
+      if(result.changes) res.retail++;
+    }
+    d.run("INSERT OR IGNORE INTO archive_imports VALUES(?,?,?,?)",[archiveManifest(a).sha256,a.exportedAt,now(),JSON.stringify({skus:a.skus.length,comps:a.comps.length,retail:a.retail.length})]);
   })();
 
   return res;
@@ -260,14 +287,19 @@ export function importArchive(a: Archive): ImportResult {
  */
 export function archiveStatus(): {
   present: boolean; path: string; comps: number; skus: number; exportedAt: string | null;
+  sha256:string|null;imported:boolean;importedAt:string|null;
 } {
   const a = readArchive();
+  const sha=a?archiveManifest(a).sha256:null;
+  const exists=db().query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='archive_imports'").get();
+  const imported=exists&&sha?db().query("SELECT imported_at FROM archive_imports WHERE sha256=?").get(sha) as {imported_at:string}|null:null;
   return {
     present: Boolean(a),
     path: ARCHIVE_PATH,
     comps: a?.comps.length ?? 0,
     skus: a?.skus.length ?? 0,
     exportedAt: a?.exportedAt ?? null,
+    sha256:sha,imported:Boolean(imported),importedAt:imported?.imported_at??null,
   };
 }
 

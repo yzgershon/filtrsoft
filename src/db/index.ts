@@ -2,6 +2,7 @@ import { Database } from "bun:sqlite";
 import { readFileSync, mkdirSync, existsSync, readdirSync, renameSync } from "node:fs";
 import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
+import { installPricingRevisions } from "./revisions.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const DB_PATH = process.env.FILTRSOFT_DB ?? join(here, "../../filtrsoft.db");
@@ -58,6 +59,7 @@ export function db(): Database {
 
   _db.exec(readFileSync(join(here, "schema.sql"), "utf8"));
   migrate(_db);
+  installPricingRevisions(_db);
   return _db;
 }
 
@@ -196,6 +198,13 @@ const SKU_COLUMNS: Array<[string, string]> = [
 ];
 
 function migrate(d: Database) {
+  addColumns(d,"comps",[["updated_at","TEXT"]]);
+  d.exec(`CREATE TRIGGER IF NOT EXISTS comp_correction_clock AFTER UPDATE ON comps
+    WHEN NEW.updated_at IS OLD.updated_at AND (NEW.sku_id IS NOT OLD.sku_id OR NEW.sold_price_cents IS NOT OLD.sold_price_cents
+      OR NEW.raw_title IS NOT OLD.raw_title OR NEW.sold_at IS NOT OLD.sold_at OR NEW.raw_json IS NOT OLD.raw_json
+      OR NEW.shipping_cents IS NOT OLD.shipping_cents OR NEW.currency IS NOT OLD.currency
+      OR NEW.condition_norm IS NOT OLD.condition_norm OR NEW.condition_raw IS NOT OLD.condition_raw)
+    BEGIN UPDATE comps SET updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=NEW.id; END;`);
   addColumns(d, "skus", SKU_COLUMNS);
   addColumns(d, "listings", LISTING_COLUMNS);
   addColumns(d, "vision_results", VISION_COLUMNS);
@@ -216,6 +225,19 @@ function migrate(d: Database) {
   )`);
   const applied = d.query("SELECT 1 FROM schema_migrations WHERE name=?");
   const mark = d.query("INSERT INTO schema_migrations (name, applied_at) VALUES (?,?)");
+  const retailIdentity="2026-09-07-retail-observation-identity";
+  if(!applied.get(retailIdentity)) d.transaction(()=>{
+    // Keep historical rows intact. Ignore only exact repeats of an observation;
+    // differing price/availability at the same timestamp remains inspectable.
+    d.exec(`CREATE INDEX IF NOT EXISTS retail_observation_identity ON retail_prices(sku_id,source,observed_at);
+      CREATE TRIGGER IF NOT EXISTS retail_observation_dedupe BEFORE INSERT ON retail_prices
+      WHEN EXISTS(SELECT 1 FROM retail_prices r WHERE r.sku_id IS NEW.sku_id AND r.source=NEW.source
+        AND r.query=NEW.query AND r.title=NEW.title AND r.observed_at=NEW.observed_at
+        AND r.storage_gb IS NEW.storage_gb AND r.board_tier IS NEW.board_tier
+        AND r.price_cents=NEW.price_cents AND r.is_new=NEW.is_new)
+      BEGIN SELECT RAISE(IGNORE); END;`);
+    mark.run(retailIdentity,new Date().toISOString());
+  })();
   // Preserve the pre-account owner's personal records only when ownership is
   // unambiguous at upgrade. Multi-account legacy rows stay unassigned, private.
   const ownership = "2026-09-07-personal-outcome-ownership";

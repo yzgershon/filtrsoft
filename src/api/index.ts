@@ -1,3 +1,4 @@
+import {scoringStatus} from "../db/scoring.ts";
 /**
  * The HTTP API.
  *
@@ -356,6 +357,7 @@ app.get("/v1/health", (c) => {
      * run — which is invisible any other way.
      */
     archive: archiveStatus(),
+    scoring: scoringStatus(),
     billing: { enabled: billingEnabled() },
     crawlButton: { configured: crawlPinConfigured(), ...autoCrawlStatus() },
     /** Which sign-in methods are configured. Never the ids themselves. */

@@ -724,23 +724,8 @@ export function latestRetail(
 ): RetailPrice | null {
   if (!skuId) return null;
 
-  /**
-   * TIER FIRST, untiered as the fallback.
-   *
-   * A premium card must be capped by a premium card. Measured, the new-market
-   * tier premium is 1.40x — so an ASUS TUF listing compared against the PNY
-   * that wins an untiered ceiling is being told it is 40% overpriced when it is
-   * not, and that lands as a PASS on a real deal.
-   *
-   * Falls back rather than returning nothing: a tier we hold no quote for is
-   * still better served by the untiered ceiling than by no ceiling at all,
-   * since the untiered one is a genuine lower bound on the price of a new card.
-   */
-  if (tier) {
-    const tiered = latestRetailRows(skuId, storageGb, tier);
-    if (tiered) return tiered;
-  }
-  return latestRetailRows(skuId, storageGb, null);
+  // A known tier cannot inherit a cheaper untiered ceiling.
+  return latestRetailRows(skuId, storageGb, tier ?? null);
 }
 
 function latestRetailRows(
@@ -756,17 +741,20 @@ function latestRetailRows(
   const rows = db()
     .query(
       `SELECT source, price_cents, title, observed_at FROM retail_prices r
-        WHERE sku_id=$id AND is_new=1
-          AND (storage_gb IS NULL OR $gb IS NULL OR storage_gb = $gb)
-          AND ($tier IS NULL AND board_tier IS NULL OR board_tier = $tier)
-          AND observed_at = (
-            SELECT MAX(observed_at) FROM retail_prices r2
-             WHERE r2.sku_id = r.sku_id AND r2.source = r.source AND r2.is_new = 1
-               AND ($tier IS NULL AND r2.board_tier IS NULL OR r2.board_tier = $tier)
-               AND (r2.storage_gb IS NULL OR $gb IS NULL OR r2.storage_gb = $gb))
+        WHERE sku_id=$id AND is_new=1 AND price_cents>0
+          AND storage_gb IS $gb AND board_tier IS $tier
+          AND observed_at >= $cutoff
+          AND observed_at <= $now
+          AND id = (
+            SELECT id FROM retail_prices r2
+             WHERE r2.sku_id=r.sku_id AND r2.source=r.source
+               AND ((r2.storage_gb IS $gb AND r2.board_tier IS $tier)
+                 OR (r2.is_new=0 AND r2.price_cents=0 AND (r2.storage_gb IS NULL OR r2.storage_gb IS $gb)))
+             ORDER BY observed_at DESC,id DESC LIMIT 1)
         ORDER BY price_cents ASC`,
     )
-    .all({ $id: skuId, $gb: storageGb ?? null, $tier: tier }) as Array<
+    .all({ $id:skuId,$gb:storageGb??null,$tier:tier,
+      $cutoff:new Date(Date.now()-RETAIL_STALE_DAYS*86_400_000).toISOString(),$now:new Date().toISOString() }) as Array<
       { source: string; price_cents: number; title: string; observed_at: string }
     >;
   if (!rows.length) return null;
@@ -852,7 +840,7 @@ export function retailQueryForSku(sku: {
  * for a Craigslist build, and an empty result there is indistinguishable from a
  * scraper that broke.
  */
-export const RETAIL_CATEGORIES = ["console", "gpu", "laptop", "tablet", "phone"];
+export const RETAIL_CATEGORIES = [ "gpu", "laptop", "tablet", "phone"];
 
 /**
  * Ordered by HOW MANY RETAILERS WE HAVE ASKED, fewest first — not by whether

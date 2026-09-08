@@ -1,3 +1,4 @@
+import {pricingSignature} from "../db/revisions.ts";
 /**
  * Condition normalisation and price adjustment.
  *
@@ -112,14 +113,13 @@ const PRIOR_BY_CATEGORY: Partial<Record<string, Partial<Record<Condition, number
  * memory while still noticing an archive change promptly in a long-lived API.
  */
 const measuredCache = new Map<string, number | null>();
-let measuredCacheRevision = -1;
+let measuredCacheRevision: string | null = null;
 let measuredCacheCheckedAt = 0;
 
 function refreshMeasuredCache() {
   const at = Date.now();
-  if (at - measuredCacheCheckedAt < 1000) return;
   measuredCacheCheckedAt = at;
-  const revision = (db().query("SELECT COALESCE(MAX(id),0) n FROM comps").get() as { n: number }).n;
+  const revision = pricingSignature(db());
   if (revision !== measuredCacheRevision) {
     measuredCacheRevision = revision;
     measuredCache.clear();
@@ -129,7 +129,7 @@ function refreshMeasuredCache() {
 /** Explicit invalidation for maintenance code that edits existing comp rows. */
 export function clearMeasuredMultiplierCache() {
   measuredCache.clear();
-  measuredCacheRevision = -1;
+  measuredCacheRevision = null;
   measuredCacheCheckedAt = 0;
 }
 

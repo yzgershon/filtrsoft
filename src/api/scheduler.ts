@@ -41,7 +41,7 @@ import { runAlerts } from "./alerts.ts";
 import { pruneSessions } from "./auth.ts";
 import { checkStored, ENGINE_VERSION } from "../engine/index.ts";
 import { db, now } from "../db/index.ts";
-import { storeVerdict } from "../db/verdicts.ts";
+import { scorePending } from "../db/scoring.ts";
 import { retireRepeatedAppliances } from "../db/retire-appliances.ts";
 
 /** Gap between ticks. A tick is 5 requests when nothing is new. */
@@ -204,22 +204,8 @@ async function runOnce(reason: string) {
     // stale, which is every run after the one following a deploy.
     const retiredAppliances = retireRepeatedAppliances();
     if (retiredAppliances.length) console.log(`retired ${retiredAppliances.length} repeated household appliance listings`);
-    const rescored = reverdictAll();
-    if (rescored) console.log(`re-scored ${rescored} listings on engine ${ENGINE_VERSION}`);
-
-    /**
-     * New comps, SKUs, aliases and retail quotes do not bump ENGINE_VERSION,
-     * but they can change an answer just as much as code. Re-score once when
-     * that data signature moves, not 200 unchanged rows on every 3-minute tick.
-     * If stale engine rows were just drained, they already saw current data.
-     */
-    if (rescored) markPricingDataCurrent();
-    else {
-      const repriced = reverdictWhenPricingDataChanges();
-      if (repriced.changed) {
-        console.log(`pricing data changed: checked ${repriced.checked}, ${repriced.changed} verdict(s) moved`);
-      }
-    }
+    const rescored=scorePending(400);
+    if(rescored.checked || rescored.failed) console.log(`re-score: ${rescored.checked} checked, ${rescored.changed} changed, ${rescored.failed} failed, ${rescored.pending} pending`);
 
     /**
      * DISCOVER, THEN DRAIN. See `crawler/queue.ts` for why these are separate.
@@ -340,116 +326,9 @@ async function runOnce(reason: string) {
  * `checkStored` re-runs signals, matching and valuation against the listing
  * text ALREADY in the database — no refetch, no network, no source traffic.
  */
-/**
- * DRAIN THE BACKLOG, do not nibble at it.
- *
- * The first version re-scored 400 per crawl tick. That left a multi-tick window
- * where the live feed mixed old and new engine answers after every deploy.
- *
- * Draining is cheap — `checkStored` is a database read plus pure engine work,
- * about two milliseconds each after the condition-multiplier cache, so 936
- * listings take 1.87 seconds. The outer cap exists only so a pathological
- * database cannot spin the boot path forever.
- */
-function reverdictAll(max = 5000): number {
-  let total = 0;
-  for (let pass = 0; pass < 20 && total < max; pass++) {
-    const n = reverdictStale(400);
-    if (!n) break;
-    total += n;
-  }
-  return total;
-}
-
-/**
- * Re-score when valuation data changes without a code change.
- *
- * **`reverdictStale` only reacts to a CODE change** — it selects on
- * `engine_version IS NOT $v`. New DATA moves nothing. So an archive import can
- * add 1,313 comps and 47 SKUs to production and every INSUFFICIENT_DATA
- * verdict keeps its old answer forever, because the engine version it was
- * computed under is still current.
- *
- * That is exactly what happened after the volume was resized: the comps landed,
- * and "GAMING PC: I7 10700 / RTX 2080" still read "not enough component comps
- * to price it" against an archive that now had both parts.
- *
- * The old fix ran every crawl and only retried INSUFFICIENT_DATA. That burned
- * CPU on unchanged rows while leaving a BUY/PASS based on an old comp median
- * untouched forever. The data signature below makes this event-driven and
- * re-checks every stored answer exactly once per pricing-data revision.
- */
-interface DataReverdictStats { checked: number; changed: number }
-
-let lastPricingDataSignature: string | null = null;
-
-/** A compact revision for every table that can change valuation without code. */
-function pricingDataSignature(): string {
-  const r = db().query(`
-    SELECT
-      (SELECT COALESCE(MAX(id),0) FROM comps) comps,
-      (SELECT COALESCE(MAX(id),0) FROM skus) skus,
-      (SELECT COALESCE(MAX(id),0) FROM sku_aliases) aliases,
-      (SELECT COALESCE(MAX(id),0) FROM retail_prices) retail
-  `).get() as { comps: number; skus: number; aliases: number; retail: number };
-  return `${r.comps}|${r.skus}|${r.aliases}|${r.retail}`;
-}
-
-function markPricingDataCurrent() {
-  lastPricingDataSignature = pricingDataSignature();
-}
-
-/**
- * Re-score every stored listing once when pricing inputs move.
- *
- * The old query retried the newest 200 INSUFFICIENT_DATA rows every tick. That
- * was both wasteful and incomplete: 268 rows existed, so the oldest 68 could
- * never be revisited, and already-priced listings never saw a changed comp
- * median or retail ceiling at all.
- */
-export function reverdictWhenPricingDataChanges(): DataReverdictStats {
-  const before = pricingDataSignature();
-  if (before === lastPricingDataSignature) return { checked: 0, changed: 0 };
-
-  const d = db();
-  const rows = d.query("SELECT id FROM listings ORDER BY id").all() as Array<{ id: number }>;
-  let changed = 0;
-  for (const r of rows) {
-    try {
-      const { verdict } = checkStored(r.id, {});
-      const stored = storeVerdict(r.id, ENGINE_VERSION, verdict);
-      if (stored.inserted) changed++;
-    } catch { /* one bad listing must not stop the pass */ }
-  }
-  // Generative matching may mint SKUs during the pass. Record the final state
-  // so that expected side effect does not trigger another full pass next tick.
-  lastPricingDataSignature = pricingDataSignature();
-  return { checked: rows.length, changed };
-}
-
-export function reverdictStale(limit = 400): number {
-  const d = db();
-  const rows = d.query(
-    `SELECT l.id FROM listings l
-       LEFT JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
-      WHERE v.engine_version IS NOT $v OR EXISTS (SELECT 1 FROM listing_rechecks q WHERE q.listing_id=l.id)
-      ORDER BY l.id LIMIT $lim`,
-  ).all({ $v: ENGINE_VERSION, $lim: limit }) as Array<{ id: number }>;
-  if (!rows.length) return 0;
-
-  let n = 0;
-  for (const r of rows) {
-    try {
-      const { verdict } = checkStored(r.id, {});
-      storeVerdict(r.id, ENGINE_VERSION, verdict);
-      d.run("DELETE FROM listing_rechecks WHERE listing_id=?",[r.id]);
-      n++;
-    } catch {
-      // One unparseable listing must not stop the sweep.
-    }
-  }
-  return n;
-}
+/** Bounded passes yield to discovery; durable per-row checkpoints resume next tick. */
+export function reverdictWhenPricingDataChanges() { return scorePending(400); }
+export function reverdictStale(limit=400):number { return scorePending(limit).checked; }
 
 /**
  * Keep crawl observability bounded. The split scheduler originally stopped

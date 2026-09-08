@@ -302,7 +302,8 @@ export function buildVerdict(input: {
    * the card is a fact about this listing. Same relationship storage has to a
    * phone model.
    */
-  const tier = boardTier(`${input.title} ${input.description}`);
+  // "Dual" USB ports and "gaming" laptop copy are not GPU board identities.
+  const tier = (match.category ?? signals.category)==="gpu" ? boardTier(`${input.title} ${input.description}`) : null;
 
   const skuVal = valueSku(match.confidence === "low" ? null : match.skuId, {
     condition,

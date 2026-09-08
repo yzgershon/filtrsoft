@@ -23,10 +23,10 @@ Status meanings: pending, in progress, implemented (checks pending), verified lo
 - F11 — verified locally: consistent ISO comparisons for TTLs and rolling metrics; same-day, cross-midnight and exact-boundary tests. Heartbeats remain F12.
 - Acceptance: forced transport failures and replays, missed-deal fixture, transient delivery retry exactly once, stale-job expiry. No real notification required.
 
-## Phase 3: archive and scoring completion — pending
+## Phase 3: archive and scoring completion — code verified; final data artifact pending
 
-- F09: data revisions including relinks/corrections/expiry; missing-verdict recovery; resumable scoring cursor and failures; fresh engine revision and archive manifest.
-- F10: idempotent retail observations, newest availability wins, freshness of every corroborating quote.
+- F09 — code verified locally; final current-crawl archive/rollback pending: data revisions including relinks/corrections/expiry; missing-verdict recovery; resumable scoring cursor and failures; fresh engine revision and archive manifest.
+- F10 — verified locally: idempotent retail observations, newest availability wins, freshness of every corroborating quote.
 - Saved inventory/Review changes integrated locally as 6d3b804; their older archive is not a replacement for newer shared data.
 - Acceptance: comparison on an isolated consistent current snapshot, import twice and after a correction, simulated interrupted scoring, exact before/after counts and rollback artifact.
 - Fresh archive generation requires a coordinated snapshot of current crawl data. Deployment is a final separate authorization step explicitly naming main and Railway.
@@ -65,3 +65,5 @@ Update HANDOFF and this file after each verified batch and before stopping. Comm
 - 2026-09-07: F07/F11 batch, 222 tests / 711 assertions / zero failures; typecheck passed. Five isolated delivery/time regressions. Next durable fact synchronization and source-aware enrichment.
 
 - 2026-09-07: F03/F05 batch, 230 tests / 719 assertions / zero failures; typecheck passed. Eight isolated/pure regressions plus disposable snapshot queue coverage: 461 Facebook, 440 OfferUp, 109 Mercari. No transport, paid vision, shared data edits or deployment. Next F09/F10.
+
+- 2026-09-07: F09/F10 code batch, 236 tests / 725 assertions / zero failures; typecheck passed. Six new process-isolated regressions. Final comparison on disposable audit copy: 4,416 live, zero failures, INSUFFICIENT_DATA 953 -> 998, BUY unchanged at 12. Caught and corrected laptop board-tier leakage and bare-case routing. Final current-crawl archive deferred to completed provenance/export guard, not replaced with the older snapshot. Next F12/F17.

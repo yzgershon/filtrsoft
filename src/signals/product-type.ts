@@ -400,6 +400,10 @@ const COMPONENT_OVERRIDE = /\b(desktop|mobile)\s+processor\b|\bboxed\s+(cpu|proc
  */
 export function resolveCategory(title: string): string | null {
   if (COMPONENT_OVERRIDE.test(title)) return "component";
+  // "Mid-Tower PC Case" contains the whole-device noun tower, but sells a
+  // chassis. A complete "Gaming PC ... in an NZXT case" still sells the PC.
+  const chassis=/\b(?:pc|computer|desktop|tower)\s+(?:gaming\s+)?(?:case|chassis)\b/i.exec(title);
+  if(chassis && !/\b(?:gaming\s+(?:pc|computer|desktop)|(?:complete|custom|built)\s+(?:pc|computer))\b/i.test(title.slice(0,chassis.index))) return "case";
 
   const nouns = findNouns(title);
   const present = new Set(nouns.filter((n) => n.kind === "tech").map((n) => n.term));
