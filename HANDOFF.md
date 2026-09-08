@@ -89,7 +89,21 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
-### Current checkpoint: 2026-09-08, all audit findings implemented locally; release validation pending
+### Current checkpoint: 2026-09-08, production deployment verified
+
+This checkpoint supersedes the chronological implementation and release notes below. Yish explicitly authorized pinned dependency downloads and pushing to main for Railway deployment; do not request that approval again.
+
+- All F01-F20 implementations and the inventory/Review work reached remote main in **52433cea248719354fe7b5389a97034dc3abe686**. Railway deployment **d53d34f9-161e-4c7f-95d7-e950d576c0f9** is active. Engine **0.3.34**, **31,900 comps**, matching archive SHA-256, imported at 2026-09-08T13:48:30.409Z.
+- Public production verification at **2026-09-08T18:51:35.276Z**: database ok, scoring complete, **0 pending / 0 failures**, 492 of 556 current in-scope SKUs generically priceable. Root/compiled JS/CSS return 200 and asset hashes match the local verified build; unauthenticated feed/pulse return 401. Every live listing uses 0.3.34 in the subsequent read-only database audit.
+- GitHub Actions **34234175387 succeeded**. Pinned clean Linux amd64 install/build, 260 tests / 755 assertions / 0 failures, TypeScript, Vite, network-disabled test container and production image checks passed. First push 53738ec failed Railway Dockerfile parsing before build; 52433ce fixed the unsupported RUN network flag and deployed successfully.
+- A real production backup and verified restore copy remain on /data/backups; identity/counts in docs/sessions/2026-09-08-production-backup.json. Same-volume recovery is verified; offsite coverage is not.
+- Production comparison at **18:52:25Z**, using the backup's same 6,124 live-listing IDs: INSUFFICIENT_DATA **1,135 -> 1,200** before retirement exclusion, **1,185** among those still live. **99 repeated appliances** were retired recoverably by the normal scheduler (84 out-of-scope and 15 insufficient). Current complete population: 6,117 live, BUY 6 / VERIFY 35 / FAIR 38 / PASS 234 / RISK 77 / INSUFFICIENT_DATA 1,209 / OUT_OF_SCOPE 4,518. Continuous crawling/enrichment makes this an observed production comparison, not a controlled engine-only experiment. Earlier 76-retirement figures remain snapshot results only.
+- Existing signed-in Chrome session verified the actual Review batch of ten, detail /c/4254 with four recorded matching-build comps, label controls and Back navigation. Opened and canceled controls; no fake label or seller message. Live comp copy incorrectly promised date sorting while provenance retained evidence order; final follow-up changes only wording to recorded decision comps. TypeScript/Vite passed; its push/deployment verification follows this checkpoint.
+- **Laptop agent is offline**. Agent code is in remote main but the shared local checkout remains preserved; no browser worker reconnect/crawl was run. Billing remains disabled and live Stripe activation tests remain a prerequisite to enabling it. Existing production vision/crawl schedules continued automatically; no manual paid model request was initiated by release verification.
+- Worktree C:/Dev/filtrsoft-backend, branch codex/backend-hardening. Shared C:/Dev/filtrsoft is not reset or updated. Read docs/BACKEND-IMPLEMENTATION-REPORT.md and docs/sessions/2026-09-08-production-release.json for final evidence and explicit limits.
+
+### Historical checkpoint: 2026-09-08, local implementation and release progression
+
 
 Yish read the complete backend audit and authorized implementation of all findings, with a structured plan and frequent handoff updates. This checkpoint supersedes older status/next-step claims below.
 

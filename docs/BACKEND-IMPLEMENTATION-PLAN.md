@@ -6,6 +6,10 @@ Source audit: C:/Dev/filtrsoft-backend-audit-2026-09-07/BACKEND-AUDIT.md. Worktr
 
 Status meanings: pending, in progress, implemented (checks pending), verified locally, deployed. Only record a finding as verified when its acceptance evidence exists. Keep unresolved subparts explicit. No production result is implied by a local check.
 
+## Current release status
+
+All six phases' code is pushed and deployed in 52433ce, engine 0.3.34. Hosted CI and clean Linux release checks passed (260 tests, 755 assertions). Production imported 31,900 comps and completed scoring with zero failures/pending. Live authenticated Review/detail controls were inspected; label mutations and provider transports remain covered by synthetic tests, not live end-to-end claims. Laptop agent is offline; billing is disabled. See the final report and HANDOFF for timestamped production counts and remaining integration limits. Phase notes below retain their implementation-time evidence.
+
 ## Phase 1: correctness barriers — verified locally
 
 - F01 — verified locally: parts category contract; searchable catalog identities without aliases; exact part brand/model/configuration matching; correct storage queries and seed category. Legacy storage rows are interpreted compatibly rather than rewriting the active crawl DB.
@@ -29,7 +33,7 @@ Status meanings: pending, in progress, implemented (checks pending), verified lo
 - F10 — verified locally: idempotent retail observations, newest availability wins, freshness of every corroborating quote.
 - Saved inventory/Review changes integrated locally as 6d3b804; their older archive is not a replacement for newer shared data.
 - Acceptance: comparison on an isolated consistent current snapshot, import twice and after a correction, simulated interrupted scoring, exact before/after counts and rollback artifact.
-- Final artifact generated from a consistent read-only snapshot on September 8: 31,900 comps / 559 SKUs / 35 retail. Old-to-new import adds 6,729 comps; repeat changes zero. Deployment is a final separate authorization step explicitly naming main and Railway.
+- Final artifact generated from a consistent read-only snapshot on September 8: 31,900 comps / 559 SKUs / 35 retail. Old-to-new import adds 6,729 comps; repeat changes zero. Yish authorized main/Railway deployment on September 8; deployment is complete.
 
 ## Phase 4: bounded work and useful collection — code verified locally; live transports unexercised
 
@@ -46,9 +50,9 @@ Status meanings: pending, in progress, implemented (checks pending), verified lo
 - F18 — verified locally: account-bound displayed-decision snapshots, append-only judgment history and immutable engine revisions, current-label evaluation/export/frozen replay, separate disappearance/transaction evidence, contemporaneous SKU and decision, known-cost realized-margin reporting. Legacy missing evidence remains unknown; no real-price calibration claimed.
 - Acceptance: replayable decision evidence, concurrent economics isolation, pagination bursts, no inferred sale represented as a realized price. Report remaining data requirements honestly.
 
-## Phase 6: operations and billing readiness — code verified locally; clean-image/provider checks pending
+## Phase 6: operations and billing readiness — clean-image and deployment verified; billing activation checks pending
 
-- F19 — verified locally; clean-install CI/image build and provider backup coverage pending: reproducible dependency/runtime build, consistent archive export, atomic verified backup and restore, build-context exclusions, CI checks.
+- F19 — verified locally and in hosted CI/production rollout, with same-volume backup/restore coverage: reproducible dependency/runtime build, consistent archive export, atomic verified backup and restore, build-context exclusions, CI checks.
 - F20 — verified with synthetic transports; provider activation checks pending: billing account ownership, durable event processing, retryable webhook errors and out-of-order reconciliation before activation.
 - Acceptance: local restore/integrity drill, build checks possible with existing tools, simulated duplicate/out-of-order webhooks; document provider configuration checks not accessible locally. No installation, paid action, or account login without authorization.
 
@@ -81,3 +85,5 @@ Update HANDOFF and this file after each verified batch and before stopping. Comm
 - 2026-09-08: F19/F20 batch, 259 tests / 752 assertions / zero failures; TypeScript passed. Backup/restore failure drills and four billing ownership/retry/order/fencing regressions. No provider call, installation, deployment or shared-data mutation. Final current snapshot/archive/comparison is next.
 
 - 2026-09-08: final local verification, 260 tests / 755 assertions / zero failures, TypeScript and Vite passed. Snapshot-discovered Omen routing and health-readiness gaps fixed. Current archive/import/restore and 4,456-row comparison complete; snapshot/projected retirement results in docs/BACKEND-IMPLEMENTATION-REPORT.md. All 20 findings implemented locally; release gates and real-data/provider limitations remain explicit. No shared mutation or deployment.
+
+- 2026-09-08 release: all code deployed in 52433ce; CI passed, production scoring complete, 99 actual appliance retirements, authenticated read-only UI inspected. Final comp-evidence wording follow-up has passed TypeScript/Vite and is ready to push with these records.

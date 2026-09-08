@@ -1,8 +1,9 @@
-# Backend audit implementation: local completion report
+# Backend audit implementation and production release report
 
-2026-09-08. All 20 audit findings have local implementations on codex/backend-hardening in C:/Dev/filtrsoft-backend. Engine 0.3.34 has not been deployed. Local clean-image verification and production backup verification are now complete; remote CI/deployment and authenticated production checks are tracked in HANDOFF. This report distinguishes finished code from those external checks.
+2026-09-08. All 20 audit findings are implemented and deployed to filtrsoft.com in **52433ce**, engine **0.3.34**, with **31,900 comps**. GitHub CI passed all release checks. Production scoring completed with zero pending rows and zero failures. The final small follow-up corrects comp-list wording discovered during authenticated production verification; deployment status for that wording follows in HANDOFF.
 
-The branch includes the saved inventory/ten-listing Review implementation from e7863ae, reconciled as 6d3b804, and preserves the original worktree. Main remains e5a7023. Its two modified-status frontend files showed no content diff during final inspection; no shared files were changed or staged. During implementation no comp crawl, paid model call, real notification or provider login was performed. Yish subsequently authorized pinned dependency downloads and the production push. Release work installed the locked dependencies in Docker and created a verified same-volume production backup through the already signed-in Railway console.
+Work remains isolated in C:/Dev/filtrsoft-backend on codex/backend-hardening. The saved inventory/ten-listing Review commit is included. The shared local main checkout remains at its preserved e5a7023 state; remote main has advanced. Pinned dependencies were downloaded with Yish's authorization and a full same-volume production backup/restore copy was verified before deployment. No provider login, training label, seller message or manual paid vision request was made during release verification. Existing production schedules continued normally.
+
 
 ## What changed
 
@@ -32,7 +33,7 @@ The [implementation plan](BACKEND-IMPLEMENTATION-PLAN.md) maps individual accept
 
 ## Measured verdict effect
 
-The combined comparison checked 4,456 live rows with zero failures. No re-score or retirement was applied to the shared local database or production. The third column excludes the 76 recoverable appliance candidates identified on the same snapshot; it is a projected post-cleanup population.
+The combined comparison checked 4,456 live rows with zero failures. This comparison did not apply changes to the shared local database or production; the later production rollout is measured separately below. The third column excludes the 76 recoverable appliance candidates identified on the same snapshot; it is a projected post-cleanup population.
 
 | Call | Stored baseline | New engine | New engine, excluding 76 appliances |
 | --- | ---: | ---: | ---: |
@@ -51,15 +52,34 @@ Six prior BUY listings (#371, #419, #430, #1074, #1108, #3908) relied on broad G
 
 The four inventory ads still lack matching item-level sold comps. The item parser preserves 14, 3, 12 and 14 offers for #590, #648, #651 and #1984; it does not invent an aggregate asking price. The retired candidates are household appliances with repetition plus product evidence, not repeated computers.
 
-## Production and remaining release checks
+## Production verification and remaining integration limits
 
-Public production health read at 2026-09-08T12:54:33Z reported engine 0.3.33, 25,171 comps, 443 runtime SKUs and the September 5 archive (434 SKUs). Billing was disabled. These are timestamped production observations; the new 31,900-comp artifact is still local.
+At 2026-09-08T18:51:35Z, production reported engine 0.3.34, 31,900 comps, the exact new archive hash imported successfully, database ok, and scoring complete with **0 pending / 0 failures**. Root HTML and compiled JS/CSS returned 200; their hashes matched the verified local build. Private feed/pulse routes returned 401 without authentication. [GitHub CI run 34234175387](https://github.com/yzgershon/filtrsoft/actions/runs/34234175387) passed fresh frozen installs, all 260 tests / 755 assertions, typecheck, frontend build, network-disabled verification container and production image build.
 
-1. Clean Linux amd64 verification is complete: pinned images and frozen installs, 260 tests / 755 assertions passing with network disabled, successful serving-image boot/import/assets/authentication smoke check. A separate Docker verification target includes frontend test dependencies; the serving image remains lean. Remote CI status is recorded in HANDOFF.
-2. Full production backup and restore-copy verification is complete on the existing volume. The [production backup record](sessions/2026-09-08-production-backup.json) has its path/hash/counts. Managed backups require an unavailable plan feature; no upgrade was purchased. Same-volume recovery does not establish offsite coverage. An older additive archive alone is not a database rollback.
-3. After authorized push to main and Railway deployment, verify imported artifact/version, scoring completion/errors, authenticated Review/detail/label behavior, feed/pulse cursors and agent reconnect. Actual browser/process-tree and provider transports were covered by isolated fixtures or syntax checks, not live integration runs.
-4. Before enabling billing, reconcile any legacy customer ownership and exercise signed Stripe test-mode events and portal/checkout ownership. Billing remains disabled; no payment action was taken.
-5. Real transaction calibration needs Yish's recorded sale proceeds and costs. Legacy labels without frozen inputs stay unavailable for replay. Existing weights were not retuned without that evidence.
+Read-only queries at 18:52:25Z compared the predeployment backup's 6,124 live listing IDs with their current latest decisions:
+
+| Call | Before deployment | Same IDs after scoring | Same IDs still live |
+| --- | ---: | ---: | ---: |
+| BUY | 4 | 3 | 3 |
+| VERIFY | 22 | 35 | 35 |
+| FAIR | 38 | 38 | 38 |
+| PASS | 309 | 234 | 234 |
+| RISK | 74 | 76 | 76 |
+| INSUFFICIENT_DATA | 1,135 | 1,200 | 1,185 |
+| OUT_OF_SCOPE | 4,546 | 4,538 | 4,454 |
+| Total | 6,124 | 6,124 | 6,025 |
+
+The scheduler retired **99 repeated appliance ads recoverably**, including 15 insufficient and 84 out-of-scope decisions. The complete current live population, including new arrivals, was 6,117: BUY 6, VERIFY 35, FAIR 38, PASS 234, RISK 77, INSUFFICIENT_DATA 1,209, OUT_OF_SCOPE 4,518. All live latest verdicts use 0.3.34. Crawling and enrichment continued during deployment, so these are observed before/after results, not an isolated causal experiment. This replaces any attempt to treat the earlier 76-appliance snapshot as production evidence.
+
+An existing authenticated Chrome session showed ten Review listings and /c/4254's four recorded matching-build comps, profit explanation, expandable evidence and label choices. Back navigation worked. Label choices were canceled without writes. Comp evidence was not date sorted despite the prior copy; the final wording now describes recorded evidence without promising date order.
+
+- Full production backup/restore-copy verification is complete on the existing volume; see the [backup record](sessions/2026-09-08-production-backup.json). Offsite recovery remains unverified.
+- The laptop agent is offline. Its implementation is pushed, but reconnect, browser lifecycle/process-tree and real marketplace transports have not been exercised on the laptop. Shared local checkout changes were preserved.
+- Live label persistence and pulse arrival bursts were exercised with isolated synthetic accounts/tests, not fabricated production training data. Production browser evidence above covers read-only interactions.
+- Billing remains disabled. Signed Stripe test-mode events, portal/checkout ownership and legacy customer reconciliation are still required before activation; no payment/provider configuration was performed.
+- Real transaction calibration needs recorded sale proceeds and costs. Legacy labels lacking frozen inputs remain unavailable for replay, and weights were not retuned without evidence.
+
+Compact deployment evidence: [production release record](sessions/2026-09-08-production-release.json).
 
 Detailed local evidence is under C:/Dev/filtrsoft-backend/backups/final-2026-09-08: facts-v2.db, comparison-v3.db, final-measurements.json, transitions.json, archive-upgrade.json and rollback-v3/. The compact [committed evidence](sessions/2026-09-08-backend-evidence.json) contains counts, manifests and timestamps.
 

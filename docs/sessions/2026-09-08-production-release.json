@@ -1,0 +1,131 @@
+{
+  "at": "2026-09-08T18:51:35.276Z",
+  "commit": "52433cea248719354fe7b5389a97034dc3abe686",
+  "rootStatus": 200,
+  "assets": [
+    {
+      "path": "/assets/index-C2QzikkO.js",
+      "status": 200,
+      "type": "text/javascript; charset=utf-8",
+      "bytes": 306368,
+      "sha256": "402058774e7af8bee133bbc5b762613148e3ec51061419e83f40cb6b98d88e58"
+    },
+    {
+      "path": "/assets/index-Cx-fxnUZ.css",
+      "status": 200,
+      "type": "text/css; charset=utf-8",
+      "bytes": 70408,
+      "sha256": "3574814b4916f91c24e813ef489e08cc7f791155b07105e254a19518372398af"
+    }
+  ],
+  "privateRoutes": [
+    {
+      "path": "/v1/feed",
+      "status": 401,
+      "body": "{\"error\":\"sign in to use Filtrsoft\",\"auth\":\"required\"}"
+    },
+    {
+      "path": "/v1/pulse",
+      "status": 401,
+      "body": "{\"error\":\"sign in to use Filtrsoft\",\"auth\":\"required\"}"
+    }
+  ],
+  "health": {
+    "ok": true,
+    "engine": "0.3.34",
+    "db": "ok",
+    "canPrice": true,
+    "archive": {
+      "present": true,
+      "path": "/app/data/archive.json.gz",
+      "comps": 31900,
+      "skus": 559,
+      "exportedAt": "2026-09-08T13:00:12.116Z",
+      "sha256": "0f1a2363ffdbf3ac458ddcbe47d9e182052106f222d57aa20cb03afbe4a9386b",
+      "imported": true,
+      "importedAt": "2026-09-08T13:48:30.409Z"
+    },
+    "scoring": {
+      "signature": "6854|2026-09-08T18",
+      "pending": 0,
+      "failures": 0,
+      "complete": true
+    },
+    "billing": {
+      "enabled": false
+    },
+    "comps": {
+      "total": 31900,
+      "usable": 28871,
+      "quarantined": 0,
+      "skusPriceable": 492,
+      "skusTotal": 556
+    },
+    "agentOnline": false
+  },
+  "ci": {
+    "run": 34234175387,
+    "conclusion": "success",
+    "tests": 260,
+    "assertions": 755
+  },
+  "productionComparison": {
+    "at": "2026-09-08T18:52:25.773Z",
+    "source": "Read-only production console queries; latest verdict by max ID per listing, same cohort from verified predeployment backup. Continuous crawl and existing vision activity also occurred between observations.",
+    "beforeLive": 6124,
+    "beforeCalls": {
+      "OUT_OF_SCOPE": 4546,
+      "PASS": 309,
+      "INSUFFICIENT_DATA": 1135,
+      "FAIR": 38,
+      "VERIFY": 22,
+      "RISK": 74,
+      "BUY": 4
+    },
+    "sameCohortAfterCalls": {
+      "OUT_OF_SCOPE": 4538,
+      "PASS": 234,
+      "INSUFFICIENT_DATA": 1200,
+      "FAIR": 38,
+      "VERIFY": 35,
+      "RISK": 76,
+      "BUY": 3
+    },
+    "sameCohortStillLiveCalls": {
+      "OUT_OF_SCOPE": 4454,
+      "PASS": 234,
+      "INSUFFICIENT_DATA": 1185,
+      "FAIR": 38,
+      "VERIFY": 35,
+      "RISK": 76,
+      "BUY": 3
+    },
+    "currentLiveCalls": {
+      "OUT_OF_SCOPE": 4518,
+      "PASS": 234,
+      "INSUFFICIENT_DATA": 1209,
+      "FAIR": 38,
+      "VERIFY": 35,
+      "RISK": 77,
+      "BUY": 6
+    },
+    "retiredSinceBackup": {
+      "repeated_appliance": 99
+    },
+    "currentLiveOldEngine": 0
+  },
+  "browser": {
+    "authenticatedSession": "Existing Chrome session; no login automated",
+    "verified": [
+      "Review contains 10 listings",
+      "detail /c/4254 with 4 stored matching-build comps",
+      "Your call controls opened and canceled without label writes",
+      "Back navigation"
+    ],
+    "limits": [
+      "No production training label was added",
+      "Laptop agent offline; no reconnect or actual browser worker transport exercise",
+      "Billing disabled; no live provider activation test"
+    ]
+  }
+}

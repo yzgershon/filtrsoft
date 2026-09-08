@@ -384,7 +384,7 @@ export function CompsAndOffer({ v, comps, ask }: {
                 <i aria-hidden="true">{open ? "▴" : "▾"}</i>
               </button>
             }
-            note={`${v.valuation.compCount} sold comps, newest first`} />
+            note={`${v.valuation.compCount} sold comps used for this decision`} />
           {open && (
             <div className="panel comps">
               {comps.map((c, i) => (
@@ -397,8 +397,8 @@ export function CompsAndOffer({ v, comps, ask }: {
                 </div>
               ))}
               <p className="compnote">
-                The {v.valuation.compCount} sold prices behind the median, newest first.
-                Showing the most recent {comps.length}.
+                The {v.valuation.compCount} sold prices behind this decision.
+                Showing {comps.length} recorded comps.
               </p>
             </div>
           )}
