@@ -42,6 +42,8 @@ ENV FILTRSOFT_PHOTOS=/tmp/filtrsoft-verification-photos
 ENV FILTRSOFT_VISION=0
 # amd64 emulation on the ARM laptop makes process-isolated fixtures slower.
 # Production transport deadlines remain covered separately inside those tests.
-RUN --network=none bun test --timeout 30000 && bun run typecheck
+# Railway rejects RUN --network even in an unused stage. CI applies network
+# isolation at docker run, which leaves the production Dockerfile portable.
+CMD ["sh", "-c", "bun test --timeout 30000 && bun run typecheck"]
 
 FROM runtime AS production

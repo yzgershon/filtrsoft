@@ -146,6 +146,8 @@ Yish read the complete backend audit and authorized implementation of all findin
 
 - Release checks complete before push: pinned Linux amd64 images downloaded with authorization; both lockfiles enforced. Dedicated Docker verification runs all 260 tests / 755 assertions with network disabled. Serving-image smoke proves engine 0.3.34, 31,900 imported comps, matching archive manifest, 492 priceable SKUs, compiled JS/CSS HTTP 200 and private unauthenticated routes HTTP 401. Full production rollback identity is in docs/sessions/2026-09-08-production-backup.json. Push is authorized and next; do not reinterpret older permission-pending notes as a new approval requirement.
 
+- First authorized push succeeded: 53738ec reached main. Railway deployment 9471bcd2 failed before image build because its parser rejects RUN --network=none even in the unused verification stage; old production stayed online. Fix: verification target uses CMD and CI runs it with docker run --network none. The already-passed test command, frozen dependencies and serving image are unchanged. No Railway settings or backup plan changed. Retrying the authorized deployment after checking the portable Dockerfile.
+
 ### Current checkpoint: 2026-09-06, late evening
 
 **This checkpoint supersedes the historical counts and pending tasks below.**

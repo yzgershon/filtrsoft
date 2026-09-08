@@ -24,4 +24,5 @@ jobs:
       - run: bun run typecheck
       - run: bun run build
       - run: docker build --target verification --tag filtrsoft-verification .
+      - run: docker run --rm --network none filtrsoft-verification
       - run: docker build --tag filtrsoft-ci .
