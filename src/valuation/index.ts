@@ -74,7 +74,14 @@ export const isShippable = (category: string) =>
  */
 const FACEBOOK_GROSS_RATIO = 0.85;
 
+export interface CompEvidence {
+  id:number; source:string; source_item_id:string; raw_title:string; url:string|null;
+  sold_at:string; condition_norm:string|null; observedTotalCents:number;
+  adjustedTotalCents:number; adjustmentRatio:number; targetCondition:Condition|null;
+}
+
 export interface Valuation {
+  evidence?: CompEvidence[];
   status: "ok" | "sparse" | "no_comps";
   lowCents: number | null;
   highCents: number | null;
@@ -165,11 +172,11 @@ export function valueSku(
 
   let raw = db()
     .query(
-      `SELECT sold_price_cents + COALESCE(shipping_cents,0) AS total, condition_norm, raw_title
+      `SELECT id,source,source_item_id,url,sold_at,sold_price_cents + COALESCE(shipping_cents,0) AS total, condition_norm, raw_title
        FROM comps WHERE sku_id = $sku
          AND ${usableCompSql('', '$win')}`,
     )
-    .all({ $sku: skuId, $win: `-${opts?.windowDays ?? 90} days` }) as Array<{ total: number; condition_norm: string | null; raw_title: string }>;
+    .all({ $sku: skuId, $win: `-${opts?.windowDays ?? 90} days` }) as Array<{ id:number;source:string;source_item_id:string;url:string|null;sold_at:string;total: number; condition_norm: string | null; raw_title: string }>;
 
   const identity = db().query("SELECT brand,model,category FROM skus WHERE id=?").get(skuId) as {brand:string;model:string;category:string} | null;
   if (identity) {
@@ -284,7 +291,7 @@ export function valueSku(
       // Title evidence downgrades, never upgrades. A seller calling a cracked
       // phone "used" does not make it working.
       const cond = stated !== "for_parts" && BROKEN_TITLE.test(r.raw_title) ? "for_parts" : stated;
-      return { cond, total: r.total };
+      return { ...r,cond, total: r.total };
     })
     /**
      * SALVAGE IS A DIFFERENT MARKET. Excluded, not adjusted — see `comparable`.
@@ -292,7 +299,13 @@ export function valueSku(
      * every price down; an iPhone 15 median carried $75 and $91 no-boot sales.
      */
     .filter((r) => comparable(r.cond, target))
-    .map((r) => ({ total: adjustPrice(r.total, r.cond, target, opts?.category ?? null) }))
+    .map((r) => {
+      const total=adjustPrice(r.total,r.cond,target,opts?.category??null);
+      const evidence:CompEvidence={id:r.id,source:r.source,source_item_id:r.source_item_id,raw_title:r.raw_title,url:r.url,
+        sold_at:r.sold_at,condition_norm:r.cond,observedTotalCents:r.total,adjustedTotalCents:total,
+        adjustmentRatio:total/r.total,targetCondition:target};
+      return {total,evidence};
+    })
     .sort((a, b) => a.total - b.total);
 
   const n = rows.length;
@@ -308,6 +321,7 @@ export function valueSku(
     highCents: at(0.75),
     medianCents: median,
     compCount: n,
+    evidence:rows.map(r=>r.evidence),
     confidence: n >= 8 ? "high" : n >= 3 ? "medium" : "low",
   };
 }
@@ -413,8 +427,13 @@ export function netByChannel(
   return out;
 }
 
+/** Same documented seeded policy, also available before a fresh DB is seeded. */
+export const DEFAULT_ECONOMICS: Readonly<UserEconomics> = Object.freeze({label:'yish',min_absolute_profit_cents:10000,
+  effective_hourly_floor_cents:8000,transaction_minutes:15,relist_minutes:20,prefers_channel:'facebook'});
 export function getEconomics(label = "yish"): UserEconomics {
-  return db().query("SELECT * FROM user_economics WHERE label=$l").get({ $l: label }) as UserEconomics;
+  const r=db().query(`SELECT label,min_absolute_profit_cents,effective_hourly_floor_cents,
+    transaction_minutes,relist_minutes,prefers_channel FROM user_economics WHERE label=?`).get(label) as UserEconomics|null;
+  return {...(r??DEFAULT_ECONOMICS)};
 }
 
 /**
@@ -441,7 +460,7 @@ export function requiredProfitCents(econ: UserEconomics, driveMinutesOneWay: num
 export interface PartsValuation extends Valuation {
   /** Parts valuations land in the LOCAL market — a tower cannot be shipped. */
   basis: PriceBasis;
-  parts: Array<{ role: string; query: string; skuId: number | null; medianCents: number | null; compCount: number }>;
+  parts: Array<{ role: string; query: string; skuId: number | null; medianCents: number | null; compCount: number; evidence?:CompEvidence[] }>;
   coverage: number;          // 0-1, share of expected components actually priced
   partsSumCents: number;
   /** partsSum scaled up for the roles we could NOT price. */
@@ -606,7 +625,7 @@ export function valueByParts(attributes: Record<string, string | number>): Parts
         .get({ $f: flat(q) })) as { id: number } | null;
     if (!row) return { skuId: null, medianCents: null, compCount: 0 };
     const v = valueSku(row.id, { condition: "used", category });
-    return { skuId: row.id, medianCents: v.medianCents, compCount: v.compCount };
+    return { skuId: row.id, medianCents: v.medianCents, compCount: v.compCount, evidence:v.evidence };
   };
 
   const parts: PartsValuation["parts"] = [];
@@ -654,6 +673,7 @@ export function valueByParts(attributes: Record<string, string | number>): Parts
 
   return {
     basis: "local" as PriceBasis,
+    evidence:priced.flatMap(p=>p.evidence??[]),
     parts, coverage: +coverage.toFixed(2), partsSumCents, impliedPartsCents, wholeUnitCents,
     status: coverage >= 0.6 ? "ok" : priced.length ? "sparse" : "no_comps",
     // The band widens as coverage falls: pricing 64% of a machine is a rougher

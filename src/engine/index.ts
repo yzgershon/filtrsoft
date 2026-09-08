@@ -1,3 +1,5 @@
+import {evidenceHash} from "./provenance.ts";
+import {pricingSignature} from "../db/revisions.ts";
 /**
  * The engine as a callable service.
  *
@@ -103,6 +105,7 @@ export function runPipeline(
     signals.category,
   );
 
+  const economics=opts.econ??getEconomics();
   const verdict = buildVerdict({
     title: listing.title,
     description: listing.description,
@@ -114,9 +117,14 @@ export function runPipeline(
     visionText: vText,
     vision,
     driveMinutes: opts.driveMinutes,
-    econ: opts.econ,
+    econ: economics,
   });
 
+  const {raw,...facts}=listing;
+  verdict.provenance={version:1,engineVersion:ENGINE_VERSION,dataRevision:pricingSignature(db()),factsHash:evidenceHash({facts,vision}),
+    facts,signals,match,visionHash:vision?evidenceHash(vision):null,
+    economics:{version:1,hash:evidenceHash({economics,driveMinutes:opts.driveMinutes??15}),values:{...economics},
+      driveMinutes:opts.driveMinutes??15,scope:opts.econ || opts.driveMinutes!=null?'personal':'canonical'}};
   return { signals, match, verdict };
 }
 
@@ -242,7 +250,7 @@ export async function checkFetched(listing: RawListing, opts: CheckOptions = {})
   const emit = (stage: StageName, data: unknown) =>
     opts.onStage?.({ stage, elapsedMs: since(), data });
 
-  const econ = opts.econ ?? getEconomics();
+  const econ = opts.econ;
 
   emit("fetched", {
     title: listing.title,
@@ -358,7 +366,11 @@ export async function checkFetched(listing: RawListing, opts: CheckOptions = {})
   }
 
   if (listingId) {
-    storeVerdict(listingId, ENGINE_VERSION, out.verdict);
+    // A personalized calculation may be returned to its requester, but never
+    // replace the canonical decision shared by feed, scheduler and other accounts.
+    const canonical=opts.econ || opts.driveMinutes!=null
+      ? runPipeline(listing,vision,{clusterSize:clusterSize(listing.sellerRef)}):out;
+    storeVerdict(listingId, ENGINE_VERSION, canonical.verdict);
   }
 
   const result: CheckResult = {

@@ -1,3 +1,4 @@
+import type {DecisionProvenance} from "../engine/provenance.ts";
 /**
  * Verdict assembly — where everything converges.
  *
@@ -177,6 +178,7 @@ const RETAILER_NAME: Record<string, string> = {
 };
 
 export interface VerdictResult {
+  provenance?:DecisionProvenance;
   inventory?: { sellerContext: string; offers: PricedOffer[] };
   call: Verdict;
   confidence: Confidence;

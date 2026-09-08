@@ -39,9 +39,9 @@ Status meanings: pending, in progress, implemented (checks pending), verified lo
 - F17 — verified locally for bounded intake, task ownership, probe fairness and undated expiry: bounded photo intake, owned temporary paths, preserve current hashes, fair probing and candid unknown dates.
 - Acceptance: deterministic timeout/cancellation/retry tests, bounded work under stalled inputs, meaningful query/coverage measurements. No duplicate comp crawl.
 
-## Phase 5: explainable decisions and calibration — pending
+## Phase 5: explainable decisions and calibration — in progress
 
-- F15: coherent versioned decision/provenance, selected comps and adjustments, account economics isolation, stable filter-before-page cursors and input schemas.
+- F15 — decision/economics batch verified locally; pagination and remaining boundaries pending: recorded facts/engine/data/economics provenance and exact adjusted comp evidence, coherent detail responses, canonical/personal isolation, check/drive schemas. Next stable filter-before-page cursors and remaining boundaries.
 - F16: explicit whole-build configuration uncertainty and parts fallback evidence; preserve pricing policy until labeled evidence supports calibration changes.
 - F18: contemporaneous labeled verdicts, current label regression set, distinguish disappearance from real sales and purchases, correct SKU linkage and reporting.
 - Acceptance: replayable decision evidence, concurrent economics isolation, pagination bursts, no inferred sale represented as a realized price. Report remaining data requirements honestly.
@@ -71,3 +71,5 @@ Update HANDOFF and this file after each verified batch and before stopping. Comm
 - 2026-09-07: F12/F17 workflow batch, 242 tests / 731 assertions / zero failures; typecheck and browser-module Node syntax passed. Seven new isolated regressions; replaced the old source-string expiry assertion with a real feed/prune regression. No browser, paid model or actual process-tree kill run. Next F13/F14.
 
 - 2026-09-08: F13/F14 core batch, 245 tests / 738 assertions / zero failures; typecheck passed. Disposable audit copy: 31,900 historical exportable comps, 28,871 eligible inside 90 days, zero quarantined, 492/547 in-scope SKUs generically priceable. Three new regressions and updated isolated positive fixtures. No current shared/production measurement or crawl. Next F15 including full stage funnel.
+
+- 2026-09-08: F15 decision/economics batch, 247 tests / 740 assertions / zero failures; typecheck passed. New decisions retain evidence through later comp changes, and concurrent personalized results preserve the canonical shared verdict. Next feed/pulse cursors and full pipeline funnel.

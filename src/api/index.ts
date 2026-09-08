@@ -1,3 +1,4 @@
+import {checkInput} from "./check-input.ts";
 import {scoringStatus} from "../db/scoring.ts";
 /**
  * The HTTP API.
@@ -405,7 +406,9 @@ app.get("/v1/health", (c) => {
 
 /** One-shot check. Text-only by default, which is the fast path. */
 app.post("/v1/checks", async (c) => {
-  const body = await c.req.json().catch(() => ({}));
+  const parsed=checkInput.safeParse(await c.req.json().catch(()=>null));
+  if(!parsed.success)return c.json({error:"Invalid check input",issues:parsed.error.issues},400);
+  const body=parsed.data;
   const err = badUrl(body.url);
   if (err) return c.json({ error: err }, 400);
 
@@ -414,12 +417,14 @@ app.post("/v1/checks", async (c) => {
   try {
     // Coalesce concurrent identical work. Twenty people opening the same shared
     // link at once become ONE source fetch and ONE vision call.
-    const r = await singleFlight(`${body.url}|${vd.allowed}`, () => checkListing(body.url, {
+    const canonical = await singleFlight(`${body.url}|${vd.allowed}`, () => checkListing(body.url, {
       vision: vd.allowed,
       persist: true,
-      driveMinutes: body.driveMinutes,
-      econ: body.economics ?? getEconomics(),
+
     }));
+    const personalized=body.economics || body.driveMinutes!=null;
+    const r=personalized && canonical.listingId
+      ? {...canonical,...checkStored(canonical.listingId,{econ:body.economics,driveMinutes:body.driveMinutes})}:canonical;
     return c.json({
       checkId: r.listingId,
       elapsedMs: r.elapsedMs,
@@ -458,7 +463,9 @@ app.get("/v1/checks/stream", (c) => {
    */
   const vd = visionDecision(c, c.req.query("vision") !== "0");
   const vision = vd.allowed;
-  const drive = Number(c.req.query("drive")) || undefined;
+  const driveParam=c.req.query('drive');
+  if(driveParam!=null && (!/^\d+$/.test(driveParam) || Number(driveParam)>240))return c.json({error:'drive must be an integer from 0 to 240'},400);
+  const drive=driveParam==null?undefined:Number(driveParam);
 
   const stream = new ReadableStream({
     async start(ctrl) {
@@ -1263,79 +1270,21 @@ app.get("/v1/checks/:id", (c) => {
     .query("SELECT url FROM listing_photos WHERE listing_id=$id ORDER BY position")
     .all({ $id: id }) as Array<{ url: string }>).map((p) => p.url);
 
-  /**
-   * SIGNALS ARE RECOMPUTED, NOT STORED.
-   *
-   * The detail screen was rendering a verdict with no flags under it, because
-   * only the verdict payload is persisted — the signal list with its evidence
-   * strings never was. So "what's flagged" was permanently empty on anything
-   * opened from the feed, and the risk layer, which is the actual
-   * differentiator, was invisible unless you pasted the link fresh.
-   *
-   * `checkStored` re-runs signals, matching and valuation from the listing text
-   * already in the database: no refetch, no network, about a millisecond.
-   */
-  /**
-   * ⚠ DRIVE TIME IS A PER-REQUEST OVERRIDE, AND THAT IS DELIBERATE.
-   *
-   * The Settings stepper wrote `driveMinutes` to localStorage and NOTHING read
-   * it — the verdict economics never changed, so the control moved a number on
-   * screen and lied about what it did (audit P0-3).
-   *
-   * It is applied HERE and not to the stored verdict, because the audit's own
-   * warning applies: a user-specific engine input would have to enter the
-   * verdict cache key or force a re-score, and one shared row per listing
-   * cannot express per-user answers. `checkStored` recomputes from text already
-   * in the database in about a millisecond, so the detail screen can honour it
-   * without the feed's precomputed rows becoming wrong for everyone else.
-   */
-  const driveMinutes = parseDrive(c.req.query("drive"));
-
-  let signals: unknown[] = [];
-  let comps: unknown[] = [];
-  let meta: Record<string, unknown> = {};
+  const driveRaw=c.req.query('drive');
+  if(driveRaw!=null && (!/^\d+$/.test(driveRaw) || Number(driveRaw)>240))return c.json({error:'drive must be an integer from 0 to 240'},400);
   let verdict = row.payload ? JSON.parse(row.payload) : null;
-
-  try {
-    const re = checkStored(id, driveMinutes ? { driveMinutes } : {});
-    // Only replace the stored verdict when the caller actually asked for a
-    // different drive time; otherwise the feed and the detail must agree.
-    if (driveMinutes) verdict = re.verdict;
-    signals = re.signals.signals;
-    /**
-     * ⚠ THE COMPS BEHIND THE MEDIAN, NAMED (audit §20 "comp transparency").
-     *
-     * Every number on the detail screen descends from one median, and the
-     * screen said "59 sold comps" without ever showing one. That asks for
-     * trust on the strength of a count. Yish's own valuation dispute on the
-     * NZXT build was settled by looking at what the comps actually WERE, which
-     * is not something the product let anyone else do.
-     *
-     * Capped at 12 and ordered newest-first: this is evidence for a judgement,
-     * not a data export, and 59 rows would bury the verdict above it.
-     */
-    if (re.match?.skuId) {
-      comps = db().query(
-        `SELECT raw_title, sold_price_cents + COALESCE(shipping_cents,0) AS total,
-                condition_norm, sold_at, url
-           FROM comps WHERE sku_id = $sku AND sold_price_cents > 0
-          ORDER BY COALESCE(sold_at, captured_at) DESC LIMIT 12`,
-      ).all({ $sku: re.match.skuId }) as unknown[];
-    }
-    meta = {
-      category: re.signals.category,
-      listingQuality: re.signals.listingQuality,
-      sellerSophistication: re.signals.sellerSophistication,
-      daysOnMarket: re.signals.daysOnMarket,
-      missingValueFields: re.signals.missingValueFields,
-      match: {
-        model: re.match.model, brand: re.match.brand, category: re.match.category,
-        confidence: re.match.confidence, method: re.match.method,
-        attributes: re.match.attributes,
-      },
-      description: re.listing.description ?? "",
-    };
-  } catch { /* a listing we cannot re-read still renders its stored verdict */ }
+  let projection=false;
+  if(driveRaw!=null) {
+    try {verdict=checkStored(id,{driveMinutes:Number(driveRaw)}).verdict;projection=true;}
+    catch {return c.json({error:'Could not calculate requested drive-time projection'},503);}
+  }
+  const proof=verdict?.provenance;
+  const signals=proof?.signals?.signals??[];
+  const comps=(verdict?.valuation?.evidence??[]).map((e:any)=>({...e,total:e.adjustedTotalCents}));
+  const meta=proof?{category:proof.signals.category,listingQuality:proof.signals.listingQuality,
+    sellerSophistication:proof.signals.sellerSophistication,daysOnMarket:proof.signals.daysOnMarket,
+    missingValueFields:proof.signals.missingValueFields,match:proof.match,description:proof.facts.description,
+    evidenceStatus:'recorded',projection}:{evidenceStatus:'unavailable_for_legacy_decision',projection:false};
 
   /**
    * ⚠ HIS CALL WINS, AND IT IS APPLIED *AFTER* THE RE-SCORE, NOT BEFORE.
@@ -1360,8 +1309,8 @@ app.get("/v1/checks/:id", (c) => {
   return c.json({
     checkId: row.id,
     listing: {
-      title: row.title, url: row.url, askingPriceCents: row.asking_price_cents,
-      location: row.location, postedAt: row.posted_at, source: row.source, photoUrls: photos,
+      title: proof?.facts.title??row.title, url: row.url, askingPriceCents: proof?proof.facts.askingPriceCents:row.asking_price_cents,
+      location: proof?.facts.location??row.location, postedAt: proof?.facts.postedAt??row.posted_at, source: row.source, photoUrls: proof?.facts.photoUrls??photos,
     },
     verdict,
     signals,
