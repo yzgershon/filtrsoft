@@ -1,0 +1,200 @@
+{
+  "snapshot": {
+    "at": "2026-09-08T12:56:14.539831+00:00",
+    "source": "C:/Dev/filtrsoft/filtrsoft.db",
+    "mode": "read-only consistent transaction, selected market/evaluation tables plus migration ledger; no account/session/token/config tables",
+    "tables": {
+      "schema_migrations": 3,
+      "skus": 559,
+      "sku_aliases": 411,
+      "comps": 31900,
+      "retail_prices": 35,
+      "user_economics": 1,
+      "listings": 4728,
+      "listing_photos": 20220,
+      "listing_prices": 4744,
+      "verdicts": 16531,
+      "vision_results": 189,
+      "vision_misses": 10,
+      "crawls": 424,
+      "sweeps": 13,
+      "outcomes": 4,
+      "judgments": 79
+    },
+    "integrity": "ok"
+  },
+  "measurements": {
+    "at": "2026-09-08T13:00:32.106Z",
+    "engine": "0.3.34",
+    "applied": false,
+    "checked": 4456,
+    "failed": 0,
+    "before": {
+      "PASS": 338,
+      "RISK": 62,
+      "VERIFY": 27,
+      "INSUFFICIENT_DATA": 961,
+      "OUT_OF_SCOPE": 3010,
+      "FAIR": 46,
+      "BUY": 12
+    },
+    "after": {
+      "INSUFFICIENT_DATA": 1081,
+      "RISK": 61,
+      "PASS": 233,
+      "VERIFY": 33,
+      "OUT_OF_SCOPE": 3004,
+      "FAIR": 38,
+      "BUY": 6
+    },
+    "afterRetirement": {
+      "INSUFFICIENT_DATA": 1069,
+      "RISK": 61,
+      "PASS": 233,
+      "VERIFY": 33,
+      "OUT_OF_SCOPE": 2940,
+      "FAIR": 38,
+      "BUY": 6
+    },
+    "archive": {
+      "sha256": "0f1a2363ffdbf3ac458ddcbe47d9e182052106f222d57aa20cb03afbe4a9386b",
+      "comps": 31900,
+      "skus": 559,
+      "retail": 35
+    },
+    "imports": [
+      {
+        "skus": 0,
+        "aliases": 0,
+        "comps": 0,
+        "retail": 0,
+        "skipped": 0
+      },
+      {
+        "skus": 0,
+        "aliases": 0,
+        "comps": 0,
+        "retail": 0,
+        "skipped": 0
+      }
+    ]
+  },
+  "retirementCandidateCount": 76,
+  "archiveUpgrade": {
+    "at": "2026-09-08T13:01:28.465Z",
+    "baseline": {
+      "skus": 434,
+      "aliases": 411,
+      "comps": 25171,
+      "retail": 35,
+      "skipped": 0
+    },
+    "before": 25171,
+    "upgrade": {
+      "skus": 125,
+      "aliases": 0,
+      "comps": 6729,
+      "retail": 0,
+      "skipped": 0
+    },
+    "after": 31900,
+    "repeat": {
+      "skus": 0,
+      "aliases": 0,
+      "comps": 0,
+      "retail": 0,
+      "skipped": 0
+    },
+    "archive": {
+      "sha256": "0f1a2363ffdbf3ac458ddcbe47d9e182052106f222d57aa20cb03afbe4a9386b",
+      "comps": 31900,
+      "skus": 559,
+      "retail": 35
+    },
+    "integrity": "ok"
+  },
+  "restore": {
+    "sha256": "998dd2c41bb1af29f66fb5cc050bad7257851c521319a62f3280d36f3ee16f1a",
+    "counts": {
+      "comps": 31900,
+      "skus": 559,
+      "listings": 4728,
+      "verdicts": 16531,
+      "judgments": 79,
+      "outcomes": 4
+    },
+    "foreignKeyViolations": 0
+  },
+  "production": {
+    "at": "2026-09-08T12:54:33.4826084Z",
+    "engine": "0.3.33",
+    "comps": 25171,
+    "skus": 443,
+    "archive": {
+      "present": true,
+      "path": "/app/data/archive.json.gz",
+      "comps": 25171,
+      "skus": 434,
+      "exportedAt": "2026-09-05T03:22:24.311Z"
+    },
+    "billingEnabled": false
+  },
+  "coverage": {
+    "usable": 28871,
+    "skusPriceable": 492,
+    "skusTotal": 547,
+    "quarantined": 0,
+    "coverageByCategory": {
+      "phone": {
+        "ok": 45,
+        "sparse": 0,
+        "no_comps": 0
+      },
+      "laptop": {
+        "ok": 204,
+        "sparse": 6,
+        "no_comps": 3
+      },
+      "gpu": {
+        "ok": 65,
+        "sparse": 0,
+        "no_comps": 1
+      },
+      "component": {
+        "ok": 87,
+        "sparse": 1,
+        "no_comps": 2
+      },
+      "prebuilt": {
+        "ok": 75,
+        "sparse": 2,
+        "no_comps": 8
+      },
+      "ram": {
+        "ok": 0,
+        "sparse": 0,
+        "no_comps": 13
+      },
+      "storage": {
+        "ok": 2,
+        "sparse": 0,
+        "no_comps": 5
+      },
+      "psu": {
+        "ok": 1,
+        "sparse": 1,
+        "no_comps": 7
+      },
+      "motherboard": {
+        "ok": 10,
+        "sparse": 1,
+        "no_comps": 1
+      },
+      "case": {
+        "ok": 3,
+        "sparse": 0,
+        "no_comps": 4
+      }
+    }
+  }
+}

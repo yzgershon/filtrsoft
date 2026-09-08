@@ -398,7 +398,12 @@ const COMPONENT_OVERRIDE = /\b(desktop|mobile)\s+processor\b|\bboxed\s+(cpu|proc
  * Best-guess category for a listing title. Whole devices first, in the order
  * above, so a laptop containing a CPU is a laptop.
  */
+export const isPortableOmen=(title:string)=>/\b(?:hp\s+)?omen\s+(?:15|16|17)(?:[.-]\d+)?\b/i.test(title);
 export function resolveCategory(title: string): string | null {
+  // Snapshot #1109 sells an Omen 16 with an HX CPU and charger; the sentence
+  // "I got a gaming desktop instead" must not price that laptop as a tower.
+  // Keep the dimensional laptop names separate from OMEN 30L/40L/45L towers.
+  if (isPortableOmen(title)) return "laptop";
   if (COMPONENT_OVERRIDE.test(title)) return "component";
   // "Mid-Tower PC Case" contains the whole-device noun tower, but sells a
   // chassis. A complete "Gaming PC ... in an NZXT case" still sells the PC.

@@ -30,3 +30,6 @@
 /*.db
 /*.db-wal
 /*.db-shm
+
+# Ship the verified current archive, not its local undo copy.
+/data/archive.json.gz.previous

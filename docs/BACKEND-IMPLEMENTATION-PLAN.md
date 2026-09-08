@@ -23,13 +23,13 @@ Status meanings: pending, in progress, implemented (checks pending), verified lo
 - F11 — verified locally: consistent ISO comparisons for TTLs and rolling metrics; same-day, cross-midnight and exact-boundary tests. Heartbeats remain F12.
 - Acceptance: forced transport failures and replays, missed-deal fixture, transient delivery retry exactly once, stale-job expiry. No real notification required.
 
-## Phase 3: archive and scoring completion — code verified; final data artifact pending
+## Phase 3: archive and scoring completion — verified locally
 
-- F09 — code verified locally; final current-crawl archive/rollback pending: data revisions including relinks/corrections/expiry; missing-verdict recovery; resumable scoring cursor and failures; fresh engine revision and archive manifest.
+- F09 — verified locally including current archive, import replay and snapshot rollback drill: data revisions including relinks/corrections/expiry; missing-verdict recovery; resumable scoring cursor and failures; fresh engine revision and archive manifest.
 - F10 — verified locally: idempotent retail observations, newest availability wins, freshness of every corroborating quote.
 - Saved inventory/Review changes integrated locally as 6d3b804; their older archive is not a replacement for newer shared data.
 - Acceptance: comparison on an isolated consistent current snapshot, import twice and after a correction, simulated interrupted scoring, exact before/after counts and rollback artifact.
-- Fresh archive generation requires a coordinated snapshot of current crawl data. Deployment is a final separate authorization step explicitly naming main and Railway.
+- Final artifact generated from a consistent read-only snapshot on September 8: 31,900 comps / 559 SKUs / 35 retail. Old-to-new import adds 6,729 comps; repeat changes zero. Deployment is a final separate authorization step explicitly naming main and Railway.
 
 ## Phase 4: bounded work and useful collection — code verified locally; live transports unexercised
 
@@ -79,3 +79,5 @@ Update HANDOFF and this file after each verified batch and before stopping. Comm
 - 2026-09-08: F16/F18 batch, 253 tests / 746 assertions / zero failures; TypeScript and Vite build passed. Original dollar priors preserved, unsupported build estimates cannot drive actionable calls, and labels/outcomes retain contemporaneous evidence. Next phase 6 F19/F20 and final artifacts/comparison.
 
 - 2026-09-08: F19/F20 batch, 259 tests / 752 assertions / zero failures; TypeScript passed. Backup/restore failure drills and four billing ownership/retry/order/fencing regressions. No provider call, installation, deployment or shared-data mutation. Final current snapshot/archive/comparison is next.
+
+- 2026-09-08: final local verification, 260 tests / 755 assertions / zero failures, TypeScript and Vite passed. Snapshot-discovered Omen routing and health-readiness gaps fixed. Current archive/import/restore and 4,456-row comparison complete; snapshot/projected retirement results in docs/BACKEND-IMPLEMENTATION-REPORT.md. All 20 findings implemented locally; release gates and real-data/provider limitations remain explicit. No shared mutation or deployment.

@@ -53,3 +53,6 @@ node_modules/
 /docs/now-*.png
 /mc-sample.txt
 /scripts/agent.cmd
+
+# Local undo copy written by atomic archive export.
+/data/archive.json.gz.previous

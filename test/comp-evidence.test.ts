@@ -39,6 +39,7 @@ test('unverified, provisional and future comps cannot price or ship; history is 
 test('health counts actual usable coverage and collection prioritizes unmet demand with durable backoff',()=>isolated(`
   import {db,insertComp} from '@/src/db/index.ts';
   import {compsHealth} from '@/src/api/pipeline-health.ts';
+  import {app} from '@/src/api/index.ts';
   import {collectionPriority,startCollection,finishCollection} from '@/src/sources/comp-priority.ts';
   import {upsertListingFacts} from '@/src/db/listings.ts';
   import {storeVerdict} from '@/src/db/verdicts.ts';
@@ -56,4 +57,9 @@ test('health counts actual usable coverage and collection prioritizes unmet dema
   assert.deepEqual(h.coverageByCategory.gpu,{ok:1,sparse:1,no_comps:0});
   assert.equal(h.collection24h.fetched,20);assert.equal(h.collection24h.accepted,0);
   assert.equal(h.insufficientReasons[0].count,1);
+  assert.equal((await (await app.request('/v1/health')).json()).canPrice,true);
+  // Keeping thousands of historical rows does not prove any model can be priced.
+  d.run("UPDATE comps SET sold_at='2020-01-01T00:00:00Z',raw_json=?",[JSON.stringify({soldAt:'2020-01-01T00:00:00Z'})]);
+  const stale=await app.request('/v1/health');assert.equal(stale.status,200);
+  const status=await stale.json();assert.equal(status.canPrice,false);assert.equal(status.comps.total,4);assert.equal(status.comps.skusPriceable,0);
 `));

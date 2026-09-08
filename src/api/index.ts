@@ -293,14 +293,18 @@ function badUrl(url: string | undefined): string | null {
 app.get("/v1/health", (c) => {
   let stats: Record<string, unknown> = { db: "unavailable" };
   let canPrice = false;
+  let coverage:ReturnType<typeof compsHealth>|null=null;
   try {
     const comps = (db().query("SELECT COUNT(*) n FROM comps").get() as { n: number }).n;
     const skus = (db().query("SELECT COUNT(*) n FROM skus").get() as { n: number }).n;
-    canPrice = comps > 0 && skus > 0;
+    coverage=compsHealth();
+    // Raw rows can all be stale, quarantined or mismatched. Readiness follows
+    // the same suitable-evidence contract as valuation, not table occupancy.
+    canPrice = coverage.skusPriceable > 0;
     stats = {
       db: "ok", comps, skus,
       ...(canPrice ? {} : {
-        warning: "no sold comps — every verdict will be INSUFFICIENT_DATA. " +
+        warning: "no catalog SKU has enough suitable sold evidence to price. " +
           "Run `bun run archive`, commit data/archive.json.gz, redeploy.",
       }),
     };
@@ -339,7 +343,7 @@ app.get("/v1/health", (c) => {
      * error anywhere, and the symptom is a feed that slowly turns into "can't
      * tell". `daysOfRunway` is the number to watch.
      */
-    comps: (() => { try { return compsHealth(); } catch { return null; } })(),
+    comps: coverage,
     funnel:(()=>{try{return pipelineFunnel();}catch{return {error:"unavailable"};}})(),
     /**
      * Reports WHETHER the eBay verification token is set, never its value.

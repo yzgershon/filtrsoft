@@ -1882,3 +1882,10 @@ describe("computer desk is a desk", () => {
     }
   });
 });
+
+
+test("Omen laptop title outranks a replacement desktop mentioned in the description",()=>{
+  expect(detectCategory("HP omen 16","Intel i7-14700HX RTX 4070. Selling because I got a gaming desktop instead. Comes with charger.")).toBe("laptop");
+  expect(detectCategory("HP Omen 16 RTX 4070")).toBe("laptop");
+  expect(detectCategory("HP OMEN 45L Gaming Desktop RTX 4090")).toBe("prebuilt");
+});
