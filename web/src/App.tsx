@@ -286,6 +286,7 @@ export default function App() {
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [signals, setSignals] = useState<Signal[]>([]);
   const [comps, setComps] = useState<Comp[]>([]);
+  const [decisionToken,setDecisionToken]=useState<string|undefined>();
   const [meta, setMeta] = useState<Meta | undefined>(undefined);
   const [stage, setStage] = useState(0);
   const [ms, setMs] = useState<number | null>(null);
@@ -454,7 +455,7 @@ export default function App() {
       setListing(d.listing); setVerdict(d.verdict); setCheckId(d.checkId);
       // The detail endpoint recomputes these; dropping them left the risk
       // layer blank on every listing opened from the feed or a shared link.
-      setSignals(d.signals ?? []); setComps(d.comps ?? []); setMeta(d.meta); setStage(3);
+      setSignals(d.signals ?? []); setComps(d.comps ?? []); setMeta(d.meta); setDecisionToken(d.decisionToken); setStage(3);
       /**
        * ⚠ HISTORY WAS ONLY EVER WRITTEN BY THE PASTE FLOW, WHICH IS WHY THE
        * LIST WAS ALWAYS EMPTY.
@@ -480,7 +481,7 @@ export default function App() {
   const reset = () => {
     es.current?.close();
     setError(null); setListing(null); setVerdict(null);
-    setSignals([]); setComps([]); setMeta(undefined); setStage(0); setMs(null); setCheckId(null); setReading(0);
+    setSignals([]); setComps([]); setMeta(undefined); setDecisionToken(undefined); setStage(0); setMs(null); setCheckId(null); setReading(0);
   };
 
   function run(e?: React.FormEvent) {
@@ -538,6 +539,7 @@ export default function App() {
     });
     src.addEventListener("done", (ev) => {
       const d = JSON.parse((ev as MessageEvent).data);
+      setDecisionToken(d.decisionToken);
       if (d.listingId) {
         setCheckId(d.listingId);
         history.replaceState({}, "", `/c/${d.listingId}`);
@@ -838,7 +840,7 @@ export default function App() {
                 {/* Back is a DETAIL affordance. During a paste the result
                     appears in place on the Check screen, and there is nothing
                     behind it to return to. */}
-                <Report listing={listing} verdict={verdict} signals={signals} comps={comps}
+                <Report decisionToken={decisionToken} listing={listing} verdict={verdict} signals={signals} comps={comps}
                   meta={meta} stage={stage} reading={reading} checkId={checkId}
                   onBack={screen.name === "detail" ? back : undefined}
                   /* Relabelling changes the call the server serves, so the

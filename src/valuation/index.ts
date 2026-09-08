@@ -1,3 +1,4 @@
+import {extractAttributes} from "../catalog/match.ts";
 import { usableCompSql } from "../db/comp-evidence.ts";
 /**
  * Valuation and channel economics.
@@ -81,6 +82,9 @@ export interface CompEvidence {
 }
 
 export interface Valuation {
+  method?:'sku'|'whole_build_exact'|'whole_build_gpu_family'|'parts_prior';
+  configuration?:{dimensions:string[];missing:string[];matchedComps:number;familyComps:number};
+  assumptions?:{version:1;wholeUnitRatio:number;roleWeights:Record<string,number>;estimatedRoles:string[]};
   evidence?: CompEvidence[];
   status: "ok" | "sparse" | "no_comps";
   lowCents: number | null;
@@ -166,6 +170,7 @@ export function valueSku(
      * product. See `signals/board-tier.ts` for the measurements.
      */
     boardTier?: BoardTier | null;
+    buildConfiguration?:Record<string,string|number>;
   },
 ): Valuation {
   if (!skuId) return { status: "no_comps", lowCents: null, highCents: null, medianCents: null, compCount: 0, confidence: "low" };
@@ -182,6 +187,13 @@ export function valueSku(
   if (identity) {
     const category = catalogCategory(identity.category, identity.model);
     if (EXACT_PARTS.has(category)) raw = raw.filter(r => exactPartIdentity(r.raw_title, `${identity.brand} ${identity.model}`, category));
+  }
+
+  if(opts?.buildConfiguration) {
+    const wanted=opts.buildConfiguration;
+    const norm=(value:string|number)=>String(value).toLowerCase().replace(/nvidia|geforce|amd|radeon/g,'').replace(/[^a-z0-9]/g,'');
+    raw=raw.filter(r=>{const got=extractAttributes(r.raw_title);
+      return ['gpu','cpu','ram_gb','storage_gb'].every(k=>wanted[k]!=null && got[k]!=null && norm(wanted[k])===norm(got[k]));});
   }
 
   /**
@@ -535,7 +547,7 @@ const ROLE_VALUE_WEIGHT: Record<string, number> = {
 };
 const EXPECTED_ROLES = Object.keys(ROLE_VALUE_WEIGHT);
 /** Roles the catalog can currently price at all. See engine gap #1. */
-const PRICEABLE_ROLES = ["gpu", "cpu", "ram", "storage"] as const;
+const PRICEABLE_ROLES = ["gpu", "cpu", "ram", "storage", "motherboard", "psu", "case"] as const;
 
 /**
  * Price a prebuilt against WHOLE-MACHINE sales, not a sum of its parts.
@@ -572,13 +584,17 @@ export function valueWholeBuild(
     .get({ $m: `Gaming PC ${String(gpu).toUpperCase()}` }) as { id: number; model: string } | null;
   if (!row) return null;
 
-  const v = valueSku(row.id, { condition, category: "prebuilt" });
-  if (v.status === "no_comps") return null;
-  /**
-   * These comps are eBay sold prices for whole towers — an eBay-denominated
-   * number, so the local discount DOES apply here, unlike the parts path.
-   */
-  return { ...v, basis: "ebay", sku: row.model };
+  const family=valueSku(row.id,{condition,category:'prebuilt'});
+  if(family.status==='no_comps')return null;
+  const dimensions=['gpu','cpu','ram_gb','storage_gb'];
+  const missing=dimensions.filter(k=>attributes[k]==null);
+  const exact=missing.length?null:valueSku(row.id,{condition,category:'prebuilt',buildConfiguration:attributes});
+  const matched=exact?.status==='ok';
+  const v=matched?exact!:family;
+  return {...v,basis:'ebay',sku:row.model,method:matched?'whole_build_exact':'whole_build_gpu_family',
+    confidence:matched?'medium':'low',
+    configuration:{dimensions:matched?dimensions:['gpu'],missing,matchedComps:exact?.compCount??0,familyComps:family.compCount}};
+
 }
 
 export function valueByParts(attributes: Record<string, string | number>): PartsValuation {
@@ -637,7 +653,7 @@ export function valueByParts(attributes: Record<string, string | number>): Parts
     if (!q) continue;
     const query = String(q);
     if (/^\d+$/.test(query)) continue;
-    parts.push({ role, query, ...lookup(query, role === "gpu" ? "gpu" : "component") });
+    parts.push({ role, query, ...lookup(query, role === "cpu" ? "component" : role) });
   }
 
   const priced = parts.filter((p) => p.medianCents != null);
@@ -672,6 +688,8 @@ export function valueByParts(attributes: Record<string, string | number>): Parts
   const wholeUnitCents = priced.length ? Math.round(impliedPartsCents * WHOLE_UNIT_RATIO) : null;
 
   return {
+    method:'parts_prior',
+    assumptions:{version:1,wholeUnitRatio:WHOLE_UNIT_RATIO,roleWeights:{...ROLE_VALUE_WEIGHT},estimatedRoles:EXPECTED_ROLES.filter(r=>!priced.some(p=>p.role===r))},
     basis: "local" as PriceBasis,
     evidence:priced.flatMap(p=>p.evidence??[]),
     parts, coverage: +coverage.toFixed(2), partsSumCents, impliedPartsCents, wholeUnitCents,

@@ -257,8 +257,8 @@ export interface Outcome {
   signal: SaleSignal;
   confidence: "high" | "medium" | "low";
   daysOnMarket: number | null;
-  /** Last observed asking price — the best estimate of what it cleared for. */
-  clearingPriceCents: number | null;
+  /** Last observed ask is not evidence of a transaction. */
+  observedAskingPriceCents: number | null;
   /** Did the seller cut the price before it went? */
   priceDropCents: number | null;
   reason: string;
@@ -305,7 +305,7 @@ export function inferOutcome(row: {
 
   const base = {
     listingId: row.id, title: row.title, daysOnMarket: dom,
-    clearingPriceCents: clearing, priceDropCents: drop && drop > 0 ? drop : null,
+    observedAskingPriceCents: clearing, priceDropCents: drop && drop > 0 ? drop : null,
   };
 
   if (!row.delisted_at) {

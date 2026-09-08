@@ -1,3 +1,5 @@
+import {z} from "zod";
+import {decisionAt} from "../db/learning.ts";
 /**
  * Yish's own call, overriding the engine's.
  *
@@ -83,9 +85,9 @@ export function applyOverride<T extends { id: number; call: string }>(
 /** `POST /v1/checks/:id/override` — `{ ref, call, note? }`. */
 export async function handleSetOverride(c: Context) {
   const id = Number(c.req.param("id"));
-  const body = await c.req.json().catch(() => ({})) as {
-    ref?: string; call?: string; note?: string;
-  };
+  const parsed=z.object({ref:z.string(),call:z.string(),note:z.string().max(300).optional(),decisionToken:z.uuid().optional()}).strict().safeParse(await c.req.json().catch(()=>null));
+  if(!parsed.success || !Number.isSafeInteger(id) || id<1)return c.json({error:'Invalid label input'},400);
+  const body=parsed.data;
   if (!okRef(body.ref)) return c.json({ error: "a device ref is required" }, 400);
   const user = currentUser(c);
   if (!user) return c.json({error:"sign in required"},401);
@@ -96,16 +98,16 @@ export async function handleSetOverride(c: Context) {
   const listing = db().query("SELECT id FROM listings WHERE id=$id").get({ $id: id });
   if (!listing) return c.json({ error: "not found" }, 404);
 
-  db().query(
-    `INSERT INTO verdict_overrides (device_ref, listing_id, call, note, created_at)
-     VALUES ($r,$id,$c,$n,$at)
-     ON CONFLICT(device_ref, listing_id) DO UPDATE SET
-       call=excluded.call, note=excluded.note, created_at=excluded.created_at`,
-  ).run({
-    $r: body.ref, $id: id, $c: body.call,
-    $n: (body.note ?? "").slice(0, 300) || null,
-    $at: new Date().toISOString(),
-  });
+  let decision:ReturnType<typeof decisionAt>;
+  try {decision=decisionAt(id,user.id,body.decisionToken);}catch(e){return c.json({error:(e as Error).message},400);}
+  db().transaction(()=>{
+    db().run(`INSERT INTO verdict_overrides(device_ref,listing_id,call,note,created_at,decision_id,decision_json) VALUES(?,?,?,?,?,?,?)
+      ON CONFLICT(device_ref,listing_id) DO UPDATE SET call=excluded.call,note=excluded.note,created_at=excluded.created_at,decision_id=excluded.decision_id,decision_json=excluded.decision_json`,
+      [body.ref,id,body.call,body.note??null,new Date().toISOString(),decision.id,decision.payload]);
+    const engine=decision.payload?JSON.parse(decision.payload).call:null;
+    db().run(`INSERT INTO judgments(listing_id,engine_call,human_call,notes,judged_by,created_at,user_id,device_ref,decision_id,decision_json)
+      VALUES(?,?,?,?,?,?,?,?,?,?)`,[id,engine,body.call,body.note??null,'account-label',new Date().toISOString(),user.id,body.ref,decision.id,decision.payload]);
+  })();
   return c.json({ ok: true, call: body.call });
 }
 

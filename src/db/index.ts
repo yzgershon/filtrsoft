@@ -1,3 +1,4 @@
+import {installLearning} from "./learning.ts";
 import { Database } from "bun:sqlite";
 import { readFileSync, mkdirSync, existsSync, readdirSync, renameSync } from "node:fs";
 import { join, dirname, basename } from "node:path";
@@ -62,6 +63,7 @@ export function db(): Database {
   migrate(_db);
   installPricingRevisions(_db);
   installCompEvidence(_db);
+  installLearning(_db);
   return _db;
 }
 

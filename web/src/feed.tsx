@@ -421,7 +421,10 @@ export function Feed({ onOpen, onWatchChange }: {
    */
   const [spot, setSpot] = useState(() => popSpot(location.pathname + location.search));
 
-  const load = useCallback((offset: number, f: Filters, limit = PAGE) => {
+  const pageCursor=useRef<string|null>(null),loadGeneration=useRef(0);
+  const load = useCallback((offset: number, f: Filters, limit = PAGE):Promise<void> => {
+    const generation=++loadGeneration.current;
+    if(offset===0)pageCursor.current=null;
     setLoadingMore(offset > 0);
     if (offset === 0) setFailed(false);
     /**
@@ -442,7 +445,8 @@ export function Feed({ onOpen, onWatchChange }: {
      * and every badge would be permanently zero.
      */
     const seen = readSeen();
-    return fetch(feedUrl({ limit, offset, hideGone: readSettings().hideGone, filters: f, ref: deviceRef(), seen }))
+    const pageUrl=feedUrl({ limit, offset, hideGone: readSettings().hideGone, filters: f, ref: deviceRef(), seen });
+    return fetch(pageUrl+(offset>0 && pageCursor.current?'&cursor='+encodeURIComponent(pageCursor.current):''))
       .then((r) => {
         /**
          * ⚠ A 401 IS NOT A FAILED REQUEST, IT IS A SIGNED-OUT USER, and the
@@ -456,6 +460,8 @@ export function Feed({ onOpen, onWatchChange }: {
         return r.json();
       })
       .then((d) => {
+        if(generation!==loadGeneration.current)return;
+        pageCursor.current=d.nextCursor??null;
         setItems((prev) => (offset === 0 ? (d.items ?? []) : [...(prev ?? []), ...(d.items ?? [])]));
         setSegments(d.segments ?? {});
         setNewCounts(d.segmentsNew ?? {});
@@ -485,8 +491,11 @@ export function Feed({ onOpen, onWatchChange }: {
        * network error tells the user the product has no deals when what
        * actually happened is that the request did not complete.
        */
-      .catch(() => { if (offset === 0) { setItems([]); setFailed(true); } })
-      .finally(() => setLoadingMore(false));
+      .catch((e) => {
+        if(generation!==loadGeneration.current)return;
+        if(e.message==='409' && offset>0)return load(0,f,limit);
+        if(offset===0){setItems([]);setFailed(true);}
+      }).finally(() => {if(generation===loadGeneration.current)setLoadingMore(false);});
   }, []);
 
   /**

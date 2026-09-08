@@ -98,3 +98,51 @@ test('pipeline reports measured stage evidence and leaves unavailable sync unkno
   assert.equal(p.firstScoreSeconds.samples,1);assert.ok(p.firstScoreSeconds.p50>=0);
   assert.equal((await request('/v1/checks/1/outcome','POST',{action:'bought',pricePaidCents:-1})).status,400);
 `));
+
+test('whole-build sample count cannot substitute for explicit matching configuration',()=>isolated(fixture+`
+  import {valueWholeBuild} from '@/src/valuation/index.ts';
+  d.run("INSERT INTO skus(category,brand,model,attributes,created_at) VALUES('prebuilt','','Gaming PC RTX 4090','{}',?)",[at]);
+  const put=(id,title)=>insertComp({source:'ebay',source_item_id:'build'+id,raw_title:title,sold_price_cents:200000,sold_at:at,sku_id:2,condition_norm:'used',raw:{soldAt:at}});
+  for(let i=0;i<10;i++)put(i,'Gaming PC RTX 4090 i7-12700K 16GB RAM 512GB SSD');
+  const attrs={gpu:'RTX 4090',cpu:'i7-13700K',ram_gb:32,storage_gb:1024};
+  const broad=valueWholeBuild(attrs,'used');assert.equal(broad.method,'whole_build_gpu_family');assert.equal(broad.confidence,'low');
+  assert.equal(broad.configuration.matchedComps,0);
+  for(let i=10;i<13;i++)put(i,'Gaming PC RTX 4090 i7-13700K 32GB RAM 1TB SSD');
+  const exact=valueWholeBuild(attrs,'used');assert.equal(exact.method,'whole_build_exact');assert.equal(exact.compCount,3);
+  assert.equal(exact.configuration.familyComps,13);assert.equal(exact.configuration.dimensions.length,4);
+  assert.equal(valueWholeBuild({...attrs,cpu:'i7-13700KF'},'used').method,'whole_build_gpu_family');
+  assert.equal(valueWholeBuild({gpu:'RTX 4090'},'used').confidence,'low');
+`));
+
+test('labels bind the displayed personal decision and survive later scoring without hindsight',()=>isolated(fixture+`
+  import {evaluateLabels} from '@/src/tracker/labels.ts';
+  import {storeVerdict} from '@/src/db/verdicts.ts';
+  const r=await checkFetched(listing,{persist:true,vision:false});
+  d.run('INSERT INTO account_devices(device_ref,user_id,created_at) VALUES(?,1,?)',['label_fixture',at]);
+  const view=await (await request('/v1/checks/'+r.listingId+'?drive=120')).json();
+  d.run('UPDATE comps SET sold_price_cents=1');
+  storeVerdict(r.listingId,'future',{call:'BUY',confidence:'high'});
+  const response=await request('/v1/checks/'+r.listingId+'/override','POST',{ref:'label_fixture',call:'RISK',decisionToken:view.decisionToken});
+  assert.equal(response.status,200);
+  const j=d.query('SELECT * FROM judgments ORDER BY id DESC LIMIT 1').get();
+  const bound=JSON.parse(j.decision_json);
+  assert.equal(bound.provenance.economics.driveMinutes,120);assert.equal(bound.valuation.medianCents,view.verdict.valuation.medianCents);
+  assert.equal(j.engine_call,view.verdict.call);
+  const report=evaluateLabels();assert.equal(report.summary.activeLabels,1);assert.equal(report.summary.falseBuys,1);assert.equal(report.summary.weightedLoss,5);
+  assert.equal((await request('/v1/checks/'+r.listingId+'/override','POST',{ref:'label_fixture',call:'PASS',decisionToken:'00000000-0000-4000-8000-000000000000'})).status,400);
+  await request('/v1/checks/'+r.listingId+'/override?ref=label_fixture','DELETE');
+  assert.equal(evaluateLabels().summary.activeLabels,0);assert.equal(d.query('SELECT COUNT(*) n FROM judgments').get().n,1);
+`));
+test('disappearance never becomes a sale price and reported calibration uses frozen decisions',()=>isolated(fixture+`
+  import {recordObservedOutcomes,recordReportedOutcome,calibration,realisedMargin} from '@/src/tracker/outcomes.ts';
+  import {storeVerdict} from '@/src/db/verdicts.ts';
+  const r=await checkFetched({...listing,postedAt:new Date(Date.now()-3*86400000).toISOString()},{persist:true,vision:false});
+  d.run("UPDATE listings SET delisted_at=?,delist_reason='deleted_by_author' WHERE id=?",[new Date().toISOString(),r.listingId]);
+  const observed=recordObservedOutcomes();assert.equal(observed.recorded,1);
+  const o=d.query('SELECT * FROM outcomes').get();assert.equal(o.sold_price_cents,null);assert.equal(o.observed_ask_cents,80000);
+  assert.equal(calibration().length,0);assert.equal(realisedMargin().length,0);
+  recordReportedOutcome({userId:1,listingId:r.listingId,action:'bought',purchasePriceCents:80000,soldPriceCents:100000,feesCents:0,shippingCents:0});
+  storeVerdict(r.listingId,'future',{call:'PASS',valuation:{medianCents:999999}});
+  const cal=calibration(1);assert.equal(cal.length,1);assert.equal(cal[0].call,r.verdict.call);
+  assert.equal(realisedMargin(1)[0].netCents,20000);assert.equal(realisedMargin(2).length,0);
+`));

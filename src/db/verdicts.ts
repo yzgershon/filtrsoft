@@ -6,8 +6,8 @@
  * listings; 9,212 rows were consecutive duplicates and no reader used anything
  * except MAX(id).
  *
- * If the answer is unchanged, update the latest row's engine version in place so
- * `reverdictStale()` knows the listing was evaluated by current code. If any part
+ * Identical answers at the same engine revision are deduplicated so
+ * repeated work does not grow history. A different revision is immutable history. If any part
  * of the answer changed, append it: transitions are useful history, repetition is
  * not.
  */
@@ -68,13 +68,9 @@ export function storeVerdictWithDb(
 
   if (latest && latest.call === verdict.call &&
       latest.confidence === confidence && latest.payload === payload) {
-    if (latest.engine_version !== engineVersion) {
-      d.query(
-        `UPDATE verdicts SET engine_version=$v, created_at=$now WHERE id=$id`,
-      ).run({ $v: engineVersion, $now: createdAt, $id: latest.id });
-      return { inserted: false, refreshed: true, id: latest.id };
-    }
-    return { inserted: false, refreshed: false, id: latest.id };
+    if(latest.engine_version===engineVersion)return {inserted:false,refreshed:false,id:latest.id};
+    // An engine revision is historical evidence once a label references it.
+    // Append rather than rewriting its version and timestamp under that label.
   }
 
   const r = d.query(

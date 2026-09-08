@@ -1,3 +1,4 @@
+import {rememberDecision,decisionAt,decisionSku} from "../db/learning.ts";
 import {feedWindow,CursorError} from "./feed-cursor.ts";
 import {checkInput,outcomeInput} from "./check-input.ts";
 import {scoringStatus} from "../db/scoring.ts";
@@ -428,6 +429,7 @@ app.post("/v1/checks", async (c) => {
     const r=personalized && canonical.listingId
       ? {...canonical,...checkStored(canonical.listingId,{econ:body.economics,driveMinutes:body.driveMinutes})}:canonical;
     return c.json({
+      decisionToken:r.listingId?rememberDecision(r.listingId,currentUser(c)?.id,r.verdict):undefined,
       checkId: r.listingId,
       elapsedMs: r.elapsedMs,
       listing: {
@@ -481,7 +483,10 @@ app.get("/v1/checks/stream", (c) => {
       try {
         await checkListing(url!, {
           vision, persist: true, driveMinutes: drive,
-          onStage: (s: Stage) => send(s.stage, { elapsedMs: s.elapsedMs, ...(s.data as object) }),
+          onStage: (s: Stage) => {
+            const data=s.data as any;
+            send(s.stage,{elapsedMs:s.elapsedMs,...data,...(s.stage==='done' && data.listingId?{decisionToken:rememberDecision(data.listingId,currentUser(c)?.id,data.verdict)}:{})});
+          },
         });
       } catch (e) {
         send("error", { error: (e as Error).message });
@@ -654,21 +659,11 @@ app.post("/v1/checks/:id/outcome", async (c) => {
   const listing = db().query("SELECT id FROM listings WHERE id=$id").get({ $id: id });
   if (!listing) return c.json({ error: "not found" }, 404);
 
-  // The SKU is resolved at RECORD time, not read time: the catalog changes, and
-  // an outcome should remember which product it was about when it happened.
-  let skuId: number | null = null;
-  try { skuId = checkStored(id, {}).match.skuId ?? null; } catch { /* fine */ }
-
-  db().query(
-    `INSERT INTO outcomes (listing_id, sku_id, action, purchase_price_cents, notes, created_at,user_id)
-     VALUES ($lid,$sku,$act,$price,$notes,$now,$user)`,
-  ).run({
-    $lid: id, $sku: skuId, $act: body.action,
-    $user:currentUser(c)!.id,
-    $price: body.pricePaidCents ?? null,
-    $notes: (body.notes ?? "").slice(0, 500) || null,
-    $now: new Date().toISOString(),
-  });
+  let decision:ReturnType<typeof decisionAt>;
+  try {decision=decisionAt(id,currentUser(c)!.id,body.decisionToken);}catch(e){return c.json({error:(e as Error).message},400);}
+  db().run(`INSERT INTO outcomes(listing_id,sku_id,action,purchase_price_cents,notes,created_at,user_id,decision_id,decision_json,evidence_kind)
+    VALUES(?,?,?,?,?,?,?,?,?,?)`,[id,decisionSku(decision.payload),body.action,body.pricePaidCents??null,body.notes??null,new Date().toISOString(),
+      currentUser(c)!.id,decision.id,decision.payload,body.action==='dead_listing'?'reported_disappearance':'personal_report']);
 
   const n = (db().query("SELECT COUNT(*) n FROM outcomes WHERE user_id=?").get(currentUser(c)!.id) as { n: number }).n;
   return c.json({ ok: true, action: body.action, totalOutcomes: n });
@@ -1276,12 +1271,14 @@ app.get("/v1/checks/:id", (c) => {
    * listings he has personally checked is the entire point. See
    * `api/overrides.ts`.
    */
+  const decisionToken=rememberDecision(id,currentUser(c)?.id,verdict);
   const ov = loadAccountOverrides(currentUser(c)!.id).get(id);
   if (ov && verdict && ov.call !== verdict.call) {
     verdict = { ...verdict, call: ov.call, overriddenFrom: verdict.call, overrideNote: ov.note };
   }
 
   return c.json({
+    decisionToken,
     checkId: row.id,
     listing: {
       title: proof?.facts.title??row.title, url: row.url, askingPriceCents: proof?proof.facts.askingPriceCents:row.asking_price_cents,

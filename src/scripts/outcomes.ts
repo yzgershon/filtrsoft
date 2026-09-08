@@ -10,7 +10,7 @@ import { db } from "../db/index.ts";
 
 if (!process.argv.includes("--report")) {
   const st = recordObservedOutcomes();
-  console.log(`${st.considered} delisted considered · \x1b[32m${st.recorded} new outcomes\x1b[0m · ${st.skipped} skipped (not a confident sale, or already recorded)\n`);
+  console.log(`${st.considered} delisted considered · \x1b[32m${st.recorded} new outcomes\x1b[0m · ${st.skipped} skipped (not a qualifying disappearance, or already recorded)\n`);
 }
 
 const total = (db().query("SELECT COUNT(*) n FROM outcomes").get() as any).n;
@@ -18,9 +18,9 @@ console.log(`\x1b[1moutcomes: ${total}\x1b[0m\n`);
 
 const cal = calibration();
 if (!cal.length) {
-  console.log("Not enough observed sales yet to calibrate.");
-  console.log("Run `bun run sweep` daily — each delisting is one data point, and");
-  console.log("they only accumulate going forward.");
+  console.log("No reported transactions with frozen decision evidence to calibrate.");
+  console.log("Disappearance records availability only. Report purchase/resale prices;");
+  console.log("unknown sale prices and unknown costs stay unknown.");
 } else {
   console.log("call                 n   median days   valuation error");
   console.log("------------------------------------------------------");
@@ -31,7 +31,7 @@ if (!cal.length) {
       `${c.call.padEnd(20)} ${String(c.n).padStart(2)}   ${String(c.medianDays ?? "—").padStart(11)}   ${err.padStart(15)}`,
     );
   }
-  console.log("\nvaluation error = our predicted median vs what it actually cleared at.");
+  console.log("\nvaluation error = our predicted median vs reported transaction prices, using the decision recorded at the time.");
   console.log("Consistently positive means we are pricing HIGH, and every BUY is");
   console.log("overstated — the failure that loses money quietly.");
 }

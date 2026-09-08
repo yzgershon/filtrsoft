@@ -1,3 +1,4 @@
+import type {VisionResult} from "../vision/index.ts";
 import {createHash} from "node:crypto";
 import type {RawListing,SignalReport} from "../types.ts";
 import type {Match} from "../catalog/match.ts";
@@ -12,5 +13,5 @@ export interface DecisionProvenance {
   version:1; engineVersion:string; dataRevision:string; factsHash:string;
   economics:{version:1;hash:string;values:UserEconomics;driveMinutes:number;scope:'canonical'|'personal'};
   facts:Omit<RawListing,'raw'>; signals:SignalReport; match:Match;
-  visionHash:string|null;
+  visionHash:string|null;visionEvidence:VisionResult|null;
 }

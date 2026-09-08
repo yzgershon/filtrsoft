@@ -689,6 +689,18 @@ export function buildVerdict(input: {
     };
   }
 
+  // More GPU-family rows do not establish CPU/RAM/storage equivalence. Keep
+  // the measured broad band or labeled parts prior visible without turning it
+  // into a driving recommendation. The historical pricing weights are unchanged.
+  if(isBundle && (valuation.method==='whole_build_gpu_family' || valuation.method==='parts_prior')) {
+    return {...base,call:'INSUFFICIENT_DATA',confidence:'low',
+      headline:valuation.method==='whole_build_gpu_family'?'Build configuration is not covered by matching comps.':'Parts estimate needs whole-build evidence.',
+      reasoning:valuation.method==='whole_build_gpu_family'
+        ? `The archive has ${valuation.compCount} sold towers in this GPU family, but fewer than three explicitly match the CPU, GPU, RAM and storage together. The broad estimate cannot establish this build's price.`
+        : 'The estimate uses sold component prices and documented weights for the complete machine. Those weights are priors, not observed sales of this configuration.',
+      decidingUnknown:'sold builds with matching CPU, GPU, RAM and storage'};
+  }
+
   // --- 5. Money, relative to the user ----------------------------------
   /**
    * A parts-derived value is already a LOCAL price; a SKU-derived one is an eBay

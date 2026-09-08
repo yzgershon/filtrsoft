@@ -39,11 +39,11 @@ Status meanings: pending, in progress, implemented (checks pending), verified lo
 - F17 — verified locally for bounded intake, task ownership, probe fairness and undated expiry: bounded photo intake, owned temporary paths, preserve current hashes, fair probing and candid unknown dates.
 - Acceptance: deterministic timeout/cancellation/retry tests, bounded work under stalled inputs, meaningful query/coverage measurements. No duplicate comp crawl.
 
-## Phase 5: explainable decisions and calibration — in progress
+## Phase 5: explainable decisions and calibration — code verified locally; real-data calibration unclaimed
 
 - F15 — verified locally for audited decision, economics, pagination and input regressions: recorded facts/engine/data/economics provenance and exact adjusted comp evidence, coherent detail responses, canonical/personal isolation, check/drive schemas. Account/filter-bound stable feed windows, first-eligible pulse cursors and bounded check/drive/feed/outcome inputs.
-- F16: explicit whole-build configuration uncertainty and parts fallback evidence; preserve pricing policy until labeled evidence supports calibration changes.
-- F18: contemporaneous labeled verdicts, current label regression set, distinguish disappearance from real sales and purchases, correct SKU linkage and reporting.
+- F16 — verified locally: explicit matched-build vs GPU-family configuration evidence, labeled parts weights/unpriced roles, insufficient-data guard for unsupported estimates; pricing weights unchanged.
+- F18 — verified locally: account-bound displayed-decision snapshots, append-only judgment history and immutable engine revisions, current-label evaluation/export/frozen replay, separate disappearance/transaction evidence, contemporaneous SKU and decision, known-cost realized-margin reporting. Legacy missing evidence remains unknown; no real-price calibration claimed.
 - Acceptance: replayable decision evidence, concurrent economics isolation, pagination bursts, no inferred sale represented as a realized price. Report remaining data requirements honestly.
 
 ## Phase 6: operations and billing readiness — pending
@@ -75,3 +75,5 @@ Update HANDOFF and this file after each verified batch and before stopping. Comm
 - 2026-09-08: F15 decision/economics batch, 247 tests / 740 assertions / zero failures; typecheck passed. New decisions retain evidence through later comp changes, and concurrent personalized results preserve the canonical shared verdict. Next feed/pulse cursors and full pipeline funnel.
 
 - 2026-09-08: F15 pagination/F14 stage funnel, 250 tests / 743 assertions / zero failures; typecheck and Vite build passed. Full-population and inter-page mutation regression, same-time 51-row pulse burst, and explicit unknown-stage metrics. No browser/production workflow claim. Next F16/F18.
+
+- 2026-09-08: F16/F18 batch, 253 tests / 746 assertions / zero failures; TypeScript and Vite build passed. Original dollar priors preserved, unsupported build estimates cannot drive actionable calls, and labels/outcomes retain contemporaneous evidence. Next phase 6 F19/F20 and final artifacts/comparison.

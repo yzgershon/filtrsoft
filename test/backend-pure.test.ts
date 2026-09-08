@@ -521,7 +521,7 @@ describe("listing fact persistence", () => {
 });
 
 describe("verdict retention", () => {
-  test("refreshes an unchanged answer and appends only a real transition", () => {
+  test("deduplicates same-revision answers and preserves prior engine revisions", () => {
     const db = new Database(":memory:");
     db.run(`CREATE TABLE verdicts (
       id INTEGER PRIMARY KEY,
@@ -539,18 +539,18 @@ describe("verdict retention", () => {
       refreshed: false,
     });
     expect(storeVerdictWithDb(db, 1, "0.1.1", first, "2026-08-27T01:00:00.000Z")).toMatchObject({
-      inserted: false,
-      refreshed: true,
+      inserted: true,
+      refreshed: false,
     });
-    expect(db.query("SELECT COUNT(*) n FROM verdicts").get()).toEqual({ n: 1 });
-    expect(db.query("SELECT engine_version FROM verdicts").get()).toEqual({ engine_version: "0.1.1" });
+    expect(db.query("SELECT COUNT(*) n FROM verdicts").get()).toEqual({ n: 2 });
+    expect(db.query("SELECT engine_version FROM verdicts").get()).toEqual({ engine_version: "0.1.0" });
 
     const changed = { ...first, headline: "Price dropped, but still overpriced." };
     expect(storeVerdictWithDb(db, 1, "0.1.1", changed, "2026-08-27T02:00:00.000Z")).toMatchObject({
       inserted: true,
       refreshed: false,
     });
-    expect(db.query("SELECT COUNT(*) n FROM verdicts").get()).toEqual({ n: 2 });
+    expect(db.query("SELECT COUNT(*) n FROM verdicts").get()).toEqual({ n: 3 });
     db.close();
   });
 });

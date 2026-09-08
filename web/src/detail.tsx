@@ -89,10 +89,11 @@ export function SecHead({ icon, title, note, tone, trailing }: {
  */
 const MY_CALLS: Call[] = ["BUY", "VERIFY", "RISK", "PASS"];
 
-export function MyCall({ id, call, overriddenFrom, onChange }: {
+export function MyCall({ id, call, overriddenFrom, onChange,decisionToken }: {
   id: number;
   call: Call;
   overriddenFrom?: Call | null;
+  decisionToken?:string;
   onChange: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -109,7 +110,7 @@ export function MyCall({ id, call, overriddenFrom, onChange }: {
       } else {
         const response = await fetch(`/v1/checks/${id}/override`, {
           method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ ref, call: next }),
+          body: JSON.stringify({ ref, call: next,decisionToken }),
         });
         if (!response.ok) throw new Error("Label was not saved");
         toast(`Marked ${LABEL[next]}`);
@@ -763,8 +764,8 @@ export function Outcome({ id }: { id: number }) {
     <section className="sec rise">
       <h4>What happened?</h4>
       <p className="outnote">
-        This is what teaches the engine. Every answer becomes a real clearing
-        price it can check itself against.
+        This records what happened. Only a reported purchase and resale can
+        establish what you paid and earned.
       </p>
       <div className="outrow" role="group" aria-label="Record what happened">
         {OPTS.map((o) => (
@@ -781,10 +782,11 @@ export function Outcome({ id }: { id: number }) {
 }
 
 export function Report({
-  listing, verdict, signals, comps, meta, stage, reading, checkId, onBack, onReload,
+  listing, verdict, signals, comps, meta, stage, reading, checkId, onBack, onReload,decisionToken,
 }: {
   listing: Listing | null; verdict: Verdict | null; signals: Signal[];
   comps?: Comp[];
+  decisionToken?:string;
   meta?: Meta; stage: number; reading: number; checkId?: number | null;
   /** Absent during a paste, where the result appears in place and there is
       nothing behind it to go back to. */
@@ -910,7 +912,7 @@ export function Report({
         * above the evidence invites relabelling it without reading any.
         */}
       {verdict && checkId && onReload && (
-        <MyCall id={checkId} call={verdict.call} overriddenFrom={verdict.overriddenFrom}
+        <MyCall decisionToken={decisionToken} id={checkId} call={verdict.call} overriddenFrom={verdict.overriddenFrom}
           onChange={onReload} />
       )}
       {/**

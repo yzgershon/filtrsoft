@@ -38,6 +38,6 @@ if (all.length) {
     const tag = { likely_sold: "\x1b[32mSOLD\x1b[0m", possibly_sold: "\x1b[33m?   \x1b[0m",
       repost: "\x1b[36mREPO\x1b[0m", no_signal: "\x1b[90m—   \x1b[0m" }[o.signal];
     const d = o.daysOnMarket === null ? "  ?" : `${o.daysOnMarket.toFixed(0).padStart(3)}d`;
-    console.log(`  ${tag} ${d} ${money(o.clearingPriceCents).padStart(6)}  ${o.title.slice(0, 46).padEnd(46)} ${o.reason}`);
+    console.log(`  ${tag} ${d} ${money(o.observedAskingPriceCents).padStart(6)}  ${o.title.slice(0, 46).padEnd(46)} ${o.reason}`);
   }
 }

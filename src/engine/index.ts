@@ -122,7 +122,7 @@ export function runPipeline(
 
   const {raw,...facts}=listing;
   verdict.provenance={version:1,engineVersion:ENGINE_VERSION,dataRevision:pricingSignature(db()),factsHash:evidenceHash({facts,vision}),
-    facts,signals,match,visionHash:vision?evidenceHash(vision):null,
+    facts,signals,match,visionEvidence:vision,visionHash:vision?evidenceHash(vision):null,
     economics:{version:1,hash:evidenceHash({economics,driveMinutes:opts.driveMinutes??15}),values:{...economics},
       driveMinutes:opts.driveMinutes??15,scope:opts.econ || opts.driveMinutes!=null?'personal':'canonical'}};
   return { signals, match, verdict };
