@@ -1,0 +1,17 @@
+{
+  "at": "2026-09-08T13:35:48.852Z",
+  "path": "/data/backups/filtrsoft-pre-backend-hardening-1788874546614.db",
+  "sha256": "f42625699e5544dae2b2f1992403d03fb19609a4e1cf18164d480faa91c45368",
+  "counts": {
+    "comps": 25171,
+    "skus": 443,
+    "listings": 6192,
+    "verdicts": 20488,
+    "judgments": 69,
+    "outcomes": 1
+  },
+  "integrity": "ok",
+  "restoreVerified": true,
+  "location": "same production volume; managed/offsite backup unavailable on current plan",
+  "observedVia": "existing Railway console, no credential handling"
+}

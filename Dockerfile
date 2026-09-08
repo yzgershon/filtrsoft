@@ -13,7 +13,7 @@ RUN node node_modules/vite/bin/vite.js build
 
 # ── stage 2: server ──────────────────────────────────────────────────────────
 # Debian-based, not alpine: sharp needs glibc.
-FROM oven/bun:1.3.14
+FROM oven/bun:1.3.14 AS runtime
 WORKDIR /app
 
 # Dependencies first so a source-only change doesn't reinstall everything.
@@ -32,3 +32,16 @@ ENV FILTRSOFT_DB=/data/filtrsoft.db
 ENV FILTRSOFT_PHOTOS=/data/photos
 
 CMD ["bun", "run", "src/api/index.ts"]
+
+# Tests import React source too; keep those build/test dependencies out of the
+# serving image while verifying the exact locked Linux installs from both stages.
+FROM runtime AS verification
+COPY --from=web /web/node_modules ./web/node_modules
+ENV FILTRSOFT_DB=/tmp/filtrsoft-verification.db
+ENV FILTRSOFT_PHOTOS=/tmp/filtrsoft-verification-photos
+ENV FILTRSOFT_VISION=0
+# amd64 emulation on the ARM laptop makes process-isolated fixtures slower.
+# Production transport deadlines remain covered separately inside those tests.
+RUN --network=none bun test --timeout 30000 && bun run typecheck
+
+FROM runtime AS production
