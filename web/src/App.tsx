@@ -153,6 +153,7 @@ function useDealPulse(enabled: boolean, verify: boolean, onDeal: (items: any[]) 
    * timer that keeps restarting is a timer that never fires.
    */
   const since = useRef<string | null>(null);
+  const pulseCursor=useRef<string|null>(null);
   const cb = useRef(onDeal);
   cb.current = onDeal;
   const wantVerify = useRef(verify);
@@ -160,23 +161,29 @@ function useDealPulse(enabled: boolean, verify: boolean, onDeal: (items: any[]) 
 
   useEffect(() => {
     if (!enabled) return;
-    let stopped = false;
+    let stopped = false,polling=false;
     let timer: number | undefined;
 
     const tick = async () => {
-      if (document.visibilityState !== "visible") return;
+      if (stopped || polling || document.visibilityState !== "visible") return;
+      polling=true;
       try {
         const p = new URLSearchParams({ ref: deviceRef() });
-        if (since.current) p.set("since", since.current);
+        if (pulseCursor.current)p.set("cursor",pulseCursor.current);
+        else if (since.current) p.set("since", since.current);
         if (wantVerify.current) p.set("verify", "1");
-        const d = await (await fetch(`/v1/pulse?${p}`)).json();
+        const response=await fetch(`/v1/pulse?${p}`);
+        if(!response.ok)return;
+        const d=await response.json();
         if (stopped) return;
         // Advance FIRST: an exception in the callback must not make the same
         // listing alert again on the next tick.
         const first = since.current === null;
         since.current = d.now ?? since.current;
+        pulseCursor.current=d.cursor??pulseCursor.current;
         if (!first && Array.isArray(d.items) && d.items.length) cb.current(d.items);
-      } catch { /* offline; the next tick tries again */ }
+        if(d.hasMore)setTimeout(()=>void tick(),250);
+      } catch { /* offline; the next tick tries again */ } finally {polling=false;}
     };
 
     const onVis = () => { if (document.visibilityState === "visible") void tick(); };

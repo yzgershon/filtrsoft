@@ -1,4 +1,5 @@
-import {checkInput} from "./check-input.ts";
+import {feedWindow,CursorError} from "./feed-cursor.ts";
+import {checkInput,outcomeInput} from "./check-input.ts";
 import {scoringStatus} from "../db/scoring.ts";
 /**
  * The HTTP API.
@@ -19,7 +20,7 @@ import { existsSync } from "node:fs";
 import { checkListing, checkStored, ENGINE_VERSION, type Stage } from "../engine/index.ts";
 import { handlePush } from "./push.ts";
 import {
-  applyDiscovery, applyQuality, parseDrive, parseFilters, segmentCounts, sortFeed,
+  applyDiscovery, applyQuality, parseFilters, segmentCounts, sortFeed,
   newSegmentCounts, parseSeen,
 } from "./query.ts";
 import { detectCategory } from "../signals/index.ts";
@@ -45,7 +46,7 @@ import {
   loadAccountOverrides, applyOverride, handleSetOverride, handleClearOverride,
 } from "./overrides.ts";
 import { archiveStatus } from "../db/archive.ts";
-import { compsHealth, visionHealth } from "./pipeline-health.ts";
+import { compsHealth, visionHealth,pipelineFunnel } from "./pipeline-health.ts";
 import { visionLoopEnabled, crawlPaceMode } from "./scheduler.ts";
 import { lastVisionPass } from "../crawler/vision-pass.ts";
 import {
@@ -338,6 +339,7 @@ app.get("/v1/health", (c) => {
      * tell". `daysOfRunway` is the number to watch.
      */
     comps: (() => { try { return compsHealth(); } catch { return null; } })(),
+    funnel:(()=>{try{return pipelineFunnel();}catch{return {error:"unavailable"};}})(),
     /**
      * Reports WHETHER the eBay verification token is set, never its value.
      * Without this the only way to know production has it is to make eBay
@@ -644,13 +646,10 @@ app.post("/v1/billing/webhook", handleWebhook);
  */
 app.post("/v1/checks/:id/outcome", async (c) => {
   const id = Number(c.req.param("id"));
-  const body = await c.req.json().catch(() => ({})) as {
-    action?: string; pricePaidCents?: number; notes?: string;
-  };
-  const ACTIONS = ["bought", "passed", "no_reply", "dead_listing", "was_scam"];
-  if (!body.action || !ACTIONS.includes(body.action)) {
-    return c.json({ error: `action must be one of ${ACTIONS.join(", ")}` }, 400);
-  }
+  if(!Number.isSafeInteger(id)||id<1)return c.json({error:'Invalid listing ID'},400);
+  const parsed=outcomeInput.safeParse(await c.req.json().catch(()=>null));
+  if(!parsed.success)return c.json({error:'Invalid outcome input',issues:parsed.error.issues},400);
+  const body=parsed.data;
 
   const listing = db().query("SELECT id FROM listings WHERE id=$id").get({ $id: id });
   if (!listing) return c.json({ error: "not found" }, 404);
@@ -844,8 +843,10 @@ app.get("/v1/feed", (c) => {
    * database anyway. Ranking happens across `RANK_POOL`, not across the page,
    * so page 2 is still globally ranked rather than a second-best bucket.
    */
-  const limit = Math.min(Number(c.req.query("limit")) || 60, 200);
-  const offset = Math.max(0, Number(c.req.query("offset")) || 0);
+  const limitRaw=c.req.query('limit')??'60',offsetRaw=c.req.query('offset')??'0';
+  if(!/^\d+$/.test(limitRaw)||!/^\d+$/.test(offsetRaw)||Number(limitRaw)<1||Number(limitRaw)>200||!Number.isSafeInteger(Number(offsetRaw)))
+    return c.json({error:'limit must be 1-200; offset must be a nonnegative integer'},400);
+  const limit=Number(limitRaw),offset=Number(offsetRaw);
   const showGone = c.req.query("gone") === "1";
   /**
    * ⚠ FILTERING MOVED TO THE SERVER, AND THE COUNTS COME FROM THE SAME PLACE.
@@ -920,7 +921,7 @@ app.get("/v1/feed", (c) => {
        */
       AND COALESCE(l.posted_at,l.last_seen,l.captured_at) >= strftime('%Y-%m-%dT%H:%M:%fZ','now','-28 days')
     ORDER BY l.posted_at DESC
-    LIMIT 1200
+
   `).all() as any[];
 
   // Rank in JS — the score needs fields that live inside the verdict JSON.
@@ -982,7 +983,6 @@ app.get("/v1/feed", (c) => {
       score,
     };
   })
-    .filter((i) => (call ? i.call === call : true))
     /**
      * DELISTED LISTINGS ARE HIDDEN BY DEFAULT. This is the fix for the feed
      * being able to send someone to a listing that sold two weeks ago.
@@ -1002,6 +1002,7 @@ app.get("/v1/feed", (c) => {
      * for why these are scoped to a device rather than global.
      */
     .map((i) => ({ ...applyOverride(i, overrides), reviewed: overrides.has(i.id) }))
+    .filter((i)=>(call?i.call===call:true))
     .sort((a, b) => b.score - a.score);
 
   // Rank globally, then page. Paging before ranking would make page 2 a
@@ -1023,9 +1024,12 @@ app.get("/v1/feed", (c) => {
    * "Ready 3" above a search that returns one, which is the same class of lie
    * the segment rewrite existed to remove: a number you cannot reach.
    */
-  const scoped = sortFeed(applyDiscovery(ranked, filters), filters.sort);
-  const filtered = applyQuality(scoped, quality);
-  const items = filtered.slice(offset, offset + limit);
+  const currentScoped = sortFeed(applyDiscovery(ranked, filters), filters.sort);
+  let window:ReturnType<typeof feedWindow<typeof currentScoped[number]>>;
+  try {window=feedWindow(currentScoped,currentUser(c)!.id,{filters,showGone,call},c.req.query('cursor'));}
+  catch(e){if(e instanceof CursorError)return c.json({error:e.message,code:'cursor_expired'},409);throw e;}
+  const scoped=window.scoped,filtered=applyQuality(scoped,quality);
+  const {items,nextCursor}=window.page(filtered,limit,offset);
   const segments = segmentCounts(scoped);
   /**
    * ⚠ COUNTED OVER `scoped`, THE SAME POPULATION AS `segments`.
@@ -1067,6 +1071,7 @@ app.get("/v1/feed", (c) => {
      * prints is reachable.
      */
     total: filtered.length,
+    nextCursor,
     offset,
     limit,
     quality,
@@ -1127,61 +1132,31 @@ app.get("/v1/feed", (c) => {
  * for, and `NEVER_IN_ALL` already keeps those out of the default feed.
  */
 app.get("/v1/pulse", (c) => {
-  const now = new Date().toISOString();
-  const since = c.req.query("since");
-  /**
-   * ⚠ NO WATERMARK MEANS NO ALERTS, NOT ALL OF THEM.
-   *
-   * The client stamps `pulseAt` from THIS response on first load, so a fresh
-   * tab starts level. Defaulting to "everything" would open the app with three
-   * toasts for listings that have been sitting there since yesterday — the
-   * exact failure `alerts.ts` documents for saved searches ("gets notifications
-   * turned off within a minute of being turned on").
-   */
-  const cut = since && Number.isFinite(Date.parse(since)) ? since : null;
-  if (!cut) return c.json({ now, items: [] });
-
-  const calls = c.req.query("verify") === "1" ? ["BUY", "VERIFY"] : ["BUY"];
-  const rows = db().query(`
-    SELECT l.id, l.title, l.asking_price_cents, l.source, v.call,
-           (SELECT url FROM listing_photos p WHERE p.listing_id = l.id ORDER BY position LIMIT 1) thumb,
-           EXISTS(SELECT 1 FROM listing_thumbs t WHERE t.listing_id = l.id) has_thumb
-    FROM listings l
-    JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
-    WHERE l.delisted_at IS NULL
-      AND l.captured_at > ?
-      AND v.call IN (${calls.map(() => "?").join(",")})
-    -- ⚠ BUY FIRST, *THEN* RECENCY, AND THE ORDER IS LOAD-BEARING.
-    --
-    -- The banner names items[0] and this query is capped. Ordering by time
-    -- alone, a tick that brought five MacBook VERIFYs and one RTX 4090 BUY
-    -- pushed the BUY out of the result set entirely: the one alert worth
-    -- interrupting him for silently became a laptop. Measured against the live
-    -- database the moment verify=1 was switched on. (No backticks in here:
-    -- one ends the JS template literal and the SQL stops being a string.)
-    --
-    -- The cap is 20 rather than 5 for the same reason — it also feeds the
-    -- "N new deals" count, and a cap of 5 would under-report every busy tick.
-    ORDER BY CASE v.call WHEN 'BUY' THEN 0 ELSE 1 END, l.captured_at DESC
-    LIMIT 20
-  `).all(cut, ...calls) as any[];
-
-  /**
-   * ⚠ HIS OWN LABEL WINS HERE TOO. A listing he personally marked RISKY must
-   * not then alert him as a BUY — the override is the strongest signal in the
-   * product and ignoring it on the one surface that interrupts him would be
-   * the loudest possible place to get it wrong.
-   */
-  const overrides = loadAccountOverrides(currentUser(c)!.id);
-  const items = rows
-    .map((r) => applyOverride({
-      id: r.id, title: r.title, call: r.call,
-      askingPriceCents: r.asking_price_cents,
-      source: r.source, thumb: thumbUrl(r),
-    }, overrides))
-    .filter((i) => calls.includes(i.call));
-
-  return c.json({ now, items });
+  const d=db(),now=new Date().toISOString(),raw=c.req.query('cursor');
+  const max=(d.query('SELECT COALESCE(MAX(id),0) id FROM verdicts').get() as {id:number}).id;
+  let after=0;
+  if(raw!=null){if(!/^v1:\d+$/.test(raw)||!Number.isSafeInteger(Number(raw.slice(3))))return c.json({error:'Invalid pulse cursor'},400);after=Number(raw.slice(3));}
+  else {
+    const since=c.req.query('since');
+    if(!since || !Number.isFinite(Date.parse(since)))return c.json({now,cursor:`v1:${max}`,items:[],hasMore:false});
+    after=(d.query('SELECT COALESCE(MAX(id),0) id FROM verdicts WHERE created_at<=?').get(new Date(since).toISOString()) as {id:number}).id;
+  }
+  const calls=c.req.query('verify')==='1'?['BUY','VERIFY']:['BUY'];
+  const overrides=loadAccountOverrides(currentUser(c)!.id);
+  const rows=d.query(`SELECT l.id,l.title,l.asking_price_cents,l.source,v.id event_id,latest.call,
+    (SELECT url FROM listing_photos p WHERE p.listing_id=l.id ORDER BY position LIMIT 1) thumb,
+    EXISTS(SELECT 1 FROM listing_thumbs t WHERE t.listing_id=l.id) has_thumb
+    FROM listings l JOIN verdicts v ON v.id=(SELECT MIN(id) FROM verdicts WHERE listing_id=l.id AND call IN (${calls.map(()=>'?').join(',')}))
+    JOIN verdicts latest ON latest.id=(SELECT MAX(id) FROM verdicts WHERE listing_id=l.id)
+    WHERE v.id>? AND v.id<=? AND l.delisted_at IS NULL
+    AND COALESCE(l.posted_at,l.last_seen,l.captured_at)>=strftime('%Y-%m-%dT%H:%M:%fZ','now','-28 days')
+    ORDER BY v.id ASC`).all(...calls,after,max) as any[];
+  const eligible=rows.map(r=>({...applyOverride({id:r.id,title:r.title,call:r.call,askingPriceCents:r.asking_price_cents,source:r.source,thumb:thumbUrl(r)},overrides),eventId:r.event_id}))
+    .filter(r=>calls.includes(r.call));
+  const page=eligible.slice(0,20),hasMore=eligible.length>page.length;
+  const cursor=`v1:${hasMore?page.at(-1)!.eventId:max}`;
+  const items=page.sort((a,b)=>(a.call==='BUY'?0:1)-(b.call==='BUY'?0:1));
+  return c.json({now,cursor,hasMore,items});
 });
 
 /** A previously-run check, by listing id. Shareable permalink target. */

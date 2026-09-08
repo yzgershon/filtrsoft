@@ -157,3 +157,39 @@ export function visionHealth(model: string, promptVersion: string): VisionHealth
 
   return { reads24h, reads7d, lastReadAt, candidatePool, unreadable, shortlist, warning };
 }
+
+/** These are observed stages for one capture cohort, not invented conversion
+ * rates. Unrecorded historical provenance/sync is null or counted separately.
+ */
+export function pipelineFunnel() {
+  const d=db(),since=isoAgo(86400000);
+  const rows=d.query(`SELECT l.id,l.description,l.delisted_at,l.posted_at,l.last_seen,l.captured_at,
+    v.call,v.payload,(SELECT MIN(created_at) FROM verdicts WHERE listing_id=l.id) first_score,
+    EXISTS(SELECT 1 FROM listing_photos WHERE listing_id=l.id) photos
+    FROM listings l LEFT JOIN verdicts v ON v.id=(SELECT MAX(id) FROM verdicts WHERE listing_id=l.id)
+    WHERE l.captured_at>=?`).all(since) as any[];
+  const table=(name:string)=>Boolean(d.query("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name));
+  const sync=table('sync_versions')?new Set((d.query('SELECT DISTINCT listing_id FROM sync_versions').all() as any[]).map(r=>r.listing_id)):null;
+  const sent=table('alert_sent')?new Set((d.query('SELECT DISTINCT listing_id FROM alert_sent').all() as any[]).map(r=>r.listing_id)):null;
+  const counts={discovered:rows.length,detailed:0,photos:0,decisionProvenance:0,exactIdentity:0,usableEvidence:0,scored:0,feedEligible:0,
+    synchronized:sync?0:null,alerted:sent?0:null};
+  const latency:number[]=[];
+  for(const r of rows){
+    const v=r.payload?JSON.parse(r.payload):null,p=v?.provenance;
+    if(r.description?.trim())counts.detailed++;if(r.photos)counts.photos++;
+    if(p)counts.decisionProvenance++;
+    if(p?.match?.skuId && p.match.confidence!=='low')counts.exactIdentity++;
+    if(v?.valuation?.status==='ok')counts.usableEvidence++;
+    if(r.call)counts.scored++;
+    if(r.call && r.call!=='OUT_OF_SCOPE' && !r.delisted_at && (r.posted_at??r.last_seen??r.captured_at)>=isoAgo(28*86400000))counts.feedEligible++;
+    if(sync?.has(r.id))counts.synchronized!++;if(sent?.has(r.id))counts.alerted!++;
+    const seconds=(Date.parse(r.first_score)-Date.parse(r.captured_at))/1000;if(Number.isFinite(seconds)&&seconds>=0)latency.push(seconds);
+  }
+  latency.sort((a,b)=>a-b);
+  const pending=d.query(`SELECT COUNT(*) count,MIN(l.captured_at) oldest FROM listings l WHERE l.delisted_at IS NULL AND NOT EXISTS(SELECT 1 FROM verdicts v WHERE v.listing_id=l.id)`).get();
+  const stages=d.query(`SELECT stage,status,COUNT(*) count FROM crawl_job_stages WHERE started_at>=? GROUP BY stage,status`).all(since);
+  return {cohort:{capturedSince:since},counts,firstScoreSeconds:{samples:latency.length,
+    p50:latency.length?latency[Math.floor((latency.length-1)*0.5)]:null,p95:latency.length?latency[Math.floor((latency.length-1)*0.95)]:null},
+    pendingFirstScore:pending,agentStages24h:stages,
+    definitions:{feedEligible:'Base live 28-day feed population before account/discovery/Review filters',synchronized:'Versioned facts acknowledged in this receiver database',alerted:'At least one acknowledged push delivery',exactIdentity:'Recorded current decision resolves a SKU above low confidence',usableEvidence:'Current decision valuation status ok; risk and missing listing facts can still block an actionable call'}};
+}

@@ -286,6 +286,7 @@ export function matchesSearch(title: string, q: string): boolean {
 }
 
 export interface Discoverable extends Scoped {
+  id?:number;
   title?: string | null;
   source?: string | null;
   category?: string | null;
@@ -310,20 +311,20 @@ export function applyDiscovery<T extends Discoverable>(rows: T[], f: FeedFilters
  * between two identical requests makes pagination duplicate and drop rows.
  */
 export function sortFeed<T extends Discoverable>(rows: T[], sort: Sort): T[] {
-  const by = (n: number) => (a: T, b: T) => n;
+  const tie = (a:T,b:T) => (b.id??0)-(a.id??0);
   const score = (r: T) => r.score ?? 0;
   const out = [...rows];
   if (sort === "newest") {
     out.sort((a, b) => (Date.parse(b.postedAt ?? "") || 0) - (Date.parse(a.postedAt ?? "") || 0)
-      || score(b) - score(a));
+      || score(b) - score(a) || tie(a,b));
   } else if (sort === "drop") {
-    out.sort((a, b) => (b.priceDropCents ?? 0) - (a.priceDropCents ?? 0) || score(b) - score(a));
+    out.sort((a, b) => (b.priceDropCents ?? 0) - (a.priceDropCents ?? 0) || score(b) - score(a) || tie(a,b));
   } else if (sort === "price") {
     // Unpriced rows sink: "cheapest first" with no price is not an answer.
     const p = (r: T) => r.askingPriceCents ?? Number.MAX_SAFE_INTEGER;
-    out.sort((a, b) => p(a) - p(b) || score(b) - score(a));
+    out.sort((a, b) => p(a) - p(b) || score(b) - score(a) || tie(a,b));
   } else {
-    out.sort((a, b) => score(b) - score(a));
+    out.sort((a, b) => score(b) - score(a) || tie(a,b));
   }
   return out;
 }

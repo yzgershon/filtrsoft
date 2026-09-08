@@ -76,7 +76,7 @@ test("inventory valuation requires the same kit layout, not merely the same tota
       import {valueInventory} from ${JSON.stringify(valuationModule)};
       import {listingInventory} from ${JSON.stringify(parserModule)};
       const d=db();
-      const at=new Date().toISOString();
+      const at=new Date(Date.now()-86400000).toISOString();
       d.query("INSERT INTO skus(id,category,brand,model,created_at) VALUES(1,'ram','Corsair','Vengeance 32GB DDR5-6000',?)").run(at);
       const inventory=listingInventory('RAM','2x16gb Corsair Vengeance DDR5-6000 $100',100);
       const unknownLayout=valueInventory(inventory)[0].valuation;

@@ -5,7 +5,7 @@ const fixture=`
   import {checkFetched,checkStored} from '@/src/engine/index.ts';
   import {getEconomics} from '@/src/valuation/index.ts';
   import {app} from '@/src/api/index.ts';
-  const d=db(),at=new Date().toISOString();
+  const d=db(),at=new Date(Date.now()-86400000).toISOString();
   d.run("INSERT INTO skus(category,brand,model,attributes,created_at) VALUES('gpu','Nvidia','RTX 4090','{}',?)",[at]);
   for(let i=0;i<4;i++)insertComp({source:'ebay',source_item_id:String(i),raw_title:'Nvidia RTX 4090 24GB',sold_price_cents:100000+i*1000,
     sold_at:at,sku_id:1,condition_norm:'used',raw:{soldAt:at}});
@@ -46,4 +46,55 @@ test('concurrent personal economics never replace canonical shared decisions',()
   assert.equal(getEconomics().effective_hourly_floor_cents,8000);
   for(const body of [{url:listing.url,driveMinutes:-1},{url:listing.url,vision:'yes'},{url:listing.url,economics:{label:'a'}}])
     assert.equal((await request('/v1/checks','POST',body)).status,400);
+`));
+
+test('feed filters the full population and freezes page order across arrivals and retirements',()=>isolated(fixture+`
+  import {upsertListingFacts} from '@/src/db/listings.ts';
+  import {storeVerdict} from '@/src/db/verdicts.ts';
+  d.transaction(()=>{for(let i=0;i<1210;i++){
+    const l=upsertListingFacts(d,{source:'audit',sourceId:'feed'+i,url:'https://example.invalid/'+i,title:i===0?'Nvidia RTX 4090 target':'Nvidia RTX 4090 '+i,
+      description:'',askingPriceCents:80000,location:null,postedAt:null,photoCount:0});
+    storeVerdict(l.id,'fixture',{call:'BUY',confidence:'high',netProfitCents:20000,headline:'Fixture'});
+  }})();
+  const target=await (await request('/v1/feed?quality=all&q=target')).json();assert.equal(target.items.length,1);
+  const first=await (await request('/v1/feed?quality=all&limit=200')).json();assert.equal(first.total,1210);assert.equal(first.items.length,200);
+  const expected=d.query('SELECT id FROM listings ORDER BY id DESC').all().map(r=>r.id);
+  assert.deepEqual(first.items.map(r=>r.id),expected.slice(0,200));
+  d.run('UPDATE listings SET delisted_at=? WHERE id=?',[at,expected[205]]);
+  const l=upsertListingFacts(d,{source:'audit',sourceId:'new',url:'https://example.invalid/new',title:'Nvidia RTX 4090 new',description:'',askingPriceCents:100,location:null,postedAt:null,photoCount:0});
+  storeVerdict(l.id,'fixture',{call:'BUY',confidence:'high',netProfitCents:999999});
+  const second=await (await request('/v1/feed?quality=all&limit=200&cursor='+encodeURIComponent(first.nextCursor))).json();
+  assert.equal(second.items.length,200);assert.equal(second.items.some(r=>r.id===l.id),false);
+  assert.deepEqual(second.items.map(r=>r.id),expected.slice(200).filter(id=>id!==expected[205]).slice(0,200));
+  assert.equal((await request('/v1/feed?quality=all&limit=-1')).status,400);
+  assert.equal((await request('/v1/feed?quality=all&q=other&cursor='+encodeURIComponent(first.nextCursor))).status,409);
+`));
+test('pulse drains same-timestamp bursts after account filters and does not repeat a re-score',()=>isolated(fixture+`
+  import {upsertListingFacts} from '@/src/db/listings.ts';
+  import {storeVerdict} from '@/src/db/verdicts.ts';
+  const initial=await (await request('/v1/pulse')).json();
+  d.run('INSERT INTO account_devices(device_ref,user_id,created_at) VALUES(?,1,?)',['owned_fixture',at]);
+  for(let i=0;i<51;i++){
+    const l=upsertListingFacts(d,{source:'audit',sourceId:'pulse'+i,url:'https://example.invalid/p'+i,title:'Nvidia RTX 4090',description:'',askingPriceCents:10000,location:null,postedAt:null,photoCount:0});
+    storeVerdict(l.id,'fixture',{call:'BUY',confidence:'high'},at);
+    if(i<5)d.run('INSERT INTO verdict_overrides(device_ref,listing_id,call,created_at) VALUES(?,?,?,?)',['owned_fixture',l.id,'RISK',at]);
+  }
+  let cursor=initial.cursor,ids=[];
+  for(let i=0;i<3;i++){
+    const page=await (await request('/v1/pulse?cursor='+encodeURIComponent(cursor))).json();
+    assert.equal(page.items.length,i<2?20:6);ids.push(...page.items.map(r=>r.id));cursor=page.cursor;
+  }
+  assert.equal(new Set(ids).size,46);
+  storeVerdict(ids[0],'new-engine',{call:'BUY',confidence:'medium'});
+  assert.equal((await (await request('/v1/pulse?cursor='+encodeURIComponent(cursor))).json()).items.length,0);
+`));
+
+test('pipeline reports measured stage evidence and leaves unavailable sync unknown',()=>isolated(fixture+`
+  import {pipelineFunnel} from '@/src/api/pipeline-health.ts';
+  await checkFetched(listing,{persist:true,vision:false});
+  const p=pipelineFunnel();
+  assert.equal(p.counts.discovered,1);assert.equal(p.counts.exactIdentity,1);assert.equal(p.counts.decisionProvenance,1);
+  assert.equal(p.counts.scored,1);assert.equal(p.counts.synchronized,null);
+  assert.equal(p.firstScoreSeconds.samples,1);assert.ok(p.firstScoreSeconds.p50>=0);
+  assert.equal((await request('/v1/checks/1/outcome','POST',{action:'bought',pricePaidCents:-1})).status,400);
 `));

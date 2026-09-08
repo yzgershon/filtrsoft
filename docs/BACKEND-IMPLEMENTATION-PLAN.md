@@ -35,13 +35,13 @@ Status meanings: pending, in progress, implemented (checks pending), verified lo
 
 - F12 — core verified locally; actual browser/process/provider integration remains unexercised: persisted job heartbeats/stages, request deadlines, resumable batch work, independent discovery/enrichment cadence, profile ownership, Windows process-tree cleanup.
 - F13 — verified locally: explicit sold/date/provenance eligibility at ingestion, valuation and export; recoverable quarantine, provisional seeder disabled, historical dated evidence retained.
-- F14 — core verified locally; full discovery-to-visible funnel pending F15 provenance: actual generic used-condition priceability by category, raw linkage named separately, collection attempt funnel and insufficient reasons, demand/freshness/yield priority with zero-result backoff, consoles excluded.
+- F14 — verified locally including provenance-backed stage cohort, first-score latency and unknown historical stages: actual generic used-condition priceability by category, raw linkage named separately, collection attempt funnel and insufficient reasons, demand/freshness/yield priority with zero-result backoff, consoles excluded.
 - F17 — verified locally for bounded intake, task ownership, probe fairness and undated expiry: bounded photo intake, owned temporary paths, preserve current hashes, fair probing and candid unknown dates.
 - Acceptance: deterministic timeout/cancellation/retry tests, bounded work under stalled inputs, meaningful query/coverage measurements. No duplicate comp crawl.
 
 ## Phase 5: explainable decisions and calibration — in progress
 
-- F15 — decision/economics batch verified locally; pagination and remaining boundaries pending: recorded facts/engine/data/economics provenance and exact adjusted comp evidence, coherent detail responses, canonical/personal isolation, check/drive schemas. Next stable filter-before-page cursors and remaining boundaries.
+- F15 — verified locally for audited decision, economics, pagination and input regressions: recorded facts/engine/data/economics provenance and exact adjusted comp evidence, coherent detail responses, canonical/personal isolation, check/drive schemas. Account/filter-bound stable feed windows, first-eligible pulse cursors and bounded check/drive/feed/outcome inputs.
 - F16: explicit whole-build configuration uncertainty and parts fallback evidence; preserve pricing policy until labeled evidence supports calibration changes.
 - F18: contemporaneous labeled verdicts, current label regression set, distinguish disappearance from real sales and purchases, correct SKU linkage and reporting.
 - Acceptance: replayable decision evidence, concurrent economics isolation, pagination bursts, no inferred sale represented as a realized price. Report remaining data requirements honestly.
@@ -73,3 +73,5 @@ Update HANDOFF and this file after each verified batch and before stopping. Comm
 - 2026-09-08: F13/F14 core batch, 245 tests / 738 assertions / zero failures; typecheck passed. Disposable audit copy: 31,900 historical exportable comps, 28,871 eligible inside 90 days, zero quarantined, 492/547 in-scope SKUs generically priceable. Three new regressions and updated isolated positive fixtures. No current shared/production measurement or crawl. Next F15 including full stage funnel.
 
 - 2026-09-08: F15 decision/economics batch, 247 tests / 740 assertions / zero failures; typecheck passed. New decisions retain evidence through later comp changes, and concurrent personalized results preserve the canonical shared verdict. Next feed/pulse cursors and full pipeline funnel.
+
+- 2026-09-08: F15 pagination/F14 stage funnel, 250 tests / 743 assertions / zero failures; typecheck and Vite build passed. Full-population and inter-page mutation regression, same-time 51-row pulse burst, and explicit unknown-stage metrics. No browser/production workflow claim. Next F16/F18.
