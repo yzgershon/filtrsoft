@@ -184,7 +184,7 @@ let _client: Anthropic | null = null;
 function client(): Anthropic | null {
   if (_client) return _client;
   if (!process.env.ANTHROPIC_API_KEY) return null;
-  _client = new Anthropic();
+  _client = new Anthropic({timeout:60_000,maxRetries:0});
   return _client;
 }
 
@@ -251,7 +251,7 @@ async function prepare(path: string): Promise<{ data: string; media: string; not
   return { data: buf.toString("base64"), media: "image/jpeg", note: `${w}x${h} -> ${tw}x${th}` };
 }
 
-export async function analyzePhotos(listingId: number): Promise<VisionResult | null> {
+export async function analyzePhotos(listingId: number,photoDirectory?:string): Promise<VisionResult | null> {
   if (visionKilled()) {
     console.error("vision: switched off by FILTRSOFT_VISION_ENABLED");
     return null;
@@ -262,7 +262,7 @@ export async function analyzePhotos(listingId: number): Promise<VisionResult | n
     return null;
   }
 
-  const dir = join(PHOTO_DIR, String(listingId));
+  const dir = photoDirectory??join(PHOTO_DIR, String(listingId));
   if (!existsSync(dir)) return null;
   const files = readdirSync(dir).filter((f) => f.endsWith(".jpg")).sort(
     (a, b) => Number(a.match(/\d+/)?.[0] ?? 0) - Number(b.match(/\d+/)?.[0] ?? 0),

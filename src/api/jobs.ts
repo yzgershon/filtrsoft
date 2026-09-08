@@ -38,6 +38,7 @@ import type { Context } from "hono";
 import { timingSafeEqual } from "node:crypto";
 import { db, now } from "../db/index.ts";
 import { currentUser } from "./auth.ts";
+import { z } from "zod";
 
 const PIN = () => (process.env.FILTRSOFT_CRAWL_PIN ?? "").trim();
 export const crawlPinConfigured = () => PIN().length >= 4;
@@ -74,7 +75,7 @@ export function sweepStaleJobs(at = Date.now()) {
   );
   d.run(
     `UPDATE crawl_jobs SET status='failed', finished_at=?, error='the agent stopped reporting'
-      WHERE status='running' AND COALESCE(started_at, created_at) < ?`,
+      WHERE status='running' AND COALESCE(heartbeat_at, started_at, created_at) < ?`,
     [new Date(at).toISOString(), new Date(at-RUNNING_TIMEOUT_MIN*60_000).toISOString()],
   );
 }
@@ -184,8 +185,8 @@ export function handleLatestJob(c: Context) {
      * "your PC is offline, the job will start when it wakes up" instead of
      * spinning — the single most likely reason a tap appears to do nothing.
      */
-    agentSeenAt: lastAgentPollAt,
-    agentOnline: lastAgentPollAt != null && Date.now() - Date.parse(lastAgentPollAt) < 90_000,
+    agentSeenAt: agentSeenAt(),
+    agentOnline: agentOnline(),
   });
 }
 
@@ -198,7 +199,14 @@ export function handleLatestJob(c: Context) {
  * service. It already needs that token to `push` its results, so this adds no
  * new secret to manage.
  */
-let lastAgentPollAt: string | null = null;
+export function agentSeenAt():string|null {
+  return (db().query("SELECT MAX(seen_at) at FROM agent_presence").get() as {at:string|null}).at;
+}
+const agentOnline=()=>{const at=agentSeenAt();return at!==null && Date.now()-Date.parse(at)<90_000;};
+function agentId(c:Context):string {return (c.req.header('x-filtrsoft-agent')??'legacy').slice(0,100);}
+function touchAgent(c:Context,jobId:number|null=null) {
+  db().run("INSERT INTO agent_presence VALUES(?,?,?) ON CONFLICT(agent_id) DO UPDATE SET seen_at=excluded.seen_at,job_id=excluded.job_id",[agentId(c),now(),jobId]);
+}
 
 function agentAuthorised(c: Context): boolean {
   const want = (process.env.FILTRSOFT_PUSH_TOKEN ?? "").trim();
@@ -211,7 +219,7 @@ function agentAuthorised(c: Context): boolean {
 /** The agent asks for work. Claims the job in the same request. */
 export function handleNextJob(c: Context) {
   if (!agentAuthorised(c)) return c.json({ error: "unauthorised" }, 401);
-  lastAgentPollAt = now();
+  touchAgent(c);
   sweepStaleJobs();
 
   /**
@@ -225,8 +233,8 @@ export function handleNextJob(c: Context) {
     const row = db().query(
       "SELECT * FROM crawl_jobs WHERE status='queued' ORDER BY id ASC LIMIT 1").get() as any;
     if (!row) return;
-    db().run("UPDATE crawl_jobs SET status='running', started_at=? WHERE id=? AND status='queued'",
-      [now(), row.id]);
+    db().run("UPDATE crawl_jobs SET status='running', started_at=?,heartbeat_at=?,agent_id=? WHERE id=? AND status='queued'",
+      [now(),now(),agentId(c), row.id]);
     claimed = db().query("SELECT * FROM crawl_jobs WHERE id=?").get(row.id);
   })();
 
@@ -239,30 +247,51 @@ export async function handleJobUpdate(c: Context) {
   const id = Number(c.req.param("id"));
   if (!Number.isFinite(id)) return c.json({ error: "bad id" }, 400);
 
-  const b = await c.req.json().catch(() => null) as
-    { progress?: string; status?: string; result?: unknown; error?: string } | null;
-  if (!b) return c.json({ error: "bad body" }, 400);
+  const parsed=z.object({progress:z.string().max(400).optional(),status:z.enum(['running','done','failed']).optional(),
+    result:z.record(z.string(),z.string().max(1000)).optional(),error:z.string().max(500).optional(),
+    stage:z.object({name:z.string().min(1).max(100),status:z.enum(['running','done','failed']),error:z.string().max(500).optional()}).optional()
+  }).safeParse(await c.req.json().catch(()=>null));
+  if(!parsed.success) return c.json({error:'bad body'},400);
+  const b=parsed.data;
+  const current=db().query("SELECT * FROM crawl_jobs WHERE id=?").get(id) as any;
+  if(!current) return c.json({error:'job not found'},404);
+  if((current.agent_id??'legacy')!==agentId(c)) return c.json({error:'job belongs to another agent'},409);
+  if(current.status!=='running') {
+    if(b.status===current.status && ['done','failed'].includes(current.status)
+      && (!b.result || JSON.stringify(b.result)===current.result)) return c.json({job:publicJob(current)});
+    return c.json({error:'job is already terminal'},409);
+  }
+  touchAgent(c,id);
 
   if (b.status && !["running", "done", "failed"].includes(b.status)) {
     return c.json({ error: "bad status" }, 400);
   }
 
-  db().run(
+  const accepted=db().transaction(()=>{
+  const changed=db().run(
     `UPDATE crawl_jobs SET
        progress    = COALESCE(?, progress),
        status      = COALESCE(?, status),
        result      = COALESCE(?, result),
        error       = COALESCE(?, error),
        finished_at = CASE WHEN ? IN ('done','failed') THEN ? ELSE finished_at END
-     WHERE id = ?`,
+     WHERE id = ? AND status='running' AND COALESCE(agent_id,'legacy')=?`,
     [
       b.progress?.slice(0, 400) ?? null,
       b.status ?? null,
       b.result ? JSON.stringify(b.result).slice(0, 4000) : null,
       b.error?.slice(0, 500) ?? null,
-      b.status ?? "", now(), id,
+      b.status ?? "", now(), id,agentId(c),
     ],
   );
+  if(!changed.changes)return false;
+  db().run("UPDATE crawl_jobs SET heartbeat_at=? WHERE id=?",[now(),id]);
+  if(b.stage) db().run(`INSERT INTO crawl_job_stages VALUES(?,?,?,?,?,?) ON CONFLICT(job_id,stage) DO UPDATE SET
+    status=excluded.status,finished_at=excluded.finished_at,error=excluded.error`,
+    [id,b.stage.name,b.stage.status,now(),b.stage.status==='running'?null:now(),b.stage.error??null]);
+    return true;
+  })();
+  if(!accepted)return c.json({error:"job changed during update"},409);
   const row = db().query("SELECT * FROM crawl_jobs WHERE id=?").get(id) as any;
   return c.json({ job: row ? publicJob(row) : null });
 }
@@ -289,8 +318,8 @@ const AGENT_FRESH_MS = 120_000;
 export function autoCrawlStatus() {
   return {
     everyMinutes: AUTO_CRAWL_MIN,
-    agentOnline: lastAgentPollAt != null && Date.now() - Date.parse(lastAgentPollAt) < 90_000,
-    lastAgentPollAt,
+    agentOnline: agentOnline(),
+    lastAgentPollAt: agentSeenAt(),
   };
 }
 
@@ -312,6 +341,7 @@ export function autoCrawlStatus() {
  */
 export function autoQueueCrawl(log: (m: string) => void = () => {}): boolean {
   if (AUTO_CRAWL_MIN <= 0) return false;
+  const lastAgentPollAt=agentSeenAt();
   if (lastAgentPollAt == null) return false;
   if (Date.now() - Date.parse(lastAgentPollAt) > AGENT_FRESH_MS) return false;
 

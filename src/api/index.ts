@@ -585,7 +585,7 @@ app.get("/v1/landing", (c) => {
       SELECT COUNT(*) n FROM listings l
       JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
       WHERE l.delisted_at IS NULL AND v.call NOT IN ('OUT_OF_SCOPE')
-        AND (l.posted_at IS NULL OR l.posted_at >= date('now', '-28 days'))
+        AND COALESCE(l.posted_at,l.last_seen,l.captured_at) >= strftime('%Y-%m-%dT%H:%M:%fZ','now','-28 days')
     `).get() as { n: number }).n;
     return c.json({ comps, skus, listings });
   } catch {
@@ -911,7 +911,7 @@ app.get("/v1/feed", (c) => {
        * page five of the eight it removed were FAIR calls on listings 46 to
        * 137 days old.
        */
-      AND (l.posted_at IS NULL OR l.posted_at >= date('now', '-28 days'))
+      AND COALESCE(l.posted_at,l.last_seen,l.captured_at) >= strftime('%Y-%m-%dT%H:%M:%fZ','now','-28 days')
     ORDER BY l.posted_at DESC
     LIMIT 1200
   `).all() as any[];

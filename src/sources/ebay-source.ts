@@ -53,6 +53,7 @@ export async function ebayToken(): Promise<string> {
   const basic = Buffer.from(`${id}:${secret}`).toString("base64");
 
   const r = await fetch(`${HOST}/identity/v1/oauth2/token`, {
+    signal:AbortSignal.timeout(20_000),
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded", Authorization: `Basic ${basic}` },
     body: new URLSearchParams({
@@ -150,6 +151,7 @@ export async function searchEbay(opts: EbaySearchOpts): Promise<RawListing[]> {
     + `&sort=newlyListed`;
 
   const r = await fetch(url, {
+    signal:AbortSignal.timeout(20_000),
     headers: {
       Authorization: `Bearer ${t}`,
       "X-EBAY-C-MARKETPLACE-ID": "EBAY_US",

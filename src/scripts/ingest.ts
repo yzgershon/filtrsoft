@@ -1,3 +1,4 @@
+import {createPhotoWorkspace,type PhotoWorkspace} from "../photos/index.ts";
 /**
  * Fetch listings, run the signal layer, store everything.
  *   bun run src/scripts/ingest.ts <url> [url...]
@@ -64,6 +65,7 @@ const SEV = { blocker: "!!", high: "!", medium: "~", low: ".", info: "+" } as co
 
 for (const { url, note } of targets) {
   let listingId: number | null = null;
+  let workspace:PhotoWorkspace|undefined;
   try {
     const l = await fetchListing(url);
     const r = analyze(l);
@@ -82,6 +84,7 @@ for (const { url, note } of targets) {
       raw: l.raw,
     });
     listingId = row.id;
+    workspace=createPhotoWorkspace(row.id);
 
     // Download EVERY photo and hash it. Never sample — the Phase 0 miss was a
     // skipped third photo that contained the entire spec sheet.
@@ -90,7 +93,7 @@ for (const { url, note } of targets) {
     for (const [i, u] of l.photoUrls.entries()) {
       let path: string | null = null, phash: string | null = null;
       try {
-        const got = await downloadPhoto(u, row.id, i);
+        const got = await downloadPhoto(u, row.id, i,workspace);
         path = got.path;
         phash = await dhash(got.buf);
         for (const dup of findDuplicates(phash, row.id)) {
@@ -119,7 +122,7 @@ for (const { url, note } of targets) {
     }
     if (useVision) {
       const t0 = Date.now();
-      const v = await analyzePhotos(row.id);
+      const v = await analyzePhotos(row.id,workspace.path);
       const ms = Date.now() - t0;
       if (v) {
         d.query(
@@ -159,9 +162,9 @@ for (const { url, note } of targets) {
     console.error(`\n✗ ${url}\n  ${(e as Error).message}`);
   } finally {
     if (listingId !== null && !KEEP_PHOTOS) {
-      releasePhotos(listingId);
-      d.query("UPDATE listing_photos SET local_path=NULL WHERE listing_id=$id")
-        .run({ $id: listingId });
+      releasePhotos(listingId,workspace);
+      d.query("UPDATE listing_photos SET local_path=NULL WHERE listing_id=? AND substr(local_path,1,length(?))=?")
+        .run(listingId,workspace?.path??"",workspace?.path??"");
     }
   }
 }

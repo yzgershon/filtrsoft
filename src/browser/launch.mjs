@@ -1,3 +1,4 @@
+import {acquireProfileLease} from "./profile-lease.mjs";
 /**
  * Shared browser launcher for every scraped source.
  *
@@ -31,7 +32,10 @@ export const profilePath = (name) =>
 export async function openContext({ profile, chromePath, headless = false, background = false }) {
   const dir = profilePath(profile);
   mkdirSync(dir, { recursive: true });
-  return chromium.launchPersistentContext(dir, {
+  const release=acquireProfileLease(dir);
+  try {
+  const context=await chromium.launchPersistentContext(dir, {
+    timeout:60_000,
     executablePath: chromePath,
     headless,
     viewport: { width: 1400, height: 950 },
@@ -65,6 +69,9 @@ export async function openContext({ profile, chromePath, headless = false, backg
         : []),
     ],
   });
+  context.once("close",release);
+  return context;
+  } catch(error){release();throw error;}
 }
 
 export const emit = (o) => process.stdout.write(JSON.stringify(o) + "\n");

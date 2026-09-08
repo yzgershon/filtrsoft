@@ -35,7 +35,7 @@
  * **BOUNDED.** A fixed query list and per-query limits, so an unattended run
  * has a known ceiling on both time and requests.
  */
-import { spawn } from "node:child_process";
+import { spawn,execFileSync } from "node:child_process";
 import { db } from "../db/index.ts";
 import { isPaused, pausedFor } from "./pause.ts";
 
@@ -75,18 +75,20 @@ const log = (m: string) => console.log(`[${ts()}] ${m}`);
 /** Run a bun script to completion. Never throws — the caller decides. */
 function run(args: string[], timeoutMs: number): Promise<{ ok: boolean; out: string }> {
   return new Promise((resolve) => {
-    const p = spawn("bun", ["run", ...args], { shell: true });
+    const p = spawn(process.execPath, ["run", ...args], { shell:false,windowsHide:true,detached:process.platform!=="win32" });
     let out = "";
     const done = (ok: boolean) => { clearTimeout(timer); resolve({ ok, out }); };
     const timer = setTimeout(() => {
       // A hung browser is the common failure. Kill it and move on rather than
       // letting an unattended run sit until morning.
-      p.kill();
+      if(process.platform==='win32' && p.pid) {
+        try {execFileSync('taskkill',['/pid',String(p.pid),'/T','/F'],{stdio:'ignore',windowsHide:true});}catch {}
+      } else if(p.pid){try {process.kill(-p.pid,'SIGKILL');}catch {}}
       out += `\n[timed out after ${Math.round(timeoutMs / 60000)}m]`;
       done(false);
     }, timeoutMs);
-    p.stdout?.on("data", (d) => { out += d.toString(); });
-    p.stderr?.on("data", (d) => { out += d.toString(); });
+    p.stdout?.on("data", (d) => { out = (out+d.toString()).slice(-100_000); });
+    p.stderr?.on("data", (d) => { out = (out+d.toString()).slice(-100_000); });
     p.on("close", (code) => done(code === 0));
     p.on("error", (e) => { out += String(e); done(false); });
   });

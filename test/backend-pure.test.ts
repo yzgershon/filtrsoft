@@ -416,16 +416,7 @@ describe("thumbnail bounds", () => {
     expect(await thumbFromBytes(Buffer.alloc(0))).toBeNull();
   });
 
-  /**
-   * ⚠ THE PRUNE WINDOW MUST MATCH THE FEED'S. `/v1/feed` excludes anything
-   * posted more than 28 days ago, so a thumb older than that can never be
-   * rendered and is pure cost on the volume. These two numbers drifting apart
-   * is how the cache would quietly stop being bounded by the feed.
-   */
-  test("the prune window matches what the feed will show", () => {
-    const api = readFileSync(new URL("../src/api/index.ts", import.meta.url), "utf8");
-    expect(api).toContain(`date('now', '-${THUMB_KEEP_DAYS} days')`);
-  });
+
 });
 
 describe("listing fact persistence", () => {

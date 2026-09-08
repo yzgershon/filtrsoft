@@ -1,3 +1,4 @@
+import {fetchBytes} from "../net/bounded.ts";
 /**
  * Photo ingestion, perceptual hashing, and spec-screen detection.
  *
@@ -11,8 +12,9 @@
  * skipped. Screens are the highest-value photo type and must never be dropped.
  */
 import sharp from "sharp";
-import { mkdirSync, existsSync, readdirSync, rmSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, existsSync, readdirSync, rmSync, statSync,lstatSync,writeFileSync,readFileSync } from "node:fs";
+import { join,resolve,dirname } from "node:path";
+import {randomUUID} from "node:crypto";
 
 // Ensure the photo root exists — same directory-vs-file trap as the database.
 export const PHOTO_DIR =
@@ -74,8 +76,17 @@ export function distance(a: string, b: string): number {
  * which isn't worth a detector that doesn't work.
  */
 
-export async function downloadPhoto(url: string, listingId: number, pos: number): Promise<{ path: string; buf: Buffer }> {
-  const dir = join(PHOTO_DIR, String(listingId));
+export interface PhotoWorkspace {path:string;token:string}
+export function createPhotoWorkspace(listingId:number):PhotoWorkspace {
+  if(!Number.isSafeInteger(listingId)||listingId<=0)throw new Error('Invalid listing ID');
+  const token=randomUUID(),path=resolve(PHOTO_DIR,`${listingId}-${token}`);
+  mkdirSync(path,{recursive:true});
+  writeFileSync(join(path,'owner.json'),JSON.stringify({pid:process.pid,token}));
+  return {path,token};
+}
+
+export async function downloadPhoto(url: string, listingId: number, pos: number,workspace?:PhotoWorkspace): Promise<{ path: string; buf: Buffer }> {
+  const dir = workspace?.path??join(PHOTO_DIR, String(listingId));
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   const path = join(dir, `p${pos}.jpg`);
   const buf = await fetchPhoto(url);
@@ -85,9 +96,7 @@ export async function downloadPhoto(url: string, listingId: number, pos: number)
 
 /** Download bytes without touching the volume. Used by the text-only hash pass. */
 export async function fetchPhoto(url: string): Promise<Buffer> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`photo ${res.status}`);
-  return Buffer.from(await res.arrayBuffer());
+  return fetchBytes(url);
 }
 
 /**
@@ -119,12 +128,15 @@ export async function fetchPhoto(url: string): Promise<Buffer> {
 export const KEEP_PHOTOS = process.env.FILTRSOFT_KEEP_PHOTOS === "1";
 
 /** Delete one listing's downloaded photos. The phash rows are left alone. */
-export function releasePhotos(listingId: number): number {
+export function releasePhotos(listingId: number,workspace?:PhotoWorkspace): number {
   if (KEEP_PHOTOS) return 0;
-  const dir = join(PHOTO_DIR, String(listingId));
+  if(!workspace)return 0; // Legacy orphans belong to the age-gated prune, not this task.
+  const dir=resolve(workspace.path);
+  if(dirname(dir)!==resolve(PHOTO_DIR)||!dir.endsWith(`${listingId}-${workspace.token}`))throw new Error('Unexpected photo workspace');
   if (!existsSync(dir)) return 0;
   let freed = 0;
   try {
+    if(JSON.parse(readFileSync(join(dir,'owner.json'),'utf8')).token!==workspace.token)throw new Error('Photo owner changed');
     for (const f of readdirSync(dir)) {
       try { freed += statSync(join(dir, f)).size; } catch { /* counting only */ }
     }
@@ -151,9 +163,15 @@ export function prunePhotos(opts: { dryRun?: boolean } = {}): { dirs: number; by
   if (!existsSync(PHOTO_DIR)) return { dirs: 0, bytes: 0 };
   let dirs = 0, bytes = 0;
   for (const name of readdirSync(PHOTO_DIR)) {
-    const dir = join(PHOTO_DIR, name);
+    const dir = resolve(PHOTO_DIR, name);
     try {
-      if (!statSync(dir).isDirectory()) continue;
+      if(dirname(dir)!==resolve(PHOTO_DIR)||!/^\d+(?:-[a-f0-9-]{36})?$/.test(name))continue;
+      if (lstatSync(dir).isSymbolicLink() || !statSync(dir).isDirectory()) continue;
+      if(existsSync(join(dir,'owner.json'))) {
+        const owner=JSON.parse(readFileSync(join(dir,'owner.json'),'utf8'));
+        if(!Number.isInteger(owner.pid)||owner.pid<=0)continue;
+        try {process.kill(owner.pid,0);continue;}catch(e){if((e as NodeJS.ErrnoException).code!=='ESRCH')continue;}
+      } else if(Date.now()-statSync(dir).mtimeMs<24*60*60_000)continue;
       let size = 0;
       for (const f of readdirSync(dir)) {
         try { size += statSync(join(dir, f)).size; } catch { /* counting only */ }

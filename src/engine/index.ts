@@ -17,7 +17,7 @@ import { matchSku, type Match } from "../catalog/match.ts";
 import { buildVerdict, type VerdictResult } from "../verdict/index.ts";
 import { loadCurrentVision, syncPhotoUrls, loadVisionByFingerprint, photoFingerprint, photosUnchanged, visionToText, visionSignals } from "../vision/merge.ts";
 import { analyzePhotos, VISION_MODEL, PROMPT_VERSION, type VisionResult } from "../vision/index.ts";
-import { releasePhotos, KEEP_PHOTOS } from "../photos/index.ts";
+import { releasePhotos, KEEP_PHOTOS,createPhotoWorkspace,type PhotoWorkspace } from "../photos/index.ts";
 import { downloadPhoto, fetchPhoto, dhash } from "../photos/index.ts";
 import { thumbFromBytes, putThumb, THUMBS_OFF } from "../photos/thumb.ts";
 import { getEconomics, type UserEconomics } from "../valuation/index.ts";
@@ -146,22 +146,28 @@ function persistListing(l: RawListing): number {
   }).id;
 }
 
-async function persistPhotos(listingId: number, urls: string[], keepFiles: boolean) {
+async function persistPhotos(listingId: number, urls: string[], keepFiles: boolean,workspace?:PhotoWorkspace) {
   const d = db();
+  if(urls.length>40)throw new Error('Gallery exceeds the 40-photo analysis limit');
+  let downloaded=0;
   const ins = d.query(
     `UPDATE listing_photos SET local_path=COALESCE($path,local_path),phash=COALESCE($phash,phash)
       WHERE listing_id=$lid AND url=$url`,
   );
   for (const [i, u] of urls.entries()) {
-    if (!photosUnchanged(listingId, urls)) return;
+    if (!photosUnchanged(listingId, urls)) {
+      if(keepFiles)throw new Error('Gallery changed during analysis');
+      return;
+    }
     if (!keepFiles && (d.query("SELECT phash FROM listing_photos WHERE listing_id=? AND url=?").get(listingId,u) as {phash:string|null}|null)?.phash) continue;
     let path: string | null = null, phash: string | null = null;
     try {
       const got = keepFiles
-        ? await downloadPhoto(u, listingId, i)
+        ? await downloadPhoto(u, listingId, i,workspace)
         : { path: null, buf: await fetchPhoto(u) };
       path = got.path;
       phash = await dhash(got.buf);
+      downloaded++;
       /**
        * ⚠ THE THUMBNAIL COMES OFF THESE BYTES, NOT A SECOND REQUEST.
        *
@@ -181,6 +187,7 @@ async function persistPhotos(listingId: number, urls: string[], keepFiles: boole
     } catch { /* a dead image URL must not kill the check */ }
     ins.run({ $lid: listingId, $url: u, $path: path, $phash: phash });
   }
+  if(keepFiles && downloaded!==urls.length)throw new Error('Could not read the complete gallery; no paid analysis attempted');
 }
 
 /**
@@ -206,11 +213,6 @@ async function waitForPhotoHashes(listingId: number) {
   await photoHashJobs.get(listingId)?.catch(() => {});
 }
 
-function clearLocalPhotoPaths(listingId: number) {
-  releasePhotos(listingId);
-  db().query("UPDATE listing_photos SET local_path=NULL WHERE listing_id=$id")
-    .run({ $id: listingId });
-}
 
 /**
  * Check a listing by URL. This is what the API calls.
@@ -290,12 +292,13 @@ export async function checkFetched(listing: RawListing, opts: CheckOptions = {})
   if (vision) emit("vision", { vision, verdict: out.verdict, cached: "listing" });
 
   if (wantVision && listingId && !vision) {
+    const workspace=createPhotoWorkspace(listingId);
     emit("vision_start", { photoCount: listing.photoUrls.length });
     // A text-only drain may still be hashing these URLs in memory. Let it finish
     // before this pass replaces the same rows with file-backed copies.
     await waitForPhotoHashes(listingId);
     try {
-      await persistPhotos(listingId, listing.photoUrls, true);
+      await persistPhotos(listingId, listing.photoUrls, true,workspace);
 
       /**
        * TIER 2 — these exact PHOTOS have been analysed before, on any listing.
@@ -321,7 +324,7 @@ export async function checkFetched(listing: RawListing, opts: CheckOptions = {})
       }
 
       if (!vision) {
-        vision = await analyzePhotos(listingId);
+        vision = await analyzePhotos(listingId,workspace.path);
         if (vision) {
           db().query(
             `INSERT INTO vision_results (listing_id, model, payload, duration_ms, created_at, cost_micros, photo_fingerprint, prompt_version, budget_reservation_id)
@@ -342,7 +345,10 @@ export async function checkFetched(listing: RawListing, opts: CheckOptions = {})
     } finally {
       // This runs on API errors, parser errors and database errors alike. The
       // daily prune is a crash backstop, not the normal retention policy.
-      if (!KEEP_PHOTOS) clearLocalPhotoPaths(listingId);
+      if (!KEEP_PHOTOS) {
+        releasePhotos(listingId,workspace);
+        db().run("UPDATE listing_photos SET local_path=NULL WHERE listing_id=? AND substr(local_path,1,length(?))=?",[listingId,workspace.path,workspace.path]);
+      }
     }
   } else if (opts.persist && listingId && !wantVision) {
     // Photos are wanted for the phash index and any later vision run, but they

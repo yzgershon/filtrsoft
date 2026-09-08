@@ -31,12 +31,12 @@ Status meanings: pending, in progress, implemented (checks pending), verified lo
 - Acceptance: comparison on an isolated consistent current snapshot, import twice and after a correction, simulated interrupted scoring, exact before/after counts and rollback artifact.
 - Fresh archive generation requires a coordinated snapshot of current crawl data. Deployment is a final separate authorization step explicitly naming main and Railway.
 
-## Phase 4: bounded work and useful collection — pending
+## Phase 4: bounded work and useful collection — in progress
 
-- F12: persisted job heartbeats/stages, request deadlines, resumable batch work, independent discovery/enrichment cadence, profile ownership, Windows process-tree cleanup.
+- F12 — core verified locally; actual browser/process/provider integration remains unexercised: persisted job heartbeats/stages, request deadlines, resumable batch work, independent discovery/enrichment cadence, profile ownership, Windows process-tree cleanup.
 - F13: sold/date/provenance eligibility at ingestion and valuation; quarantine uncertain evidence and isolate provisional fixtures.
 - F14: truthful priceability/funnel metrics, demand-ranked collection, zero-result backoff; exclude consoles from collection priority.
-- F17: bounded photo intake, owned temporary paths, preserve current hashes, fair probing and candid unknown dates.
+- F17 — verified locally for bounded intake, task ownership, probe fairness and undated expiry: bounded photo intake, owned temporary paths, preserve current hashes, fair probing and candid unknown dates.
 - Acceptance: deterministic timeout/cancellation/retry tests, bounded work under stalled inputs, meaningful query/coverage measurements. No duplicate comp crawl.
 
 ## Phase 5: explainable decisions and calibration — pending
@@ -67,3 +67,5 @@ Update HANDOFF and this file after each verified batch and before stopping. Comm
 - 2026-09-07: F03/F05 batch, 230 tests / 719 assertions / zero failures; typecheck passed. Eight isolated/pure regressions plus disposable snapshot queue coverage: 461 Facebook, 440 OfferUp, 109 Mercari. No transport, paid vision, shared data edits or deployment. Next F09/F10.
 
 - 2026-09-07: F09/F10 code batch, 236 tests / 725 assertions / zero failures; typecheck passed. Six new process-isolated regressions. Final comparison on disposable audit copy: 4,416 live, zero failures, INSUFFICIENT_DATA 953 -> 998, BUY unchanged at 12. Caught and corrected laptop board-tier leakage and bare-case routing. Final current-crawl archive deferred to completed provenance/export guard, not replaced with the older snapshot. Next F12/F17.
+
+- 2026-09-07: F12/F17 workflow batch, 242 tests / 731 assertions / zero failures; typecheck and browser-module Node syntax passed. Seven new isolated regressions; replaced the old source-string expiry assertion with a real feed/prune regression. No browser, paid model or actual process-tree kill run. Next F13/F14.

@@ -204,7 +204,7 @@ async function runOnce(reason: string) {
     // stale, which is every run after the one following a deploy.
     const retiredAppliances = retireRepeatedAppliances();
     if (retiredAppliances.length) console.log(`retired ${retiredAppliances.length} repeated household appliance listings`);
-    const rescored=scorePending(400);
+    const rescored=scorePending(50);
     if(rescored.checked || rescored.failed) console.log(`re-score: ${rescored.checked} checked, ${rescored.changed} changed, ${rescored.failed} failed, ${rescored.pending} pending`);
 
     /**
@@ -243,16 +243,8 @@ async function runOnce(reason: string) {
      * all: a 1,300-listing backlog at even a cent each is real money spent
      * before anyone has looked at the feed once.
      */
-    let vision = 0;
-    if (VISION_ON && p.mode === "steady") {
-      try {
-        vision = await visionPass(VISION_PER_RUN, (m) => console.log(`  vision: ${m}`));
-      } catch (e) {
-        console.error("vision pass failed:", (e as Error).message);
-      }
-    }
-    metrics.vision = vision;
-
+    // Enrichment has independent single-flight timers below.
+    const vision=0;
     /**
      * ⚠ START A BROWSER CRAWL BY OURSELVES IF HIS PC IS ON. Yish, 2026-09-04:
      * *"if I have to even think to crawl then that adds friction."* The button
@@ -263,32 +255,6 @@ async function runOnce(reason: string) {
      */
     try { autoQueueCrawl((m) => console.log(`  ${m}`)); }
     catch (e) { console.error("auto-queue failed:", (e as Error).message); }
-
-    /**
-     * ⚠ A FEW THUMBNAILS PER TICK, AND IT IS A RACE AGAINST AN EXPIRY.
-     *
-     * Facebook's CDN urls last about two days (measured; see
-     * `photos/thumb.ts`), and the feed keeps a listing for 28. Anything not
-     * copied in that window is a broken image for the rest of the listing's
-     * life, and no later pass can recover it. Newly crawled listings get their
-     * thumbnail from the bytes `persistPhotos` already downloaded, and pushed
-     * ones get theirs at ingest — this is only the BACKLOG, which is why 25 a
-     * tick is enough and why it must not be more.
-     */
-    try {
-      const th = await backfillThumbs(25);
-      /**
-       * ⚠ REPORT THE MISSES, NOT JUST THE HITS. The first version logged only
-       * successes, so "cached 5" looked like there were only five to do rather
-       * than like twenty had failed — and the ~20% yield that exposed the
-       * container's own contention was invisible in the logs for hours.
-       */
-      if (th.cached || th.missed) {
-        console.log(`  thumbnails: cached ${th.cached}, missed ${th.missed} of ${th.tried}`);
-      }
-    } catch (e) {
-      console.error("thumbnail backfill failed:", (e as Error).message);
-    }
 
     const quiet = d.queued === 0 && dr.analysed === 0 && !vision;
     if (!quiet) {
@@ -379,20 +345,21 @@ export function startCrawlLoop() {
     `first run in ${Math.round(first / 1000)}s`,
   );
 
-  /**
-   * A self-rescheduling chain, NOT `setInterval`.
-   *
-   * The delay has to be decided AFTER each run, because backfill mode drops it
-   * from 45 minutes to 3 and a fixed interval could not switch back once the
-   * feed filled. It also means the next run is scheduled from the END of the
-   * last one, so a slow crawl can never stack up behind itself.
-   */
-  const tick = async (reason: string) => {
-    await runOnce(reason);
-    const p = pace();
-    setTimeout(() => void tick("scheduled"), p.nextMs).unref?.();
+  // Schedule from start time, skipping overlap rather than accumulating ticks.
+  const tick=async()=>{
+    const started=Date.now();await runOnce("scheduled");
+    setTimeout(()=>void tick(),Math.max(1000,pace().nextMs-(Date.now()-started))).unref?.();
   };
-  setTimeout(() => void tick("first"), first).unref?.();
+  setTimeout(()=>void tick(),first).unref?.();
+  const enrichment=(work:()=>Promise<unknown>,every:number)=>{
+    const step=async()=>{try {await work();}catch(e){console.error("enrichment failed",String(e));}
+      finally {setTimeout(()=>void step(),every).unref?.();}};
+    setTimeout(()=>void step(),first+1000).unref?.();
+  };
+  enrichment(async()=>{if(VISION_ON && pace().mode==='steady') await visionPass(VISION_PER_RUN,m=>console.log(`vision: ${m}`));},INTERVAL_MS);
+  enrichment(async()=>{await backfillThumbs(25);},INTERVAL_MS);
+  // Small scoring chunks yield to HTTP and discovery between transactions.
+  enrichment(async()=>{scorePending(50);},5000);
 
   if (SWEEP_ON) startSweepLoop();
 }

@@ -1,3 +1,4 @@
+import {acquireProfileLease} from "./profile-lease.mjs";
 /**
  * Facebook Marketplace browser worker. **RUNS UNDER NODE, NOT BUN.**
  *
@@ -50,7 +51,9 @@ mkdirSync(opts.profileDir, { recursive: true });
  * session lives in this profile on disk — there is no credential handling
  * anywhere in Filtrsoft, and there must never be.
  */
+const releaseProfile=acquireProfileLease(opts.profileDir);
 const ctx = await chromium.launchPersistentContext(opts.profileDir, {
+  timeout:60_000,
   executablePath: opts.chromePath,
   headless: opts.headless ?? false,
   viewport: { width: 1280, height: 900 },
@@ -281,4 +284,5 @@ try {
   // Close the CONTEXT — that is what flushes the profile to disk. Killing the
   // process instead can lose the session and force a fresh login.
   await ctx.close().catch(() => {});
+  releaseProfile();
 }

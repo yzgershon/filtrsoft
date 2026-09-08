@@ -1,3 +1,6 @@
+import {db} from "../db/index.ts";
+import {queueJobReport,flushJobReports} from "../agent/reports.ts";
+import {randomUUID} from "node:crypto";
 /**
  * bun run agent
  *
@@ -56,12 +59,12 @@ if (!TOKEN) {
   process.exit(1);
 }
 
-const auth = { authorization: `Bearer ${TOKEN}` };
+const auth = { "x-filtrsoft-agent":randomUUID(), authorization: `Bearer ${TOKEN}` };
 
 /** Run one command, streaming its output, and resolve with what happened. */
 function run(args: string[], label: string): Promise<{ ok: boolean; tail: string }> {
   return new Promise((resolve) => {
-    const child = spawn("bun", args, { shell: true, cwd: process.cwd() });
+    const child = spawn(process.execPath, args, { shell:false,windowsHide:true,detached:process.platform!=="win32",cwd:process.cwd() });
     /**
      * ⚠ KEEP ONLY THE TAIL. A crawl prints thousands of lines and this string
      * is posted to the server and stored on the job row; buffering all of it
@@ -96,7 +99,7 @@ function run(args: string[], label: string): Promise<{ ok: boolean; tail: string
         try { execSync(`taskkill /pid ${child.pid} /T /F`, { stdio: "ignore" }); }
         catch { /* already gone */ }
       } else {
-        try { child.kill("SIGKILL"); } catch { /* already gone */ }
+        try { process.kill(-child.pid,"SIGKILL"); } catch { /* already gone */ }
       }
     };
 
@@ -116,19 +119,9 @@ function run(args: string[], label: string): Promise<{ ok: boolean; tail: string
   });
 }
 
-async function report(id: number, body: Record<string, unknown>) {
-  try {
-    await fetch(`${API}/v1/jobs/${id}`, {
-      method: "POST",
-      headers: { ...auth, "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  } catch {
-    /**
-     * A failed status post must never abort the crawl that is already running.
-     * The server's own stale-job sweep is the backstop if we go quiet.
-     */
-  }
+async function report(id:number,body:Record<string,unknown>) {
+  queueJobReport(db(),API,auth['x-filtrsoft-agent'],id,body);
+  await flushJobReports(db(),API,auth.authorization);
 }
 
 /**
@@ -203,6 +196,9 @@ const STEPS: Record<string, string[][]> = {
 async function doJob(job: { id: number; sources: string[] }) {
   console.log(`\njob #${job.id}: ${job.sources.join(", ")}`);
   const summary: Record<string, string> = {};
+  let progress="starting";
+  const heartbeat=setInterval(()=>void report(job.id,{progress}),30_000);
+  try {
 
   for (const source of job.sources) {
     const steps = STEPS[source];
@@ -213,7 +209,10 @@ async function doJob(job: { id: number; sources: string[] }) {
 
     for (const args of steps) {
       const label = `${source}/${args[1]}`;
+      progress=label;
+      await report(job.id,{progress,stage:{name:label,status:"running"}});
       const { ok, tail } = await run(args, label);
+      await report(job.id,{progress,stage:{name:label,status:ok?"done":"failed",error:ok?undefined:tail}});
       if (!ok) { failedAt = `${args[1]}: ${tail}`; break; }
       /**
        * ⚠ REPORTED AFTER EACH STEP, not just at the end. A Facebook crawl runs
@@ -246,14 +245,19 @@ async function doJob(job: { id: number; sources: string[] }) {
    * Its own failure is reported separately and never fails the job — a crawl
    * that found listings succeeded even if reading their photos did not.
    */
-  await report(job.id, { progress: "reading photos" });
+  progress="reading photos";
+  await report(job.id, { progress,stage:{name:"vision",status:"running"} });
   const vision = await run(["run", "vision", "--limit", "60"], "vision");
   summary.vision = vision.ok ? "ok" : `failed: ${vision.tail.slice(0, 120)}`;
+  await report(job.id,{stage:{name:"vision",status:vision.ok?"done":"failed",error:vision.ok?undefined:vision.tail}});
 
   // Vision is produced after the initial push. Flush every participating source
   // again even after a partial crawl, so useful facts and retirements converge.
   for(const source of job.sources.filter(s=>STEPS[s])) {
-    const flushed=await run(["run","push","--source",source],`${source}/final-sync`);
+    progress=`${source}/final-sync`;
+    await report(job.id,{progress,stage:{name:progress,status:"running"}});
+    const flushed=await run(["run","push","--source",source],progress);
+    await report(job.id,{progress,stage:{name:progress,status:flushed.ok?"done":"failed",error:flushed.ok?undefined:flushed.tail}});
     if(!flushed.ok) summary[source]=`sync failed: ${flushed.tail.slice(0,120)}`;
   }
   const anyOk = job.sources.length>0 && job.sources.every(s=>summary[s]==="ok");
@@ -264,6 +268,7 @@ async function doJob(job: { id: number; sources: string[] }) {
     progress: Object.entries(summary).map(([k, v]) => `${k}: ${v === "ok" ? "ok" : "failed"}`).join(" · "),
   });
   console.log(`job #${job.id} finished: ${JSON.stringify(summary)}`);
+  } finally {clearInterval(heartbeat);}
 }
 
 console.log(`Filtrsoft agent watching ${API}`);
@@ -298,11 +303,13 @@ while (true) {
   }
 
   try {
-    const res = await fetch(`${API}/v1/jobs/next`, { headers: auth });
+    await flushJobReports(db(),API,auth.authorization);
+    const res = await fetch(`${API}/v1/jobs/next`, { headers: auth,signal:AbortSignal.timeout(15_000) });
     if (res.status === 401) {
       console.error("Rejected: FILTRSOFT_PUSH_TOKEN does not match the server's.");
       process.exit(1);
     }
+    if(!res.ok) throw new Error(`job poll HTTP ${res.status}`);
     const { job } = await res.json() as { job: { id: number; sources: string[] } | null };
     warnedOffline = false;
     if (job) await doJob(job);

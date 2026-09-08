@@ -382,7 +382,7 @@ const JWKS_TTL = 3600_000;
 async function jwks(url: string, force = false): Promise<Jwk[]> {
   const hit = jwksCache.get(url);
   if (!force && hit && Date.now() - hit.at < JWKS_TTL) return hit.keys;
-  const res = await fetch(url);
+  const res = await fetch(url,{signal:AbortSignal.timeout(15_000)});
   if (!res.ok) throw new Error(`jwks ${res.status}`);
   const body = await res.json() as { keys: Jwk[] };
   jwksCache.set(url, { keys: body.keys ?? [], at: Date.now() });

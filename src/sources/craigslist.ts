@@ -32,7 +32,7 @@ export async function fetchListing(url: string): Promise<RawListing> {
     );
   }
 
-  const res = await fetch(url, {
+  const res = await fetch(url, { signal:AbortSignal.timeout(20_000),
     headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
   });
   if (!res.ok) throw new Error(`craigslist ${res.status} for ${url}`);
@@ -129,7 +129,7 @@ export async function fetchListing(url: string): Promise<RawListing> {
  */
 export async function fetchSearchUrls(cat: string, offset = 0): Promise<string[]> {
   const url = `https://www.craigslist.org/search/area/boston?cat=${cat}${offset ? `&s=${offset}` : ""}`;
-  const res = await fetch(url, { headers: { "User-Agent": UA } });
+  const res = await fetch(url, { signal:AbortSignal.timeout(20_000), headers: { "User-Agent": UA } });
   if (!res.ok) throw new Error(`craigslist search ${res.status}`);
   const html = await res.text();
   return [
@@ -158,7 +158,7 @@ export interface SearchResult {
 /** See fetchSearchUrls: `offset` is accepted and IGNORED by this endpoint. */
 export async function fetchSearchResults(cat: string, offset = 0): Promise<SearchResult[]> {
   const url = `https://www.craigslist.org/search/area/boston?cat=${cat}${offset ? `&s=${offset}` : ""}`;
-  const res = await fetch(url, { headers: { "User-Agent": UA } });
+  const res = await fetch(url, { signal:AbortSignal.timeout(20_000), headers: { "User-Agent": UA } });
   if (!res.ok) throw new Error(`craigslist search ${res.status}`);
   const html = await res.text();
 
@@ -199,7 +199,7 @@ export type DelistReason = "deleted_by_author" | "expired" | "flagged" | "gone" 
  * price signal is mush. With it, author-deletions are a usable population.
  */
 export async function probeListing(url: string): Promise<{ alive: boolean; status: number; reason: DelistReason }> {
-  const res = await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" } });
+  const res = await fetch(url, { signal:AbortSignal.timeout(20_000), headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" } });
   const html = await res.text();
 
   if (/this posting has been deleted by its author/i.test(html)) {

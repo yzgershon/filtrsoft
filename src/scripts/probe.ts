@@ -1,3 +1,4 @@
+import {dueProbes,recordProbe} from "../db/probes.ts";
 /**
  * bun run probe [--source offerup|mercari] [--limit 40] [--dry]
  *
@@ -59,17 +60,7 @@ const ONLY = arg("source");
  * and Mercari; Facebook has its own logged-in profile and is handled by the
  * same worker pointed at it, because the probe only needs a page visit.
  */
-function due(source: string, limit: number) {
-  return db().query(
-    `SELECT l.id, l.url FROM listings l
-       LEFT JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
-      WHERE l.source = ? AND l.delisted_at IS NULL AND l.url IS NOT NULL
-      ORDER BY
-        CASE v.call WHEN 'BUY' THEN 0 WHEN 'VERIFY' THEN 1 WHEN 'FAIR' THEN 2 ELSE 3 END,
-        COALESCE(l.last_seen, l.captured_at) ASC
-      LIMIT ?`,
-  ).all(source, limit) as Array<{ id: number; url: string }>;
-}
+const due=dueProbes;
 
 /**
  * Facebook FIRST when probing everything: it is the largest browser-backed
@@ -101,6 +92,7 @@ for (const source of SOURCES) {
     const p = ev as unknown as { id: number; url: string; finalUrl: string; text: string; error?: string };
     checked++;
     const v = probeVerdict(p);
+    recordProbe(p.id,v?(v.gone?"gone":"alive"):"unknown");
     if (v === null) {
       unsure++;
       console.log(`  ? ${p.id} no opinion${p.error ? ` (${p.error.slice(0, 40)})` : ""}`);

@@ -1,3 +1,4 @@
+import {fetchBytes} from "../net/bounded.ts";
 /**
  * One small, self-hosted thumbnail per listing.
  *
@@ -75,16 +76,14 @@ export interface Thumb {
 export async function fetchThumb(url: string, timeoutMs = 15_000): Promise<Thumb | null> {
   let buf: Buffer;
   try {
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(timeoutMs),
+    buf = await fetchBytes(url, {
+      timeoutMs,
       headers: {
         // Facebook's CDN serves a 403 to a bare fetch with no Accept header.
         accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
         "user-agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130 Mobile Safari/537.36",
       },
     });
-    if (!res.ok) return null;
-    buf = Buffer.from(await res.arrayBuffer());
   } catch {
     return null;
   }
@@ -241,8 +240,7 @@ export function pruneThumbs(): { deleted: number; freedBytes: number; keptBytes:
       LEFT JOIN listings l ON l.id = t.listing_id
       WHERE l.id IS NULL
          OR l.delisted_at IS NOT NULL
-         OR (l.posted_at IS NOT NULL
-             AND julianday('now') - julianday(l.posted_at) > ${THUMB_KEEP_DAYS})
+         OR (julianday('now') - julianday(COALESCE(l.posted_at,l.last_seen,l.captured_at)) > ${THUMB_KEEP_DAYS})
     )`);
 
   /**
@@ -257,8 +255,7 @@ export function pruneThumbs(): { deleted: number; freedBytes: number; keptBytes:
       LEFT JOIN listings l ON l.id = m.listing_id
       WHERE l.id IS NULL
          OR l.delisted_at IS NOT NULL
-         OR (l.posted_at IS NOT NULL
-             AND julianday('now') - julianday(l.posted_at) > ${THUMB_KEEP_DAYS})
+         OR (julianday('now') - julianday(COALESCE(l.posted_at,l.last_seen,l.captured_at)) > ${THUMB_KEEP_DAYS})
     )`);
 
   const after = db().query("SELECT COUNT(*) n, COALESCE(SUM(bytes_len),0) b FROM listing_thumbs")
@@ -309,8 +306,7 @@ export async function backfillThumbs(limit = 25): Promise<{ cached: number; miss
       /* THE SAME WINDOW THE PRUNE USES -- see the note above backfillThumbs.
          A backtick inside this template literal would terminate the SQL, which
          is why nothing in here is quoted. */
-      AND (l.posted_at IS NULL
-           OR julianday('now') - julianday(l.posted_at) <= ${THUMB_KEEP_DAYS})
+      AND (julianday('now') - julianday(COALESCE(l.posted_at,l.last_seen,l.captured_at)) <= ${THUMB_KEEP_DAYS})
       AND NOT EXISTS(SELECT 1 FROM listing_thumbs t WHERE t.listing_id = p.listing_id)
       /* Spent its retry budget on THIS url. A re-crawl changes the url and the
          budget resets, which is the only way a dead signature comes back. */

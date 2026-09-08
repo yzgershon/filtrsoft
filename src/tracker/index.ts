@@ -1,3 +1,4 @@
+import {recordProbe} from "../db/probes.ts";
 /**
  * The delisting tracker — a comps source that needs nobody's approval.
  *
@@ -44,6 +45,7 @@ interface LiveRow {
   url: string;
   asking_price_cents: number | null;
   last_price_cents: number | null;
+  last_probed_at:string|null;next_probe_at:string|null;
 }
 
 /**
@@ -88,7 +90,7 @@ export async function sweep(opts: {
    */
   const live = db()
     .query(
-      `SELECT id, source_id, url, asking_price_cents, last_price_cents
+      `SELECT id, source_id, url, asking_price_cents, last_price_cents,last_probed_at,next_probe_at
        FROM listings WHERE delisted_at IS NULL AND source = 'craigslist'`,
     )
     .all() as LiveRow[];
@@ -197,9 +199,10 @@ export async function sweep(opts: {
   ).all() as Array<{ id: number; call: string }>) {
     rank.set(r.id, { BUY: 0, VERIFY: 1, FAIR: 2 }[r.call] ?? 3);
   }
-  missing.sort((a, b) => (rank.get(a.id) ?? 3) - (rank.get(b.id) ?? 3));
+  missing.sort((a,b)=>(rank.get(a.id)??3)-(rank.get(b.id)??3)||(a.last_probed_at??"").localeCompare(b.last_probed_at??"")||a.id-b.id);
+  const eligible=missing.filter(l=>!l.next_probe_at||l.next_probe_at<=t);
 
-  const toProbe = opts.probeLimit ? missing.slice(0, opts.probeLimit) : missing;
+  const toProbe = opts.probeLimit ? eligible.slice(0, opts.probeLimit) : eligible;
   if (opts.probeLimit && missing.length > toProbe.length) {
     log(`  probing ${toProbe.length} of ${missing.length} (probeLimit) — the rest stay live until next sweep`);
   }
@@ -213,6 +216,7 @@ export async function sweep(opts: {
     await Promise.all(batch.map(async (l) => {
       try {
         const r = await probeListing(l.url);
+        recordProbe(l.id,r.alive?"alive":"gone");
         st.probed++;
         if (r.alive) {
           // Deeper in pagination than we crawled. Not dead.
@@ -225,6 +229,7 @@ export async function sweep(opts: {
         st.byReason[r.reason ?? "gone"] = (st.byReason[r.reason ?? "gone"] ?? 0) + 1;
       } catch {
         // A network failure is NOT a delisting. Leave it live and try next time.
+        recordProbe(l.id,"unknown");
         st.byReason.probe_failed = (st.byReason.probe_failed ?? 0) + 1;
       }
     }));
