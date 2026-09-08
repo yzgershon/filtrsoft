@@ -87,3 +87,5 @@ Update HANDOFF and this file after each verified batch and before stopping. Comm
 - 2026-09-08: final local verification, 260 tests / 755 assertions / zero failures, TypeScript and Vite passed. Snapshot-discovered Omen routing and health-readiness gaps fixed. Current archive/import/restore and 4,456-row comparison complete; snapshot/projected retirement results in docs/BACKEND-IMPLEMENTATION-REPORT.md. All 20 findings implemented locally; release gates and real-data/provider limitations remain explicit. No shared mutation or deployment.
 
 - 2026-09-08 release: all code deployed in 52433ce; CI passed, production scoring complete, 99 actual appliance retirements, authenticated read-only UI inspected. Final comp-evidence wording follow-up has passed TypeScript/Vite and is ready to push with these records.
+
+- Final follow-up 7f9f2ea pushed to main and deployed successfully. Hosted CI 34265992387 passed; corrected comp wording verified in live authenticated detail, exact compiled asset hash matches, engine/archive unchanged and scoring still complete with no failures at 18:58:05Z. Closing records are documentation only on codex/backend-hardening.

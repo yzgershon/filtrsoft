@@ -127,5 +127,40 @@
       "Laptop agent offline; no reconnect or actual browser worker transport exercise",
       "Billing disabled; no live provider activation test"
     ]
+  },
+  "finalFollowup": {
+    "at": "2026-09-08T18:58:05.629Z",
+    "commit": "7f9f2ea84594e27836369d528bd4a6f2a1ad345f",
+    "deployment": "82a81ba9-e8b6-443c-9b7c-a3a89a112450",
+    "engine": "0.3.34",
+    "comps": 31900,
+    "archive": {
+      "present": true,
+      "path": "/app/data/archive.json.gz",
+      "comps": 31900,
+      "skus": 559,
+      "exportedAt": "2026-09-08T13:00:12.116Z",
+      "sha256": "0f1a2363ffdbf3ac458ddcbe47d9e182052106f222d57aa20cb03afbe4a9386b",
+      "imported": true,
+      "importedAt": "2026-09-08T13:48:30.409Z"
+    },
+    "scoring": {
+      "signature": "6854|2026-09-08T18",
+      "pending": 0,
+      "failures": 0,
+      "complete": true
+    },
+    "asset": {
+      "path": "/assets/index-P8UgZ_GF.js",
+      "status": 200,
+      "sha256": "7796dd8ec8d756e2e54c331c6e0035fa0b4f714ec850a0937fd74c11538b65e1",
+      "matchesLocal": true,
+      "correctedWording": true
+    },
+    "ci": {
+      "run": 34265992387,
+      "conclusion": "success"
+    },
+    "browserVerified": "Existing authenticated /c/4254 session displays 4 sold comps used for this decision."
   }
 }
