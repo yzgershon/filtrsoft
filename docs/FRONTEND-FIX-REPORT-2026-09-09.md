@@ -40,4 +40,4 @@ The engine stays at **0.3.34**. No comp filter, archive, crawl, shared checkout 
 
 ## Release
 
-Release is authorized. Application changes are ready for commit/push; production and CI completion evidence will be recorded in HANDOFF and the release JSON after deployment. Before this release, public health still served engine 0.3.34 with 31,900 total / 28,791 usable comps; an existing hourly scoring pass had 544 pending and zero failures. This pass did not start that scoring work.
+Application commit `b45769831645dc1826a7df6bb9ce214086897675` is pushed and live. Railway succeeded; public HTML and asset hashes matched the tested build at 2026-09-09T19:15:36.072Z. Health is engine 0.3.34, database ok, 31,900 total / 28,791 usable comps and scoring 0 pending / 0 failures. Initial CI had one existing isolated-fixture timeout at 5000ms; its allowance is being aligned with the existing Docker verification harness before rerunning. See HANDOFF and `docs/sessions/2026-09-09-frontend-fixes-release.json` for completion evidence.

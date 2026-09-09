@@ -1,0 +1,291 @@
+{
+  "checkedAt": "2026-09-09T19:15:36.072Z",
+  "applicationCommit": "b45769831645dc1826a7df6bb9ce214086897675",
+  "publicVerificationOnly": true,
+  "live": true,
+  "checks": [
+    {
+      "path": "/assets/index-CIJd4S-Z.js",
+      "status": 200,
+      "servedHash": "5e6cf738ca2224770dcd1bb9b7464a6b7443523fabc824ad9c5b3d3ecb33bded",
+      "localHash": "5e6cf738ca2224770dcd1bb9b7464a6b7443523fabc824ad9c5b3d3ecb33bded",
+      "matches": true
+    },
+    {
+      "path": "/assets/index-DJ892ZD4.css",
+      "status": 200,
+      "servedHash": "e0a2646fdfee56c143171e429750068df4dc0182837a1dd75961c0188559b636",
+      "localHash": "e0a2646fdfee56c143171e429750068df4dc0182837a1dd75961c0188559b636",
+      "matches": true
+    },
+    {
+      "path": "/sw.js",
+      "status": 200,
+      "matches": true
+    },
+    {
+      "path": "/manifest.webmanifest",
+      "status": 200,
+      "matches": true
+    },
+    {
+      "path": "/v1/feed",
+      "status": 401,
+      "matches": true
+    },
+    {
+      "path": "/v1/pulse",
+      "status": 401,
+      "matches": true
+    }
+  ],
+  "health": {
+    "ok": true,
+    "canPrice": true,
+    "engine": "0.3.34",
+    "db": "ok",
+    "comps": {
+      "total": 31900,
+      "usable": 28791,
+      "recentLinkedSkus": 525,
+      "quarantined": 0,
+      "coverageByCategory": {
+        "phone": {
+          "ok": 45,
+          "sparse": 0,
+          "no_comps": 0
+        },
+        "laptop": {
+          "ok": 204,
+          "sparse": 5,
+          "no_comps": 11
+        },
+        "gpu": {
+          "ok": 65,
+          "sparse": 0,
+          "no_comps": 2
+        },
+        "component": {
+          "ok": 87,
+          "sparse": 1,
+          "no_comps": 2
+        },
+        "prebuilt": {
+          "ok": 75,
+          "sparse": 2,
+          "no_comps": 9
+        },
+        "ram": {
+          "ok": 0,
+          "sparse": 0,
+          "no_comps": 13
+        },
+        "storage": {
+          "ok": 2,
+          "sparse": 0,
+          "no_comps": 5
+        },
+        "psu": {
+          "ok": 1,
+          "sparse": 1,
+          "no_comps": 7
+        },
+        "motherboard": {
+          "ok": 10,
+          "sparse": 1,
+          "no_comps": 1
+        },
+        "case": {
+          "ok": 3,
+          "sparse": 0,
+          "no_comps": 4
+        }
+      },
+      "collection24h": {
+        "attempts": 0,
+        "completed": 0,
+        "fetched": 0,
+        "parsed": 0,
+        "accepted": 0,
+        "saved": 0,
+        "errors": 0
+      },
+      "insufficientReasons": [
+        {
+          "reason": "exact model",
+          "count": 474
+        },
+        {
+          "reason": "storage",
+          "count": 205
+        },
+        {
+          "reason": "cpu",
+          "count": 133
+        },
+        {
+          "reason": "gpu",
+          "count": 127
+        },
+        {
+          "reason": "recent sold comps",
+          "count": 101
+        },
+        {
+          "reason": "sold builds with matching CPU, GPU, RAM and storage",
+          "count": 88
+        },
+        {
+          "reason": "ram",
+          "count": 54
+        },
+        {
+          "reason": "sold prices for the remaining components (not the specs, which are known)",
+          "count": 16
+        },
+        {
+          "reason": "model",
+          "count": 14
+        },
+        {
+          "reason": "which item and quantity you want, and matching sold comps for it",
+          "count": 4
+        },
+        {
+          "reason": "asking price",
+          "count": 1
+        }
+      ],
+      "newestSoldAt": "2026-09-06T00:00:00.000Z",
+      "ageDays": 3,
+      "skusTotal": 556,
+      "skusPriceable": 492,
+      "daysOfRunway": 87,
+      "warning": null
+    },
+    "skus": 568,
+    "vision": {
+      "configured": true,
+      "model": "claude-haiku-4-5",
+      "visionEnabled": true,
+      "tokenRequired": true,
+      "dailyBudgetUsd": 2,
+      "spentTodayUsd": 0.0899,
+      "budgetLeftUsd": 1.9101,
+      "reads24h": 15,
+      "reads7d": 508,
+      "lastReadAt": "2026-09-09T18:10:11.162Z",
+      "candidatePool": 0,
+      "unreadable": 197,
+      "shortlist": 0,
+      "warning": null,
+      "loopEnabled": true,
+      "mode": "steady",
+      "lastPass": {
+        "at": null,
+        "outcome": null,
+        "error": null
+      }
+    },
+    "funnel": {
+      "cohort": {
+        "capturedSince": "2026-09-08T19:15:35.847Z"
+      },
+      "counts": {
+        "discovered": 105,
+        "detailed": 105,
+        "photos": 98,
+        "decisionProvenance": 105,
+        "exactIdentity": 8,
+        "usableEvidence": 8,
+        "scored": 105,
+        "feedEligible": 22,
+        "synchronized": null,
+        "alerted": 1
+      },
+      "firstScoreSeconds": {
+        "samples": 105,
+        "p50": 0.008,
+        "p95": 0.13
+      },
+      "pendingFirstScore": {
+        "count": 0,
+        "oldest": null
+      },
+      "agentStages24h": [],
+      "definitions": {
+        "feedEligible": "Base live 28-day feed population before account/discovery/Review filters",
+        "synchronized": "Versioned facts acknowledged in this receiver database",
+        "alerted": "At least one acknowledged push delivery",
+        "exactIdentity": "Recorded current decision resolves a SKU above low confidence",
+        "usableEvidence": "Current decision valuation status ok; risk and missing listing facts can still block an actionable call"
+      }
+    },
+    "ebay": {
+      "deletionEndpoint": "https://filtrsoft.com/v1/ebay/deletion",
+      "deletionConfigured": true
+    },
+    "push": {
+      "usable": true,
+      "error": null,
+      "keySource": "generated",
+      "subject": "mailto:yishaigershon5@gmail.com",
+      "publicKeyChars": 87,
+      "privateKeyChars": 43,
+      "subscriptions": 2,
+      "standingAlerts": 2,
+      "savedSearches": 9,
+      "lastAlertAt": "2026-09-09T11:05:45.601Z"
+    },
+    "archive": {
+      "present": true,
+      "path": "/app/data/archive.json.gz",
+      "comps": 31900,
+      "skus": 559,
+      "exportedAt": "2026-09-08T13:00:12.116Z",
+      "sha256": "0f1a2363ffdbf3ac458ddcbe47d9e182052106f222d57aa20cb03afbe4a9386b",
+      "imported": true,
+      "importedAt": "2026-09-08T13:48:30.409Z"
+    },
+    "scoring": {
+      "signature": "6854|2026-09-09T19",
+      "pending": 0,
+      "failures": 0,
+      "complete": true
+    },
+    "billing": {
+      "enabled": false
+    },
+    "crawlButton": {
+      "configured": true,
+      "everyMinutes": 45,
+      "agentOnline": false,
+      "lastAgentPollAt": null
+    },
+    "auth": {
+      "password": true,
+      "google": false,
+      "apple": false
+    },
+    "sweep": {
+      "lastAt": "2026-09-08T22:24:16.876Z",
+      "hoursAgo": 21,
+      "seen": 1481,
+      "probed": 150,
+      "delisted": 52
+    },
+    "thumbs": {
+      "enabled": true,
+      "count": 3821,
+      "mb": 64.8
+    }
+  },
+  "archiveHash": "0285af42b39f7d9105882ba52591d311823b6b8cf790aa871161862b1ea3e635",
+  "githubDeploymentId": 6357397919,
+  "railwayState": "success",
+  "initialCI": {
+    "id": 34393742522,
+    "conclusion": "failure",
+    "reason": "Existing evidence subprocess fixture exceeded the default 5000ms runner timeout; no assertion failure. CI allowance aligned with the existing 30000ms Docker harness."
+  }
+}
