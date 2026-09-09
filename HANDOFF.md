@@ -89,7 +89,7 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
-### Current mobile refinement checkpoint: 2026-09-08 evening, release checks passed
+### Current mobile refinement checkpoint: 2026-09-08 evening, pushed and live
 
 Yish reviewed the first mobile design and asked for a more professional, compact app, crisp purposeful animations, small popup menus leading to full destinations, and **explicitly requested pushing to main so he can try it on his phone**. That deployment is authorized. Active branch remains `codex/frontend-redesign` in `C:\Dev\filtrsoft-backend`; root is the sole editor. Remote main was freshly fetched and remains the deployed ancestor. No archive, engine, database or dependency change is planned.
 
@@ -97,7 +97,13 @@ Implemented compact Discover header/search/review controls, a horizontal feature
 
 Verification: **260 tests passed, 0 failed, 755 assertions**, both locally and inside the pinned Linux verification image with networking disabled. TypeScript, Vite, verification image and production image builds passed. **24 browser scenario groups passed** across the existing 15-group redesign harness and new 9-group mobile harness, with no page errors. First price ends at y=430 at 360px and y=425 at 390/430px; large counts fit, landscape panels scroll fully, keyboard/focus/reduced motion and delayed review saves pass. Screenshots in `docs/qa/mobile-polish` and `docs/qa/frontend-redesign` use a synthetic API, not production records. Local and Linux assets agree: `index-rSi9psDU.js`, `index-DJVdkxDg.css`.
 
-Pre-release public health still shows engine **0.3.34**, 31,900 comps, 28,832 usable, archive hash `0f1a2363ffdbf3ac458ddcbe47d9e182052106f222d57aa20cb03afbe4a9386b`, scoring complete with zero pending/failures. Evidence: `docs/sessions/2026-09-09-mobile-health-before.json`. Archive file SHA-256 is unchanged (`0285af42b39f7d9105882ba52591d311823b6b8cf790aa871161862b1ea3e635`). Next: commit, freshly check remote ancestry, non-force push to main, verify Railway/CI and public assets/health, then record the actual deployment outcome. Deployment is authorized; do not ask again.
+**Application commit `c4515e31e94b6665d0e653ef6b0441cf06b1a1ff` was pushed to main and is live.** It includes the earlier full redesign (`05c877b`) and the mobile refinement. Non-force push advanced remote main from `7f9f2ea`; shared local main was preserved. Railway deployment **`cec4673c-a91a-4889-a27c-ac7f25a3476c` succeeded**. GitHub Actions **`34303262922` succeeded**, including full tests, typecheck, frontend build, both Docker builds and the network-isolated verification container.
+
+At **2026-09-09T02:30:07.875Z**, public production HTML serves the tested assets, and both match local bytes exactly: JS `index-rSi9psDU.js` SHA-256 `1d11e6b22b0148d72b41ed2e43af261102efe03b3bb4aa511af549fd9a0cff9a`; CSS `index-DJVdkxDg.css` SHA-256 `e7dab7d37dd0ad2eddf6552c7cf82e8cabf8617118a4026e1318a107defafb8f`. Manifest and service worker return 200 with the correct content; worker text matches after expected Git CRLF/LF normalization. Unauthenticated feed/pulse remain 401. Health: engine **0.3.34**, database ok, 31,900 comps, 28,832 usable, original archive import/hash preserved, scoring complete with **0 pending / 0 failures**. Full evidence: `docs/sessions/2026-09-09-mobile-production-release.json`. Archive file SHA-256 remains `0285af42b39f7d9105882ba52591d311823b6b8cf790aa871161862b1ea3e635`.
+
+The existing signed-in Chrome session was reloaded at a temporary 390x844 viewport. Live Review showed ten records; More opened the new panel, Settings opened its full page, and Back retained the prior feed query. The RTX 4090 detail rendered current evidence, Your call offered all five labels, and browser Back dismissed the panel before returning to the feed. **No real label, setting, subscription, account or seller action was submitted.** The viewport override was reset. This is browser mobile-size verification, not a physical-phone test; Yish can now test on his phone. Refresh an already-open page to load the new assets.
+
+The application release is complete. This closing documentation and evidence are saved locally after the push; no application change remains unpublished. Shared checkout, databases, credentials and concurrent crawl work were preserved.
 
 ### Prior frontend checkpoint: 2026-09-08, first redesign before mobile refinement
 

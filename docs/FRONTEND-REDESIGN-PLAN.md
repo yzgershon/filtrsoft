@@ -11,7 +11,7 @@ A dark, restrained workspace with clear typography, structured surfaces, blue ac
 1. **Layout and design system, complete for the first redesign.** Desktop sidebar, responsive shell, discovery search, filters, verdict navigation, hero and listing cards, detail evidence layout, settings and account surfaces, public landing/auth.
 2. **Interaction correctness, verified.** Cancel obsolete detail requests, recoverable network errors, all five review labels, explicit sort order, query navigation, Back/Forward history and restoration beyond 200 rows.
 3. **Built preview and checks, passed.** Node browser harness using an isolated static preview and mocked API. Check 360/375/768/1024/1440 widths, landscape, reduced motion, larger text, focus, failure and empty states. No automated login or production training labels. Run TypeScript and relevant tests and inspect compiled styles.
-4. **Mobile refinement and release, authorized and verified locally.** Yish requested compact menus, better mobile hierarchy and purposeful motion, then explicitly asked for a push to production. Implemented and checked the refinement below. Next is the non-force main push and production/CI verification; HANDOFF records the measured release outcome.
+4. **Mobile refinement and production release, complete.** Yish requested compact menus, better mobile hierarchy and purposeful motion, then explicitly asked for a push to production. Application commit `c4515e3` is on main and live. Railway deployment `cec4673c-a91a-4889-a27c-ac7f25a3476c` and GitHub Actions run `34303262922` succeeded. Public assets match the tested build byte for byte. HANDOFF and `docs/sessions/2026-09-09-mobile-production-release.json` record the measured release.
 
 ## Mobile refinement, 2026-09-08 evening
 
@@ -38,3 +38,5 @@ Only the root agent edits this checkout. Shared `C:\Dev\filtrsoft` and the inven
 Build with `node web/node_modules/vite/bin/vite.js build web`. Run `node src/browser/frontend-preview.mjs`, then open `http://127.0.0.1:3188`. Add `?preview=landing` for the public site. Run the checks with `node src/browser/frontend-redesign-check.mjs`.
 
 Every API response in the preview is synthetic. Existing local test-set photos are reused only for layout checks. No login, real review submission, crawler, SQLite connection, paid vision or production operation occurs. Screenshots and results live in `docs/qa/frontend-redesign`. Browser simulations do not establish production authentication, image availability, push delivery or payment behavior.
+
+After deployment, the existing signed-in Chrome session was separately checked at 390x844: live Review, More panel, full Settings and Back, current listing evidence, five Your call choices and Back dismissal. No real label or setting was changed, and the temporary viewport was reset. Physical phone, push delivery and payment testing were not performed.

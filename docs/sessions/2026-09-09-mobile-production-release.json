@@ -1,0 +1,307 @@
+{
+  "observedAt": "2026-09-09T02:30:07.875Z",
+  "commit": "c4515e31e94b6665d0e653ef6b0441cf06b1a1ff",
+  "railwayDeployment": "cec4673c-a91a-4889-a27c-ac7f25a3476c",
+  "rootStatus": 200,
+  "assets": [
+    {
+      "path": "/assets/index-DJVdkxDg.css",
+      "status": 200,
+      "contentType": "text/css; charset=utf-8",
+      "bytes": 102168,
+      "sha256": "e7dab7d37dd0ad2eddf6552c7cf82e8cabf8617118a4026e1318a107defafb8f",
+      "matchesLocal": true
+    },
+    {
+      "path": "/assets/index-rSi9psDU.js",
+      "status": 200,
+      "contentType": "text/javascript; charset=utf-8",
+      "bytes": 317578,
+      "sha256": "1d11e6b22b0148d72b41ed2e43af261102efe03b3bb4aa511af549fd9a0cff9a",
+      "matchesLocal": true
+    }
+  ],
+  "serviceWorker": {
+    "status": 200,
+    "contentMatchesLocalAfterLineEndingNormalization": true
+  },
+  "manifest": {
+    "path": "/manifest.webmanifest",
+    "status": 200,
+    "name": "Filtrsoft — what a used listing is really worth"
+  },
+  "privateRoutes": [
+    {
+      "path": "/v1/feed",
+      "status": 401
+    },
+    {
+      "path": "/v1/pulse",
+      "status": 401
+    }
+  ],
+  "health": {
+    "ok": true,
+    "canPrice": true,
+    "engine": "0.3.34",
+    "db": "ok",
+    "comps": {
+      "total": 31900,
+      "usable": 28832,
+      "recentLinkedSkus": 526,
+      "quarantined": 0,
+      "coverageByCategory": {
+        "phone": {
+          "ok": 45,
+          "sparse": 0,
+          "no_comps": 0
+        },
+        "laptop": {
+          "ok": 204,
+          "sparse": 6,
+          "no_comps": 10
+        },
+        "gpu": {
+          "ok": 65,
+          "sparse": 0,
+          "no_comps": 2
+        },
+        "component": {
+          "ok": 87,
+          "sparse": 1,
+          "no_comps": 2
+        },
+        "prebuilt": {
+          "ok": 75,
+          "sparse": 2,
+          "no_comps": 9
+        },
+        "ram": {
+          "ok": 0,
+          "sparse": 0,
+          "no_comps": 13
+        },
+        "storage": {
+          "ok": 2,
+          "sparse": 0,
+          "no_comps": 5
+        },
+        "psu": {
+          "ok": 1,
+          "sparse": 1,
+          "no_comps": 7
+        },
+        "motherboard": {
+          "ok": 10,
+          "sparse": 1,
+          "no_comps": 1
+        },
+        "case": {
+          "ok": 3,
+          "sparse": 0,
+          "no_comps": 4
+        }
+      },
+      "collection24h": {
+        "attempts": 0,
+        "completed": 0,
+        "fetched": 0,
+        "parsed": 0,
+        "accepted": 0,
+        "saved": 0,
+        "errors": 0
+      },
+      "insufficientReasons": [
+        {
+          "reason": "exact model",
+          "count": 470
+        },
+        {
+          "reason": "storage",
+          "count": 203
+        },
+        {
+          "reason": "cpu",
+          "count": 131
+        },
+        {
+          "reason": "gpu",
+          "count": 127
+        },
+        {
+          "reason": "recent sold comps",
+          "count": 97
+        },
+        {
+          "reason": "sold builds with matching CPU, GPU, RAM and storage",
+          "count": 88
+        },
+        {
+          "reason": "ram",
+          "count": 54
+        },
+        {
+          "reason": "sold prices for the remaining components (not the specs, which are known)",
+          "count": 16
+        },
+        {
+          "reason": "model",
+          "count": 14
+        },
+        {
+          "reason": "which item and quantity you want, and matching sold comps for it",
+          "count": 4
+        },
+        {
+          "reason": "asking price",
+          "count": 1
+        }
+      ],
+      "newestSoldAt": "2026-09-06T00:00:00.000Z",
+      "ageDays": 3,
+      "skusTotal": 556,
+      "skusPriceable": 492,
+      "daysOfRunway": 87,
+      "warning": null
+    },
+    "skus": 568,
+    "vision": {
+      "configured": true,
+      "model": "claude-haiku-4-5",
+      "visionEnabled": true,
+      "tokenRequired": true,
+      "dailyBudgetUsd": 2,
+      "spentTodayUsd": 0.0495,
+      "budgetLeftUsd": 1.9505,
+      "reads24h": 274,
+      "reads7d": 501,
+      "lastReadAt": "2026-09-09T01:50:52.110Z",
+      "candidatePool": 0,
+      "unreadable": 197,
+      "shortlist": 0,
+      "warning": null,
+      "loopEnabled": true,
+      "mode": "steady",
+      "lastPass": {
+        "at": null,
+        "outcome": null,
+        "error": null
+      }
+    },
+    "funnel": {
+      "cohort": {
+        "capturedSince": "2026-09-08T02:30:07.609Z"
+      },
+      "counts": {
+        "discovered": 187,
+        "detailed": 182,
+        "photos": 175,
+        "decisionProvenance": 187,
+        "exactIdentity": 15,
+        "usableEvidence": 20,
+        "scored": 187,
+        "feedEligible": 43,
+        "synchronized": null,
+        "alerted": 1
+      },
+      "firstScoreSeconds": {
+        "samples": 187,
+        "p50": 0.009,
+        "p95": 1.029
+      },
+      "pendingFirstScore": {
+        "count": 0,
+        "oldest": null
+      },
+      "agentStages24h": [],
+      "definitions": {
+        "feedEligible": "Base live 28-day feed population before account/discovery/Review filters",
+        "synchronized": "Versioned facts acknowledged in this receiver database",
+        "alerted": "At least one acknowledged push delivery",
+        "exactIdentity": "Recorded current decision resolves a SKU above low confidence",
+        "usableEvidence": "Current decision valuation status ok; risk and missing listing facts can still block an actionable call"
+      }
+    },
+    "ebay": {
+      "deletionEndpoint": "https://filtrsoft.com/v1/ebay/deletion",
+      "deletionConfigured": true
+    },
+    "push": {
+      "usable": true,
+      "error": null,
+      "keySource": "generated",
+      "subject": "mailto:yishaigershon5@gmail.com",
+      "publicKeyChars": 87,
+      "privateKeyChars": 43,
+      "subscriptions": 1,
+      "standingAlerts": 1,
+      "savedSearches": 0,
+      "lastAlertAt": "2026-09-08T05:25:57.620Z"
+    },
+    "archive": {
+      "present": true,
+      "path": "/app/data/archive.json.gz",
+      "comps": 31900,
+      "skus": 559,
+      "exportedAt": "2026-09-08T13:00:12.116Z",
+      "sha256": "0f1a2363ffdbf3ac458ddcbe47d9e182052106f222d57aa20cb03afbe4a9386b",
+      "imported": true,
+      "importedAt": "2026-09-08T13:48:30.409Z"
+    },
+    "scoring": {
+      "signature": "6854|2026-09-09T02",
+      "pending": 0,
+      "failures": 0,
+      "complete": true
+    },
+    "billing": {
+      "enabled": false
+    },
+    "crawlButton": {
+      "configured": true,
+      "everyMinutes": 45,
+      "agentOnline": false,
+      "lastAgentPollAt": null
+    },
+    "auth": {
+      "password": true,
+      "google": false,
+      "apple": false
+    },
+    "sweep": {
+      "lastAt": "2026-09-08T22:24:16.876Z",
+      "hoursAgo": 4,
+      "seen": 1481,
+      "probed": 150,
+      "delisted": 52
+    },
+    "thumbs": {
+      "enabled": true,
+      "count": 3781,
+      "mb": 64.1
+    }
+  },
+  "githubActions": {
+    "id": 34303262922,
+    "conclusion": "success",
+    "url": "https://github.com/yzgershon/filtrsoft/actions/runs/34303262922"
+  },
+  "authenticatedBrowser": {
+    "checkedAt": "2026-09-09T02:33:53.264Z",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "existingSession": true,
+    "checks": [
+      "Review feed with ten live records",
+      "More panel to full Settings and Back preserving feed query",
+      "RTX 4090 listing evidence",
+      "Your call five choices and browser Back dismissal"
+    ],
+    "submittedReview": false,
+    "changedSettings": false,
+    "temporaryViewportReset": true,
+    "physicalPhoneTest": false
+  }
+}
