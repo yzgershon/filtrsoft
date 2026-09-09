@@ -40,4 +40,8 @@ The engine stays at **0.3.34**. No comp filter, archive, crawl, shared checkout 
 
 ## Release
 
-Application commit `b45769831645dc1826a7df6bb9ce214086897675` is pushed and live. Railway succeeded; public HTML and asset hashes matched the tested build at 2026-09-09T19:15:36.072Z. Health is engine 0.3.34, database ok, 31,900 total / 28,791 usable comps and scoring 0 pending / 0 failures. Initial CI had one existing isolated-fixture timeout at 5000ms; its allowance is being aligned with the existing Docker verification harness before rerunning. See HANDOFF and `docs/sessions/2026-09-09-frontend-fixes-release.json` for completion evidence.
+Application commit `b45769831645dc1826a7df6bb9ce214086897675` and CI-only follow-up `59c1b556188530d87cddee3df1738d0e6c56d1dd` are pushed and live. Railway succeeded. CI **34394124805** passed native amd64 tests/typecheck/build and both Docker stages, including 268 tests / 763 assertions / 0 failures in the network-isolated container.
+
+The first CI run hit the default 5000ms timeout in an existing isolated evidence fixture. The bounded test allowance now matches the existing 30000ms Docker harness; no assertion or production deadline was weakened. The subsequent full CI passed.
+
+Public verification at **2026-09-09T19:20:23.560Z** confirms that HTML and JS/CSS/worker/manifest match the tested build. Private feed/pulse return 401 without authentication. Health: engine 0.3.34, database ok, 31,900 total / 28,791 usable comps, scoring 0 pending / 0 failures. Final evidence: `docs/sessions/2026-09-09-frontend-fixes-release.json`. Closing handoff/evidence documentation is saved locally after the application release.

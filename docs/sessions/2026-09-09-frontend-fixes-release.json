@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-09-09T19:15:36.072Z",
+  "checkedAt": "2026-09-09T19:20:23.560Z",
   "applicationCommit": "b45769831645dc1826a7df6bb9ce214086897675",
   "publicVerificationOnly": true,
   "live": true,
@@ -189,7 +189,7 @@
     },
     "funnel": {
       "cohort": {
-        "capturedSince": "2026-09-08T19:15:35.847Z"
+        "capturedSince": "2026-09-08T19:20:23.391Z"
       },
       "counts": {
         "discovered": 105,
@@ -281,11 +281,28 @@
     }
   },
   "archiveHash": "0285af42b39f7d9105882ba52591d311823b6b8cf790aa871161862b1ea3e635",
-  "githubDeploymentId": 6357397919,
+  "releaseCommit": "59c1b556188530d87cddee3df1738d0e6c56d1dd",
+  "githubDeploymentId": 6357466601,
   "railwayState": "success",
+  "ci": {
+    "id": 34394124805,
+    "conclusion": "success",
+    "nativeArchitecture": "amd64",
+    "tests": 268,
+    "failures": 0,
+    "assertions": 763,
+    "networkIsolatedContainer": "passed",
+    "typecheck": "passed",
+    "frontendBuild": "passed",
+    "verificationImage": "passed",
+    "productionImage": "passed"
+  },
   "initialCI": {
     "id": 34393742522,
     "conclusion": "failure",
-    "reason": "Existing evidence subprocess fixture exceeded the default 5000ms runner timeout; no assertion failure. CI allowance aligned with the existing 30000ms Docker harness."
-  }
+    "reason": "Existing evidence subprocess fixture exceeded 5000ms. The bounded CI allowance now matches the existing 30000ms Docker verification allowance; assertions and production deadlines are unchanged."
+  },
+  "browserGroups": 39,
+  "localLinuxArchitecture": "arm64",
+  "localAmd64CrossBuild": "Known QEMU segmentation fault; native amd64 CI passed."
 }

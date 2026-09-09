@@ -22,8 +22,6 @@ Root is the only editor in `C:\Dev\filtrsoft-backend`, branch `codex/frontend-re
 - [x] Detail and offline correctness.
 - [x] Current-style feature preview.
 - [x] Regression, build and visual verification.
-- [ ] Final handoff, commit and release status.
+- [x] Final handoff, commit and release status.
 
-Implementation checkpoint: source changes are complete for phases 1–4. Targeted regression and browser review exposed and fixed overlapping PATCH, paused legacy notifications, auth/deep-link timing, hash scrolling, photo cropping, stale reads, and outcome retry duplication. Validation and feature preview are in progress. Nothing from this pass is deployed yet.
-
-Release checkpoint: all 268 tests / 763 assertions pass locally and in network-isolated native Linux ARM, typecheck/build pass, both Linux images build, and all 39 browser groups pass. Final assets: index-CIJd4S-Z.js and index-DJ892ZD4.css. Full changes and limits: FRONTEND-FIX-REPORT-2026-09-09.md. Next is the authorized non-force main push and verification of CI, Railway status and live asset hashes.
+Complete. Application fixes b457698 and CI-only follow-up 59c1b55 are on main and live. CI 34394124805 and Railway succeeded. Tests pass locally, in native Linux ARM, and in native amd64 CI including its network-isolated container: 268 / 0 failures / 763 assertions. All 39 browser groups pass. Production HTML and exact JS/CSS/worker/manifest were verified at 2026-09-09T19:20:23.560Z. Final closing documentation is saved locally after the release. No required implementation or release work remains. See FRONTEND-FIX-REPORT-2026-09-09.md and HANDOFF.md.
