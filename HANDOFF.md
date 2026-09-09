@@ -89,6 +89,16 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
+### Current implementation: 2026-09-09, preserve current style and fix audit bugs
+
+Implementation and local release checks are complete. Search is first; promotional headlines are removed and functional titles are compact. Current mobile cards/colors and full desktop shell are preserved. All **268 tests / 763 assertions pass**, locally and in the pinned native Linux ARM verification image with networking disabled. TypeScript, Vite and both Linux image builds pass. **39 browser groups pass**, including real installed-worker, offline, session/deep-link, network failure and feature-preview cases. Final assets: `index-CIJd4S-Z.js`, `index-DJ892ZD4.css`. The local amd64 cross-build hit the known QEMU segfault; native amd64 CI is checked after push. Full report: `docs/FRONTEND-FIX-REPORT-2026-09-09.md`.
+
+Feature preview: **http://127.0.0.1:3194/** (`node src/browser/feature-preview.mjs`), using current components for Compare, fixed-batch Review/Next/Undo and personal notes/checks. Synthetic memory-only state, excluded from the production entrypoint. The preview process is left running for Yish. No authenticated production UI, actual handset/PWA gesture or real notification delivery has been claimed.
+
+Release status: ready for the already authorized non-force main push and Railway deployment. Remote main was freshly checked at `c4515e3`. No new changes are deployed yet. Pre-release public health: engine 0.3.34, 31,900 total / 28,791 usable comps, existing hourly scoring 544 pending / 0 failures; this pass did not initiate scoring. The shared checkout/database, archive and crawler are preserved. Archive SHA-256 remains `0285af42b39f7d9105882ba52591d311823b6b8cf790aa871161862b1ea3e635`.
+
+Yish prefers the existing Filtrsoft design to the three alternatives. **Do not implement A/B/C.** He asked to put search at the top, remove corny mobile headlines (use restrained functional titles where needed), **fix all bugs in the frontend audit**, and show a separate preview of possible features. This supersedes the layout-choice-pending checkpoint below. Work starts clean at `46abf65` in `C:\Dev\filtrsoft-backend`, `codex/frontend-redesign`. Root is the only editor; agents review bounded areas read-only. Plan and progress: `docs/FRONTEND-FIX-PLAN-2026-09-09.md`. Preserve the existing visual system and full desktop shell. Feature prototypes use examples, not live state. Production/database/crawl facts below remain historical until freshly checked.
+
 ### Current design exploration: 2026-09-09, audit and prototypes ready; layout choice pending
 
 Yish requested a deeper frontend audit, mature mobile-app practices, useful features, and **different layout options to choose from before moving to a new design**. Work is in `C:\Dev\filtrsoft-backend`, branch `codex/frontend-redesign`, starting clean at `ff9bb8a`. Three agents reviewed structure, quality and feature feasibility read-only; root was the sole editor. The complete report is **`docs/FRONTEND-DEEP-DIVE-2026-09-09.md`**.

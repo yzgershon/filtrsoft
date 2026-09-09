@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert, Back as BackIcon, Chat, Check, Cut, Eye, Ghost, Info, Link, Shield, Store, Tag,
 } from "./icons.tsx";
-import type { Call, Comp, Listing, Meta, Retail, RiskCheck, Signal, Verdict } from "./types.ts";
+import type { Channel, Call, Comp, Listing, Meta, Retail, RiskCheck, Signal, Verdict } from "./types.ts";
 import { LABEL, money, ago, toast, Thumb, deviceRef } from "./lib.tsx";
 import { SectionHead } from "./feed.tsx";
 
@@ -185,34 +185,32 @@ export function Flags({ signals }: { signals: Signal[] }) {
  * The switch only renders when there is a real choice. A control that appears
  * with one option is a control that teaches you not to look at it.
  */
-export function Numbers({ v, ask }: { v: Verdict; ask: number | null }) {
+export function Numbers({ v, ask, channel: ch, onChannelChange }: { v: Verdict; ask: number | null; channel?: Channel; onChannelChange?: (id:string)=>void }) {
   const val = v.valuation;
   const usable = (v.channels ?? []).filter((c) => c.available);
   const local = usable.find((c) => c.channel === "facebook");
   const shipped = usable.find((c) => c.channel === "ebay");
-  const canSwitch = Boolean(local && shipped);
-  const [mode, setMode] = useState<"local" | "shipped">("local");
+  const canSwitch = Boolean(local && shipped && onChannelChange);
   if (val.medianCents == null) return null;
 
-  const ch = canSwitch ? (mode === "local" ? local! : shipped!) : (v.bestChannel ?? local ?? shipped);
   /**
    * Recompute against the SELECTED channel. Reading `v.netProfitCents` would
    * print the engine's best-channel figure next to the other channel's gross,
    * which is a number that belongs to neither.
    */
-  const net = ch && ask != null ? ch.netCents - ask : (v.netProfitCents ?? 0);
-  const target = ch ? Math.max(0, ch.netCents - (v.requiredProfitCents ?? 0)) : v.targetOfferCents ?? 0;
+  const net = ch && ask != null ? ch.netCents - ask : null;
+  const target = ch && v.requiredProfitCents != null ? Math.max(0, ch.netCents - v.requiredProfitCents) : null;
 
   return (
     <section className="sec rise">
       <SecHead tone="buy" icon={<Tag size={18} />} title="The numbers"
         note="what it resells for, and what you keep"
         trailing={canSwitch ? (
-          <div className="chsw" role="tablist" aria-label="Resale channel">
-            <button role="tab" aria-selected={mode === "local"}
-              className={mode === "local" ? "on" : ""} onClick={() => setMode("local")}>Local</button>
-            <button role="tab" aria-selected={mode === "shipped"}
-              className={mode === "shipped" ? "on" : ""} onClick={() => setMode("shipped")}>eBay</button>
+          <div className="chsw" role="group" aria-label="Resale channel">
+            <button aria-pressed={ch?.channel === "facebook"}
+              className={ch?.channel === "facebook" ? "on" : ""} onClick={() => onChannelChange?.("facebook")}>Local</button>
+            <button aria-pressed={ch?.channel === "ebay"}
+              className={ch?.channel === "ebay" ? "on" : ""} onClick={() => onChannelChange?.("ebay")}>eBay</button>
           </div>
         ) : undefined} />
 
@@ -239,13 +237,13 @@ export function Numbers({ v, ask }: { v: Verdict; ask: number | null }) {
         {/* The answer you opened the screen for. Sized like it. */}
         <div className="kv anchor">
           <div className="k">Your profit at asking price</div>
-          <div className={`v num ${net > 0 ? "pos" : "neg"}`}>{net > 0 ? "+" : ""}{money(net)}</div>
+          <div className={`v num ${net == null ? "" : net > 0 ? "pos" : "neg"}`}>{net == null ? "Unavailable" : `${net > 0 ? "+" : ""}${money(net)}`}</div>
         </div>
         <div className="kv quiet">
           <div className="k">You need at least<small>for the drive and the effort</small></div>
           <div className="v num">{money(v.requiredProfitCents)}</div>
         </div>
-        {target > 0 ? (
+        {target != null && target > 0 ? (
           <div className="kv hi">
             <div className="k">Offer this or less</div>
             <div className="v num">{money(target)}</div>
@@ -254,7 +252,7 @@ export function Numbers({ v, ask }: { v: Verdict; ask: number | null }) {
       </div>
 
       {!canSwitch && ch?.channel === "facebook" && (
-        <p className="chnote">Too bulky to post, so it is a local sale only and there are no fees to take out.</p>
+        <p className="chnote">Local is the available resale channel for this decision.</p>
       )}
     </section>
   );
@@ -302,19 +300,17 @@ export function Inventory({ inventory }: { inventory: NonNullable<Verdict["inven
  * ENGINE — a different drive time, a different channel's fees — goes back to
  * the server, which is why the drive-time control does.
  */
-export function CompsAndOffer({ v, comps, ask }: {
-  v: Verdict; comps: Comp[]; ask: number | null;
+export function CompsAndOffer({ v, comps, ask, channel:ch }: {
+  v: Verdict; comps: Comp[]; ask: number | null; channel?: Channel;
 }) {
   const [open, setOpen] = useState(false);
-  const usable = (v.channels ?? []).filter((c) => c.available);
-  const ch = v.bestChannel ?? usable[0];
   const [offer, setOffer] = useState<number | null>(null);
-  if (!ch || ask == null) return null;
-
-  const at = offer ?? ask;
-  const net = ch.netCents - at;
-  const required = v.requiredProfitCents ?? 0;
-  const clears = net >= required;
+  const at = offer ?? ask ?? 0;
+  const net = ch ? ch.netCents - at : null;
+  const required = v.requiredProfitCents;
+  const available = !!ch && ask != null && required != null;
+  const clears = net != null && required != null && net >= required;
+  const target = ch && required != null ? Math.max(0, ch.netCents - required) : null;
   /**
    * ⚠ 0 TO THE ASKING PRICE, AND NOTHING CLEVERER THAN THAT.
    *
@@ -329,14 +325,15 @@ export function CompsAndOffer({ v, comps, ask }: {
    * the asking price is the ceiling. $5 steps: fine enough to land on a real
    * number, coarse enough that a drag feels like it is doing something.
    */
-  const max = Math.max(ask, 500);
+  const max = Math.max(ask ?? 0, 0);
+  const step = max % 500 === 0 ? 500 : max % 100 === 0 ? 100 : max % 50 === 0 ? 50 : 1;
   const min = 0;
 
   return (
     <>
-      <section className="sec rise">
-        <SecHead tone="brand" icon={<Cut size={18} />} title="What if you offer less"
-          note={`${money(v.targetOfferCents ?? 0)} is the most that still works`} />
+      {available && <section className="sec rise">
+        <SecHead tone="brand" icon={<Cut size={18} />} title="Offer calculator"
+          note={`${ch?.channel === "facebook" ? "Local" : "eBay"} · target ${money(target)}` } />
         <div className="panel offer">
           <div className="offerrow">
             <span className="offerlbl">You offer</span>
@@ -344,7 +341,7 @@ export function CompsAndOffer({ v, comps, ask }: {
           </div>
           <input
             className="offerslide" type="range"
-            min={min} max={max} step={500} value={at}
+            min={min} max={max} step={step} value={at}
             aria-label="Your offer"
             onChange={(e) => setOffer(Number(e.target.value))} />
           <div className={`offerout ${clears ? "ok" : "no"}`} role="status" aria-live="polite">
@@ -358,7 +355,7 @@ export function CompsAndOffer({ v, comps, ask }: {
             </button>
           )}
         </div>
-      </section>
+      </section>}
 
       {comps.length > 0 && (
         <section className="sec">
@@ -373,7 +370,7 @@ export function CompsAndOffer({ v, comps, ask }: {
           <SecHead tone="brand" icon={<Eye size={18} />}
             title={
               <button className="disclose" aria-expanded={open} onClick={() => setOpen(!open)}>
-                Where {money(v.valuation.medianCents)} comes from
+                Sold-price evidence
                 <i aria-hidden="true">{open ? "▴" : "▾"}</i>
               </button>
             }
@@ -460,6 +457,16 @@ export function Questions({ qs }: { qs: string[] }) {
  * you could not actually read photo 4. Sellers put the spec sheet, the damage
  * and the serial in the photos; this is the screen where you look at them.
  */
+export function ListingPhoto({ src, alt, eager=false, open }: {src:string;alt:string;eager?:boolean;open?:()=>void}) {
+  const [failed,setFailed]=useState(false), [attempt,setAttempt]=useState(0);
+  useEffect(()=>{setFailed(false);setAttempt(0);},[src]);
+  return <div className="listing-photo">
+    {failed ? <div className="photo-unavailable"><Ghost size={26}/><span>Photo unavailable</span><button className="btn2" onClick={()=>{setFailed(false);setAttempt(n=>n+1);}}>Retry photo</button></div>
+      : open ? <button className="photo-open" onClick={open} aria-label={alt}><img key={attempt} src={src} alt="" loading={eager?"eager":"lazy"} onError={()=>setFailed(true)}/></button>
+      : <img key={attempt} src={src} alt={alt} loading={eager?"eager":"lazy"} onError={()=>setFailed(true)}/>}
+  </div>;
+}
+
 export function Gallery({ urls, onOpen, onBack }: {
   urls: string[]; onOpen: (i: number) => void; onBack?: () => void;
 }) {
@@ -469,8 +476,8 @@ export function Gallery({ urls, onOpen, onBack }: {
 
   const onScroll = () => {
     const el = ref.current;
-    if (!el) return;
-    setI(Math.round(el.scrollLeft / el.clientWidth));
+    if (!el?.clientWidth) return;
+    setI(Math.max(0,Math.min(Math.min(urls.length,20)-1,Math.round(el.scrollLeft / el.clientWidth))));
   };
 
   return (
@@ -496,10 +503,7 @@ export function Gallery({ urls, onOpen, onBack }: {
       )}
       <div className="galstrip" ref={ref} onScroll={onScroll}>
         {urls.slice(0, 20).map((u, n) => (
-          <button className="galshot" key={n} onClick={() => onOpen(n)}
-            aria-label={`Photo ${n + 1} of ${Math.min(urls.length, 20)}`}>
-            <img src={u} alt="" loading={n === 0 ? "eager" : "lazy"} />
-          </button>
+          <div className="galshot" key={u}><ListingPhoto src={u} alt={`Photo ${n + 1} of ${Math.min(urls.length,20)}`} eager={n===0} open={()=>onOpen(n)}/></div>
         ))}
       </div>
       {urls.length > 1 && (
@@ -534,101 +538,28 @@ export function Gallery({ urls, onOpen, onBack }: {
  *     control.
  */
 export function Lightbox({ urls, start, onClose }: { urls: string[]; start: number; onClose: () => void }) {
-  const box = useRef<HTMLDivElement>(null);
-  const strip = useRef<HTMLDivElement>(null);
-  const [at, setAt] = useState(start);
-  const total = urls.length;
-
-  const goTo = useCallback((n: number) => {
-    const i = Math.max(0, Math.min(total - 1, n));
-    setAt(i);
-    strip.current?.children[i]?.scrollIntoView({ inline: "center", block: "nearest", behavior: motionAllowed() ? "smooth" : "instant" });
-  }, [total]);
-
-  useEffect(() => {
-    // Captured NOW: on cleanup, activeElement is <body>, not the trigger.
-    const opener = document.activeElement as HTMLElement | null;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    box.current?.querySelector<HTMLElement>(".lbxclose")?.focus();
-
-    const on = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); onClose(); return; }
-      if (e.key === "ArrowRight") { e.preventDefault(); setAt((n) => Math.min(total - 1, n + 1)); return; }
-      if (e.key === "ArrowLeft") { e.preventDefault(); setAt((n) => Math.max(0, n - 1)); return; }
-      if (e.key !== "Tab") return;
-      /**
-       * ⚠ THE TRAP MUST ONLY COUNT WHAT THE BROWSER WILL ACTUALLY FOCUS.
-       *
-       * `button:not(:disabled)` matches `display: none` buttons too, and the
-       * prev/next controls are hidden below 560px. On a phone the list was
-       * therefore [close, hidden-next]: the trap believed `last` was the next
-       * button, the wrap condition never fired because focus can never land
-       * there, and Tab walked straight out of the dialog into the page behind.
-       *
-       * `getClientRects().length` is the honest test — it is zero for anything
-       * `display: none`, and unlike `offsetParent` it is not fooled by a
-       * `position: fixed` ancestor, which this dialog has.
-       */
-      const f = [...(box.current?.querySelectorAll<HTMLElement>("button:not(:disabled)") ?? [])]
-        .filter((el) => el.getClientRects().length > 0);
-      if (!f.length) return;
-      const first = f[0], last = f[f.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-    };
-    addEventListener("keydown", on);
-    return () => {
-      removeEventListener("keydown", on);
-      document.body.style.overflow = prevOverflow;
-      opener?.focus?.();
-    };
-  }, [onClose, total]);
-
-  // Keyboard paging scrolls the strip; the strip's own scroll updates the count.
-  useEffect(() => {
-    strip.current?.children[at]?.scrollIntoView({ inline: "center", block: "nearest" });
-    // `at` only — running on every render would fight a swipe mid-gesture.
-  }, [at]);
-
-  return (
-    <div className="lbx" role="dialog" aria-modal="true" aria-label={`Photo ${at + 1} of ${total}`} ref={box}>
-      <button className="lbxclose" onClick={onClose} aria-label="Close photos">✕</button>
-      {total > 1 && (
-        <>
-          <button className="lbxnav prev" onClick={() => goTo(at - 1)} disabled={at === 0}
-            aria-label="Previous photo">‹</button>
-          <button className="lbxnav next" onClick={() => goTo(at + 1)} disabled={at === total - 1}
-            aria-label="Next photo">›</button>
-        </>
-      )}
-      <div className="lbxstrip" ref={strip}
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          /**
-           * ⚠ CLAMP. An index outside the range is never a right answer, and
-           * this one reached "Photo 14 of 10": a stray scroll while focus was
-           * elsewhere divided by a clientWidth that no longer matched the
-           * slide. Bounding it costs nothing and makes the label incapable of
-           * lying about how many photos there are.
-           */
-          if (!el.clientWidth) return;
-          const n = Math.round(el.scrollLeft / el.clientWidth);
-          setAt(Math.max(0, Math.min(total - 1, n)));
-        }}>
-        {urls.map((u, n) => (
-          <img key={n} src={u} alt={`Photo ${n + 1} of ${total}`}
-            /**
-             * Only the neighbours load eagerly. Preloading all 20 on a listing
-             * with full-size photos is megabytes nobody asked for, on a phone
-             * that is probably on cellular in someone's driveway.
-             */
-            loading={Math.abs(n - start) <= 1 ? "eager" : "lazy"} />
-        ))}
-      </div>
-      {total > 1 && <div className="lbxcount num">{at + 1} / {total}</div>}
+  const photos=urls.slice(0,20), total=photos.length;
+  return <Popup title="Photos" onClose={onClose} className="photo-popup">{()=> <PhotoStrip urls={photos} start={Math.max(0,Math.min(total-1,start))}/>}</Popup>;
+}
+function PhotoStrip({urls,start}:{urls:string[];start:number}) {
+  const strip=useRef<HTMLDivElement>(null), [at,setAt]=useState(start);
+  const total=urls.length;
+  const goTo=useCallback((n:number,animate=true)=>{
+    const next=Math.max(0,Math.min(total-1,n)); setAt(next);
+    const el=strip.current;
+    if(el)el.scrollTo({left:el.clientWidth*next,behavior:animate&&motionAllowed()?"smooth":"instant"});
+  },[total]);
+  useEffect(()=>{goTo(start,false);},[start,goTo]);
+  useEffect(()=>{
+    const key=(e:KeyboardEvent)=>{if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();goTo(at+(e.key==='ArrowRight'?1:-1));}};
+    addEventListener('keydown',key);return()=>removeEventListener('keydown',key);
+  },[at,goTo]);
+  return <div className="photo-viewer">
+    <div className="lbxstrip" ref={strip} onScroll={e=>{const el=e.currentTarget;if(el.clientWidth)setAt(Math.max(0,Math.min(total-1,Math.round(el.scrollLeft/el.clientWidth))));}}>
+      {urls.map((url,i)=><ListingPhoto key={url} src={url} alt={`Photo ${i+1} of ${total}`} eager={Math.abs(i-start)<=1}/>)}
     </div>
-  );
+    <div className="photo-navigation"><button className="btn2" disabled={at===0} onClick={()=>goTo(at-1)} aria-label="Previous photo">‹</button><span className="num" role="status">Photo {at+1} of {total}</span><button className="btn2" disabled={at===total-1} onClick={()=>goTo(at+1)} aria-label="Next photo">›</button></div>
+  </div>;
 }
 
 /**
@@ -788,6 +719,10 @@ export function Report({
   onReload?: () => void;
 }) {
   const [lbx, setLbx] = useState<number | null>(null);
+  const [channelId,setChannelId]=useState("facebook");
+  useEffect(()=>{setLbx(null);setChannelId("facebook");},[listing?.url]);
+  const usable=(verdict?.channels??[]).filter(c=>c.available && Number.isFinite(c.netCents));
+  const channel=usable.find(c=>c.channel===channelId)??usable.find(c=>c.channel==='facebook')??usable[0];
   if (!listing) return null;
 
   const src = listing.source === "craigslist" ? "Craigslist"
@@ -862,6 +797,7 @@ export function Report({
               </span>
               <h3>{verdict.headline}</h3>
               <p>{verdict.reasoning}</p>
+              {!!meta?.missingValueFields?.length && <div className="settles"><b>Missing details:</b> {meta.missingValueFields.join(", ")}</div>}
               {verdict.decidingUnknown && (
                 <div className="settles"><b>What settles it:</b> {verdict.decidingUnknown}</div>
               )}
@@ -888,13 +824,23 @@ export function Report({
             </div>
           )}
 
-          {verdict && <Numbers v={verdict} ask={listing?.askingPriceCents ?? null} />}
+      {meta?.match?.model && (
+        <div className="prov">
+          {verdict?.valuation?.medianCents != null ? "Priced as" : "Identified as"} <b>{[meta.match.brand, meta.match.model].filter(Boolean).join(" ")}</b>
+          {verdict?.valuation?.compCount
+            ? <> from <span className="num">{verdict.valuation.compCount}</span> sold comps</> : null}
+          {meta.match.confidence ? <> · {meta.match.confidence} confidence match</> : null}
+          {meta.category ? <> · {meta.category}</> : null}
+        </div>
+      )}
+          {verdict && <Numbers v={verdict} ask={listing?.askingPriceCents ?? null} channel={channel} onChannelChange={setChannelId} />}
         </div>
       </div>
       <div className="evidence-grid">
+      {meta?.description && <section className="sec"><details className="panel seller-description"><summary>Seller description</summary><p>{meta.description}</p></details></section>}
       {verdict?.inventory && <Inventory inventory={verdict.inventory} />}
       {verdict && (
-        <CompsAndOffer v={verdict} comps={comps ?? []} ask={listing.askingPriceCents} />
+        <CompsAndOffer key={listing.url} v={verdict} comps={comps ?? []} ask={listing.askingPriceCents} channel={channel} />
       )}
       {verdict?.retail && <Ceiling r={verdict.retail} />}
       {verdict?.riskChecks?.length ? <Blockers checks={verdict.riskChecks} /> : null}
@@ -933,15 +879,7 @@ export function Report({
         * requiring someone to notice the number looks odd.
         */}
       </div>
-      {meta?.match?.model && (
-        <div className="prov">
-          Priced as <b>{[meta.match.brand, meta.match.model].filter(Boolean).join(" ")}</b>
-          {verdict?.valuation?.compCount
-            ? <> from <span className="num">{verdict.valuation.compCount}</span> sold comps</> : null}
-          {meta.match.confidence ? <> · {meta.match.confidence} confidence match</> : null}
-          {meta.category ? <> · {meta.category}</> : null}
-        </div>
-      )}
+
     </>
   );
 }

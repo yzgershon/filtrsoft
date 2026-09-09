@@ -449,19 +449,8 @@ body::before {
 .subtabs button.on { background: var(--surface-3); color: var(--ink); border-color: var(--surface-3); }
 .empty .btn2 { margin: var(--s4) auto 0; display: inline-flex; }
 
-/* ══════════════════════════════════════ VaultX: glass, glow and motion */
-/*
- * ⚠ GLASS IS TRANSLUCENCY PLUS BLUR, AND WITHOUT THE BLUR IT IS JUST A WASH.
- *
- * `--surface` is `rgba(255,255,255,.05)` now. On a flat page that renders as a
- * barely-there grey and the cards read as drawn rather than layered — which is
- * exactly how the first pass of this restyle looked. The demo pairs the same
- * fill with `backdrop-filter: blur(20px)` on every surface, and it is the blur
- * that makes the ambient glow behind the page bend through the card.
- */
-.gcard, .dealhero, .panel, .scard, .sheet, .seg, .more, .chip, .field, .subtabs button {
-  backdrop-filter: blur(var(--blur));
-}
+/* The current app uses opaque cards. Blur belongs to actual overlays, not
+   every card, field and chip in a scrolling feed. Tokens and fills are kept. */
 
 /*
  * The verdict tints on the hero. `color-mix` against the verdict token, so one

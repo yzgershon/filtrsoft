@@ -7,12 +7,8 @@
  * deliberately last in the plan — an alert that fires on a bad verdict is worse
  * than no alert, so it had to wait until the engine was worth trusting.
  *
- * ── WHY THERE IS NO ACCOUNT ────────────────────────────────────────────────
- *
- * A push subscription IS the identity. The browser mints an endpoint URL that
- * only this device can receive on, so searches hang off that rather than a user
- * row. No signup, no password, nothing to leak. The tradeoff, stated in the UI:
- * alerts belong to the device that created them.
+ * Saved criteria belong to the signed-in account. Push subscriptions are
+ * optional delivery endpoints; deleting an endpoint must not delete criteria.
  *
  * ── DELIVERY RULES ─────────────────────────────────────────────────────────
  *
@@ -30,6 +26,7 @@ import type { Context } from "hono";
 import webpush from "web-push";
 import { db, now } from "../db/index.ts";
 import { currentUser } from "./auth.ts";
+import { installSavedSearches, searchInput, searchView, matchesCriteria } from "./search-criteria.ts";
 import { loadAccountOverrides } from "./overrides.ts";
 
 /** Push works if a keypair resolves — env, stored, or freshly generated. */
@@ -234,6 +231,7 @@ export function ensureAlertTables() {
    * A parallel code path would reimplement four things and get one wrong.
    */
   addColumn("saved_searches", "standing", "INTEGER NOT NULL DEFAULT 0");
+  installSavedSearches(db());
   /**
    * One row per (search, listing) already sent. This is what stops the same
    * listing alerting on every crawl — a re-verdict bumps a listing's row
@@ -281,11 +279,11 @@ export const STANDING_CALLS = "BUY,VERIFY";
  */
 function backfillStandingAlerts() {
   db().run(
-    `INSERT INTO saved_searches (sub_id, label, query, max_price_cents, min_profit_cents, calls, created_at, standing)
-     SELECT p.id, ?, NULL, NULL, NULL, ?, ?, 1
+    `INSERT INTO saved_searches (sub_id, user_id, label, query, max_price_cents, min_profit_cents, calls, created_at, standing, notify_since)
+     SELECT p.id, p.user_id, ?, NULL, NULL, NULL, ?, ?, 1, ?
        FROM push_subs p
       WHERE NOT EXISTS (SELECT 1 FROM saved_searches s WHERE s.sub_id = p.id AND s.standing = 1)`,
-    [STANDING_LABEL, STANDING_CALLS, now()],
+    [STANDING_LABEL, STANDING_CALLS, now(), now()],
   );
 }
 
@@ -294,39 +292,12 @@ interface SearchRow {
   max_price_cents: number | null; min_profit_cents: number | null;
   calls: string | null; created_at: string; standing?: number;
   endpoint: string; p256dh: string; auth: string;
-  user_id?: number | null;
+  user_id?: number | null; category?: string | null; source?: string | null; quality?: string | null;
+  sort?: string; notify_since?: string | null; criteria_version?: number;
 }
 
 /** Does this listing satisfy the search? All stated criteria must hold. */
-export function matches(s: {
-  query: string | null; max_price_cents: number | null;
-  min_profit_cents: number | null; calls: string | null;
-}, l: { title: string; price: number | null; call: string; net: number | null }): boolean {
-  if (s.calls) {
-    const want = s.calls.split(",").filter(Boolean);
-    if (want.length && !want.includes(l.call)) return false;
-  }
-  if (s.max_price_cents != null) {
-    // A listing with NO price cannot satisfy "under $1,400". Treating unknown
-    // as passing is how an alert for a cheap GPU delivers a $0 parse failure.
-    if (l.price == null || l.price > s.max_price_cents) return false;
-  }
-  if (s.min_profit_cents != null) {
-    if (l.net == null || l.net < s.min_profit_cents) return false;
-  }
-  if (s.query) {
-    /**
-     * EVERY word must appear, not any. "rtx 4090" matching on "rtx" alone
-     * returns every graphics card on the site, and an alert that fires on
-     * everything carries no information — the same rule the risk engine
-     * already follows.
-     */
-    const hay = l.title.toLowerCase();
-    const words = s.query.toLowerCase().split(/\s+/).filter(Boolean);
-    if (!words.every((w) => hay.includes(w))) return false;
-  }
-  return true;
-}
+export const matches = matchesCriteria;
 
 /**
  * Match newly-analysed listings against every saved search and notify.
@@ -342,6 +313,7 @@ export async function runAlerts(): Promise<number> {
   const searches = db().query(`
     SELECT s.*, p.endpoint, p.p256dh, p.auth,p.user_id
     FROM saved_searches s JOIN push_subs p ON p.id = s.sub_id
+    WHERE s.user_id=p.user_id AND (s.standing=1 OR (s.criteria_version=2 AND s.notify_since IS NOT NULL))
   `).all() as SearchRow[];
   if (!searches.length) return 0;
 
@@ -355,7 +327,7 @@ export async function runAlerts(): Promise<number> {
      * listings a week old — and notifications get switched off immediately.
      */
     const rows = db().query(`
-      SELECT l.id, l.title, l.asking_price_cents price, v.call, v.payload
+      SELECT l.id, l.title, l.source, l.asking_price_cents price, v.call, v.payload
       FROM listings l
       JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
       WHERE l.delisted_at IS NULL
@@ -365,24 +337,28 @@ export async function runAlerts(): Promise<number> {
         AND NOT EXISTS (SELECT 1 FROM alert_deliveries a WHERE a.search_id=? AND a.listing_id=l.id
           AND (a.status IN ('delivered','failed') OR a.next_attempt_at>? OR a.lease_until>?))
       ORDER BY l.id DESC
-    `).all(s.created_at,s.id,s.id,at,at) as any[];
+    `).all(s.standing ? s.created_at : s.notify_since!,s.id,s.id,at,at) as any[];
 
     // Match first, then bound delivery work. A newer nonmatch must not hide an
     // older BUY forever. Personal risk labels also apply before this limit.
-    const eligible=rows.map(r=>({...r,call:overrides.get(r.id)?.call??r.call})).filter(r=>{
+    const eligible=rows.map(r=>({...r,call:overrides.get(r.id)?.call??r.call,reviewed:overrides.has(r.id)})).filter(r=>{
       let net=null;try{net=r.payload?JSON.parse(r.payload).netProfitCents??null:null;}catch{return false;}
-      return matches(s,{title:r.title,price:r.price,call:r.call,net});
+      return matches(s,{title:r.title,source:r.source,price:r.price,call:r.call,net,reviewed:r.reviewed});
     }).slice(0,40);
     for (const candidate of eligible) {
       // A slow earlier delivery may give Yish time to relabel or retire the
       // next candidate. Revalidate immediately before claiming its delivery.
-      const r=db().query(`SELECT l.id,l.title,l.asking_price_cents price,v.call,v.payload FROM listings l
+      const latest=db().query(`SELECT s.*,p.endpoint,p.p256dh,p.auth FROM saved_searches s JOIN push_subs p ON p.id=s.sub_id
+        WHERE s.id=? AND s.user_id=p.user_id AND (s.standing=1 OR (s.criteria_version=2 AND s.notify_since IS NOT NULL))`).get(s.id) as SearchRow|null;
+      if (!latest || latest.sub_id !== s.sub_id || latest.user_id !== s.user_id) continue;
+      const r=db().query(`SELECT l.id,l.title,l.source,l.captured_at,l.asking_price_cents price,v.call,v.payload FROM listings l
         JOIN verdicts v ON v.id=(SELECT MAX(id) FROM verdicts WHERE listing_id=l.id)
         WHERE l.id=? AND l.delisted_at IS NULL`).get(candidate.id) as any;
-      if(!r)continue;
-      if(s.user_id)r.call=loadAccountOverrides(s.user_id).get(r.id)?.call??r.call;
+      if(!r || r.captured_at <= (latest.standing ? latest.created_at : latest.notify_since!))continue;
+      const personal = latest.user_id ? loadAccountOverrides(latest.user_id) : new Map();
+      r.call=personal.get(r.id)?.call??r.call;
       let net=null;try{net=r.payload?JSON.parse(r.payload).netProfitCents??null:null;}catch{continue;}
-      if(!matches(s,{title:r.title,price:r.price,call:r.call,net}))continue;
+      if(!matches(latest,{title:r.title,source:r.source,price:r.price,call:r.call,net,reviewed:personal.has(r.id)}))continue;
       const claimed=db().transaction(()=>{
         db().run("INSERT OR IGNORE INTO alert_deliveries(search_id,listing_id,next_attempt_at,updated_at) VALUES(?,?,?,?)",[s.id,r.id,at,at]);
         return db().run(`UPDATE alert_deliveries SET status='sending',attempts=attempts+1,lease_until=?,updated_at=?
@@ -398,10 +374,10 @@ export async function runAlerts(): Promise<number> {
        * over every notification tells him nothing about the one that just
        * arrived; "Buy it" versus "Verify first" is the entire decision.
        */
-      const heading = s.standing
+      const heading = latest.standing
         ? (r.call === "BUY" ? "Buy it" : r.call === "VERIFY" ? "Verify first" : r.call)
-        : s.label;
-      const result = await send(s, {
+        : latest.label;
+      const result = await send(latest, {
         title: heading,
         body: `${r.title.slice(0, 70)}, ${r.price ? `$${Math.round(r.price / 100)}` : "no price"}`,
         url: `/c/${r.id}`,
@@ -447,7 +423,11 @@ async function send(s: SearchRow, payload: { title: string; body: string; url: s
      */
     const dead = code === 404 || code === 410 || /curve|public key|invalid.*key/i.test(msg);
     if (dead) {
-      db().run("DELETE FROM push_subs WHERE id=?", [s.sub_id]);
+      db().transaction(() => {
+        db().run("UPDATE saved_searches SET notify_since=NULL WHERE sub_id=? AND standing=0", [s.sub_id]);
+        db().run("DELETE FROM saved_searches WHERE sub_id=? AND standing=1", [s.sub_id]);
+        db().run("DELETE FROM push_subs WHERE id=?", [s.sub_id]);
+      })();
       console.log(`alerts: dropped dead subscription ${s.sub_id} (${code ?? msg.slice(0, 40)})`);
     } else {
       console.error(`alerts: send failed (${code ?? "?"}) —`, msg);
@@ -500,73 +480,86 @@ export async function handleSubscribe(c: Context) {
    * indistinguishable from the feature being broken, which is exactly the
    * state Yish found it in.
    */
+  db().run("UPDATE saved_searches SET user_id=? WHERE sub_id=? AND user_id IS NULL", [user.id,row.id]);
   backfillStandingAlerts();
   return c.json({ subId: row.id, standing: STANDING_CALLS.split(",") });
 }
 
 export function handleListSearches(c: Context) {
   ensureAlertTables();
-  const subId = Number(c.req.query("subId"));
-  if (!subId) return c.json({ items: [] });
-  if(!ownsSubscription(c,subId))return c.json({error:"subscription does not belong to this account"},403);
-  const items = db().query(
-    "SELECT id, label, query, max_price_cents, min_profit_cents, calls, created_at, standing FROM saved_searches WHERE sub_id=? ORDER BY standing DESC, id DESC",
-  ).all(subId);
-  return c.json({ items });
+  const user=currentUser(c); if(!user)return c.json({error:"sign in required"},401);
+  const sub=c.req.query("subId");
+  if(sub && !ownsSubscription(c,Number(sub)))return c.json({error:"subscription does not belong to this account"},403);
+  const items=db().query(`SELECT * FROM saved_searches WHERE user_id=? AND (standing=0 OR sub_id=?) ORDER BY standing DESC,id DESC`)
+    .all(user.id,sub?Number(sub):null).map(searchView);
+  return c.json({items});
 }
 
 export async function handleCreateSearch(c: Context) {
   ensureAlertTables();
-  const b = await c.req.json().catch(() => null) as {
-    subId?: number; label?: string; query?: string;
-    maxPriceCents?: number; minProfitCents?: number; calls?: string[];
-  } | null;
-  if (!b?.subId) return c.json({ error: "subId is required" }, 400);
-  if(!ownsSubscription(c,b.subId))return c.json({error:"subscription does not belong to this account"},403);
+  const user=currentUser(c); if(!user)return c.json({error:"sign in required"},401);
+  const parsed=searchInput.safeParse(await c.req.json().catch(()=>null));
+  if(!parsed.success)return c.json({error:"invalid search criteria",details:parsed.error.flatten()},400);
+  const b=parsed.data;
+  if(b.subId && !ownsSubscription(c,b.subId))return c.json({error:"subscription does not belong to this account"},403);
+  if(!b.query && !b.category && !b.source && b.maxPriceCents==null && b.minProfitCents==null && !b.calls?.length && !b.quality)
+    return c.json({error:"add at least one search criterion"},400);
+  const count=(db().query("SELECT COUNT(*) n FROM saved_searches WHERE user_id=? AND standing=0").get(user.id) as {n:number}).n;
+  if(count>=20)return c.json({error:"the account limit is 20 saved searches"},400);
+  const quality=b.quality ?? (b.calls?.length ? null : "all");
+  const calls=b.calls?.length ? [...new Set(b.calls)].join(",") : null;
+  const label=b.label || b.query || "Saved search", at=now();
+  const r=db().run(`INSERT INTO saved_searches(user_id,sub_id,label,query,category,source,quality,sort,max_price_cents,min_profit_cents,calls,created_at,notify_since,criteria_version)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[user.id,b.subId??null,label,b.query||null,b.category??null,b.source??null,quality,b.sort??"best",b.maxPriceCents??null,
+    b.minProfitCents??null,calls,at,b.subId && quality?at:null,quality?2:1]);
+  return c.json(searchView(db().query("SELECT * FROM saved_searches WHERE id=?").get(r.lastInsertRowid)));
+}
 
-  const query = (b.query ?? "").trim() || null;
-  const hasCriterion = query || b.maxPriceCents != null || b.minProfitCents != null || b.calls?.length;
-  // A search with no criteria matches every listing on the site. That is not a
-  // saved search, it is the feed with a notification attached to it.
-  if (!hasCriterion) return c.json({ error: "add at least one thing to match on" }, 400);
-
-  const sub = db().query("SELECT id FROM push_subs WHERE id=?").get(b.subId);
-  if (!sub) return c.json({ error: "unknown subscription" }, 404);
-
-  // Bound saved searches per owned subscription as well as requiring a session.
-  const n = (db().query("SELECT COUNT(*) n FROM saved_searches WHERE sub_id=?").get(b.subId) as { n: number }).n;
-  if (n >= 20) return c.json({ error: "that's the limit of 20 saved searches" }, 400);
-
-  const label = (b.label ?? "").trim() || query || "Saved search";
-  const r = db().run(
-    `INSERT INTO saved_searches (sub_id, label, query, max_price_cents, min_profit_cents, calls, created_at)
-     VALUES (?,?,?,?,?,?,?)`,
-    [b.subId, label.slice(0, 60), query, b.maxPriceCents ?? null,
-     b.minProfitCents ?? null, b.calls?.length ? b.calls.join(",") : null, now()],
-  );
-  return c.json({ id: Number(r.lastInsertRowid), label });
+export async function handleUpdateSearch(c: Context) {
+  ensureAlertTables();
+  const user=currentUser(c); if(!user)return c.json({error:"sign in required"},401);
+  const id=Number(c.req.param("id"));
+  const parsed=searchInput.safeParse(await c.req.json().catch(()=>null));
+  if(!parsed.success)return c.json({error:"invalid search criteria",details:parsed.error.flatten()},400);
+  // Read after the asynchronous body: a slow partial edit must not restore
+  // criteria or notifications that another request has already changed.
+  const row=db().query("SELECT * FROM saved_searches WHERE id=? AND user_id=?").get(id,user.id) as any;
+  if(!row)return c.json({error:"search not found"},404);
+  if(row.standing)return c.json({error:"use this device's built-in alert settings"},400);
+  const b=parsed.data;
+  if(b.subId && !ownsSubscription(c,b.subId))return c.json({error:"subscription does not belong to this account"},403);
+  const fullCriteria=b.quality!==undefined;
+  const quality=b.quality??row.quality, version=fullCriteria?2:row.criteria_version;
+  if(b.subId && (!quality || version<2))return c.json({error:"review the stored criteria before enabling notifications"},400);
+  const subId=b.subId===undefined?row.sub_id:b.subId;
+  // Full criteria edits deliberately replace the criterion set. This prevents an
+  // old hidden call/profit constraint surviving a visible filter replacement.
+  const next=(field:string,column:string,empty:any=null)=>(b as any)[field]!==undefined?(b as any)[field] : fullCriteria?empty:row[column];
+  const values={query:next('query','query'),category:next('category','category'),source:next('source','source'),quality,
+    max_price_cents:next('maxPriceCents','max_price_cents'),min_profit_cents:next('minProfitCents','min_profit_cents'),
+    calls:b.calls ? [...new Set(b.calls)].join(',')||null:fullCriteria?null:row.calls};
+  const criteriaChanged=Object.entries(values).some(([key,value])=>value!==row[key]) || version!==row.criteria_version;
+  // An idempotent retry must not move the watermark. A changed matching rule
+  // or a newly attached endpoint starts at now rather than replaying backlog.
+  const enabled=subId && (row.notify_since != null || b.subId != null);
+  const notify=enabled ? (subId!==row.sub_id || !row.notify_since || criteriaChanged ? now():row.notify_since) : null;
+  db().run(`UPDATE saved_searches SET label=?,query=?,category=?,source=?,quality=?,sort=?,max_price_cents=?,min_profit_cents=?,calls=?,sub_id=?,notify_since=?,criteria_version=? WHERE id=? AND user_id=?`,
+    [b.label??row.label,values.query,values.category,values.source,quality,next('sort','sort','best'),values.max_price_cents,
+      values.min_profit_cents,values.calls,subId,notify,version,id,user.id]);
+  return c.json(searchView(db().query("SELECT * FROM saved_searches WHERE id=? AND user_id=?").get(id,user.id)));
 }
 
 export function handleDeleteSearch(c: Context) {
   ensureAlertTables();
-  const id = Number(c.req.param("id"));
-  const subId = Number(c.req.query("subId"));
-  if(!ownsSubscription(c,subId))return c.json({error:"subscription does not belong to this account"},403);
-  /**
-   * ⚠ THE STANDING ALERT CANNOT BE DELETED, ONLY NARROWED. Deleting it would
-   * put the device back in the silent state this whole change exists to end,
-   * and it would do so through a control that looks like ordinary tidying up.
-   * Turning VERIFY off is `PATCH`; turning everything off is the OS permission
-   * toggle, which is where a user already expects to find it.
-   */
-  const target = db().query("SELECT standing FROM saved_searches WHERE id=? AND sub_id=?")
-    .get(id, subId) as { standing: number } | null;
-  if (target?.standing) {
-    return c.json({ error: "that one is built in — switch Verify first off instead", standing: true }, 400);
-  }
-  // Scoped to the subscription so an id alone cannot delete somebody else's.
-  const r = db().run("DELETE FROM saved_searches WHERE id=? AND sub_id=?", [id, subId]);
-  return c.json({ deleted: r.changes });
+  const user=currentUser(c); if(!user)return c.json({error:"sign in required"},401);
+  const sub=c.req.query("subId");
+  if(sub && !ownsSubscription(c,Number(sub)))return c.json({error:"subscription does not belong to this account"},403);
+  const id=Number(c.req.param("id"));
+  const row=db().query("SELECT standing FROM saved_searches WHERE id=? AND user_id=?").get(id,user.id) as {standing:number}|null;
+  if(!row)return c.json({error:"search not found"},404);
+  if(row.standing)return c.json({error:"this is a built-in device alert; change its settings instead",standing:true},400);
+  const r=db().run("DELETE FROM saved_searches WHERE id=? AND user_id=?",[id,user.id]);
+  return c.json({deleted:r.changes});
 }
 
 /** Send one notification to this device so "it works" is provable. */

@@ -1,3 +1,4 @@
+import { SavedSearches } from "./saved-searches.tsx";
 import { NAVIGATE, pushRoute, replaceRoute } from "./history.ts";
 /**
  * Saved, Alerts, Settings, You, the nav bars and the outcome prompt.
@@ -24,6 +25,8 @@ import {
   SUBKEY, reconcilePushSubscription, urlB64ToBytes, deviceRef, Thumb, readSettings, HKEY, AKEY,
 } from "./lib.tsx";
 import { Gcard } from "./feed.tsx";
+import { requestJSON, requestMessage } from "./api-client.ts";
+import { RequestError } from "./request-state.tsx";
 import { CrawlPanel } from "./crawl.tsx";
 
 export function Watchlist({ onOpen, onWatchChange, onBrowse }: {
@@ -61,29 +64,31 @@ export function Watchlist({ onOpen, onWatchChange, onBrowse }: {
   };
   const [ids, setIds] = useState<number[]>(readWatch);
   const [items, setItems] = useState<FeedItem[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryAt, setRetryAt] = useState(0);
   const [summary, setSummary] = useState<{ dropped: number; gone: number }>({ dropped: 0, gone: 0 });
 
   useEffect(() => {
-    if (!ids.length) { setItems([]); return; }
-    fetch(`/v1/watchlist?ids=${ids.join(",")}`)
-      .then((r) => r.json())
-      .then((d) => {
-        setItems(d.items ?? []);
-        setSummary(d.summary ?? { dropped: 0, gone: 0 });
-        /**
-         * PRUNE IDS THE SERVER NO LONGER KNOWS. Without this a purged listing
-         * stays in localStorage forever and every future request carries a
-         * dead id, so the saved count never matches what is on screen.
-         */
+    const controller = new AbortController();
+    setLoadError(null);
+    if (!ids.length) { setItems([]); setSummary({ dropped: 0, gone: 0 }); return; }
+    // Keep known cards on a failed refresh, but never keep a removed bookmark.
+    setItems(previous => previous?.filter(i => ids.includes(i.id)) ?? null);
+    requestJSON<{ items: FeedItem[]; summary: { dropped: number; gone: number }; missing?: number[] }>(
+      `/v1/watchlist?ids=${ids.join(",")}`, { signal: controller.signal },
+      d => Array.isArray(d?.items) && d.items.every((i: any) => Number.isInteger(i?.id) && typeof i.title === "string")
+        && Number.isFinite(d.summary?.dropped) && Number.isFinite(d.summary?.gone)
+        && (d.missing === undefined || Array.isArray(d.missing) && d.missing.every(Number.isInteger)))
+      .then(d => {
+        if (controller.signal.aborted) return;
+        setItems(d.items); setSummary(d.summary);
         if (d.missing?.length) {
-          const keep = ids.filter((i: number) => !d.missing.includes(i));
-          writeWatch(keep); setIds(keep);
+          const keep = ids.filter(i => !d.missing!.includes(i));
+          writeWatch(keep); setIds(keep); onWatchChange(keep.length);
         }
-      })
-      .catch(() => setItems([]));
-    // `ids` is intentionally the only dep: re-running on every render would
-    // hammer the endpoint.
-  }, [ids.join(",")]);
+      }).catch(error => { if (!controller.signal.aborted) setLoadError(requestMessage(error)); });
+    return () => controller.abort();
+  }, [ids.join(","), retryAt]);
 
   const news: string[] = [];
   if (summary.dropped) news.push(`${summary.dropped} dropped in price`);
@@ -107,40 +112,35 @@ export function Watchlist({ onOpen, onWatchChange, onBrowse }: {
      * the difference between those two screens and Deals, which does not wrap.
      */
     <div className="screen">
-      <div className="feedhead">
-        <span className="eyebrow alt">Watchlist</span>
-        <h1>Your <span className="g">saved</span></h1>
-        <p>
-          {items === null ? "Loading…"
-            : items.length === 0 ? "Bookmarks, and alerts for searches you save."
-            : news.length ? news.join(" · ")
-            : `${items.length} saved, nothing changed yet.`}
-        </p>
+      <div className="feedhead app-page-heading">
+        <h1>Saved</h1>
+        {news.length > 0 && !loadError && <p>{news.join(" · ")}</p>}
       </div>
-
-      <div className="subtabs" role="tablist" aria-label="Saved">
-        <button role="tab" aria-selected={sub === "listings"} className={sub === "listings" ? "on" : ""}
-          onClick={() => selectSub("listings")}>Listings{items?.length ? ` (${items.length})` : ""}</button>
-        <button role="tab" aria-selected={sub === "alerts"} className={sub === "alerts" ? "on" : ""}
-          onClick={() => selectSub("alerts")}>Alerts</button>
-        {/* Purchases live under Saved because Saved is "your stuff", and a
-            fourth bottom-nav item would cost the other three the room the 44px
-            targets need. */}
-        <button role="tab" aria-selected={sub === "bought"} className={sub === "bought" ? "on" : ""}
-          onClick={() => selectSub("bought")}>Bought</button>
+      <div className="subtabs" role="tablist" aria-label="Saved" onKeyDown={e => {
+        const keys = ["listings", "alerts", "bought"] as const;
+        const index = keys.indexOf(sub);
+        const next = e.key === "ArrowRight" ? (index + 1) % 3 : e.key === "ArrowLeft" ? (index + 2) % 3 : e.key === "Home" ? 0 : e.key === "End" ? 2 : -1;
+        if (next < 0) return;
+        e.preventDefault(); selectSub(keys[next]);
+        e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
+      }}>
+        {([['listings', `Listings${items?.length ? ` (${items.length})` : ''}`], ['alerts', 'Searches'], ['bought', 'Bought']] as const).map(([value,label]) =>
+          <button key={value} id={`saved-tab-${value}`} role="tab" aria-selected={sub === value} aria-controls={`saved-panel-${value}`} tabIndex={sub === value ? 0 : -1}
+            className={sub === value ? "on" : ""} onClick={() => selectSub(value)}>{label}</button>)}
       </div>
-
+      <div id={`saved-panel-${sub}`} role="tabpanel" aria-labelledby={`saved-tab-${sub}`} tabIndex={0}>
+      {sub === "listings" && loadError && <RequestError message={loadError} retry={() => setRetryAt(n => n + 1)} />}
       {sub === "listings" && (
-        !items ? (
+        !items ? (loadError ? null : (
           <div>{[0, 1].map((i) => <div className="skel" key={i} style={{ height: 240, marginBottom: 8 }} />)}</div>
-        ) : items.length === 0 ? (
+        )) : items.length === 0 ? (loadError ? null : (
           <div className="empty">
             <span className="eic"><Save size={26} /></span>
             <b>Nothing saved yet</b>
             <p>Tap the bookmark on any listing. Saved listings are re-checked daily, and this is where a price drop or a disappearance shows up.</p>
             <button className="btn2" onClick={onBrowse}><Grid size={15} /> Browse deals</button>
           </div>
-        ) : (
+        )) : (
           <>
             <div className={`grid${readSettings().compact ? " dense" : ""}`}>
               {items.map((i) => (
@@ -157,6 +157,7 @@ export function Watchlist({ onOpen, onWatchChange, onBrowse }: {
 
       {sub === "alerts" && <Alerts />}
       {sub === "bought" && <Purchases />}
+      </div>
     </div>
   );
 }
@@ -183,13 +184,22 @@ export function Purchases() {
     id: number; listingId: number; title: string; source: string;
     thumb: string | null; paidCents: number | null; worthCents: number | null;
     marginCents: number | null; engineCall: Call | null; askingPriceCents: number | null;
+    decisionWorthCents: number | null; realizedProfitCents: number | null;
     boughtAt: string; notes: string | null;
   };
-  const [d, setD] = useState<{ items: Buy[]; summary: any } | null>(null);
+  const [d, setD] = useState<{ items: Buy[]; summary: any; total?: number; limit?: number } | null>(null);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryAt, setRetryAt] = useState(0);
   useEffect(() => {
-    fetch("/v1/purchases").then((r) => r.json()).then(setD).catch(() => setD({ items: [], summary: null }));
-  }, []);
+    const controller = new AbortController(); setLoadError(null);
+    requestJSON<{ items: Buy[]; summary: any }>("/v1/purchases", { signal: controller.signal },
+      value => Array.isArray(value?.items) && value.items.every((i: any) => Number.isInteger(i?.id) && Number.isInteger(i.listingId) && typeof i.title === "string" && ['paidCents','worthCents','marginCents'].every(k=>i[k]===null||Number.isSafeInteger(i[k]))) && Number.isInteger(value.summary?.count) && ['spentCents','worthCents','marginCents'].every(k=>value.summary[k]===null||Number.isSafeInteger(value.summary[k])))
+      .then(value => { if (!controller.signal.aborted) setD(value); })
+      .catch(error => { if (!controller.signal.aborted) setLoadError(requestMessage(error)); });
+    return () => controller.abort();
+  }, [retryAt]);
+  if (loadError) return <RequestError message={loadError} retry={() => setRetryAt(n => n + 1)} />;
 
   if (!d) return <div>{[0, 1].map((i) => <div className="skel" key={i} style={{ height: 88, marginBottom: 8 }} />)}</div>;
 
@@ -209,16 +219,19 @@ export function Purchases() {
       {/* The scoreboard first: the sum is the reason to open this screen. */}
       <div className="buysum">
         <div><span>Bought</span><b className="num">{s.count}</b></div>
-        <div><span>Spent</span><b className="num">{money(s.spentCents)}</b></div>
-        <div><span>Worth</span><b className="num">{money(s.worthCents)}</b></div>
+        <div><span>Recorded paid</span><b className="num">{s.spentCents == null ? "Unknown" : money(s.spentCents)}</b></div>
+        <div><span>Est. value</span><b className="num">{s.worthCents == null ? "Unknown" : money(s.worthCents)}</b></div>
         <div className="buysumhi">
-          <span>Ahead</span>
+          <span>Est. difference</span>
           <b className={`num ${s.marginCents >= 0 ? "pos" : "neg"}`}>
-            {s.marginCents >= 0 ? "+" : ""}{money(s.marginCents)}
+            {s.marginCents == null ? "Unknown" : `${s.marginCents >= 0 ? "+" : ""}${money(s.marginCents)}`}
           </b>
         </div>
       </div>
 
+      <p className="micro2">{s.paidMissingCount || 0} purchase amounts unrecorded. Estimated difference uses {s.estimatedDifferenceCount || 0} records with both a paid amount and a current estimate. It is not realized profit.</p>
+      {s.completeSaleCount > 0 && <p className="micro2">Recorded realized profit: {money(s.realizedProfitCents)} from {s.completeSaleCount} complete sales.</p>}
+      {d.total != null && d.total > d.items.length && <p className="micro2">Showing the latest {d.items.length} of {d.total} purchases. Totals cover these records.</p>}
       <div className="buys">
         {d.items.map((b) => (
           <a className="buy" key={b.id} href={`/c/${b.listingId}`}>
@@ -228,7 +241,7 @@ export function Purchases() {
             <span className="buybody">
               <b>{b.title}</b>
               <span className="buynums">
-                <span className="num buypaid">{money(b.paidCents)}</span>
+                <span className="num buypaid">{b.paidCents == null ? "Paid amount unknown" : money(b.paidCents)}</span>
                 {/* Asking price shown ONLY when he beat it — a strike-through
                     equal to what he paid is noise. */}
                 {b.askingPriceCents && b.paidCents && b.askingPriceCents > b.paidCents
@@ -240,9 +253,10 @@ export function Purchases() {
                 )}
               </span>
               <span className="buymeta">
-                {b.worthCents != null ? `worth ${money(b.worthCents)}` : "not priced"}
-                {b.engineCall ? <> · engine said <em className={`b-${b.engineCall}`}>{LABEL[b.engineCall]}</em></> : null}
+                {b.worthCents != null ? `current estimate ${money(b.worthCents)}` : "current value unknown"}
+                {b.engineCall ? <> · at the decision <em className={`b-${b.engineCall}`}>{LABEL[b.engineCall]}</em></> : null}
               </span>
+              <span className="buymeta">{b.decisionWorthCents != null ? `Decision estimate ${money(b.decisionWorthCents)}` : "Decision estimate unrecorded"}{b.realizedProfitCents != null ? ` · realized profit ${money(b.realizedProfitCents)}` : ""}</span>
             </span>
           </a>
         ))}
@@ -335,38 +349,48 @@ export function Tabbar({ tab, go, savedCount, onMore, moreOpen = false }: {
  */
 export function OutcomePrompt({ h, onDone }: { h: Hist; onDone: () => void }) {
   const [sent, setSent] = useState<string | null>(null);
-
-  const send = (action: string, label: string) => {
-    setSent(label);
-    markAsked(h.id);
-    // Fire and forget: the answer is already recorded locally as asked, and
-    // making the user wait on a network round trip to dismiss a prompt is a
-    // good way to have them stop answering.
-    fetch(`/v1/checks/${h.id}/outcome`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action }),
-    }).catch(() => {});
-    setTimeout(onDone, 900);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const sending = useRef(false);
+  const requestIds = useRef(new Map<string,string>());
+  const send = async (action: string, label: string) => {
+    if (sending.current) return;
+    sending.current = true; setPending(true); setError(null);
+    try {
+      const storageKey=`filtrsoft:outcome:${h.id}:${h.at}`;
+      let requestId=requestIds.current.get(storageKey);
+      if(!requestId){try{requestId=sessionStorage.getItem(storageKey)??undefined;}catch{} requestId??=crypto.randomUUID();requestIds.current.set(storageKey,requestId);try{sessionStorage.setItem(storageKey,requestId);}catch{}}
+      await requestJSON(`/v1/checks/${h.id}/outcome`, {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, requestId }),
+      }, d=>d?.ok===true && d.action===action && Number.isInteger(d.totalOutcomes));
+      markAsked(h.id); setSent(label);
+    } catch (error) { setError(requestMessage(error)); }
+    finally { sending.current = false; setPending(false); }
   };
+  useEffect(() => {
+    if (!sent) return;
+    const timer = setTimeout(onDone, 900); return () => clearTimeout(timer);
+  }, [sent, onDone]);
 
   if (sent) {
-    return <div className="ask done"><Check size={15} /> {sent}. Thanks, that trains the engine.</div>;
+    return <div className="ask done"><Check size={15} /> {sent}. Outcome saved.</div>;
   }
 
   return (
     <div className="ask">
       <div className="askhead">
         <b>What happened with this one?</b>
-        <button className="askx" onClick={() => { markAsked(h.id); onDone(); }} aria-label="Dismiss">×</button>
+        <button className="askx" disabled={pending} onClick={() => { markAsked(h.id); onDone(); }} aria-label="Dismiss">×</button>
       </div>
       <span className="asktitle">{h.title}</span>
-      <div className="askrow">
-        <button onClick={() => send("bought", "Bought")}>I bought it</button>
-        <button onClick={() => send("passed", "Passed")}>Passed</button>
-        <button onClick={() => send("no_reply", "No reply")}>No reply</button>
-        <button onClick={() => send("gone", "Gone")}>Gone</button>
+      <div className="askrow" aria-busy={pending}>
+        <button disabled={pending} onClick={() => void send("bought", "Bought")}>I bought it</button>
+        <button disabled={pending} onClick={() => void send("passed", "Passed")}>Passed</button>
+        <button disabled={pending} onClick={() => void send("no_reply", "No reply")}>No reply</button>
+        <button disabled={pending} onClick={() => void send("dead_listing", "Gone")}>Gone</button>
       </div>
+      {pending && <p role="status">Saving outcome…</p>}
+      {error && <p className="mutation-error" role="alert">Couldn’t confirm the save. {error} Retry the same answer to confirm it.</p>}
     </div>
   );
 }
@@ -590,179 +614,8 @@ export function Billing({ onlyWhenEnabled }: { onlyWhenEnabled?: boolean }) {
  * enough that the feature is then unreachable without digging through site
  * settings.
  */
-export function Alerts() {
-  const supported = typeof Notification !== "undefined" && "serviceWorker" in navigator && "PushManager" in window;
-  const [perm, setPerm] = useState(supported ? Notification.permission : "unsupported");
-  const [subId, setSubId] = useState<number | null>(() => {
-    const v = localStorage.getItem(SUBKEY); return v ? Number(v) : null;
-  });
-  const [list, setList] = useState<any[]>([]);
-  const [q, setQ] = useState("");
-  const [max, setMax] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
+export const Alerts = SavedSearches;
 
-  useEffect(() => {
-    let active=true;
-    reconcilePushSubscription().then(async id=>{
-      if(!active)return;setSubId(id);if(!id){setList([]);return;}
-      const response=await fetch(`/v1/searches?subId=${id}`);const d=await response.json();
-      if(!response.ok)throw new Error(d.error??"Couldn't load alerts.");
-      if(active)setList(d.items??[]);
-    }).catch(e=>{if(active){setList([]);setNote((e as Error).message);}});
-    return()=>{active=false;};
-  }, [subId]);
-
-  async function enable() {
-    setBusy(true); setNote(null);
-    try {
-      const p = await Notification.requestPermission();
-      setPerm(p);
-      if (p !== "granted") { setNote("Notifications were blocked. You can undo that in your browser's site settings."); return; }
-
-      const { publicKey, configured } = await (await fetch("/v1/push/vapid")).json();
-      if (!configured || !publicKey) { setNote("Push isn't configured on the server yet."); return; }
-
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlB64ToBytes(publicKey),
-      });
-      const r = await (await fetch("/v1/push/subscribe", {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify(sub.toJSON()),
-      })).json();
-      if (r.subId) { localStorage.setItem(SUBKEY, String(r.subId)); setSubId(r.subId); }
-    } catch (e) {
-      setNote(`Couldn't turn on alerts: ${(e as Error).message}`);
-    } finally { setBusy(false); }
-  }
-
-  async function add() {
-    const maxCents = max.trim() ? Math.round(Number(max.replace(/[^0-9.]/g, "")) * 100) : null;
-    setBusy(true); setNote(null);
-    const r = await (await fetch("/v1/searches", {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ subId, query: q.trim() || null, maxPriceCents: maxCents, label: q.trim() || `Under ${max}` }),
-    })).json();
-    setBusy(false);
-    if (r.error) { setNote(r.error); return; }
-    setQ(""); setMax("");
-    fetch(`/v1/searches?subId=${subId}`).then((x) => x.json()).then((d) => setList(d.items ?? []));
-  }
-
-  async function remove(id: number) {
-    await fetch(`/v1/searches/${id}?subId=${subId}`, { method: "DELETE" });
-    setList((l) => l.filter((x) => x.id !== id));
-  }
-
-  return (
-    <div className="sgroup">
-      <div className="shead"><Bell size={14} /> Alerts</div>
-      <div className="scard">
-        {!supported && (
-          <p className="snote">
-            This browser can't show notifications. Install Filtrsoft to your home screen and open it from there.
-          </p>
-        )}
-
-        {supported && !subId && (
-          <>
-            <p className="snote">
-              Get told the moment a Buy it or Verify first posts. That one is on
-              automatically — you do not have to set anything up. This is where the
-              feed stops being somewhere you have to remember to check.
-            </p>
-            <button className="btn2" disabled={busy} onClick={enable}>
-              <Bell size={15} /> {busy ? "Turning on…" : "Turn on alerts"}
-            </button>
-          </>
-        )}
-
-        {supported && subId && (
-          <>
-            {/**
-              * ⚠ THE STANDING ALERT RENDERS AS A SWITCH, NOT A CARD WITH A
-              * REMOVE BUTTON. Yish, 2026-09-04: *"the entire point of the app
-              * was to send me a notification when there is a buy and a verify
-              * first but its still not working ... the alerts only work for
-              * custom alerts that i make."*
-              *
-              * It is on from the moment notifications are allowed, and it must
-              * not look like one more optional thing to configure — the
-              * previous shape of this screen is the reason it never existed.
-              */}
-            {list.filter((s) => s.standing).map((s) => (
-              <div className="srow static" key={s.id}>
-                <span className="stext">
-                  <b className="ok">Every Buy it{(s.calls ?? "").includes("VERIFY") ? " and Verify first" : ""}</b>
-                  <span>
-                    On automatically. This is the one you actually want; it needs no setup.
-                  </span>
-                </span>
-              </div>
-            ))}
-            {list.filter((s) => s.standing).map((s) => (
-              <label className="srow" key={`v${s.id}`}>
-                <span className="stext">
-                  <b>Include Verify first</b>
-                  <span>Deals that need one question answered before you drive. Off means Buy it only.</span>
-                </span>
-                <input type="checkbox" className="switch"
-                  checked={(s.calls ?? "").includes("VERIFY")}
-                  onChange={async (e) => {
-                    await fetch(`/v1/searches/standing?subId=${subId}`, {
-                      method: "PATCH",
-                      headers: { "content-type": "application/json" },
-                      body: JSON.stringify({ verify: e.target.checked }),
-                    });
-                    fetch(`/v1/searches?subId=${subId}`).then((x) => x.json()).then((d) => setList(d.items ?? []));
-                  }} />
-              </label>
-            ))}
-
-            {list.filter((s) => !s.standing).map((s) => (
-              <div className="srow static" key={s.id}>
-                <span className="stext">
-                  <b>{s.label}</b>
-                  <span>
-                    {[s.query && `matches "${s.query}"`,
-                      s.max_price_cents && `under ${money(s.max_price_cents)}`]
-                      .filter(Boolean).join(" · ") || "any listing"}
-                  </span>
-                </span>
-                <button className="btn3" onClick={() => remove(s.id)}>Remove</button>
-              </div>
-            ))}
-
-            <div className="srow static newsearch">
-              <input value={q} onChange={(e) => setQ(e.target.value)}
-                placeholder="rtx 4090" aria-label="Words to match" />
-              <input value={max} onChange={(e) => setMax(e.target.value)}
-                placeholder="max $" inputMode="decimal" aria-label="Maximum price" />
-              <button className="btn3" disabled={busy || (!q.trim() && !max.trim())} onClick={add}>Add</button>
-            </div>
-
-            <p className="snote">
-              Above is on by itself. Add a search below only if you want something
-              narrower, like one model under a price. Every word has to appear in the
-              title, so "rtx 4090" won't alert on every graphics card. Alerts only cover
-              listings found after they were set up, and they live on this device.
-            </p>
-            <button className="btn2" onClick={async () => {
-              const r = await (await fetch(`/v1/push/test?subId=${subId}`, { method: "POST" })).json();
-              setNote(r.sent ? "Sent. Check your notifications." : r.error ?? "Couldn't send.");
-            }}>Send a test notification</button>
-          </>
-        )}
-
-        {note && <p className="snote alertnote">{note}</p>}
-      </div>
-    </div>
-  );
-}
-
-/** A labelled row with a switch. */
 export function Toggle({ label, hint, on, onChange }: {
   label: string; hint: string; on: boolean; onChange: (v: boolean) => void;
 }) {
@@ -796,6 +649,16 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
   s: Settings; save: (p: Partial<Settings>) => void;
   savedCount: number; onClearSaved: () => void;
 }) {
+  useEffect(() => {
+    const reveal=()=>{
+      if(location.pathname.replace(/\/$/,'')!=='/settings' || !location.hash)return;
+      const target=document.getElementById(location.hash.slice(1)); if(!target)return;
+      if(target instanceof HTMLDetailsElement)target.open=true;
+      requestAnimationFrame(()=>{target.scrollIntoView({block:'start'});target.focus({preventScroll:true});});
+    };
+    reveal();addEventListener(NAVIGATE,reveal);addEventListener('popstate',reveal);
+    return()=>{removeEventListener(NAVIGATE,reveal);removeEventListener('popstate',reveal);};
+  },[]);
   const [cleared, setCleared] = useState(false);
   const [histCleared, setHistCleared] = useState(false);
   const [badgesReset, setBadgesReset] = useState(false);
@@ -844,11 +707,10 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
         * twice and cost a row of vertical space on the screen with the most
         * scrolling to do.
         */}
-      <div className="feedhead tight">
+      <div className="feedhead tight app-page-heading">
         <h1>Settings</h1>
       </div>
 
-      <Billing onlyWhenEnabled />
 
       {/**
         * ⚠ THE CRAWL BUTTON LIVES IN SETTINGS, NOT ON THE FEED. It is an
@@ -856,7 +718,6 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
         * PIN prompt one thumb-slip away from the deals list is how a crawl gets
         * started by accident on a phone in a pocket.
         */}
-      <CrawlPanel />
 
       {/* ── ALERTS ─────────────────────────────────────────────────────── */}
       <div className="sgroup">
@@ -898,7 +759,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
       </div>
 
       {/* ── YOUR NUMBERS ───────────────────────────────────────────────── */}
-      <div className="sgroup">
+      <div className="sgroup" id="numbers" tabIndex={-1}>
         <div className="shead"><Tag size={14} /> Your numbers</div>
         <div className="scard">
           <label className="srow static">
@@ -1071,7 +932,9 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
       </div>
 
       {/* ── PRIVACY ────────────────────────────────────────────────────── */}
-      <div className="sgroup">
+      <details className="settings-tools" id="plan" tabIndex={-1}><summary>Plan</summary><Billing /></details>
+      <details className="settings-tools" id="tools" tabIndex={-1}><summary>Crawler tools</summary><CrawlPanel /></details>
+      <div className="sgroup" id="privacy" tabIndex={-1}>
         <div className="shead"><Shield size={14} /> Privacy</div>
         <div className="scard">
           {/**

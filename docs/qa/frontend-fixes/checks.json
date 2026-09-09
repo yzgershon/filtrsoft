@@ -1,0 +1,43 @@
+{
+  "at": "2026-09-09T19:09:57.081Z",
+  "synthetic": true,
+  "results": [
+    {
+      "name": "Search-first current design at six widths",
+      "pass": true
+    },
+    {
+      "name": "Saved and Purchases fail visibly and retry malformed or failed responses",
+      "pass": true
+    },
+    {
+      "name": "Saved searches work without permission and preserve failed drafts/removals",
+      "pass": true
+    },
+    {
+      "name": "Outcome errors retain the prompt and retries reuse its submission ID",
+      "pass": true
+    },
+    {
+      "name": "Selected-channel offer math, seller evidence and photos share correct state",
+      "pass": true
+    },
+    {
+      "name": "Tab query and focus resume; Settings hashes remain visible",
+      "pass": true
+    },
+    {
+      "name": "Signed-out detail and share links wait for sign-in and resume once",
+      "pass": true
+    },
+    {
+      "name": "Failed sign-out retains the session; confirmed sign-out rejects delayed auth refresh",
+      "pass": true
+    },
+    {
+      "name": "Current-style feature preview: compare, explicit reviews, undo and retained notes",
+      "pass": true
+    }
+  ],
+  "errors": []
+}

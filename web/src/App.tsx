@@ -17,9 +17,10 @@ import {
   openFilters, onFilterCount, rememberSpot, feedRows, deviceRef, scrollToTop,
   onFreshness, freshnessLine, type Freshness,
   DealBanner, publishDealAlert, pushNotes, readNotes, onNotes, unseenNotes,
-  onAuthLost, publishAuthLost,
+  onAuthLost, publishAuthLost, prepareSpotRestore, restoreRouteSpot, clearRouteSpots,
 } from "./lib.tsx";
-import { NAVIGATE, POPUP_KEY, historyDepth, pushRoute, replaceRoute } from "./history.ts";
+import { NAVIGATE, POPUP_KEY, historyDepth, pushRoute, replaceRoute, tabDestination, clearTabRoutes } from "./history.ts";
+import { ScreenBoundary } from "./request-state.tsx";
 import { Feed } from "./feed.tsx";
 import { Report } from "./detail.tsx";
 import {
@@ -64,7 +65,7 @@ function useRoute() {
       // Closed panels leave a forward entry. Skip it so Forward cannot add an
       // invisible stop between a listing and the feed on the next Back press.
       if (event.type === "popstate" && history.state?.[POPUP_KEY]) { history.back(); return; }
-      document.documentElement.dataset.navigation = event.type === "popstate" ? "back" : "forward";
+      document.documentElement.dataset.navigation = event.type === "popstate" ? "back" : (event as CustomEvent).detail?.restore ? "restore" : "forward";
       setPath(location.pathname);
     };
     addEventListener("popstate", on);
@@ -74,10 +75,10 @@ function useRoute() {
   const mark = () => rememberSpot(location.pathname + location.search, feedRows());
   return {
     path, screen: screenOf(path),
-    go: useCallback((p: string) => {
+    go: useCallback((p: string, restore = false) => {
       const target = new URL(p, location.href);
-      if (target.pathname + target.search === location.pathname + location.search) { scrollToTop(); return; }
-      mark(); pushRoute(p); scrollToTop();
+      if (target.pathname + target.search + target.hash === location.pathname + location.search + location.hash) { if(target.hash)dispatchEvent(new Event(NAVIGATE));else scrollToTop(); return; }
+      mark(); if (restore) prepareSpotRestore(); pushRoute(p, restore); if (!restore && !target.hash) scrollToTop();
     }, []),
     replace: useCallback((p: string) => { mark(); replaceRoute(p); }, []),
     back: useCallback(() => {
@@ -198,25 +199,26 @@ function useAuth() {
    * So: retry a failure once, briefly, and only treat a 200 with `user: null`
    * as signed-out. A second failure shows a retry without guessing the session state.
    */
-  const refresh = useCallback((attempt = 0) => {
-    setFailed(false);
-    fetch("/v1/auth/me")
-      .then(async (r) => {
-        if (!r.ok) throw new Error(String(r.status));
-        return r.json();
-      })
-      .then((d) => {
-        setProviders(d.providers ?? null);
-        setUser(d.user ?? null);
-        setState(d.user ? "in" : "out");
-      })
-      .catch(() => {
-        if (attempt < 1) setTimeout(() => refresh(attempt + 1), 1200);
-        else setFailed(true);
-      });
-  }, []);
-
-  useEffect(() => { refresh(); }, [refresh]);
+  const generation=useRef(0), request=useRef<AbortController|null>(null), retryTimer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
+  const invalidate=useCallback(()=>{generation.current++;request.current?.abort();clearTimeout(retryTimer.current);},[]);
+  const refresh=useCallback(()=>{
+    invalidate();const token=generation.current,controller=new AbortController();request.current=controller;setFailed(false);
+    const load=async(attempt:number)=>{
+      try{
+        const response=await fetch('/v1/auth/me',{cache:'no-store',signal:controller.signal});
+        if(!response.ok)throw new Error(String(response.status));
+        const d=await response.json();
+        if(!d || !Object.hasOwn(d,'user') || (d.user!==null && (!Number.isInteger(d.user?.id) || typeof d.user?.email!=='string')))throw new Error('Incomplete session response');
+        if(token!==generation.current || controller.signal.aborted)return;
+        setProviders(d.providers??null);setUser(d.user);setState(d.user?'in':'out');
+      }catch{
+        if(token!==generation.current || controller.signal.aborted)return;
+        if(attempt<1)retryTimer.current=setTimeout(()=>void load(attempt+1),1200);else setFailed(true);
+      }
+    };
+    void load(0);
+  },[invalidate]);
+  useEffect(()=>{refresh();return invalidate;},[refresh,invalidate]);
 
   /**
    * ⚠ ANY 401 ANYWHERE IN THE APP RE-ASKS THE SERVER, rather than flipping
@@ -227,7 +229,7 @@ function useAuth() {
    */
   useEffect(() => onAuthLost(() => refresh()), [refresh]);
 
-  return { state, user, providers, setUser, setState, refresh, failed };
+  return { state, user, providers, setUser, setState, refresh, failed, invalidate };
 }
 
 export default function App() {
@@ -343,8 +345,24 @@ export default function App() {
   };
   const goTab = useCallback((t: "deals" | "check" | "saved" | "more" | "settings") => {
     setSavedCount(readWatch().length);
-    go(PATH_FOR[t]);
-  }, [go]);
+    go(tabDestination(t) ?? PATH_FOR[t], screen.name !== t);
+  }, [go, screen.name]);
+
+  const focusedRoute = useRef<string | null>(null);
+  useEffect(() => {
+    if (auth.state !== "in") return;
+    const titles: Record<string, string> = { deals: "Listings", check: "Check listing", saved: "Saved", more: "More", settings: "Settings", account: "Account", notifications: "Notifications", how: "How Filtrsoft works", detail: listing?.title || "Listing" };
+    document.title = `${titles[screen.name]} · Filtrsoft`;
+  }, [auth.state, listing?.title, screen.name]);
+  useEffect(() => {
+    if (auth.state !== "in") return;
+    if (focusedRoute.current === path) return;
+    focusedRoute.current = path;
+    const restoring = document.documentElement.dataset.navigation !== "forward";
+    if (restoring) return restoreRouteSpot(path + location.search);
+    const target = document.querySelector<HTMLElement>('#main-content h1') ?? document.getElementById('main-content');
+    target?.setAttribute('tabindex', '-1'); target?.focus({ preventScroll: true });
+  }, [path, auth.state]);
 
   const saveSettings = (patch: Partial<Settings>) => {
     const next = { ...settings, ...patch };
@@ -384,15 +402,21 @@ export default function App() {
    * share sheet does not.
    */
   useEffect(() => {
-    if (path !== "/share") return;
+    if (path !== "/share" || auth.state !== "in") return;
     const q = new URLSearchParams(location.search);
     const blob = [q.get("url"), q.get("text"), q.get("title")].filter(Boolean).join(" ");
     const found = blob.match(/https?:\/\/[^\s]+/)?.[0];
     replaceRoute("/", false);
-    if (found) runUrl(found);
-    else { replace("/check"); setError("That share didn't contain a link. Copy the listing URL and paste it instead."); }
+    // The auth/route cleanup effect must finish before creating a new stream.
+    // Starting it in this same effect pass immediately cancelled signed-out
+    // share deliveries as soon as sign-in resumed them.
+    const pending = requestAnimationFrame(() => {
+      if (found) runUrl(found);
+      else { replace("/check"); setError("That share didn't contain a link. Copy the listing URL and paste it instead."); }
+    });
+    return () => cancelAnimationFrame(pending);
     // Fires once per delivery; `runUrl` is stable enough for this one-shot.
-  }, [path]);
+  }, [path, auth.state]);
 
   useEffect(() => {
     /**
@@ -404,6 +428,7 @@ export default function App() {
      * The state has to be torn down when the route leaves the detail, not only
      * built up when it arrives.
      */
+    if (auth.state !== "in") { reset(); return; }
     if (screen.name !== "detail") {
       if (screen.name !== "check" || listing || verdict) reset();
       return;
@@ -457,7 +482,7 @@ export default function App() {
     }).catch((e) => { if (current && e.name !== "AbortError") setError(e.message || "Couldn't load this listing. Try again."); })
       .finally(() => { if (current) setBusy(false); });
     return () => { current = false; controller.abort(); setBusy(false); };
-  }, [path, reloadAt]);
+  }, [path, reloadAt, auth.state, auth.user?.id]);
 
   const reset = () => {
     es.current?.close(); es.current = null;
@@ -569,6 +594,7 @@ export default function App() {
           onMode={setAuthMode}
           onBack={() => setAuthMode("none")}
           onDone={(u) => {
+            auth.invalidate();
             auth.setUser(u);
             auth.setState("in");
             setAuthMode("none");
@@ -601,7 +627,6 @@ export default function App() {
           ))}
         </nav>
         <div className="nav-bottom">
-          <div className="nav-principle"><Shield size={20} /><b>Evidence before instinct.</b><p>Real sold prices. Clear risks. Your final call.</p></div>
           <button className="workspace-link" onClick={() => go("/settings")}><Gear size={19} /> Preferences</button>
           <button className="workspace-profile" onClick={() => go("/account")}><span className="profile-initial">{(auth.user?.name || "Y").slice(0,1).toUpperCase()}</span><span><b>{auth.user?.name || "Your account"}</b><small>Account & settings</small></span><span aria-hidden="true">↗</span></button>
         </div>
@@ -680,26 +705,13 @@ export default function App() {
       </header>
 
       <main key={path} className="scroll route-enter" id="main-content" tabIndex={-1}>
+        <ScreenBoundary key={path}>
             {screen.name === "deals" && (
               <>
-                <div className="feedhead discover-head">
-                  {/* Badge, headline with one gradient accent word, subtitle.
-                      The demo repeats this exact rhythm in every section. */}
-                  <div className="discover-title"><h1>Discover</h1><span className="market-location">Greater Boston</span></div>
-                  {/**
-                    * ⚠ THE FRESHNESS LINE REPLACES THE SUBTITLE, IT DOES NOT
-                    * JOIN IT. The static copy is read once; "checked 2 min ago,
-                    * 12 new in the last hour" is useful every visit. A second
-                    * row would undo the density pass that just took 51px off
-                    * the top of every screen. Falls back until the feed lands.
-                    */}
-                  <p>{freshnessLine(crawl) ?? "Local listings, sold-price evidence, and a clear call."}</p>
-                </div>
-                {settings.askOutcomes && ask && (
-                  <OutcomePrompt h={ask} onDone={() => setAsk(null)} />
-                )}
+                <h1 className="vh">Listings</h1>
                 <Feed onOpen={(id) => go(`/c/${id}`)}
-                  onWatchChange={setSavedCount} />
+                  onWatchChange={setSavedCount} freshness={freshnessLine(crawl)} />
+                {settings.askOutcomes && ask && <OutcomePrompt h={ask} onDone={() => setAsk(null)} />}
               </>
             )}
 
@@ -744,11 +756,7 @@ export default function App() {
                         reader landing here was told nothing about where it was,
                         and the supported sources were only ever explained by
                         failing. */}
-                    <div className="feedhead">
-                      <span className="eyebrow">Link checker</span>
-                      <h1>Check a <span className="g">listing</span></h1>
-                      <p>Get what a listing is really worth, before you drive.</p>
-                    </div>
+                    <div className="feedhead app-page-heading"><h1>Check listing</h1></div>
                     <button className="paste" onClick={pasteAndCheck} disabled={busy}>
                       <Clip size={18} />
                       {busy ? "Checking…" : "Paste link and check"}
@@ -874,6 +882,7 @@ export default function App() {
             {screen.name === "account" && (
               <AccountScreen go={go} savedCount={savedCount} user={auth.user}
                 onSignedOut={() => {
+                  auth.invalidate();clearTabRoutes();clearRouteSpots();focusedRoute.current=null;
                   auth.setUser(null);
                   auth.setState("out");
                   setAuthMode("none");
@@ -884,17 +893,18 @@ export default function App() {
             )}
 
             {screen.name === "how" && <HowScreen />}
+        </ScreenBoundary>
           </main>
 
           <Tabbar tab={tab} go={goTab} savedCount={savedCount} onMore={() => setQuickMenu("more")} moreOpen={quickMenu === "more"} />
-          {quickMenu && <Popup title={quickMenu === "more" ? "Your workspace" : quickMenu === "account" ? "Your account" : "Notifications"} subtitle={quickMenu === "account" ? auth.user?.name || auth.user?.email : quickMenu === "more" ? "Everything else, one tap away." : "Recent deals and updates"} onClose={() => setQuickMenu(null)}>{dismiss => <>
+          {quickMenu && <Popup title={quickMenu === "more" ? "More" : quickMenu === "account" ? "Your account" : "Notifications"} subtitle={quickMenu === "account" ? auth.user?.name || auth.user?.email : quickMenu === "more" ? undefined : "Recent deals and updates"} onClose={() => setQuickMenu(null)}>{dismiss => <>
             {quickMenu === "notifications" ? <>
               {quickNotes.length ? <div className="quick-list">{quickNotes.slice(0,3).map(n => <MenuRow key={n.id} icon={<Bell size={18}/>} label={n.title} detail={LABEL[n.call]} onClick={() => dismiss(() => go(`/c/${n.id}`))} />)}</div> : <div className="quick-empty"><Bell size={26}/><b>You're all caught up</b><p>New deal alerts will appear here.</p></div>}
               <button className="popup-footer-link" onClick={() => dismiss(() => go("/notifications"))}>All notifications <span aria-hidden="true">→</span></button>
             </> : <div className="quick-list">
               {quickMenu === "account" && <MenuRow icon={<User size={19}/>} label="Account details" detail="Your profile and plan" onClick={() => dismiss(() => go("/account"))} />}
               <MenuRow icon={<Gear size={19}/>} label="Settings" detail="Your numbers, feed and appearance" onClick={() => dismiss(() => go("/settings"))} />
-              <MenuRow icon={<Bell size={19}/>} label="Saved searches & alerts" detail="Stay on top of the tech you want" onClick={() => dismiss(() => go("/saved?sub=alerts"))} />
+              <MenuRow icon={<Bell size={19}/>} label="Saved searches & alerts" detail="Saved filters and optional notifications" onClick={() => dismiss(() => go("/saved?sub=alerts"))} />
               {quickMenu === "more" && <MenuRow icon={<Store size={19}/>} label="Purchases" detail="What you paid and its estimated value" onClick={() => dismiss(() => go("/saved?sub=purchases"))} />}
               <MenuRow icon={<Info size={19}/>} label="How Filtrsoft works" onClick={() => dismiss(() => go("/how"))} />
             </div>}

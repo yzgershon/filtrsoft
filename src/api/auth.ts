@@ -341,6 +341,7 @@ export async function handleSignin(c: Context) {
 }
 
 export async function handleSignout(c: Context) {
+  c.header("Cache-Control", "no-store");
   const token = readCookie(c.req.header("cookie"), SESSION_COOKIE);
   // Delete the row, not just the cookie. A cookie the client throws away is
   // still a valid session to anyone who captured it.
@@ -350,6 +351,7 @@ export async function handleSignout(c: Context) {
 }
 
 export function handleMe(c: Context) {
+  c.header("Cache-Control", "no-store");
   const user = currentUser(c);
   return c.json({ user, providers: authProviders() });
 }

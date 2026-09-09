@@ -11,9 +11,17 @@ export function historyDepth(): number {
   const value = history.state?.[KEY];
   return Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
-export function pushRoute(url: string) {
+const tabRoutes = new Map<string, string>();
+const tabName = (path: string) => path === "/" ? "deals" : /^\/(check|saved|more|settings)\/?$/.exec(path)?.[1];
+export function tabDestination(tab: string): string | undefined {
+  return tabName(location.pathname) === tab ? location.pathname + location.search : tabRoutes.get(tab);
+}
+export function clearTabRoutes() { tabRoutes.clear(); }
+export function pushRoute(url: string, restore = false) {
+  const leaving = tabName(location.pathname);
+  if (leaving) tabRoutes.set(leaving, location.pathname + location.search);
   history.pushState({ ...routeState(), [KEY]: historyDepth() + 1 }, "", url);
-  dispatchEvent(new Event(NAVIGATE));
+  dispatchEvent(new CustomEvent(NAVIGATE, { detail: { restore } }));
 }
 export function replaceRoute(url: string, notify = true) {
   history.replaceState({ ...routeState(), [KEY]: historyDepth() }, "", url);

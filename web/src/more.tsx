@@ -1,3 +1,4 @@
+import { requestJSON, requestMessage } from "./api-client.ts";
 /**
  * More — the fourth tab — plus the two screens that hang off the top bar.
  *
@@ -56,15 +57,14 @@ export function MoreScreen({ go, savedCount, noteCount }: {
    */
   const [bought, setBought] = useState<number | null>(null);
   useEffect(() => {
-    fetch(`/v1/purchases?ref=${deviceRef()}`)
-      .then((r) => r.json())
-      .then((d) => setBought(Array.isArray(d.items) ? d.items.length : 0))
+    requestJSON<{items:unknown[]}>("/v1/purchases", undefined, d=>Array.isArray(d?.items))
+      .then(d=>setBought(d.items.length))
       .catch(() => setBought(null));
   }, []);
 
   return (
     <div className="screen">
-      <div className="feedhead tight">
+      <div className="feedhead tight app-page-heading">
         <h1>More</h1>
       </div>
 
@@ -84,8 +84,8 @@ export function MoreScreen({ go, savedCount, noteCount }: {
             badge={noteCount}
             onClick={() => go("/notifications")} />
           <Row icon={<Store size={17} />} label="Purchases"
-            hint="What you bought, and what it made."
-            badge={bought ?? 0}
+            hint="Recorded purchases and current estimates."
+            badge={bought ?? undefined}
             onClick={() => go("/saved?sub=purchases")} />
           <Row icon={<Save size={17} />} label="Saved listings"
             hint="Re-checked daily for price drops and disappearances."
@@ -108,7 +108,7 @@ export function MoreScreen({ go, savedCount, noteCount }: {
             onClick={() => go("/check")} />
           <Row icon={<Tag size={17} />} label="Your numbers"
             hint="Drive time and the profit floor every verdict is measured against."
-            onClick={() => go("/settings")} />
+            onClick={() => go("/settings#numbers")} />
         </div>
       </div>
 
@@ -122,8 +122,8 @@ export function MoreScreen({ go, savedCount, noteCount }: {
             hint="Alerts, the feed, appearance, data and privacy."
             onClick={() => go("/settings")} />
           <Row icon={<Star size={17} />} label="Plan"
-            hint="What you're on and what else there is."
-            onClick={() => go("/settings")} />
+            hint="Current plan availability."
+            onClick={() => go("/settings#plan")} />
           <Row icon={<Info size={17} />} label="How Filtrsoft works"
             hint="Where the prices come from and what each verdict means."
             onClick={() => go("/how")} />
@@ -161,7 +161,7 @@ export function NotificationsScreen({ onOpen }: { onOpen: (id: number) => void }
 
   return (
     <div className="screen">
-      <div className="feedhead tight">
+      <div className="feedhead tight app-page-heading">
         <h1>Notifications</h1>
         <p>
           {notes.length
@@ -241,7 +241,7 @@ export function AccountScreen({ go, savedCount, user, onSignedOut }: {
 
   return (
     <div className="screen">
-      <div className="feedhead tight">
+      <div className="feedhead tight app-page-heading">
         <h1>Account</h1>
       </div>
 
@@ -301,10 +301,10 @@ export function AccountScreen({ go, savedCount, user, onSignedOut }: {
       <div className="sgroup">
         <div className="scard">
           <Row icon={<Star size={17} />} label="Plan"
-            hint={`You're on ${planName}.`} onClick={() => go("/settings")} />
+            hint={`You're on ${planName}.`} onClick={() => go("/settings#plan")} />
           <Row icon={<Shield size={17} />} label="Privacy"
             hint="What Filtrsoft stores and what it never touches."
-            onClick={() => go("/settings")} />
+            onClick={() => go("/settings#privacy")} />
         </div>
       </div>
 
@@ -325,9 +325,9 @@ export function AccountScreen({ go, savedCount, user, onSignedOut }: {
             <button className="srow" disabled={busy} onClick={async () => {
               setBusy(true);
               try {
-                await fetch("/v1/auth/signout", { method: "POST" });
+                await requestJSON("/v1/auth/signout", { method: "POST" }, d=>d?.ok===true);
                 onSignedOut();
-              } catch { toast("Couldn't sign out", true); }
+              } catch(error) { toast(`Couldn't sign out: ${requestMessage(error)}`, true); }
               finally { setBusy(false); }
             }}>
               <span className="stext">
@@ -393,7 +393,7 @@ export function HowScreen() {
 
   return (
     <div className="screen">
-      <div className="feedhead tight">
+      <div className="feedhead tight app-page-heading">
         <h1>How Filtrsoft works</h1>
         <p>Four steps between a listing and a verdict.</p>
       </div>

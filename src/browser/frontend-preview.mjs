@@ -21,8 +21,9 @@ export function detail(id) {
     signals:[{code:'TESTING_AVAILABLE',severity:'low',polarity:'positive',evidence:'Seller says testing is available at pickup.'}],comps:[10000,18500,25000].map(v=>({raw_title:item.title,total:ask+v,condition_norm:'used',sold_at:new Date().toISOString(),url:null})),meta:{category:item.category,description:'Synthetic listing for frontend preview.',match:{brand:'Example',model:item.title,confidence:'high',method:'fixture'},missingValueFields:[]}};
 }
 
-export function startPreview(port=3188) {
+export function startPreview(port=3188,intercept) {
   const server=createServer(async(req,res)=>{
+    if(intercept && await intercept(req,res))return;
     const url=new URL(req.url,'http://127.0.0.1'), path=url.pathname, q=url.searchParams;
     const scenario=req.headers['x-preview-scenario']??(req.headers.referer?.includes('preview=landing')?'landing':'normal');
     const json=(data,status=200)=>{res.writeHead(status,{'content-type':'application/json','cache-control':'no-store'});res.end(JSON.stringify(data));};
@@ -32,7 +33,8 @@ export function startPreview(port=3188) {
     if(path==='/v1/billing/status')return json({enabled:false,plan:'free',active:false,owner:false,until:null});
     if(path==='/v1/jobs/latest')return json({job:null,configured:true,agentOnline:false,agentSeenAt:null});
     if(path==='/v1/push/vapid')return json({configured:false,publicKey:null});
-    if(path==='/v1/searches'||path==='/v1/purchases')return json({items:[],summary:null});
+    if(path==='/v1/searches')return json({items:[]});
+    if(path==='/v1/purchases')return json({items:[],summary:{count:0,spentCents:null,worthCents:null,marginCents:null}});
     if(path==='/v1/watchlist')return json({items:items.slice(0,3),summary:{dropped:0,gone:0},missing:[]});
     if(path==='/v1/feed'){
       let list=items.slice(0,scenario==='large'?420:11);

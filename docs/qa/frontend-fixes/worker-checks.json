@@ -1,0 +1,31 @@
+{
+  "at": "2026-09-09T19:09:45.173Z",
+  "actualServiceWorker": true,
+  "syntheticHTTP": true,
+  "results": [
+    {
+      "name": "Worker upgrade removes old private caches and keeps unrelated caches",
+      "pass": true
+    },
+    {
+      "name": "Account A then B never replays cached API data; HTTP status passes through",
+      "pass": true
+    },
+    {
+      "name": "Transport failures and offline writes produce explicit 503 without acknowledgements",
+      "pass": true
+    },
+    {
+      "name": "First installed shell has all referenced JS/CSS before offline navigation",
+      "pass": true
+    },
+    {
+      "name": "Online updates refresh a complete shell; HTML masquerading as JavaScript is rejected",
+      "pass": true
+    },
+    {
+      "name": "Cache failures preserve successful network assets and explicit offline fallback",
+      "pass": true
+    }
+  ]
+}

@@ -168,11 +168,11 @@ try {
     const { ctx, page } = await context(); await page.goto(base + '/saved'); await page.getByRole('tab', { name: /^Listings/ }).waitFor();
     await page.getByRole('button', { name: 'More', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: /^Saved searches/ }).click(); await dismissed(page);
-    assert.equal(await page.getByRole('tab', { name: 'Alerts', exact: true }).getAttribute('aria-selected'), 'true');
+    assert.equal(await page.getByRole('tab', { name: 'Searches', exact: true }).getAttribute('aria-selected'), 'true');
     await page.getByRole('button', { name: 'More', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: /^Purchases/ }).click(); await dismissed(page);
     assert.equal(await page.getByRole('tab', { name: 'Bought', exact: true }).getAttribute('aria-selected'), 'true');
-    await page.goBack(); await until(async () => await page.getByRole('tab', { name: 'Alerts', exact: true }).getAttribute('aria-selected') === 'true', 'Back to alerts');
+    await page.goBack(); await until(async () => await page.getByRole('tab', { name: 'Searches', exact: true }).getAttribute('aria-selected') === 'true', 'Back to alerts');
     await page.getByRole('tab', { name: /^Listings/ }).click();
     assert.equal(new URL(page.url()).search, ''); await ctx.close();
   });

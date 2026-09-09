@@ -1,3 +1,5 @@
+import { SaveSearch } from "./saved-searches.tsx";
+export { SaveSearch } from "./saved-searches.tsx";
 import { Popup, MenuRow } from "./popup.tsx";
 import { NAVIGATE, pushRoute } from "./history.ts";
 /**
@@ -70,7 +72,7 @@ export function Gcard({ i, saved, onSave, onOpen }: {
 
   return (
     <div className={`gcard${i.gone ? " is-gone" : ""}`} data-listing-id={i.id}>
-      <button className="gopen" onClick={(e) => onOpen(e.currentTarget.closest(".gcard") as HTMLElement)}
+      <button data-open-listing-id={i.id} className="gopen" onClick={(e) => onOpen(e.currentTarget.closest(".gcard") as HTMLElement)}
         aria-label={`Open ${i.title}`} aria-describedby={descId}>
         <span className="gshot">
           {i.thumb
@@ -257,77 +259,11 @@ export function FilterSheet({ f, facets, onApply, onClose }: {
  * requests user-triggered." A permission prompt that fires because a page
  * rendered is the fastest way to get permanently blocked.
  */
-export function SaveSearch({ f }: { f: Filters }) {
-  const [state, setState] = useState<"idle" | "busy" | "done" | "error">("idle");
-  const [msg, setMsg] = useState<string | null>(null);
-  if (!activeFilterCount(f)) return null;
-
-  async function save() {
-    setState("busy"); setMsg(null);
-    try {
-      let subId = await reconcilePushSubscription();
-      if (!subId) {
-        if (typeof Notification === "undefined" || !("serviceWorker" in navigator)) {
-          throw new Error("This browser can't do alerts.");
-        }
-        const p = await Notification.requestPermission();
-        if (p !== "granted") throw new Error("Notifications were blocked, so there's nowhere to send the alert.");
-        const { publicKey, configured } = await (await fetch("/v1/push/vapid")).json();
-        if (!configured || !publicKey) throw new Error("Alerts aren't configured on the server yet.");
-        const reg = await navigator.serviceWorker.ready;
-        const sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true, applicationServerKey: urlB64ToBytes(publicKey),
-        });
-        const r = await (await fetch("/v1/push/subscribe", {
-          method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify(sub.toJSON()),
-        })).json();
-        if (!r.subId) throw new Error("Couldn't register this device.");
-        localStorage.setItem(SUBKEY, String(r.subId));
-        subId = r.subId;
-      }
-
-      const label = [
-        f.q || CATEGORIES.find((c) => c.id === f.category)?.label || "Deals",
-        f.source ? `on ${sourceLabel(f.source)}` : "",
-        f.maxPrice ? `under ${money(f.maxPrice)}` : "",
-      ].filter(Boolean).join(" ");
-
-      const r = await (await fetch("/v1/searches", {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          subId, label, query: f.q || null,
-          maxPriceCents: f.maxPrice ?? undefined,
-          // The whole point of an alert is the ones worth driving for.
-          calls: ["BUY", "VERIFY"],
-        }),
-      })).json();
-      if (r.error) throw new Error(r.error);
-      setState("done");
-      toast("Saved. You'll get a push when one shows up.");
-    } catch (e) {
-      setState("error");
-      setMsg((e as Error).message);
-    }
-  }
-
-  if (state === "done") {
-    return <p className="savedsearch ok" role="status"><Check size={14} /> Saved to Alerts.</p>;
-  }
-  return (
-    <div className="savedsearch">
-      <button className="btn2" onClick={save} disabled={state === "busy"}>
-        <Bell size={15} /> {state === "busy" ? "Saving…" : "Alert me about this search"}
-      </button>
-      {msg && <p role="alert">{msg}</p>}
-    </div>
-  );
-}
-
-export function Feed({ onOpen, onWatchChange }: {
+export function Feed({ onOpen, onWatchChange, freshness }: {
   onOpen: (id: number) => void;
   /** Lifted so the Saved tab's badge updates the moment you tap a bookmark. */
   onWatchChange: (n: number) => void;
+  freshness?: string | null;
 }) {
   const [items, setItems] = useState<FeedItem[] | null>(null);
   /**
@@ -579,13 +515,15 @@ export function Feed({ onOpen, onWatchChange }: {
         </form>
         <button className="filter-action" aria-label={nFilters ? `Filters, ${nFilters} active` : "Filters"} aria-haspopup="dialog" onClick={() => setSheet(true)}><Sliders size={17} /> Filters{nFilters > 0 && <em>{nFilters}</em>}</button>
       </div>
+      <div className="feed-status"><span>Greater Boston</span>{freshness && <span>{freshness}</span>}</div>
       <Segmented value={quality} onChange={setQuality} options={SEGS} />
+      <SaveSearch f={filters} />
       <div className="feed-context">
         <div>{quality === "review" ? <><span className="context-dot" /><b>Your review queue</b><button className="review-help" aria-label="About your review queue" onClick={() => setReviewInfo(true)}><Info size={15} /></button></> : <span>{total} {total === 1 ? "listing" : "listings"}</span>}</div>
         <button className="sort-trigger" aria-haspopup="dialog" onClick={() => setSortOpen(true)}><SortIcon size={14} />{SORTS.find(x => x.id === filters.sort)?.label}<span aria-hidden="true">⌄</span></button>
       </div>
       {sortOpen && <Popup title="Sort listings" onClose={() => setSortOpen(false)}>{dismiss => <div className="quick-list">{SORTS.map(s => <MenuRow key={s.id} label={s.label} selected={s.id === filters.sort} detail={s.id === "best" ? "Strongest opportunities first" : s.id === "newest" ? "Most recently posted" : s.id === "price" ? "Lowest asking price first" : "Largest reductions first"} onClick={() => dismiss(() => applyFilters({ ...filters, sort: s.id }))} />)}</div>}</Popup>}
-      {reviewInfo && <Popup title="Your review queue" subtitle="A short list, shaped by your judgment." onClose={() => setReviewInfo(false)}>{dismiss => <><p className="popup-copy">Up to ten priced, live listings that you haven't reviewed. Open one, check its evidence, and use Your call to record your judgment. Agreeing with the engine counts as a review too.</p><p className="popup-copy">Reviewed listings leave this queue and remain in the other segments.</p><button className="cta popup-primary" onClick={() => dismiss()}>Got it</button></>}</Popup>}
+      {reviewInfo && <Popup title="Your review queue" onClose={() => setReviewInfo(false)}>{dismiss => <><p className="popup-copy">Up to ten priced, live listings that you haven't reviewed. Open one, check its evidence, and use Your call to record your judgment. Agreeing with the engine counts as a review too.</p><p className="popup-copy">Reviewed listings leave this queue and remain in the other segments.</p><button className="cta popup-primary" onClick={() => dismiss()}>Got it</button></>}</Popup>}
 
 
       {sheet && (
@@ -676,7 +614,7 @@ export function Feed({ onOpen, onWatchChange }: {
             <>
               <SectionHead
                 tone={hero.call === "BUY" ? "buy" : hero.call === "VERIFY" ? "verify" : "mute"}
-                label={quality === "review" ? "First to review" : hero.call === "RISK" ? "Flagged listing" : "Top of your list"} className="hero-section-head" />
+                label={quality === "review" ? "Review" : hero.call === "RISK" ? "Flagged" : "Featured"} className="hero-section-head" />
               {/**
                 * ⚠ THE BOOKMARK IS A SIBLING OF THE OPEN BUTTON, NEVER INSIDE
                 * IT. Audit §18: every grid card could be saved and the best
@@ -685,7 +623,7 @@ export function Feed({ onOpen, onWatchChange }: {
                 * — which is exactly the bug `.gcard` was made a div to avoid.
                 */}
               <div className="herowrap">
-              <button className={`dealhero v-${hero.call}`} onClick={() => onOpen(hero.id)}>
+              <button data-open-listing-id={hero.id} className={`dealhero v-${hero.call}`} onClick={() => onOpen(hero.id)}>
                 <span className="hshot">
                   {hero.thumb
                     ? <Thumb src={hero.thumb} size={28} />
@@ -745,7 +683,7 @@ export function Feed({ onOpen, onWatchChange }: {
         * no interaction that could reach them. Show more is available for every
         * segment now, until `items.length === total` for THAT segment.
         */}
-      {items && shown.length === total && <SaveSearch f={filters} />}
+
 
       {failed && shown.length > 0 && <p role="alert" className="pagination-error">Couldn't load more listings. Your current results are still here.</p>}
       {items && shown.length < total ? (

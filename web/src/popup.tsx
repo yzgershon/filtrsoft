@@ -74,7 +74,6 @@ export function Popup({ title, subtitle, onClose, children, className = "" }: {
   }, [id]);
   return createPortal(<div className={`popup-backdrop ${className ? className + "-wrap" : ""}${closing ? " closing" : ""}`} onClick={e => { if (e.target === e.currentTarget) dismiss(); }}>
     <div ref={panel} className={`popup-panel ${className}`} role="dialog" aria-modal="true" aria-labelledby={`${id}-title`}>
-      <span className="popup-handle" aria-hidden="true" />
       <header className="popup-head"><div><h2 id={`${id}-title`}>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="popup-close" aria-label={`Close ${title.toLowerCase()}`} onClick={() => dismiss()}><Cross size={19} /></button></header>
       <div className="popup-content">{children(dismiss)}</div>
     </div>

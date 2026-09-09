@@ -180,3 +180,57 @@ html.no-motion *, html.no-motion *::before, html.no-motion *::after { animation:
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* App chrome: search is the first feed control. Functional page labels retain
+   heading semantics without repeating a marketing pitch above every task. */
+.feed-status { display:flex; justify-content:space-between; flex-wrap:wrap; gap:4px 12px; color:var(--ink-3); font-size:12px; line-height:1.5; margin:0 0 12px; }
+.request-error { border:1px solid var(--line); padding:16px; border-radius:12px; margin:12px 0; }
+.request-error p, .mutation-error { font-size:14px; line-height:1.6; margin-bottom:12px; }
+.mutation-error { color:var(--risk); }
+.app-page-heading h1 { font-size:24px; font-weight:550; letter-spacing:-.025em; }
+.app-page-heading { padding:16px 0; }
+.discovery-search:focus-within { outline:2px solid var(--brand); outline-offset:3px; }
+#main-content [tabindex="-1"]:focus { outline:none; }
+#main-content h1, .sgroup[id] { scroll-margin-top:80px; }
+@media(max-width:699px) {
+  .scroll > .discovery-toolbar, .discovery-toolbar { margin-top:12px; }
+  .feedhead h1, .feedhead.tight h1, .app-page-heading h1 { font-size:22px; line-height:1.3; font-weight:550; letter-spacing:-.025em; }
+  .feedhead, .feedhead.tight, .app-page-heading { padding:14px 0 16px; margin:0; }
+  .hero-section-head { display:none; }
+  .feed-context b, .sort-trigger, .segn, .gloc { font-size:12px; }
+  .hero-content .dcall, .gcall, .hnet, .hnums .dloc { font-size:11px; }
+}
+
+.search-editor .filtergrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.search-editor .fld { display:flex;flex-direction:column;gap:8px;margin:10px 0;min-width:0; }
+.search-editor .fld>span { font-size:12px;color:var(--ink-2); }
+.search-editor input,.search-editor select { width:100%;min-width:0;min-height:46px;padding:10px 12px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;font-size:16px; }
+.saved-query { padding:16px;border-bottom:1px solid var(--line); }
+.saved-query>p { font-size:13px;line-height:1.6;color:var(--ink-3);margin:8px 0; }
+.saved-query-actions { display:flex;gap:8px;flex-wrap:wrap; }
+.saved-query-actions .btn3 { min-height:44px; }
+.savedsearch { margin:8px 0; }
+.savedsearch .btn2 { min-height:44px; }
+
+.listing-photo,.photo-open { width:100%;height:100%;min-width:0;min-height:0; }
+.photo-open { padding:0;border:0;background:transparent;display:block; }
+.listing-photo img { width:100%;height:100%;object-fit:contain; }
+.photo-unavailable { width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:var(--bg);color:var(--ink-3);font-size:14px; }
+.photo-popup-wrap { padding:0!important;align-items:stretch!important; }
+.popup-panel.photo-popup { width:100%;max-width:none;height:100dvh;max-height:none;margin:0;border:0;border-radius:0;background:#090d14;display:flex;flex-direction:column; }
+.photo-popup .popup-head { flex:none;padding-top:calc(14px + env(safe-area-inset-top)); }
+.photo-popup .popup-content { flex:1;min-height:0;padding:0;overflow:hidden; }
+.photo-viewer { display:flex;flex-direction:column;height:100%;min-height:0; }
+.photo-viewer .lbxstrip { display:flex;flex:1;min-height:0;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none; }
+.photo-viewer .listing-photo { flex:0 0 100%;scroll-snap-align:start; }
+.photo-viewer img { object-fit:contain; }
+.photo-navigation { display:flex;align-items:center;justify-content:center;gap:20px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));flex:none; }
+.photo-navigation .btn2 { min-width:48px;min-height:44px; }
+.seller-description { padding:16px; }
+.seller-description summary { min-height:44px;display:flex;align-items:center;cursor:pointer;font-size:15px;font-weight:550; }
+.seller-description p { white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.7;margin-top:12px; }
+.dside .prov { margin:14px 0; }
+
+.settings-tools { margin:24px 0;border:1px solid var(--line);border-radius:12px;padding:0 16px;scroll-margin-top:80px; }
+.settings-tools>summary { min-height:48px;cursor:pointer;display:flex;align-items:center;list-style:revert;font-size:14px;font-weight:550; }
+.settings-tools[open]>summary { border-bottom:1px solid var(--line); }

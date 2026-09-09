@@ -45,9 +45,13 @@ export function recordReportedOutcome(o:{userId:number;listingId:number;action:'
       o.feesCents??null,o.shippingCents??null,o.daysToSell??null,o.notes??null,now(),decision.id,decision.payload,kind]).lastInsertRowid);
 }
 /** Unknown transaction costs cannot silently become zero-dollar costs. */
+export function transactionProfit(r:{evidence_kind:string|null;purchase_price_cents:number|null;sold_price_cents:number|null;fees_cents:number|null;shipping_cents:number|null}):number|null {
+  if(r.evidence_kind!=='personal_transaction' || [r.purchase_price_cents,r.sold_price_cents,r.fees_cents,r.shipping_cents].some(v=>v==null))return null;
+  return r.sold_price_cents!-r.purchase_price_cents!-r.fees_cents!-r.shipping_cents!;
+}
 export function realisedMargin(userId?:number):Array<{listingId:number;buyCents:number;sellCents:number;netCents:number;days:number|null}> {
   return (db().query(`SELECT listing_id,purchase_price_cents,sold_price_cents,fees_cents,shipping_cents,days_to_sell FROM outcomes
     WHERE evidence_kind='personal_transaction' AND action='bought' AND purchase_price_cents IS NOT NULL
     AND sold_price_cents IS NOT NULL AND fees_cents IS NOT NULL AND shipping_cents IS NOT NULL AND (? IS NULL OR user_id=?)`).all(userId??null,userId??null) as any[])
-    .map(r=>({listingId:r.listing_id,buyCents:r.purchase_price_cents,sellCents:r.sold_price_cents,netCents:r.sold_price_cents-r.purchase_price_cents-r.fees_cents-r.shipping_cents,days:r.days_to_sell}));
+    .map(r=>({listingId:r.listing_id,buyCents:r.purchase_price_cents,sellCents:r.sold_price_cents,netCents:transactionProfit({...r,evidence_kind:'personal_transaction'})!,days:r.days_to_sell}));
 }

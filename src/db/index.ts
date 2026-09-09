@@ -217,7 +217,8 @@ function migrate(d: Database) {
   addColumns(d,"listings",[["last_probed_at","TEXT"],["next_probe_at","TEXT"],["probe_failures","INTEGER NOT NULL DEFAULT 0"]]);
   addColumns(d, "vision_results", VISION_COLUMNS);
   addColumns(d, "retail_prices", RETAIL_COLUMNS);
-  addColumns(d, "outcomes", [["user_id", "INTEGER REFERENCES users(id)"]]);
+  addColumns(d, "outcomes", [["user_id", "INTEGER REFERENCES users(id)"], ["request_id", "TEXT"], ["request_payload", "TEXT"]]);
+  d.exec("CREATE UNIQUE INDEX IF NOT EXISTS outcome_request_id ON outcomes(user_id,request_id) WHERE request_id IS NOT NULL");
   d.exec("CREATE INDEX IF NOT EXISTS idx_vision_fingerprint ON vision_results(photo_fingerprint)");
   d.exec("CREATE INDEX IF NOT EXISTS idx_vision_created ON vision_results(created_at)");
   d.exec("CREATE INDEX IF NOT EXISTS idx_vision_spend_created ON vision_spend(created_at)");

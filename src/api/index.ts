@@ -1,3 +1,4 @@
+import { handlePurchases } from "./purchases.ts";
 import {rememberDecision,decisionAt,decisionSku} from "../db/learning.ts";
 import {feedWindow,CursorError} from "./feed-cursor.ts";
 import {checkInput,outcomeInput} from "./check-input.ts";
@@ -28,7 +29,7 @@ import { detectCategory } from "../signals/index.ts";
 import { handleDeletionChallenge, handleDeletionNotice, deletionEndpoint, deletionConfigured } from "./ebay-deletion.ts";
 import {
   handleVapid, handleSubscribe, handleListSearches, handleCreateSearch,
-  handleDeleteSearch, handleTestPush, pushConfigured, ensureAlertTables, pushStatus,
+  handleDeleteSearch, handleUpdateSearch, handleTestPush, pushConfigured, ensureAlertTables, pushStatus,
   alertStatus,
   handleUpdateStanding,
 } from "./alerts.ts";
@@ -546,6 +547,7 @@ app.get("/v1/searches", handleListSearches);
 app.post("/v1/searches", handleCreateSearch);
 app.delete("/v1/searches/:id", handleDeleteSearch);
 app.patch("/v1/searches/standing", handleUpdateStanding);
+app.patch("/v1/searches/:id", handleUpdateSearch);
 
 /**
  * Billing. Built, and OFF until `STRIPE_PRICE_ID` is set — see `billing.ts`
@@ -660,17 +662,24 @@ app.post("/v1/checks/:id/outcome", async (c) => {
   if(!parsed.success)return c.json({error:'Invalid outcome input',issues:parsed.error.issues},400);
   const body=parsed.data;
 
+  const owner=currentUser(c)!.id;
+  const payload=JSON.stringify([id,body.action,body.pricePaidCents??null,body.notes??null,body.decisionToken??null]);
+  const reply=()=>c.json({ok:true,action:body.action,totalOutcomes:(db().query("SELECT COUNT(*) n FROM outcomes WHERE user_id=?").get(owner) as {n:number}).n});
+  // A committed response can be lost. Reuse the logical submission ID so a
+  // retry cannot double-count a purchase or freeze a different later decision.
+  if(body.requestId){
+    const prior=db().query("SELECT request_payload FROM outcomes WHERE user_id=? AND request_id=?").get(owner,body.requestId) as {request_payload:string}|null;
+    if(prior)return prior.request_payload===payload?reply():c.json({error:'This submission ID was already used for a different answer.'},409);
+  }
   const listing = db().query("SELECT id FROM listings WHERE id=$id").get({ $id: id });
   if (!listing) return c.json({ error: "not found" }, 404);
 
   let decision:ReturnType<typeof decisionAt>;
   try {decision=decisionAt(id,currentUser(c)!.id,body.decisionToken);}catch(e){return c.json({error:(e as Error).message},400);}
-  db().run(`INSERT INTO outcomes(listing_id,sku_id,action,purchase_price_cents,notes,created_at,user_id,decision_id,decision_json,evidence_kind)
-    VALUES(?,?,?,?,?,?,?,?,?,?)`,[id,decisionSku(decision.payload),body.action,body.pricePaidCents??null,body.notes??null,new Date().toISOString(),
-      currentUser(c)!.id,decision.id,decision.payload,body.action==='dead_listing'?'reported_disappearance':'personal_report']);
-
-  const n = (db().query("SELECT COUNT(*) n FROM outcomes WHERE user_id=?").get(currentUser(c)!.id) as { n: number }).n;
-  return c.json({ ok: true, action: body.action, totalOutcomes: n });
+  db().run(`INSERT INTO outcomes(listing_id,sku_id,action,purchase_price_cents,notes,created_at,user_id,decision_id,decision_json,evidence_kind,request_id,request_payload)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,[id,decisionSku(decision.payload),body.action,body.pricePaidCents??null,body.notes??null,new Date().toISOString(),
+      owner,decision.id,decision.payload,body.action==='dead_listing'?'reported_disappearance':'personal_report',body.requestId??null,body.requestId?payload:null]);
+  return reply();
 });
 
 /**
@@ -764,57 +773,7 @@ app.delete("/v1/checks/:id/override", handleClearOverride);
  * Outcomes belong to the signed-in account. Unassigned historical rows are
  * preserved privately; seeing an outcome button is not proof of ownership.
  */
-app.get("/v1/purchases", (c) => {
-  const rows = db().query(`
-    SELECT o.id, o.listing_id, o.action, o.purchase_price_cents, o.notes, o.created_at,
-           o.sold_price_cents, o.sold_channel, o.sold_at,
-           l.title, l.url, l.source, l.location, l.asking_price_cents,
-           v.call, v.payload,
-           EXISTS(SELECT 1 FROM listing_thumbs t WHERE t.listing_id = l.id) has_thumb,
-           (SELECT url FROM listing_photos p WHERE p.listing_id = l.id ORDER BY position LIMIT 1) thumb
-      FROM outcomes o
-      JOIN listings l ON l.id = o.listing_id
-      LEFT JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
-     WHERE o.action = 'bought' AND o.user_id=?
-     ORDER BY o.created_at DESC
-     LIMIT 200
-  `).all(currentUser(c)!.id) as any[];
-
-  const items = rows.map((r) => {
-    const v = r.payload ? JSON.parse(r.payload) : null;
-    const paid = r.purchase_price_cents ?? r.asking_price_cents ?? null;
-    /**
-     * What it is worth is the LOCAL number, not the eBay gross. Every headline
-     * in this app quotes the channel he actually uses, and a purchases screen
-     * that quoted a bigger number than the listing did would be the one place
-     * the product flattered itself.
-     */
-    const local = (v?.channels ?? []).find((ch: any) => ch.channel === "facebook" && ch.available);
-    const worth = local?.netCents ?? v?.valuation?.medianCents ?? null;
-    return {
-      id: r.id, listingId: r.listing_id, title: r.title, url: r.url,
-      source: r.source, location: r.location,
-      thumb: r.has_thumb ? `/v1/thumb/${r.listing_id}` : r.thumb ?? null,
-      askingPriceCents: r.asking_price_cents,
-      paidCents: paid,
-      worthCents: worth,
-      marginCents: worth != null && paid != null ? worth - paid : null,
-      engineCall: r.call ?? null,
-      soldPriceCents: r.sold_price_cents ?? null,
-      soldChannel: r.sold_channel ?? null,
-      soldAt: r.sold_at ?? null,
-      notes: r.notes ?? null,
-      boughtAt: r.created_at,
-    };
-  });
-
-  const spent = items.reduce((a, i) => a + (i.paidCents ?? 0), 0);
-  const worth = items.reduce((a, i) => a + (i.worthCents ?? 0), 0);
-  return c.json({
-    items,
-    summary: { count: items.length, spentCents: spent, worthCents: worth, marginCents: worth - spent },
-  });
-});
+app.get("/v1/purchases", handlePurchases);
 
 app.get("/v1/thumb/:id", (c) => {
   const id = Number(c.req.param("id"));

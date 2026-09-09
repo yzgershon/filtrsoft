@@ -386,6 +386,7 @@ export async function shareOrCopy(url: string, title?: string) {
  */
 export function Thumb({ src, size = 22 }: { src: string | null; size?: number }) {
   const [dead, setDead] = useState(false);
+  useEffect(() => setDead(false), [src]);
   if (!src || dead) return <span className="noimg"><Ghost size={size} /></span>;
   return <img src={src} alt="" loading="lazy" onError={() => setDead(true)} />;
 }
@@ -503,7 +504,7 @@ export function scrollHost(): HTMLElement {
   return (document.scrollingElement as HTMLElement) ?? document.documentElement;
 }
 
-export type Spot = { y: number; n: number };
+export type Spot = { y: number; n: number; focus?: string };
 const SPOTS = new Map<string, Spot>();
 
 /**
@@ -537,7 +538,35 @@ export const feedRows = () => rows;
 /** Leaving a screen forward: write down where we were and how much was loaded. */
 export function rememberSpot(key: string, n: number) {
   popNav = false;
-  SPOTS.set(key, { y: scrollHost().scrollTop, n });
+  const active = document.activeElement as HTMLElement | null;
+  const id = active?.dataset.openListingId;
+  const label = active?.getAttribute("aria-label");
+  const focus = id ? `[data-open-listing-id="${CSS.escape(id)}"]` : active?.id ? `#${CSS.escape(active.id)}` : label ? `[aria-label="${CSS.escape(label)}"]` : undefined;
+  SPOTS.set(key, { y: scrollHost().scrollTop, n, focus });
+}
+
+/** Returning to a different tab resumes its context; tapping the active tab
+ * still goes to the top. Feed consumes this before fetching its saved window. */
+export const prepareSpotRestore = () => { popNav = true; };
+export function clearRouteSpots() { SPOTS.clear(); popNav = false; }
+export function restoreRouteSpot(key: string) {
+  const spot = SPOTS.get(key);
+  const main = document.getElementById("main-content");
+  if (!spot || !main) { main?.focus({ preventScroll: true }); return; }
+  let done = false;
+  const restore = () => {
+    if (done) return;
+    // Feed owns pagination and scroll restoration. Other tabs may need to wait
+    // for their request before the saved position has enough content to exist.
+    if (location.pathname !== "/") scrollHost().scrollTop = spot.y;
+    const target = spot.focus ? main.querySelector<HTMLElement>(spot.focus) : null;
+    target?.focus({ preventScroll: true });
+  };
+  const observer = new MutationObserver(restore); observer.observe(main, { childList: true, subtree: true });
+  const stop = () => { done = true; observer.disconnect(); clearTimeout(timer); removeEventListener("pointerdown", stop); removeEventListener("wheel", stop); removeEventListener("keydown", stop); };
+  const timer = setTimeout(stop, 5000);
+  addEventListener("pointerdown", stop, { once: true }); addEventListener("wheel", stop, { once: true }); addEventListener("keydown", stop, { once: true });
+  restore(); return stop;
 }
 
 /**

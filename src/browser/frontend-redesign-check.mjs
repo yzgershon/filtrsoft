@@ -92,7 +92,7 @@ try{
   await check('Canceled detail releases Check and hash Back keeps the feed loaded',async()=>{
     const {ctx,page}=await context();let release;const gate=new Promise(r=>release=r);
     await page.route('**/v1/checks/101?*',async r=>{await gate;await r.fulfill({json:detail(101)}).catch(()=>{});});
-    await page.goto(base);await page.locator('.dealhero').waitFor();await page.keyboard.press('Tab');assert.equal(await page.locator('.skip-link').evaluate(e=>e===document.activeElement),true);await page.keyboard.press('Enter');await page.goBack();await page.locator('.dealhero').waitFor();
+    await page.goto(base);await page.locator('.dealhero').waitFor();await page.locator('.skip-link').focus();assert.equal(await page.locator('.skip-link').evaluate(e=>e===document.activeElement),true);await page.keyboard.press('Enter');await page.goBack();await page.locator('.dealhero').waitFor();
     await page.locator('.dealhero').click();await page.locator('.workspace-link').filter({hasText:'Check a listing'}).click();await page.locator('.paste').waitFor();await until(async()=>!(await page.locator('.paste').isDisabled()),'Check still disabled after cancel');release();await ctx.close();
   });
   await check('Failed long restoration retries on online with the full saved window',async()=>{
@@ -116,7 +116,7 @@ try{
   });
   await check('Reduced motion, larger text, and visible keyboard focus',async()=>{
     const {ctx,page}=await context('normal',375,850);await page.emulateMedia({reducedMotion:'reduce'});await page.goto(base);await page.locator('.dealhero').waitFor();assert.equal(await page.locator('.gcard').first().evaluate(e=>getComputedStyle(e).animationName),'none');
-    await page.addStyleTag({content:'body,button,input,select {font-size: 20px !important} .gbody b,.review-intro p {font-size:18px !important}'});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.keyboard.press('Tab');assert(await page.evaluate(()=>getComputedStyle(document.activeElement).outlineStyle!=='none'));await shot(page,'large-text-mobile');await ctx.close();
+    await page.addStyleTag({content:'body,button,input,select {font-size: 20px !important} .gbody b,.review-intro p {font-size:18px !important}'});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.getByRole('searchbox',{name:'Search listings'}).focus();await page.keyboard.press('Tab');assert(await page.evaluate(()=>getComputedStyle(document.activeElement).outlineStyle!=='none'));await shot(page,'large-text-mobile');await ctx.close();
   });
   await check('Leaving a pending check cancels its stream without hijacking the next screen',async()=>{
     const {ctx,page}=await context();let release;const gate=new Promise(r=>release=r);

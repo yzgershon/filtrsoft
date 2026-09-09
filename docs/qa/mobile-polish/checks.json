@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-09-09T02:23:06.148Z",
+  "checkedAt": "2026-09-09T19:10:37.052Z",
   "synthetic": true,
   "results": [
     {
@@ -42,15 +42,15 @@
   "measurements": [
     {
       "width": 360,
-      "firstPriceBottom": 430
+      "firstPriceBottom": 388
     },
     {
       "width": 390,
-      "firstPriceBottom": 425
+      "firstPriceBottom": 383
     },
     {
       "width": 430,
-      "firstPriceBottom": 425
+      "firstPriceBottom": 383
     }
   ],
   "errors": []
