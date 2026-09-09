@@ -3,7 +3,7 @@
 **Master plan AND current state. Update before you stop working.** A stale line
 here is worse than a missing one, because a fresh session will believe it.
 
-**Last updated 2026-09-08.** Read section 0 first and in order; it is the record
+**Last updated 2026-09-09.** Read section 0 first and in order; it is the record
 of every session since the rename and it supersedes anything below it that
 disagrees. Sections 1 onward are older material kept for the reasoning, not for
 current numbers.
@@ -88,6 +88,18 @@ and it supersedes anything below that disagrees with it.** Section 2 onward is
 older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
+
+### Current design exploration: 2026-09-09, audit and prototypes ready; layout choice pending
+
+Yish requested a deeper frontend audit, mature mobile-app practices, useful features, and **different layout options to choose from before moving to a new design**. Work is in `C:\Dev\filtrsoft-backend`, branch `codex/frontend-redesign`, starting clean at `ff9bb8a`. Three agents reviewed structure, quality and feature feasibility read-only; root was the sole editor. The complete report is **`docs/FRONTEND-DEEP-DIVE-2026-09-09.md`**.
+
+Three interactive prototypes are ready at **http://127.0.0.1:3192/**: **A Shortlist**, **B Market**, **C Workbench**. Start with `node docs/design-lab/serve.mjs` if the loopback server has stopped. They use static example listings and existing local photo fixtures. All prices, calls, comp counts and workflow state are labeled examples. No application APIs or account writes occur; state resets on reload. Root recommends **A as home + B Browse, then C's deal workspace once persistent state is ready**. A choice question was presented to Yish; the chosen design must retain his **full desktop app** requirement, not a desktop phone frame.
+
+**10 prototype browser scenario groups passed**, covering mobile widths 360/390/430, the comparison studio at 375/768/1024/1440, menus/Back/focus, save/Undo/compare, exact saved-search criteria, explicit review/Undo/Next, notes/checklists/stages, reversible themes, OS/app reduced motion, landscape and text expansion. No uncaught page errors or application API requests. Run `node docs/design-lab/check.mjs`; evidence and visual review are in `docs/qa/design-directions`. These checks are static local prototypes, not authenticated production or a physical phone test.
+
+The audit found real remaining frontend/API gaps: selected-channel math differs from the simulator; Saved errors can look empty; malformed Purchases errors can crash the app; OutcomePrompt sends `gone` instead of `dead_listing` and claims success before persistence; alert mutations lack reliable failure handling; saved-search names omit enforced category/source criteria; generic service-worker API caches lack private/account boundaries; purchase totals substitute asking price for unknown paid amounts. Navigation context, early evidence, photo overlay behavior and CSS consolidation also need work. The report separates reproduced cases, source-confirmed paths and proposed features. **These findings are not fixed in the application by this exploration.**
+
+Application source, shared checkout, databases, archive, engine and dependencies remain unchanged. No new push or deployment occurred in this design exploration; prior production verification below is historical, not a fresh health measurement. Next: take Yish's layout choice, then the report's trust/interaction phases before adding the selected real UI and account-backed features. A review progress counter must use a captured batch because the live ten-item Review endpoint refills as labels are recorded.
 
 ### Current mobile refinement checkpoint: 2026-09-08 evening, pushed and live
 

@@ -1,0 +1,48 @@
+{
+  "date": "2026-09-09T16:13:30.157Z",
+  "scope": "Static example-only prototypes, not production or backend validation",
+  "results": [
+    {
+      "name": "Three distinct home layouts, readable first asks, intact photos and no horizontal page overflow",
+      "pass": true
+    },
+    {
+      "name": "Comparison studio fits desktop and narrow widths",
+      "pass": true
+    },
+    {
+      "name": "Native sheet focus, Escape, phone Back, backdrop and focused settings destination",
+      "pass": true
+    },
+    {
+      "name": "Save, unsave and Undo update the candidate set; comparison contains explicit unknowns",
+      "pass": true
+    },
+    {
+      "name": "Saved searches retain selected category, exact search text and sorting without push permission",
+      "pass": true
+    },
+    {
+      "name": "Explicit review, next example and queue progress do not silently label another item",
+      "pass": true
+    },
+    {
+      "name": "Deal stage, note and inspection are personal state, while actual paid stays unrecorded",
+      "pass": true
+    },
+    {
+      "name": "Dark appearance is reversible in all three concepts; reduced motion retains focus",
+      "pass": true
+    },
+    {
+      "name": "Landscape, text expansion and reduced-motion sheets remain reachable",
+      "pass": true
+    },
+    {
+      "name": "Prototype performs no application API requests and produces no uncaught browser errors",
+      "pass": true
+    }
+  ],
+  "errors": [],
+  "forbidden": []
+}
