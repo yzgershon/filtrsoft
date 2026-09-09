@@ -7,7 +7,7 @@
  * `nav.ts` where `bun test` can pin them without a DOM.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Back, Bell, Clip, Link, Again, Sliders, User } from "./icons.tsx";
+import { Back, Bell, Clip, Link, Again, Sliders, User, Grid, Scan, Save, Gear, Shield } from "./icons.tsx";
 import { BrandMark, Wordmark } from "./brand.tsx";
 import type { Comp, Hist, Listing, Meta, Signal, Verdict } from "./types.ts";
 import {
@@ -16,8 +16,9 @@ import {
   openFilters, onFilterCount, rememberSpot, feedRows, deviceRef, scrollToTop,
   onFreshness, freshnessLine, type Freshness,
   DealBanner, publishDealAlert, pushNotes, readNotes, onNotes, unseenNotes,
-  onAuthLost,
+  onAuthLost, publishAuthLost,
 } from "./lib.tsx";
+import { NAVIGATE, historyDepth, pushRoute, replaceRoute } from "./history.ts";
 import { Feed } from "./feed.tsx";
 import { Report } from "./detail.tsx";
 import {
@@ -56,69 +57,25 @@ export type { Screen, Settings } from "./nav.ts";
  */
 function useRoute() {
   const [path, setPath] = useState(location.pathname);
-  /**
-   * ⚠ HOW DEEP INTO OUR OWN STACK WE ARE, because `history.back()` on entry 0
-   * leaves the site.
-   *
-   * A shared link opens straight onto `/c/842` with nothing behind it, and
-   * `history.length` cannot tell you that — it counts the whole tab, including
-   * whatever page the user was on before they tapped the link. Going "back"
-   * there would take them out of Filtrsoft entirely, which is not what a Back
-   * button inside an app means. Below zero depth, Back goes to the feed.
-   */
-  const depth = useRef(0);
   useEffect(() => {
-    const on = () => { depth.current = Math.max(0, depth.current - 1); setPath(location.pathname); };
+    replaceRoute(location.href, false);
+    const on = () => setPath(location.pathname);
     addEventListener("popstate", on);
-    return () => removeEventListener("popstate", on);
+    addEventListener(NAVIGATE, on);
+    return () => { removeEventListener("popstate", on); removeEventListener(NAVIGATE, on); };
   }, []);
-  /**
-   * ⚠ EVERY FORWARD NAVIGATION WRITES DOWN WHERE IT LEFT FROM.
-   *
-   * Yish, 2026-08-31: *"if I'm halfway down the listings and click one then go
-   * back I want to stay where I am down there, I don't want to get scrolled
-   * back up."*
-   *
-   * It belongs HERE rather than on the card, because a card is only one of the
-   * ways out of the feed — the Settings gear, a saved-search link and the
-   * share flow all leave it too, and any of them can be followed by Back. One
-   * choke point cannot forget a case. `feedRows()` is published by the feed;
-   * the full reasoning for both halves is in `lib.tsx`.
-   */
   const mark = () => rememberSpot(location.pathname + location.search, feedRows());
-
   return {
-    path,
-    screen: screenOf(path),
+    path, screen: screenOf(path),
     go: useCallback((p: string) => {
-      if (p === location.pathname) return;
-      mark();
-      depth.current++;
-      history.pushState({}, "", p);
-      setPath(p);
-      /**
-       * ⚠ FORWARD GOES TO THE TOP; BACK DOES NOT. Both halves live at this one
-       * choke point so they cannot disagree — `mark()` above writes down where
-       * we left from (for Back), and this starts the new screen at its
-       * beginning. Without it the document scroller kept the feed's offset and
-       * a listing opened 900px down its own page.
-       */
-      scrollToTop();
+      const target = new URL(p, location.href);
+      if (target.pathname + target.search === location.pathname + location.search) return;
+      mark(); pushRoute(p); scrollToTop();
     }, []),
-    replace: useCallback((p: string) => {
-      mark();
-      history.replaceState({}, "", p);
-      setPath(p);
-    }, []),
-    /**
-     * ⚠ `history.back()`, NOT `go("/")`. Only the real back restores where you
-     * were: pushing `/` is a NEW entry, so the feed mounts as a forward
-     * navigation, `popSpot` returns nothing and you land at the top — the exact
-     * thing tapping the wordmark already did and that this exists to replace.
-     */
+    replace: useCallback((p: string) => { mark(); replaceRoute(p); }, []),
     back: useCallback(() => {
-      if (depth.current > 0) history.back();
-      else { history.replaceState({}, "", "/"); setPath("/"); }
+      if (historyDepth() > 0) history.back();
+      else replaceRoute("/");
     }, []),
   };
 }
@@ -219,6 +176,7 @@ function useAuth() {
   const [state, setState] = useState<"loading" | "in" | "out">("loading");
   const [user, setUser] = useState<Account | null>(null);
   const [providers, setProviders] = useState<Providers | null>(null);
+  const [failed, setFailed] = useState(false);
 
   /**
    * ⚠ ONLY A REAL ANSWER FROM THE SERVER MOVES THIS OUT OF `loading`.
@@ -231,10 +189,10 @@ function useAuth() {
    * everyone was logged out.
    *
    * So: retry a failure once, briefly, and only treat a 200 with `user: null`
-   * as signed-out. A second failure leaves it on `loading` rather than
-   * guessing, which shows a blank frame instead of a wrong screen.
+   * as signed-out. A second failure shows a retry without guessing the session state.
    */
   const refresh = useCallback((attempt = 0) => {
+    setFailed(false);
     fetch("/v1/auth/me")
       .then(async (r) => {
         if (!r.ok) throw new Error(String(r.status));
@@ -247,6 +205,7 @@ function useAuth() {
       })
       .catch(() => {
         if (attempt < 1) setTimeout(() => refresh(attempt + 1), 1200);
+        else setFailed(true);
       });
   }, []);
 
@@ -261,7 +220,7 @@ function useAuth() {
    */
   useEffect(() => onAuthLost(() => refresh()), [refresh]);
 
-  return { state, user, providers, setUser, setState, refresh };
+  return { state, user, providers, setUser, setState, refresh, failed };
 }
 
 export default function App() {
@@ -419,7 +378,7 @@ export default function App() {
     const q = new URLSearchParams(location.search);
     const blob = [q.get("url"), q.get("text"), q.get("title")].filter(Boolean).join(" ");
     const found = blob.match(/https?:\/\/[^\s]+/)?.[0];
-    history.replaceState({}, "", "/");
+    replaceRoute("/", false);
     if (found) runUrl(found);
     else { replace("/check"); setError("That share didn't contain a link. Copy the listing URL and paste it instead."); }
     // Fires once per delivery; `runUrl` is stable enough for this one-shot.
@@ -436,7 +395,7 @@ export default function App() {
      * built up when it arrives.
      */
     if (screen.name !== "detail") {
-      if (listing || verdict) reset();
+      if (screen.name !== "check" || listing || verdict) reset();
       return;
     }
     /**
@@ -447,10 +406,20 @@ export default function App() {
      * link therefore rendered the detail shell and never fetched anything: a
      * permanently blank screen with no error. One derivation, one answer.
      */
+    const controller = new AbortController();
+    let current = true;
+    setError(null); setListing(null); setVerdict(null); setCheckId(null);
     setBusy(true);
     // The Settings stepper is a real input now: it changes the required
     // profit floor, and therefore the verdict, on this screen.
-    fetch(checkQuery(screen.id, settings.driveMinutes, deviceRef())).then((r) => r.json()).then((d) => {
+    fetch(checkQuery(screen.id, settings.driveMinutes, deviceRef()), { signal: controller.signal })
+      .then(async (r) => {
+        if (r.status === 401) publishAuthLost();
+        if (!r.ok) throw new Error(r.status === 404 ? "This listing is no longer available." : "Couldn't load this listing. Try again.");
+        return r.json();
+      }).then((d) => {
+      // A slower previous listing must never replace the one named in the URL.
+      if (!current) return;
       if (d.error) return setError(d.error);
       setListing(d.listing); setVerdict(d.verdict); setCheckId(d.checkId);
       // The detail endpoint recomputes these; dropping them left the risk
@@ -475,12 +444,14 @@ export default function App() {
         pushHist({ id: screen.id, title: d.listing.title, call: d.verdict.call, at: Date.now() });
         setHist(readHist());
       }
-    }).finally(() => setBusy(false));
+    }).catch((e) => { if (current && e.name !== "AbortError") setError(e.message || "Couldn't load this listing. Try again."); })
+      .finally(() => { if (current) setBusy(false); });
+    return () => { current = false; controller.abort(); setBusy(false); };
   }, [path, reloadAt]);
 
   const reset = () => {
-    es.current?.close();
-    setError(null); setListing(null); setVerdict(null);
+    es.current?.close(); es.current = null;
+    setBusy(false); setError(null); setListing(null); setVerdict(null);
     setSignals([]); setComps([]); setMeta(undefined); setDecisionToken(undefined); setStage(0); setMs(null); setCheckId(null); setReading(0);
   };
 
@@ -542,7 +513,7 @@ export default function App() {
       setDecisionToken(d.decisionToken);
       if (d.listingId) {
         setCheckId(d.listingId);
-        history.replaceState({}, "", `/c/${d.listingId}`);
+        replaceRoute(`/c/${d.listingId}`);
         if (d.listing && d.verdict) {
           pushHist({ id: d.listingId, title: d.listing.title, call: d.verdict.call, at: Date.now() });
           setHist(readHist());
@@ -568,9 +539,10 @@ export default function App() {
    * screen.
    */
   if (auth.state === "loading") {
-    // Deliberately blank. See `useAuth`: a flash of the marketing page at a
-    // signed-in user on every launch is worse than 200ms of nothing.
-    return <div className="app boot" aria-busy="true" />;
+    return <div className="app boot" aria-busy={!auth.failed}>
+      <span className="mkbrand"><BrandMark size={28} /><Wordmark /></span>
+      {auth.failed ? <div role="alert"><p>Couldn't connect to Filtrsoft.</p><button className="btn2" onClick={() => auth.refresh()}>Try again</button></div> : <p role="status">Opening your workspace...</p>}
+    </div>;
   }
 
   if (auth.state === "out") {
@@ -603,19 +575,27 @@ export default function App() {
   }
 
   return (
-    <div className="app">
-      {/**
-        * TOP BAR OWNS EVERY ACTION. There is no bottom nav.
-        *
-        * The old one was `position: absolute` inside a fixed-height fake phone,
-        * so on a real device it sat at the bottom of the SCROLL CONTENT — you
-        * could only reach Deals/Check/You by scrolling to the end of a
-        * 285-listing feed. A nav you have to scroll to is not navigation.
-        *
-        * It also did not deserve three tabs. Pasting a link is an action, not a
-        * place, and a profile is not a destination you visit — both are icons
-        * here, and the feed gets the entire screen.
-        */}
+    <div className={`app screen-${screen.name}`}>
+      <a className="skip-link" href="#main-content">Skip to content</a>
+      <aside className="workspace-nav" aria-label="Workspace">
+        <button className="workspace-brand" onClick={() => goTab("deals")} aria-label="Filtrsoft home"><BrandMark size={27} /><Wordmark /></button>
+        <span className="nav-caption">YOUR WORKSPACE</span>
+        <nav aria-label="Desktop navigation">
+          {[{ id: "deals", label: "Discover", icon: <Grid size={19} />, route: "/" },
+            { id: "check", label: "Check a listing", icon: <Scan size={19} />, route: "/check" },
+            { id: "saved", label: "Saved listings", icon: <Save size={19} />, route: "/saved" },
+            { id: "notifications", label: "Notifications", icon: <Bell size={19} />, route: "/notifications" }].map(n => (
+            <button key={n.id} className={`workspace-link${screen.name === n.id ? " active" : ""}`} aria-current={screen.name === n.id ? "page" : undefined} onClick={() => go(n.route)}>
+              {n.icon}<span>{n.label}</span>{n.id === "saved" && savedCount > 0 ? <em>{savedCount}</em> : null}
+            </button>
+          ))}
+        </nav>
+        <div className="nav-bottom">
+          <div className="nav-principle"><Shield size={20} /><b>Evidence before instinct.</b><p>Real sold prices. Clear risks. Your final call.</p></div>
+          <button className="workspace-link" onClick={() => go("/settings")}><Gear size={19} /> Preferences</button>
+          <button className="workspace-profile" onClick={() => go("/account")}><span className="profile-initial">{(auth.user?.name || "Y").slice(0,1).toUpperCase()}</span><span><b>{auth.user?.name || "Your account"}</b><small>Account & settings</small></span><span aria-hidden="true">↗</span></button>
+        </div>
+      </aside>
       <header className="topbar">
         {/**
           * ⚠ SETTINGS IS THE ONE SCREEN WITH NOWHERE ELSE TO PUT BACK. The
@@ -639,9 +619,6 @@ export default function App() {
         )}
         <button className="brand" onClick={() => goTab("deals")}
           aria-label="Filtrsoft home"><BrandMark className="mark" /><Wordmark /></button>
-        {/* The desktop header nav is GONE: above 1024px the app is a phone
-            in a frame (10-desktop.css), so there is no wide bar to put it
-            in. It lived in commit 6017540. */}
         <div className="spacer" />
 
         {/*
@@ -692,14 +669,14 @@ export default function App() {
         </button>
       </header>
 
-      <main className="scroll">
+      <main className="scroll" id="main-content" tabIndex={-1}>
             {screen.name === "deals" && (
               <>
                 <div className="feedhead">
                   {/* Badge, headline with one gradient accent word, subtitle.
                       The demo repeats this exact rhythm in every section. */}
-                  <span className="eyebrow buy"><i />Live deals</span>
-                  <h1>Worth <span className="g">driving for</span></h1>
+                  <span className="eyebrow">THE LOCAL TECH EDIT</span>
+                  <h1>Less scrolling.<br className="mobile-break" /> <span className="g">Better finds.</span></h1>
                   {/**
                     * ⚠ THE FRESHNESS LINE REPLACES THE SUBTITLE, IT DOES NOT
                     * JOIN IT. The static copy is read once; "checked 2 min ago,
@@ -707,7 +684,7 @@ export default function App() {
                     * row would undo the density pass that just took 51px off
                     * the top of every screen. Falls back until the feed lands.
                     */}
-                  <p>{freshnessLine(crawl) ?? "Only what the engine verified, best first."}</p>
+                  <p>{freshnessLine(crawl) ?? "Local listings, sold-price evidence, and a clear call."}</p>
                 </div>
                 {settings.askOutcomes && ask && (
                   <OutcomePrompt h={ask} onDone={() => setAsk(null)} />
@@ -830,7 +807,7 @@ export default function App() {
                   </div>
                 )}
 
-                {error && <div className="alert" role="alert">{error}</div>}
+                {error && <div className="errbox" role="alert"><Again size={24} /><h2>That didn't load.</h2><p>{error}</p>{screen.name === "detail" && <div className="error-actions"><button className="cta" onClick={() => setReloadAt(Date.now())}>Try again</button><button className="btn2" onClick={back}>Back to listings</button></div>}</div>}
 
                 {/* The source chips this comment used to describe were deleted
                     long ago; the statement they carried now lives in the H1's
@@ -855,7 +832,7 @@ export default function App() {
                       onClick={() => shareOrCopy(`${location.origin}/c/${checkId}`, listing?.title)}>
                       <Link /> Share
                     </button>
-                    <button className="btn2" onClick={() => { reset(); setUrl(""); go("/"); }}>
+                    <button className="btn2" onClick={() => { reset(); setUrl(""); go("/check"); }}>
                       <Again /> New check
                     </button>
                   </div>
@@ -893,7 +870,7 @@ export default function App() {
                   setAuthMode("none");
                   // Back to `/` so the next sign-in does not resume onto a
                   // deep link from the previous account.
-                  history.replaceState({}, "", "/");
+                  replaceRoute("/");
                 }} />
             )}
 

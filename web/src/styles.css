@@ -30,6 +30,8 @@
 @import "./css/07-screens.css";
 @import "./css/08-polish.css";
 @import "./css/09-feedback.css";
-@import "./css/10-desktop.css";
+/* The former desktop phone mock is replaced by the responsive redesign. */
 @import "./css/11-discovery.css";
 @import "./css/12-landing.css";
+
+@import "./css/13-redesign.css";

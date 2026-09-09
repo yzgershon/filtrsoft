@@ -83,11 +83,11 @@ export function SecHead({ icon, title, note, tone, trailing }: {
  * value of the control is knowing which listings you have personally judged.
  * A silent replacement would erase that distinction the moment you forgot.
  *
- * Only the four calls worth setting by hand are offered. "Can't tell" and "Not
+ * All five priced/risk calls can be reviewed, including agreement with FAIR. "Can't tell" and "Not
  * covered" are things the ENGINE says about its own coverage; a human marking a
  * listing "I couldn't price this" tells nobody anything.
  */
-const MY_CALLS: Call[] = ["BUY", "VERIFY", "RISK", "PASS"];
+const MY_CALLS: Call[] = ["BUY", "VERIFY", "FAIR", "PASS", "RISK"];
 
 export function MyCall({ id, call, overriddenFrom, onChange,decisionToken }: {
   id: number;
@@ -127,10 +127,10 @@ export function MyCall({ id, call, overriddenFrom, onChange,decisionToken }: {
       <SecHead tone="alt" icon={<Eye size={18} />} title="Your call"
         note={overriddenFrom
           ? `You marked this ${LABEL[call]}. The engine said ${LABEL[overriddenFrom]}.`
-          : "Seen something the engine hasn't? Relabel it."} />
+          : "Agree with this call, or give it your own. Your review shapes the next batch."} />
       {!open ? (
         <button className="btn2 mycallbtn" onClick={() => setOpen(true)}>
-          {overriddenFrom ? "Change your label" : "Set my own label"}
+          {overriddenFrom ? "Change your label" : "Review this listing"}
         </button>
       ) : (
         <div className="mycall">
@@ -898,6 +898,7 @@ export function Report({
           {verdict && <Numbers v={verdict} ask={listing?.askingPriceCents ?? null} />}
         </div>
       </div>
+      <div className="evidence-grid">
       {verdict?.inventory && <Inventory inventory={verdict.inventory} />}
       {verdict && (
         <CompsAndOffer v={verdict} comps={comps ?? []} ask={listing.askingPriceCents} />
@@ -938,6 +939,7 @@ export function Report({
         * count makes that visible on the screen where it matters, instead of
         * requiring someone to notice the number looks odd.
         */}
+      </div>
       {meta?.match?.model && (
         <div className="prov">
           Priced as <b>{[meta.match.brand, meta.match.model].filter(Boolean).join(" ")}</b>

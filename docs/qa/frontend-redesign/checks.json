@@ -1,0 +1,66 @@
+{
+  "synthetic": true,
+  "results": [
+    {
+      "name": "Responsive built layouts, primary screens, and no horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "Landing and sign-in layout at mobile and desktop sizes",
+      "pass": true
+    },
+    {
+      "name": "Filters, keyboard dialog closure and explicit price sorting",
+      "pass": true
+    },
+    {
+      "name": "Browser Back + Forward followed by app Back preserves the filtered feed",
+      "pass": true
+    },
+    {
+      "name": "Deep-link Back and New check have working destinations",
+      "pass": true
+    },
+    {
+      "name": "360-row restoration uses 200 + 160 cursor pages and preserves position",
+      "pass": true
+    },
+    {
+      "name": "Detail network failure has a retry and obsolete responses cannot replace a new listing",
+      "pass": true
+    },
+    {
+      "name": "All five Your call options save with the decision token in the synthetic API",
+      "pass": true
+    },
+    {
+      "name": "Canceled detail releases Check and hash Back keeps the feed loaded",
+      "pass": true
+    },
+    {
+      "name": "Failed long restoration retries on online with the full saved window",
+      "pass": true
+    },
+    {
+      "name": "Persistent expired cursors stop with a recoverable error",
+      "pass": true
+    },
+    {
+      "name": "Session transport failure is recoverable without rendering a signed-out landing page",
+      "pass": true
+    },
+    {
+      "name": "Completed synthetic check synchronizes the detail route and Check navigation",
+      "pass": true
+    },
+    {
+      "name": "Reduced motion, larger text, and visible keyboard focus",
+      "pass": true
+    },
+    {
+      "name": "Leaving a pending check cancels its stream without hijacking the next screen",
+      "pass": true
+    }
+  ],
+  "pageErrors": []
+}

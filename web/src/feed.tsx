@@ -1,3 +1,4 @@
+import { NAVIGATE, pushRoute } from "./history.ts";
 /**
  * The Deals screen: cards, the segment control, and discovery.
  *
@@ -8,18 +9,18 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Alert, Again, Bell, Check, Cut, Ghost, Save } from "./icons.tsx";
+import { Alert, Again, Bell, Check, Cut, Ghost, Save, Sliders, Scan } from "./icons.tsx";
 import type { Call, FeedItem } from "./types.ts";
 import {
   type Filters, type Quality,
   NO_FILTERS, CATEGORIES, SOURCES, SORTS, sourceLabel,
   filtersFromSearch, searchFromFilters, activeFilterCount, feedUrl,
-  FEED_PAGE, restoreLimit, readSeen, markSeen,
+  FEED_PAGE, readSeen, markSeen,
 } from "./nav.ts";
 import {
   LABEL, money, ago, listedAge, readWatch, toggleWatch, readSettings, toast, Thumb,
   SUBKEY, reconcilePushSubscription, urlB64ToBytes, onOpenFilters, publishFilterCount,
-  popSpot, restoreScroll, setFeedRows, deviceRef, publishFreshness, publishAuthLost,
+  rememberSpot, popSpot, restoreScroll, setFeedRows, deviceRef, publishFreshness, publishAuthLost,
 } from "./lib.tsx";
 
 /** Re-exported so existing importers keep one name for the page size. */
@@ -67,7 +68,7 @@ export function Gcard({ i, saved, onSave, onOpen }: {
   const age = cfg.showAge ? listedAge(i.postedAt) : null;
 
   return (
-    <div className={`gcard${i.gone ? " is-gone" : ""}`}>
+    <div className={`gcard${i.gone ? " is-gone" : ""}`} data-listing-id={i.id}>
       <button className="gopen" onClick={(e) => onOpen(e.currentTarget.closest(".gcard") as HTMLElement)}
         aria-label={`Open ${i.title}`} aria-describedby={descId}>
         <span className="gshot">
@@ -93,6 +94,10 @@ export function Gcard({ i, saved, onSave, onOpen }: {
             </span>
           )}
           {i.gone ? <span className="gghost">Gone</span> : null}
+          {age && <span className="gage photo-age">{age}</span>}
+        </span>
+        <span className="gbody">
+          <b>{i.title}</b>
           <span className="gstats">
             <span className="num gprice">{i.priceIsPlaceholder ? "Item prices" : money(price)}</span>
             {i.priceDropCents
@@ -100,26 +105,7 @@ export function Gcard({ i, saved, onSave, onOpen }: {
               : i.netProfitCents && i.netProfitCents > 0
                 ? <span className="num gnet">+{money(i.netProfitCents)}</span>
                 : null}
-            {/**
-              * ⚠ HOW LONG IT HAS BEEN UP, BOTTOM-RIGHT ON THE PHOTO — and it
-              * is a FLEX ITEM IN `.gstats`, not a second absolutely-positioned
-              * overlay.
-              *
-              * Bottom-right is where the net-profit chip already grows to. Two
-              * independently-positioned overlays on a 171px card collide the
-              * moment a price is four digits and a profit is three, and the
-              * collision is invisible until it happens on a listing that
-              * matters. `margin-left: auto` puts it hard right and lets
-              * flexbox guarantee what a `right: 8px` could only hope for.
-              *
-              * Silent past three days — see `listedAge`. That is what stops it
-              * being a column and keeps it a signal.
-              */}
-            {age && <span className="gage">{age}</span>}
           </span>
-        </span>
-        <span className="gbody">
-          <b>{i.title}</b>
           <span className="gloc">
             {i.priceDropCents
               ? <s className="num">{money(i.priceWasCents)}</s>
@@ -216,7 +202,7 @@ export function FilterSheet({ f, facets, onApply, onClose }: {
 
         <label className="fld">
           <span>Search</span>
-          <input value={draft.q} placeholder="rtx 3060, macbook, ps5"
+          <input value={draft.q} placeholder="RTX 4090, MacBook, DDR5"
             onChange={(e) => set({ q: e.target.value })}
             /* Enter applies, because typing then hunting for a button is two
                gestures for something the keyboard already implies. */
@@ -421,82 +407,47 @@ export function Feed({ onOpen, onWatchChange }: {
    */
   const [spot, setSpot] = useState(() => popSpot(location.pathname + location.search));
 
-  const pageCursor=useRef<string|null>(null),loadGeneration=useRef(0);
-  const load = useCallback((offset: number, f: Filters, limit = PAGE):Promise<void> => {
-    const generation=++loadGeneration.current;
-    if(offset===0)pageCursor.current=null;
-    setLoadingMore(offset > 0);
-    if (offset === 0) setFailed(false);
-    /**
-     * `hideGone` was written to localStorage and never read (audit P0-3). The
-     * feed hides delisted rows by default, so the switch has to ASK for them
-     * when it is off — `feedUrl` inverts it onto the existing `?gone=1` flag.
-     */
-    /**
-     * ⚠ THE REF GOES WITH EVERY FEED REQUEST. The server applies his verdict
-     * overrides BEFORE it counts the segments, so a request without it shows
-     * the engine's calls and the engine's chip counts while the same listing's
-     * own page shows his. See `api/overrides.ts`.
-     */
-    /**
-     * ⚠ THE WATERMARKS GO OUT WITH THE REQUEST AND ARE READ BEFORE IT, not
-     * after. `markSeen` below moves the one for the segment being viewed, so
-     * reading them inside `.then` would send the value we are about to write
-     * and every badge would be permanently zero.
-     */
-    const seen = readSeen();
-    const pageUrl=feedUrl({ limit, offset, hideGone: readSettings().hideGone, filters: f, ref: deviceRef(), seen });
-    return fetch(pageUrl+(offset>0 && pageCursor.current?'&cursor='+encodeURIComponent(pageCursor.current):''))
-      .then((r) => {
-        /**
-         * ⚠ A 401 IS NOT A FAILED REQUEST, IT IS A SIGNED-OUT USER, and the
-         * two need different screens. Falling through to the generic catch
-         * below renders "Couldn't load deals · Try again" over a session that
-         * has simply expired — and every retry fails identically, with nothing
-         * anywhere suggesting the fix is to sign in.
-         */
-        if (r.status === 401) { publishAuthLost(); throw new Error("401"); }
-        if (!r.ok) throw new Error(String(r.status));
-        return r.json();
-      })
-      .then((d) => {
-        if(generation!==loadGeneration.current)return;
-        pageCursor.current=d.nextCursor??null;
-        setItems((prev) => (offset === 0 ? (d.items ?? []) : [...(prev ?? []), ...(d.items ?? [])]));
-        setSegments(d.segments ?? {});
-        setNewCounts(d.segmentsNew ?? {});
-        setFacets(d.facets ?? {});
-        setTotal(d.total ?? 0);
-        /**
-         * ⚠ SEEING A SEGMENT CLEARS ONLY THAT SEGMENT'S BADGE, and only on the
-         * FIRST page. Two consequences worth stating:
-         *
-         * Viewing All does NOT clear Buy it, even though All contains the
-         * BUYs. Over-clearing costs a 0.7-per-day event; under-clearing costs
-         * one redundant glance, so it errs the cheap way.
-         *
-         * And the stamp is `d.serverNow`, never `Date.now()` — a phone whose
-         * clock runs fast would write a future watermark and then report zero
-         * new listings for good, with nothing on screen to explain it.
-         */
-        if (offset === 0 && d.serverNow) markSeen(f.quality, d.serverNow);
-        publishFreshness({
-          at: d.lastCrawl?.started_at ?? null,
-          fresh: d.freshCount ?? 0,
-          everyMs: d.crawlEveryMs ?? 180000,
-        });
-      })
-      /**
-       * A failed fetch is NOT an empty feed. Rendering "Nothing here yet" for a
-       * network error tells the user the product has no deals when what
-       * actually happened is that the request did not complete.
-       */
-      .catch((e) => {
-        if(generation!==loadGeneration.current)return;
-        if(e.message==='409' && offset>0)return load(0,f,limit);
-        if(offset===0){setItems([]);setFailed(true);}
-      }).finally(() => {if(generation===loadGeneration.current)setLoadingMore(false);});
+  const pageCursor = useRef<string | null>(null), loadGeneration = useRef(0);
+  const request = useRef<AbortController | null>(null);
+  const load = useCallback(async (offset: number, f: Filters, target = PAGE): Promise<void> => {
+    const generation = ++loadGeneration.current;
+    request.current?.abort();
+    const controller = new AbortController(); request.current = controller;
+    const current = () => generation === loadGeneration.current && !controller.signal.aborted;
+    setLoadingMore(offset > 0); setFailed(false);
+    const seen = readSeen(), hideGone = readSettings().hideGone, ref = deviceRef();
+    let start = offset, cursor = offset > 0 ? pageCursor.current : null;
+    let rows: FeedItem[] = [], restarted = false;
+    // Restore the full loaded window using legal cursor pages. Clamping a
+    // saved 360-row window to one 200-row request lost the selected listing.
+    try {
+      while (current()) {
+        const limit = Math.min(200, Math.max(1, target - rows.length));
+        const url = feedUrl({ limit, offset: start + rows.length, hideGone, filters: f, ref, seen });
+        const response = await fetch(url + (cursor ? "&cursor=" + encodeURIComponent(cursor) : ""), { signal: controller.signal });
+        if (!current()) return;
+        if (response.status === 401) { publishAuthLost(); throw new Error("401"); }
+        if (response.status === 409 && cursor && !restarted) {
+          restarted = true; target += start; start = 0; rows = []; cursor = null; continue;
+        }
+        if (!response.ok) throw new Error(String(response.status));
+        const data = await response.json();
+        if (!current()) return;
+        rows.push(...(data.items ?? [])); cursor = data.nextCursor ?? null;
+        if (rows.length < target && cursor && data.items?.length) continue;
+        pageCursor.current = cursor;
+        setItems(prev => start === 0 ? rows : [...(prev ?? []), ...rows]);
+        setSegments(data.segments ?? {}); setNewCounts(data.segmentsNew ?? {});
+        setFacets(data.facets ?? {}); setTotal(data.total ?? 0);
+        if (start === 0 && data.serverNow) markSeen(f.quality, data.serverNow);
+        publishFreshness({ at: data.lastCrawl?.started_at ?? null, fresh: data.freshCount ?? 0, everyMs: data.crawlEveryMs ?? 180000 });
+        break;
+      }
+    } catch {
+      if (current()) { if (offset === 0) setItems([]); setFailed(true); }
+    } finally { if (current()) setLoadingMore(false); }
   }, []);
+  useEffect(() => () => { ++loadGeneration.current; request.current?.abort(); }, []);
 
   /**
    * Reset rows AND offset whenever ANY filter changes, or page 2 of the old
@@ -504,12 +455,11 @@ export function Feed({ onOpen, onWatchChange }: {
    * state rather than the object, which is new on every render.
    */
   const key = searchFromFilters(filters);
+  const activeKey = useRef(key); activeKey.current = key;
   useEffect(() => {
     setItems(null);
-    // Coming BACK re-asks for everything that was loaded, in one request. See
-    // `restoreLimit` — an offset saved inside page 3 means nothing against a
-    // feed that just fetched page 1.
-    void load(0, filtersFromSearch(key), spot ? restoreLimit(spot.n) : PAGE);
+    // Back restores all previously loaded rows before applying its scroll offset.
+    void load(0, filtersFromSearch(key), spot ? Math.max(PAGE, spot.n) : PAGE);
   }, [load, key]);
 
   /**
@@ -518,35 +468,44 @@ export function Feed({ onOpen, onWatchChange }: {
    * page having scrolled itself rather than as never having moved.
    */
   useLayoutEffect(() => {
-    if (!items || !spot) return;
+    if (!items || !spot || failed) return;
     restoreScroll(spot.y);
     setSpot(null);
-  }, [items, spot]);
+  }, [items, spot, failed]);
 
   /**
    * Applying filters PUSHES a history entry, so Back undoes a search rather
    * than leaving the feed and losing it. `popstate` reads them back.
    */
   const applyFilters = (next: Filters) => {
-    setFilters(next);
     setSheet(false);
-    history.pushState({}, "", `${location.pathname}${searchFromFilters(next)}`);
+    const search = searchFromFilters(next);
+    if (search === location.search) return;
+    rememberSpot(location.pathname + location.search, items?.length ?? 0);
+    setSpot(null); pushRoute(`${location.pathname}${search}`);
   };
   useEffect(() => {
-    const on = () => setFilters(filtersFromSearch(location.search));
-    addEventListener("popstate", on);
-    return () => removeEventListener("popstate", on);
+    const on = (event: Event) => {
+      if (location.pathname !== "/") return;
+      const next = filtersFromSearch(location.search);
+      if (searchFromFilters(next) === activeKey.current) return;
+      setItems(null);
+      setSpot(event.type === "popstate" ? popSpot(location.pathname + location.search) : null);
+      setFilters(next);
+    };
+    addEventListener("popstate", on); addEventListener(NAVIGATE, on);
+    return () => { removeEventListener("popstate", on); removeEventListener(NAVIGATE, on); };
   }, []);
 
   // Coming back online retries by itself. Making someone tap Try again for a
   // connection that already recovered is a step the browser can take for them.
   useEffect(() => {
-    const up = () => { setOffline(false); setFailed(false); void load(0, filters); };
+    const up = () => { setOffline(false); setFailed(false); setItems(null); void load(0, filters, spot ? Math.max(PAGE, spot.n) : PAGE); };
     const down = () => setOffline(true);
     addEventListener("online", up);
     addEventListener("offline", down);
     return () => { removeEventListener("online", up); removeEventListener("offline", down); };
-  }, [load, key]);
+  }, [load, key, spot]);
 
   /**
    * ⚠ THE SEGMENT CONTROL MUST NOT UNMOUNT WHILE ITS OWN RESULTS LOAD.
@@ -567,7 +526,7 @@ export function Feed({ onOpen, onWatchChange }: {
    * when the rows land.
    */
   const shown = items ?? [];
-  const hero = shown[0] ?? null;
+  const hero = filters.sort === "best" ? shown[0] ?? null : null;
   const rest = shown.filter((i) => i.id !== hero?.id);
 
   /**
@@ -624,8 +583,9 @@ export function Feed({ onOpen, onWatchChange }: {
 
   const GROUPS: Array<{ label: string; note: string; tone: string; calls: Call[] }> = [
     { label: "Verified deals", note: "ready to act on", tone: "buy", calls: ["BUY"] },
-    { label: "Needs one answer", note: "blocked on a question", tone: "verify", calls: ["VERIFY", "RISK"] },
-    { label: "Priced, not deals", note: "above what they're worth", tone: "mute", calls: ["FAIR", "PASS"] },
+    { label: "Worth a closer look", note: "need verification", tone: "verify", calls: ["VERIFY"] },
+    { label: "Approach with caution", note: "flagged risky", tone: "risk", calls: ["RISK"] },
+    { label: "The rest of the market", note: "priced listings", tone: "mute", calls: ["FAIR", "PASS"] },
     /**
      * CAN'T TELL IS LAST, and it is its own group rather than being mixed in
      * with the priced-and-rejected ones.
@@ -640,20 +600,15 @@ export function Feed({ onOpen, onWatchChange }: {
 
   return (
     <>
-      {/**
-        * ⚠ THE FILTERS BUTTON IS IN THE TOP BAR, NOT HERE.
-        *
-        * It sat beside the segment control and did not fit. Measured on a real
-        * Galaxy S24 (360px, Android UA): the four chips plus a 44px button
-        * overflow the row and the "All 387" chip was CLIPPED 22px past the
-        * edge. iPhone SE clipped 62px, Pixel 7 clipped 13px. An iPhone 14 at
-        * 390px clipped nothing, which is exactly why hand-picked 375/390 test
-        * widths never caught it.
-        *
-        * The chips get the whole row now. See `openFilters` in `lib.tsx`.
-        */}
+      <div className="discovery-toolbar">
+        <form className="discovery-search" onSubmit={(e) => { e.preventDefault(); const data = new FormData(e.currentTarget); applyFilters({ ...filters, q: String(data.get("q") || "").trim() }); }}>
+          <Scan size={18} /><input key={filters.q} name="q" aria-label="Search listings" defaultValue={filters.q} placeholder="Find your next flip" type="search" /><button type="submit">Search</button>
+        </form>
+        <button className="filter-action" onClick={() => setSheet(true)}><Sliders size={17} /> Filters{nFilters > 0 && <em>{nFilters}</em>}</button>
+        <label className="sort-control"><span className="vh">Sort listings</span><select value={filters.sort} onChange={e => applyFilters({ ...filters, sort: e.target.value as Filters["sort"] })}>{SORTS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></label>
+      </div>
       <Segmented value={quality} onChange={setQuality} options={SEGS} />
-      {quality === "review" && <p className="dnote">Up to 10 listings to review. Open one and set Your call; the next unreviewed listing takes its place.</p>}
+      {quality === "review" && <div className="review-intro"><span className="review-icon"><Check size={18} /></span><div><b>Your next ten.</b><p>Open a listing, check the evidence, and give it your call. We'll bring in the next one.</p></div><span className="review-count">{segments.review ?? "…"}<small>to review</small></span></div>}
 
       {sheet && (
         <FilterSheet f={filters} facets={facets} onApply={applyFilters} onClose={() => setSheet(false)} />
@@ -727,7 +682,7 @@ export function Feed({ onOpen, onWatchChange }: {
           <p>{offline
             ? "Reconnect and try again. Nothing was lost."
             : "The request didn't finish. This is usually the connection, not the deals."}</p>
-          <button className="btn2" onClick={() => { setFailed(false); setItems(null); void load(0, filters); }}>
+          <button className="btn2" onClick={() => { setFailed(false); setItems(null); void load(0, filters, spot ? Math.max(PAGE, spot.n) : PAGE); }}>
             <Again size={15} /> Try again
           </button>
         </div>
@@ -735,7 +690,7 @@ export function Feed({ onOpen, onWatchChange }: {
         <div className="empty">
           <Ghost />
           <b>Nothing here yet</b>
-          <span>Deals show up once the engine has priced enough listings.</span>
+          <span>{nFilters ? "Try a broader search or clear a filter." : quality === "review" ? "You have reviewed this batch. New eligible listings will appear here." : "No listings match this segment right now."}</span>
         </div>
       ) : (
         <>
@@ -743,7 +698,7 @@ export function Feed({ onOpen, onWatchChange }: {
             <>
               <SectionHead
                 tone={hero.call === "BUY" ? "buy" : hero.call === "VERIFY" ? "verify" : "mute"}
-                label="Best right now" />
+                label={quality === "review" ? "First to review" : hero.call === "RISK" ? "Flagged listing" : "Top of your list"} />
               {/**
                 * ⚠ THE BOOKMARK IS A SIBLING OF THE OPEN BUTTON, NEVER INSIDE
                 * IT. Audit §18: every grid card could be saved and the best
@@ -757,20 +712,20 @@ export function Feed({ onOpen, onWatchChange }: {
                   {hero.thumb
                     ? <Thumb src={hero.thumb} size={28} />
                     : <span className="noimg"><Ghost size={28} /></span>}
-                  <span className="hover">
+                </span>
+                <span className="hero-content">
                     <span className={`dcall b-${hero.call}${hero.overriddenFrom ? " mine" : ""}`}>
                       {LABEL[hero.call]}{hero.overriddenFrom ? <i aria-hidden="true">•</i> : null}
                     </span>
                     <b>{hero.title}</b>
-                  </span>
-                </span>
                 <span className="hnums">
-                  <span className="num hprice">{money(hero.askingPriceCents)}</span>
+                  <span className="num hprice">{hero.priceIsPlaceholder ? "Item prices" : money(hero.currentPriceCents ?? hero.askingPriceCents)}</span>
                   {hero.netProfitCents && hero.netProfitCents > 0
                     ? <span className="num hnet">+{money(hero.netProfitCents)} net</span> : null}
                   <span className="dloc">{[hero.location, ago(hero.postedAt)].filter(Boolean).join(" · ")}</span>
                 </span>
                 {hero.headline ? <span className="hwhy">{hero.headline}</span> : null}
+                </span>
               </button>
               <button className={`gsave herosave${watch.includes(hero.id) ? " on" : ""}`}
                 aria-pressed={watch.includes(hero.id)}
@@ -785,23 +740,12 @@ export function Feed({ onOpen, onWatchChange }: {
             </>
           )}
 
-          {GROUPS.map((g) => {
+          {(filters.sort === "best" && quality !== "review" ? GROUPS : [{ label: quality === "review" && filters.sort === "best" ? "Continue your review" : SORTS.find(s => s.id === filters.sort)?.label || "Listings", note: "listings", tone: "mute", calls: ["BUY","VERIFY","FAIR","PASS","RISK","INSUFFICIENT_DATA","OUT_OF_SCOPE"] as Call[] }]).map((g) => {
             const list = rest.filter((i) => g.calls.includes(i.call));
             if (!list.length) return null;
             return (
               <div key={g.label}>
                 <SectionHead tone={g.tone} label={g.label} note={`${list.length} ${g.note}`} />
-                {/**
-                  * TWO-UP GRID. Yish's call, from Facebook Marketplace: twice
-                  * the listings on screen for the same scrolling, and on a feed
-                  * where ~2% are actionable that is the difference between
-                  * skimming and hunting.
-                  *
-                  * The money sits ON the photo, not beside it. A card this
-                  * narrow cannot afford a separate price column without
-                  * squeezing the title to nothing, and a price over its own
-                  * product reads faster than a price in a column anyway.
-                  */}
                 <div className={`grid${readSettings().compact ? " dense" : ""}`}>
                   {list.map((i) => (
                     <Gcard key={i.id} i={i} saved={watch.includes(i.id)}
@@ -825,9 +769,10 @@ export function Feed({ onOpen, onWatchChange }: {
         */}
       {items && shown.length === total && <SaveSearch f={filters} />}
 
+      {failed && shown.length > 0 && <p role="alert" className="pagination-error">Couldn't load more listings. Your current results are still here.</p>}
       {items && shown.length < total ? (
         <button className="more" disabled={loadingMore} onClick={() => void load(shown.length, filters)}>
-          {loadingMore ? "Loading…" : `Show more · ${shown.length} of ${total}`}
+          {loadingMore ? "Loading…" : failed ? "Try again" : `Show more · ${shown.length} of ${total}`}
         </button>
       ) : null}
     </>

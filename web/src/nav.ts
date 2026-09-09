@@ -251,7 +251,6 @@ export const CATEGORIES: Array<{ id: string; label: string }> = [
   { id: "gpu", label: "Graphics cards" },
   { id: "laptop", label: "Laptops" },
   { id: "phone", label: "Phones" },
-  { id: "console", label: "Consoles" },
   { id: "prebuilt", label: "Desktops" },
   { id: "tablet", label: "Tablets" },
   { id: "component", label: "Components" },

@@ -1,3 +1,4 @@
+import { replaceRoute } from "./history.ts";
 /**
  * Saved, Alerts, Settings, You, the nav bars and the outcome prompt.
  *
@@ -453,7 +454,7 @@ export function Billing({ onlyWhenEnabled }: { onlyWhenEnabled?: boolean }) {
   useEffect(() => {
     load();
     if (new URLSearchParams(location.search).get("paid") === "1") {
-      history.replaceState({}, "", "/");
+      replaceRoute(location.pathname, false);
       // The webhook may land a beat after the redirect, so re-check shortly.
       setTimeout(load, 2500);
     }
@@ -923,7 +924,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
             hint="The Buy it / Verify / Risky chip over each photo. Listings you relabelled keep theirs either way."
             on={s.showCall} onChange={(v) => save({ showCall: v })} />
           <Toggle label="Denser grid"
-            hint="Three listings a row instead of two. Smaller photos, more per screen."
+            hint="Shorter cards and a tighter grid fit more listings on screen."
             on={s.compact} onChange={(v) => save({ compact: v })} />
           <Toggle label="Ask what happened"
             hint="A day after you open a listing, ask if you bought it. This is what teaches the engine."
@@ -981,13 +982,6 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
       <div className="sgroup">
         <div className="shead"><User size={14} /> Account</div>
         <div className="scard">
-          {/**
-            * ⚠ "NO ACCOUNT" IS A FEATURE AND IS STATED AS ONE, along with the
-            * cost. Saved listings, overrides and alerts hang off the device
-            * ref, so they genuinely do not follow him to another phone. Saying
-            * so here is the difference between a known tradeoff and a bug
-            * report the first time he opens Filtrsoft on a laptop.
-            */}
           <button className="srow" onClick={() => {
             navigator.clipboard?.writeText(ref)
               .then(() => toast("Device ID copied"))
@@ -1000,10 +994,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
             <Cut size={15} />
           </button>
           <p className="snote">
-            There is no sign-in. Your saved listings, your own verdict labels and
-            your plan all belong to this device, which means nothing to leak and
-            nothing to remember, and that they do not follow you to another
-            phone. Copy the ID before clearing your browser data.
+            Saved listings and preferences are stored in this browser. Your account connects your plan and listing reviews. Copy the device ID before clearing browser data if you need help recovering it.
           </p>
         </div>
       </div>
@@ -1078,8 +1069,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
           <p className="snote nolead">
             Filtrsoft never handles a card number. Payment happens on Stripe's own
             page. It never asks for a marketplace login. There is no analytics
-            and no third-party tracking, and the only thing stored about you is
-            on this device.
+            and no third-party tracking. Saved listings and preferences stay in this browser; account details and listing reviews are stored on the server.
           </p>
         </div>
       </div>

@@ -294,9 +294,7 @@ export function AccountScreen({ go, savedCount, user, onSignedOut }: {
           </button>
         </div>
         <p className="snote">
-          There is no sign-in yet. Your saved listings, the verdicts you
-          relabelled and your plan all belong to this device. Nothing to leak and
-          nothing to remember, and nothing that follows you to another phone.
+          Saved listings and preferences are stored in this browser. Your account connects your plan and listing reviews; keep the device ID if you need help recovering this browser's data.
         </p>
       </div>
 

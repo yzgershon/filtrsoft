@@ -1,32 +1,6 @@
-/**
- * filtrsoft.com when you are signed out: the marketing site, and the two screens
- * that get you an account.
- *
- * Yish, 2026-09-01: *"filtrsoft.com should go to a website that isnt actually the
- * app right away its a website that explains the app and how it works ... and
- * then we have a sign in and a get started."*
- *
- * ── EVERY NUMBER ON THIS PAGE IS REAL, AND THAT IS NOT A STYLE CHOICE ──────
- *
- * He asked for *"how much money you can make with it with 'proven data'"*. The
- * numbers below are fetched from `/v1/health` and `/v1/landing` at run time —
- * the actual comp count, the actual live-listing count, and the actual verified
- * flip (an i9-12900K bought for $170 in Boston, resale $290).
- *
- * **No invented earnings claims, no "users average $2,400/month".** Three
- * reasons, in order of how much they matter:
- *
- *   1. Filtrsoft has one user. An average across one person is that person, and
- *      presenting it as a typical result would be a lie about a real business.
- *   2. Earnings claims on a commercial site are regulated (the FTC's
- *      substantiation rules); "proven data" that cannot be substantiated is the
- *      exact thing they exist to stop.
- *   3. It is unnecessary. "One flip, $170 in, $290 out" is a specific, checkable
- *      story and it is more persuasive than a fabricated average.
- *
- * If a number here cannot be fetched, the sentence loses the number rather than
- * falling back to a hardcoded one that will be wrong within a week.
- */
+/** Public introduction and authentication. Archive counts come from the API;
+ * the hardware illustration is explicitly illustrative and carries no invented
+ * listing price, availability, earnings, or completed-sale claim. */
 import { useEffect, useRef, useState } from "react";
 import {
   Alert, Bell, Check, Cross, Grid, Scan, Shield, Star, Tag, User,
@@ -66,179 +40,54 @@ export function Landing({ onStart, onSignIn }: {
   const n = (v?: number) => (typeof v === "number" && v > 0 ? v.toLocaleString() : null);
 
   return (
-    <div className="mk">
-      {/* ── nav ──────────────────────────────────────────────────────── */}
+    <div className="mk redesign-landing">
       <header className="mknav">
-        <span className="mkbrand"><BrandMark size={21} className="mark" /><Wordmark /></span>
-        <div className="mknavr">
-          <button className="mklink" onClick={onSignIn}>Sign in</button>
-          <button className="mkcta sm" onClick={onStart}>Get started</button>
-        </div>
+        <span className="mkbrand"><BrandMark size={27} className="mark" /><Wordmark /></span>
+        <a className="landing-how-link" href="#how-it-works">How it works</a>
+        <div className="mknavr"><button className="mklink" onClick={onSignIn}>Sign in</button><button className="mkcta sm" onClick={onStart}>Get started <span aria-hidden="true">↗</span></button></div>
       </header>
-
-      {/* ── hero ─────────────────────────────────────────────────────── */}
-      <section className="mkhero">
-        <span className="mkpill"><i />Live now in Greater Boston</span>
-        <h1>
-          Know what it's worth<br />
-          <span className="g">before you drive.</span>
-        </h1>
-        <p className="mksub">
-          Filtrsoft reads every used-tech listing on Craigslist, Facebook
-          Marketplace, OfferUp and Mercari, prices it against what the same
-          thing actually sold for, and tells you the one thing that matters:
-          buy it, ask a question first, or walk away.
-        </p>
-        <div className="mkactions">
-          <button className="mkcta" onClick={onStart}>Get started free</button>
-          <button className="mkghost" onClick={onSignIn}>I already have an account</button>
-        </div>
-
-        {/*
-          * ⚠ THE STAT STRIP IS FETCHED, NOT TYPED. A landing page that hardcodes
-          * "18,000 sold prices" is wrong the first week and nobody notices,
-          * which quietly makes every other claim on the page suspect.
-          */}
-        <div className="mkstats">
-          <div><b className="num">{n(stats?.listings) ?? "—"}</b><span>listings priced right now</span></div>
-          <div><b className="num">{n(stats?.comps) ?? "—"}</b><span>completed sales behind the prices</span></div>
-          <div><b className="num">{n(stats?.skus) ?? "—"}</b><span>models in the catalog</span></div>
-        </div>
-      </section>
-
-      {/* ── the phone ────────────────────────────────────────────────── */}
-      <section className="mkshot">
-        <div className="mkphone" aria-hidden="true">
-          <div className="mkphonebar">
-            <span className="mkbrand sm"><BrandMark size={16} className="mark" /><Wordmark /></span>
+      <main>
+        <section className="landing-intro">
+          <div className="landing-message">
+            <span className="landing-kicker"><i /> BUILT FOR THE BOSTON TECH HUNT</span>
+            <h1>A good price.<br />Or a good<br /><span>story?</span></h1>
+            <p>Know the difference before you drive. Filtrsoft checks used tech against real sold prices and looks for the risks hiding behind the deal.</p>
+            <button className="mkcta" onClick={onStart}>Find your next flip <span aria-hidden="true">↗</span></button>
+            <small>Free to get started. Your final call, always.</small>
           </div>
-          <div className="mkseg">
-            <span className="on">Buy it <i>2</i></span>
-            <span>Verify <i className="v">8</i></span>
-            <span>Risky <i className="r">8</i></span>
-          </div>
-          <div className="mkcards">
-            <FakeCard call="BUY" title="RTX 4090 FE 24GB" price="$1,500" net="+$625" age="31 Min" />
-            <FakeCard call="BUY" title="Ryzen 9 7950X3D" price="$310" net="+$140" age="2 Hrs" />
-            <FakeCard call="VERIFY" title="MacBook Air M2 256GB" price="$470" net="+$180" age="1 Day" />
-            <FakeCard call="RISK" title="RTX 5090, sealed, cheap" price="$900" net="" age="14 Min" />
-          </div>
-        </div>
-        <div className="mkshottext">
-          <h2>One screen. One decision each.</h2>
-          <p>
-            Every listing carries a verdict, what you'd clear after fees and the
-            drive, and how long it has been up. The green ones are the only ones
-            you need to look at.
-          </p>
-          <ul className="mkticks">
-            <li><Check size={13} />Green means it cleared your profit floor</li>
-            <li><Check size={13} />Amber means one question stands in the way</li>
-            <li><Check size={13} />Red never reaches your main feed</li>
-          </ul>
-        </div>
-      </section>
-
-      {/* ── how ──────────────────────────────────────────────────────── */}
-      <section className="mkhow">
-        <h2>How it gets to a number</h2>
-        <div className="mksteps">
-          {[
-            { i: <Scan size={18} />, t: "Reads the listing", b: "Title, description and every photo, down to the exact GPU, CPU, RAM and storage." },
-            { i: <Tag size={18} />, t: "Prices it against real sales", b: n(stats?.comps) ? `${n(stats?.comps)} completed eBay sales. Not asking prices, which are just what someone hoped for.` : "Completed eBay sales. Not asking prices, which are just what someone hoped for." },
-            { i: <Alert size={18} />, t: "Hunts for the catch", b: "Stock photos, scripted replies, a seller pushing you off-platform, a GPU with no display outputs." },
-            { i: <Grid size={18} />, t: "Subtracts your costs", b: "Fees, shipping and the round trip. What's left is what you actually clear." },
-          ].map((s, k) => (
-            <div className="mkstep" key={s.t}>
-              <span className="mkstepn">{k + 1}</span>
-              <b>{s.t}</b>
-              <p>{s.b}</p>
+          <div className="landing-evidence" aria-label="Illustration of how Filtrsoft reviews a listing">
+            <div className="evidence-caption"><span>THE LISTING, LOOKED AT CLOSER</span><span>EXAMPLE</span></div>
+            <div className="hardware-drawing" aria-hidden="true">
+              <svg viewBox="0 0 520 300" fill="none"><defs><linearGradient id="cardMetal" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#727f90"/><stop offset=".5" stopColor="#293442"/><stop offset="1" stopColor="#48586e"/></linearGradient></defs>
+                <g transform="translate(78 60) rotate(-12 180 100)"><rect x="0" y="6" width="365" height="184" rx="17" fill="url(#cardMetal)" stroke="#abb9ce"/><rect x="12" y="18" width="340" height="157" rx="10" fill="#161e2a"/>
+                  {[96,265].map(x=><g key={x} transform={`translate(${x} 96)`}><circle r="66" fill="#293443" stroke="#6b7d96"/>{Array.from({length:9},(_,i)=><path key={i} d="M5 -12 C16 -64 48 -54 44 -26 L16 4 Z" fill="#526177" transform={`rotate(${i*40})`}/>)}<circle r="21" fill="#1d2938" stroke="#7d91ab"/><circle r="8" fill="#90aeec"/></g>)}
+                  <path d="M30 190H153V198H30" fill="#bc9f69"/><path d="M363 5H376V184H365" stroke="#a2adbe" strokeWidth="5"/>
+                </g>
+              </svg>
+              <span className="hardware-tag">LOOK BEYOND THE ASKING PRICE</span>
             </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── proof ────────────────────────────────────────────────────── */}
-      <section className="mkproof">
-        <h2>What that looks like in practice</h2>
-        {/*
-          * ⚠ ONE REAL FLIP, NAMED AND CHECKABLE. See the file header for why
-          * there is no "average user earns" figure here. This is his own
-          * 2026-08-31 purchase and every number in it is the actual number.
-          */}
-        <div className="mkcase">
-          <div className="mkcasehd">
-            <span className="mkcasetag">Verified flip</span>
-            <span className="mkcasedate">31 Aug 2026</span>
+            <div className="evidence-sample">
+              <span className="sample-verdict"><Shield size={15}/> VERIFY FIRST</span>
+              <h2>The model matches.<br />The condition still matters.</h2>
+              <div className="evidence-check"><Check size={16}/><span>Compare the exact model to completed sales</span></div>
+              <div className="evidence-check"><Alert size={16}/><span>Check the unresolved risks before pickup</span></div>
+              <div className="sample-foot">Illustrative review <span>Value · Condition · Risk</span></div>
+            </div>
           </div>
-          <b>Intel Core i9-12900K</b>
-          <p>
-            Filtrsoft flagged it in the Boston feed at $200. He messaged the
-            seller, got it for $170, and drove 20 minutes. It resells at about
-            $290 with the buyer paying shipping.
-          </p>
-          <div className="mkcasenums">
-            <div><span>Paid</span><b className="num">$170</b></div>
-            <div><span>Resale</span><b className="num">$290</b></div>
-            <div className="win"><span>Cleared</span><b className="num">~$80</b></div>
+        </section>
+        <div className="landing-sources"><span>YOUR LOCAL MARKET, WITH CONTEXT</span><b>Craigslist</b><b>Facebook Marketplace</b><b>OfferUp</b><b>Mercari</b></div>
+        <section className="landing-method" id="how-it-works">
+          <div className="method-head"><span className="eyebrow">LESS GUESSWORK</span><h2>The asking price<br />is just the beginning.</h2><p>A cheap listing can be a great buy or an expensive mistake. See what supports the price, what remains unknown, and what to ask next.</p></div>
+          <div className="method-grid">
+            {[{n:"01", icon:<Tag size={22}/>, title:"Know the real value.",body:"Comparable completed sales for the matching hardware. If the evidence is too thin, Filtrsoft says it can't tell."},
+              {n:"02",icon:<Shield size={22}/>,title:"Spot the catch.",body:"Activation locks, missing parts, conflicting specs and seller warning signs. The unresolved questions stay visible."},
+              {n:"03",icon:<Grid size={22}/>,title:"Make your own call.",body:"See the estimated return after costs, inspect the evidence, and review the listing. Your judgment belongs in the workflow."}].map(x=><article key={x.n}><div>{x.icon}<span>{x.n}</span></div><h3>{x.title}</h3><p>{x.body}</p></article>)}
           </div>
-        </div>
-        <p className="mkdisclaim">
-          One real purchase, not an average. Filtrsoft tells you what a listing is
-          worth and what you would clear on it. What you actually make depends
-          on what you buy and what you do with it.
-        </p>
-      </section>
-
-      {/* ── alerts ───────────────────────────────────────────────────── */}
-      <section className="mkalerts">
-        <div className="mkalerticon"><Bell size={22} /></div>
-        <h2>The good ones go in an hour</h2>
-        <p>
-          A 4090 at $1,100 is gone before you next open a tab. Filtrsoft checks
-          every three minutes and tells you the moment something clears your
-          floor, so you are first rather than fourth.
-        </p>
-      </section>
-
-      {/* ── trust ────────────────────────────────────────────────────── */}
-      <section className="mktrust">
-        <h2>What Filtrsoft will never do</h2>
-        <div className="mktrustgrid">
-          <div><Shield size={18} /><b>Ask for a marketplace login</b><span>It never has your Facebook or eBay password, because it never asks.</span></div>
-          <div><Shield size={18} /><b>Touch a card number</b><span>Payment, if you ever want a paid plan, happens on Stripe's own page.</span></div>
-          <div><Shield size={18} /><b>Track you</b><span>No analytics, no third-party scripts, nothing sold to anyone.</span></div>
-          <div><Shield size={18} /><b>Guess at a price</b><span>If it cannot price something honestly it says so instead of inventing a number.</span></div>
-        </div>
-      </section>
-
-      {/* ── close ────────────────────────────────────────────────────── */}
-      <section className="mkclose">
-        <h2>Start with today's listings</h2>
-        <p>Free. No card. About thirty seconds.</p>
-        <button className="mkcta" onClick={onStart}>Get started</button>
-      </section>
-
-      <footer className="mkfoot">
-        <span className="mkbrand sm"><BrandMark size={16} className="mark" /><Wordmark /></span>
-        <span>Greater Boston · Used tech, priced honestly</span>
-      </footer>
-    </div>
-  );
-}
-
-/** A static card for the phone mockup. Not real data, and never presented as. */
-function FakeCard({ call, title, price, net, age }: {
-  call: string; title: string; price: string; net: string; age: string;
-}) {
-  return (
-    <div className="mkcard">
-      <div className="mkcardshot">
-        <span className={`mkcall b-${call}`}>{call === "BUY" ? "Buy it" : call === "VERIFY" ? "Verify first" : "Risky"}</span>
-        <span className="mkage">{age}</span>
-        <span className="mkprice num">{price}{net && <em>{net}</em>}</span>
-      </div>
-      <span className="mkcardtitle">{title}</span>
+        </section>
+        {(n(stats?.comps) || n(stats?.listings)) && <section className="landing-data" aria-label="Current catalog counts"><div><span className="eyebrow">EVIDENCE, NOT HYPE</span><h2>Grounded in the market.</h2></div><div><b className="num">{n(stats?.comps) || "—"}</b><span>completed sales in the archive</span></div><div><b className="num">{n(stats?.listings) || "—"}</b><span>listings tracked</span></div></section>}
+        <section className="landing-finish"><span className="eyebrow">YOUR NEXT FIND IS OUT THERE</span><h2>Go in informed.</h2><p>Start with a short list. Leave with a clearer picture.</p><button className="mkcta" onClick={onStart}>Open your workspace <span aria-hidden="true">↗</span></button></section>
+      </main>
+      <footer className="mkfoot"><span className="mkbrand"><BrandMark size={20} className="mark" /><Wordmark /></span><span>Greater Boston · Used tech, priced with evidence</span><button className="mklink" onClick={onSignIn}>Sign in ↗</button></footer>
     </div>
   );
 }
