@@ -1,0 +1,43 @@
+{
+  "at": "2026-09-09T22:53:24.213Z",
+  "synthetic": true,
+  "results": [
+    {
+      "name": "Six responsive widths: priced, unknown, risky, inventory and long-text reports",
+      "pass": true
+    },
+    {
+      "name": "Disclosure keyboard access, complete evidence and coherent selected-channel arithmetic",
+      "pass": true
+    },
+    {
+      "name": "Missing prices stay unknown; risky evidence stays outside disclosures",
+      "pass": true
+    },
+    {
+      "name": "Fourteen inventory offers retain exact cents, quantities, tiers and seller quotes",
+      "pass": true
+    },
+    {
+      "name": "Decimal asking/offer values remain exact and zero-profit targets remain visible",
+      "pass": true
+    },
+    {
+      "name": "Gallery controls, full image, Back dismissal and failed-photo recovery",
+      "pass": true
+    },
+    {
+      "name": "Clipboard denial shows no success; confirmed copies contain exact questions",
+      "pass": true
+    },
+    {
+      "name": "Review remains deliberate and errors preserve the label and decision token",
+      "pass": true
+    },
+    {
+      "name": "Reduced motion, larger text and landscape keep controls and evidence usable",
+      "pass": true
+    }
+  ],
+  "errors": []
+}

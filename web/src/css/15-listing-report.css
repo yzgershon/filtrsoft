@@ -1,0 +1,148 @@
+/* Listing detail only. The surrounding app and preview feature cards retain
+   their own styles. One surface per information group, one row per disclosure. */
+.listing-report { display: grid; gap: 16px; padding-top: 16px; min-width: 0; }
+.listing-report > * { min-width: 0; }
+.listing-report .detail-card, .listing-overview { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+.listing-report .sec { margin: 0; }
+.listing-report .dhead { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; }
+.listing-report .sicon { display: grid; width: 30px; height: 30px; margin: 0; flex: none; border: 0; background: transparent; color: var(--ink-3); box-shadow: none; }
+.listing-report .drow { flex: 1; min-width: 0; gap: 10px; }
+.listing-report .dhead h2 { font-size: 16px; font-weight: 600; letter-spacing: -.02em; line-height: 1.4; margin: 0; }
+.listing-report .dnote { font-size: 12px; margin: 3px 0 0; line-height: 1.5; }
+.listing-report .gal { position: relative; top: auto; border: 0; border-radius: 0; margin: 0; background: #10151e; }
+.listing-report .galstrip { aspect-ratio: 1.7; border-radius: 0; }
+.listing-report .hero-shot::after { display: none; }
+.listing-report .galshot img { object-fit: contain; }
+.listing-report .dback { width: 44px; height: 44px; top: 12px; left: 12px; background: #10151edb; border: 1px solid #ffffff29; }
+.gallery-controls { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 2px 12px; border-top: 1px solid var(--line-soft); background: var(--surface); }
+.gallery-controls span { color: var(--ink-3); font-size: 12px; min-width: 34px; text-align: center; }
+.gallery-controls button { border: 0; border-radius: 8px; background: transparent; color: var(--ink-2); display: grid; place-items: center; height: 44px; width: 44px; }
+.gallery-controls button:disabled { opacity: .3; }
+.gallery-controls button:last-child svg { transform: rotate(180deg); }
+.listing-report .lh { margin: 0; padding: 18px; }
+.listing-source { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--ink-3); font-size: 12px; line-height: 1.5; }
+.listing-source span + span { padding-left: 9px; border-left: 1px solid var(--line); text-transform: capitalize; }
+.listing-report .lh h1 { margin: 0; font-size: 21px; line-height: 1.3; letter-spacing: -.025em; font-weight: 600; overflow-wrap: anywhere; }
+.listing-location { margin: 9px 0 0; color: var(--ink-3); font-size: 12px; line-height: 1.5; }
+.listing-ask { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+.detail-label { display: block; font-size: 12px; color: var(--ink-3); line-height: 1.5; }
+.listing-report .lh .price { display: block; margin: 4px 0 0; font-size: 27px; font-weight: 600; line-height: 1.25; letter-spacing: -.035em; }
+.listing-report .lh .inventory-ask { font-size: 20px; }
+.listing-report .origin { display: inline-flex; gap: 20px; align-items: center; justify-content: center; min-height: 44px; padding: 0 15px; width: auto; margin: 0; flex: none; border: 1px solid var(--brand); color: var(--on-brand); background: var(--brand); border-radius: 10px; font-size: 13px; font-weight: 700; }
+.detail-no-photo { position: relative; height: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--ink-3); background: #10151e; font-size: 13px; }
+.listing-report .verdict { margin: 0; border: 0; border-bottom: 1px solid var(--line-soft); border-radius: 0; padding: 18px; background: transparent; }
+.decision-label { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
+.listing-report .vbadge { display: inline-flex; margin: 0; padding: 6px 9px; border: 1px solid color-mix(in srgb,currentColor 28%,transparent); background: color-mix(in srgb,currentColor 8%,transparent); border-radius: 7px; font-size: 11px; letter-spacing: .035em; }
+.decision-owner { font-size: 11px; color: var(--ink-3); }
+.listing-report .verdict h2 { color: var(--ink); margin: 0 0 8px; font-size: 18px; font-weight: 600; letter-spacing: -.02em; line-height: 1.4; }
+.listing-report .verdict p { font-size: 14px; line-height: 1.65; }
+.listing-report .verdict .engine-original { margin: -4px 0 12px; font-size: 12px; }
+.listing-report .settles { border: 0; background: var(--surface-2); padding: 12px; border-radius: 10px; margin-top: 14px; }
+.listing-report .settles b { display: block; color: var(--ink); font-size: 12px; font-weight: 600; }
+.listing-report .settles ul { margin: 7px 0 0; padding-left: 18px; color: var(--ink-2); font-size: 13px; line-height: 1.7; }
+.listing-report .settles p { margin-top: 5px; font-size: 13px; }
+.disclosed-defects { padding: 16px 18px; background: #ff929c0a; border-bottom: 1px solid #ff929c30; }
+.disclosed-defects h2 { display: flex; align-items: center; gap: 8px; color: var(--risk); font-size: 13px; margin: 0 0 12px; }
+.disclosed-defects b { font-size: 14px; font-weight: 600; }
+.disclosed-defects p { color: var(--ink-2); font-size: 13px; line-height: 1.6; margin: 4px 0 12px; }
+.disclosed-defects div:last-child p { margin-bottom: 0; }
+.match-line { display: grid; gap: 4px; margin: 0 18px; padding: 14px 0; border-bottom: 1px solid var(--line-soft); line-height: 1.5; }
+.match-line > span, .match-line > small { color: var(--ink-3); font-size: 12px; }
+.match-line > b { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.value-top { padding: 18px 18px 12px; }
+.value-range { display: block; margin-top: 6px; font-size: clamp(22px,5.5vw,28px); font-weight: 500; letter-spacing: -.045em; line-height: 1.35; overflow-wrap: anywhere; }
+.value-source { display: block; color: var(--ink-3); font-size: 12px; line-height: 1.5; margin-top: 5px; }
+.resale-channel { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 18px 12px; font-size: 12px; color: var(--ink-2); }
+.resale-channel .chsw { padding: 3px; background: var(--bg); border: 1px solid var(--line-soft); border-radius: 10px; }
+.resale-channel .chsw button { min-height: 44px; min-width: 58px; padding: 6px 12px; font-size: 12px; border-radius: 7px; }
+.resale-channel .chsw button.on { background: var(--surface-3); box-shadow: 0 1px 4px #0003; }
+.channel-note { color: var(--ink-3); font-size: 11px; }
+.detail-metrics { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin: 0; padding: 0 18px 18px; }
+.detail-metrics > div { padding: 12px; background: var(--bg); border: 1px solid var(--line-soft); border-radius: 10px; min-width: 0; }
+.detail-metrics dt { font-size: 11px; color: var(--ink-3); line-height: 1.5; }
+.detail-metrics dd { margin: 7px 0 0; font-size: 23px; font-weight: 500; line-height: 1.3; letter-spacing: -.04em; overflow-wrap: anywhere; }
+.detail-row { border-top: 1px solid var(--line-soft); }
+.detail-row > summary { list-style: none; display: flex; align-items: center; gap: 12px; min-height: 68px; padding: 14px 18px; cursor: pointer; color: var(--ink-2); transition: background 160ms ease; }
+.detail-row > summary::-webkit-details-marker { display: none; }
+.detail-row > summary:focus-visible, .inventory-quote > summary:focus-visible { outline: 2px solid var(--brand); outline-offset: -3px; border-radius: 8px; }
+.row-icon { color: var(--ink-3); flex: none; display: flex; }
+.row-label { flex: 1; min-width: 0; }
+.row-label b { font-weight: 500; color: var(--ink); display: block; font-size: 13px; line-height: 1.5; }
+.row-label small { display: block; margin-top: 3px; font-size: 12px; color: var(--ink-3); line-height: 1.5; }
+.row-chevron { display: block; flex: none; width: 7px; height: 7px; border-right: 1.5px solid var(--ink-3); border-bottom: 1.5px solid var(--ink-3); transform: rotate(45deg); margin: -4px 3px 0 4px; transition: transform 180ms ease; }
+.detail-row[open] > summary .row-chevron { transform: rotate(225deg); margin-top: 4px; }
+.row-content { padding: 0 18px 18px; animation: detail-reveal 180ms ease-out; }
+.detail-facts { margin: 0; font-size: 13px; line-height: 1.6; }
+.detail-facts > div { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.3fr); gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
+.detail-facts > div:last-child { border-bottom: 0; }
+.detail-facts dt { color: var(--ink-3); }
+.detail-facts dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.detail-footnote { color: var(--ink-3); font-size: 12px; line-height: 1.65; margin: 12px 0 0; overflow-wrap: anywhere; }
+.listing-report .offer { padding: 4px 0 0; }
+.listing-report .offerrow { padding: 0; }
+.listing-report .offerval { font-size: 24px; }
+.listing-report .offerslide { width: 100%; margin: 8px 0 0; min-height: 44px; }
+.offer-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-3); }
+.listing-report .offerout { margin-top: 16px; padding: 12px; background: var(--bg); border-radius: 9px; font-size: 13px; line-height: 1.6; }
+.offerout small { display: block; color: var(--ink-3); font-size: 12px; }
+.listing-report .offerreset { min-height: 44px; }
+.listing-report .comp { padding: 12px 0; grid-template-columns: 1fr auto; column-gap: 16px; border-bottom: 1px solid var(--line-soft); }
+.listing-report .ctitle { font-size: 13px; line-height: 1.5; }
+.listing-report .cmeta { font-size: 11px; line-height: 1.5; }
+.listing-report .cprice { font-size: 14px; }
+.inspection-card, .listing-record, .review-card, .inventory-card { padding: 18px; }
+.inspection-card > * + * { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line-soft); }
+.inspection-card > .detail-row { margin: 16px -18px -18px; padding: 0; }
+.listing-report .listing-record { padding: 0; }
+.listing-record > .detail-row:first-child { border-top: 0; }
+.listing-record > .detail-footnote { padding: 4px 18px 16px; }
+.listing-report .panel { background: transparent; border: 0; border-radius: 0; backdrop-filter: none; }
+.listing-report .q { padding: 14px 0; gap: 10px; }
+.listing-report .q:first-child { padding-top: 0; }
+.listing-report .q:last-child { padding-bottom: 0; }
+.listing-report .q .t { font-size: 14px; line-height: 1.65; }
+.listing-report .q .n { display: grid; place-items: center; height: 23px; width: 23px; border-radius: 50%; font-size: 11px; background: var(--surface-2); color: var(--ink-3); }
+.listing-report .copyall { padding: 0 10px; min-height: 44px; font-size: 11px; border-radius: 8px; }
+.listing-report .pickup { margin: 0; padding: 0; list-style: none; }
+.listing-report .pickup li { padding: 10px 0; font-size: 13px; border: 0; border-radius: 0; background: transparent; }
+.listing-report .pickup li::before { display: none; }
+.listing-report .pickup li b { font-weight: 500; color: var(--ink); }
+.listing-report .pickup li span { display: block; color: var(--ink-2); line-height: 1.65; margin-top: 4px; }
+.listing-report .flag { padding: 12px 0; }
+.listing-report .flag .code { font-size: 11px; letter-spacing: .025em; }
+.listing-report .flag .ev { font-size: 13px; line-height: 1.65; }
+.listing-report .seller-description p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.75; font-size: 14px; color: var(--ink-2); }
+.review-card .sec { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.review-card .dhead { flex: 1; margin: 0; min-width: 190px; }
+.review-card .mycallbtn { flex: none; font-size: 13px; border-radius: 10px; }
+.inventory-context { font-size: 13px; line-height: 1.6; color: var(--ink-2); }
+.inventory-list { display: grid; gap: 12px; }
+.inventory-item { min-width: 0; background: var(--bg); border: 1px solid var(--line-soft); border-radius: 12px; padding: 16px; }
+.inventory-item-head { display: flex; gap: 10px; align-items: start; }
+.inventory-quantity { font-size: 12px; padding: 4px 7px; border-radius: 6px; color: var(--ink-2); background: var(--surface-2); flex: none; }
+.inventory-item h3 { font-size: 14px; font-weight: 500; line-height: 1.5; margin: 2px 0 0; overflow-wrap: anywhere; }
+.inventory-price { margin-top: 14px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.inventory-price strong { font-size: 21px; font-weight: 500; }
+.inventory-price span, .inventory-estimate { font-size: 12px; color: var(--ink-3); line-height: 1.6; }
+.inventory-quote { margin-top: 12px; border-top: 1px solid var(--line-soft); }
+.inventory-quote > summary { min-height: 44px; padding: 12px 0; cursor: pointer; font-size: 12px; color: var(--ink-2); }
+.inventory-quote blockquote { margin: 0; padding: 0 0 0 12px; border-left: 2px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.75; color: var(--ink-2); }
+.listing-report .reading, .listing-report .prog { margin: 16px; }
+@keyframes detail-reveal { from { opacity: .4; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+@media (hover: hover) { .detail-row > summary:hover { background: #ffffff04; } .gallery-controls button:not(:disabled):hover { background: var(--surface-2); } }
+@media (min-width: 768px) { .listing-report { gap: 22px; padding-top: 24px; } .inventory-list { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (min-width: 1024px) {
+  .listing-report { grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: start; column-gap: 28px; row-gap: 24px; }
+  .listing-report .lh { padding: 24px; }
+  .listing-report .lh h1 { font-size: 25px; }
+  .listing-report .galstrip { aspect-ratio: 1.25; }
+  .decision-card { grid-column: 2; grid-row: 1 / span 2; }
+  .listing-record { grid-column: 1; grid-row: 2; }
+  .inventory-card, .review-card { grid-column: 1 / -1; }
+  .inspection-card { grid-column: 1 / -1; }
+  .inspection-card { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px; }
+  .inspection-card > section + section { margin: 0; padding: 0; border: 0; }
+  .inspection-card > .detail-row { grid-column: 1 / -1; margin-top: 0; }
+  .inspection-card .q .t { max-width: 80ch; }
+}
+@media (prefers-reduced-motion: reduce) { .listing-report *, .listing-report *::before, .listing-report *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }

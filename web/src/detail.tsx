@@ -8,39 +8,19 @@ import { Popup, motionAllowed, type Dismiss } from "./popup.tsx";
  * and a utils/ for three pieces of the same feature.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   Alert, Back as BackIcon, Chat, Check, Cut, Eye, Ghost, Info, Link, Shield, Store, Tag,
 } from "./icons.tsx";
 import type { Channel, Call, Comp, Listing, Meta, Retail, RiskCheck, Signal, Verdict } from "./types.ts";
-import { LABEL, money, ago, toast, Thumb, deviceRef } from "./lib.tsx";
-import { SectionHead } from "./feed.tsx";
+import { LABEL, ago, toast, Thumb, deviceRef } from "./lib.tsx";
+// Seller asks and offer calculations must retain cents, including $17.50 lots.
+const money = (c?: number | null) => c == null ? "Unavailable" : (c / 100).toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: c % 100 ? 2 : 0, maximumFractionDigits: 2 });
 
-/**
- * A detail-screen section header, in the demo's feature-card language.
- *
- * Yish, 2026-08-31: *"the detail screen's sections should use the demo's
- * icon-topped card treatment."*
- *
- * ── WHAT THIS REPLACES ─────────────────────────────────────────────────────
- *
- * `.sec h4` was 11px, uppercase, `.12em` tracked and `--ink-3` muted — a micro
- * label, and eight of them in a column read as one undifferentiated list of
- * captions. The demo does the opposite and it is the reason its long pages
- * scan: an icon in an accent colour on top, a bold white title, a muted line of
- * body. You can find the section you want without reading any of them.
- *
- * ⚠ THE ACCENT DESCRIBES WHAT THE SECTION IS, and on THIS screen that includes
- * the verdict hues. The screen-level badges deliberately avoid them (see
- * `.eyebrow` in 08-polish) because a badge in amber would read as a judgement
- * about the whole screen — but "What's wrong with it" is a list of disclosed
- * defects, and painting that green to satisfy a cycling rule would be a rule
- * outranking a meaning.
- *
- * `trailing` exists because three of these headers own a control: the channel
- * switch, "copy all", and the comps disclosure. Putting them anywhere else
- * separates a control from the thing it controls.
- */
+/** Compact, consistent headings inside the detail's information groups.
+ * The older icon-topped headings made each fact look like a separate feature;
+ * Yish's September 9 brief replaces that treatment with one readable report. */
+
 export function SecHead({ icon, title, note, tone, trailing }: {
   icon: React.ReactNode;
   title: React.ReactNode;
@@ -61,13 +41,25 @@ export function SecHead({ icon, title, note, tone, trailing }: {
         */}
       <div className="drow">
         <div className="dtext">
-          <h4>{title}</h4>
+          <h2>{title}</h2>
           {note ? <p className="dnote">{note}</p> : null}
         </div>
         {trailing}
       </div>
     </div>
   );
+}
+
+/** One disclosure pattern keeps secondary evidence compact without making it
+ * unavailable to keyboard users. Native details also works before hydration. */
+function DetailRow({ title, note, icon, children, className = "" }: {
+  title: string; note?: React.ReactNode; icon: React.ReactNode;
+  children: React.ReactNode; className?: string;
+}) {
+  return <details className={`detail-row ${className}`}>
+    <summary><span className="row-icon">{icon}</span><span className="row-label"><b>{title}</b>{note && <small>{note}</small>}</span><span className="row-chevron" aria-hidden="true" /></summary>
+    <div className="row-content">{children}</div>
+  </details>;
 }
 
 /**
@@ -131,7 +123,7 @@ export function MyCall({ id, call, overriddenFrom, onChange,decisionToken }: {
       <SecHead tone="alt" icon={<Eye size={18} />} title="Your call"
         note={overriddenFrom
           ? `You marked this ${LABEL[call]}. The engine said ${LABEL[overriddenFrom]}.`
-          : "Agree with this call, or give it your own. Your review shapes the next batch."} />
+          : "Agree with the assessment or change the label."} />
       <button className="btn2 mycallbtn" onClick={() => setOpen(true)} aria-haspopup="dialog">
         {overriddenFrom ? "Change your label" : "Review this listing"}
       </button>
@@ -145,14 +137,14 @@ export function MyCall({ id, call, overriddenFrom, onChange,decisionToken }: {
   );
 }
 
-export function Flags({ signals }: { signals: Signal[] }) {
+export function Flags({ signals, compact = false }: { signals: Signal[]; compact?: boolean }) {
   if (!signals.length) return null;
   const icon = (s: Signal) =>
     s.polarity === "positive" ? <Check /> : s.severity === "medium" ? <Info /> : <Alert />;
   return (
     <section className="sec rise">
-      <SecHead tone="alt" icon={<Info size={18} />} title="What's flagged"
-        note={`${signals.length} thing${signals.length === 1 ? "" : "s"} the engine noticed in the listing itself`} />
+      {!compact && <SecHead tone="risk" icon={<Alert size={18} />} title="Listing concerns"
+        note={`${signals.length} observations to check`} />}
       <div className="panel">
         {signals.map((s, i) => (
           <div className={`flag f-${s.severity}`} key={i}>
@@ -187,219 +179,102 @@ export function Flags({ signals }: { signals: Signal[] }) {
  */
 export function Numbers({ v, ask, channel: ch, onChannelChange }: { v: Verdict; ask: number | null; channel?: Channel; onChannelChange?: (id:string)=>void }) {
   const val = v.valuation;
-  const usable = (v.channels ?? []).filter((c) => c.available);
-  const local = usable.find((c) => c.channel === "facebook");
-  const shipped = usable.find((c) => c.channel === "ebay");
-  const canSwitch = Boolean(local && shipped && onChannelChange);
-  if (val.medianCents == null) return null;
-
-  /**
-   * Recompute against the SELECTED channel. Reading `v.netProfitCents` would
-   * print the engine's best-channel figure next to the other channel's gross,
-   * which is a number that belongs to neither.
-   */
+  const usable = (v.channels ?? []).filter(c => c.available && Number.isFinite(c.netCents));
+  const canSwitch = usable.some(c => c.channel === "facebook") && usable.some(c => c.channel === "ebay") && onChannelChange;
+  if (val.medianCents == null || v.inventory) return null;
+  // Both the overview and calculator use this same selected channel. Never mix
+  // the engine's best-channel profit with another channel's fees or proceeds.
   const net = ch && ask != null ? ch.netCents - ask : null;
   const target = ch && v.requiredProfitCents != null ? Math.max(0, ch.netCents - v.requiredProfitCents) : null;
-
-  return (
-    <section className="sec rise">
-      <SecHead tone="buy" icon={<Tag size={18} />} title="The numbers"
-        note="what it resells for, and what you keep"
-        trailing={canSwitch ? (
-          <div className="chsw" role="group" aria-label="Resale channel">
-            <button aria-pressed={ch?.channel === "facebook"}
-              className={ch?.channel === "facebook" ? "on" : ""} onClick={() => onChannelChange?.("facebook")}>Local</button>
-            <button aria-pressed={ch?.channel === "ebay"}
-              className={ch?.channel === "ebay" ? "on" : ""} onClick={() => onChannelChange?.("ebay")}>eBay</button>
-          </div>
-        ) : undefined} />
-
-      <div className="panel">
-        <div className="kv">
-          <div className="k">Market value<small>{val.compCount} sold comps · {val.confidence} confidence</small></div>
-          <div className="v num">{money(val.lowCents)}–{money(val.highCents)}</div>
-        </div>
-
-        {ch && (
-          <>
-            <div className="kv">
-              <div className="k">
-                {ch.channel === "facebook" ? "Selling locally" : "Selling on eBay"}
-                <small>{ch.channel === "facebook" ? "cash, no fees, no shipping" : "after fees and postage"}</small>
-              </div>
-              <div className="v num">{money(ch.grossCents)}</div>
-            </div>
-            {ch.feesCents > 0 && <div className="kv sub"><div className="k">fees</div><div className="v num">−{money(ch.feesCents)}</div></div>}
-            {ch.shippingCents > 0 && <div className="kv sub"><div className="k">shipping</div><div className="v num">−{money(ch.shippingCents)}</div></div>}
-          </>
-        )}
-
-        {/* The answer you opened the screen for. Sized like it. */}
-        <div className="kv anchor">
-          <div className="k">Your profit at asking price</div>
-          <div className={`v num ${net == null ? "" : net > 0 ? "pos" : "neg"}`}>{net == null ? "Unavailable" : `${net > 0 ? "+" : ""}${money(net)}`}</div>
-        </div>
-        <div className="kv quiet">
-          <div className="k">You need at least<small>for the drive and the effort</small></div>
-          <div className="v num">{money(v.requiredProfitCents)}</div>
-        </div>
-        {target != null && target > 0 ? (
-          <div className="kv hi">
-            <div className="k">Offer this or less</div>
-            <div className="v num">{money(target)}</div>
-          </div>
-        ) : null}
-      </div>
-
-      {!canSwitch && ch?.channel === "facebook" && (
-        <p className="chnote">Local is the available resale channel for this decision.</p>
-      )}
-    </section>
-  );
+  return <section className="valuation-summary" aria-label="Valuation">
+    <div className="value-top"><div><span className="detail-label">Estimated resale value</span>
+      <strong className="value-range num">{val.lowCents != null && val.highCents != null ? `${money(val.lowCents)}–${money(val.highCents)}` : money(val.medianCents)}</strong>
+      <span className="value-source">{val.compCount} sold comps · {val.confidence} confidence</span>
+    </div></div>
+    {ch && <div className="resale-channel"><span>Resell {ch.channel === "facebook" ? "locally" : "on eBay"}</span>
+      {canSwitch ? <div className="chsw" role="group" aria-label="Resale channel">
+        <button aria-pressed={ch.channel === "facebook"} className={ch.channel === "facebook" ? "on" : ""} onClick={() => onChannelChange?.("facebook")}>Local</button>
+        <button aria-pressed={ch.channel === "ebay"} className={ch.channel === "ebay" ? "on" : ""} onClick={() => onChannelChange?.("ebay")}>eBay</button>
+      </div> : <span className="channel-note">Available channel</span>}
+    </div>}
+    <dl className="detail-metrics">
+      <div><dt>Est. profit at asking</dt><dd className={`num ${net == null ? "" : net > 0 ? "pos" : "neg"}`}>{net == null ? "Unknown" : `${net > 0 ? "+" : ""}${money(net)}`}</dd></div>
+      <div><dt>Offer ceiling</dt><dd className="num">{target == null ? "Unknown" : money(target)}</dd></div>
+    </dl>
+    <DetailRow title="Resale breakdown" note={ch ? "Proceeds, costs and profit target" : "Market estimate only"} icon={<Tag size={17}/>}>
+      <dl className="detail-facts">
+        <div><dt>Sold-price median</dt><dd className="num">{money(val.medianCents)}</dd></div>
+        {ch && <>
+          <div><dt>Estimated sale</dt><dd className="num">{money(ch.grossCents)}</dd></div>
+          <div><dt>Fees</dt><dd className="num">{money(ch.feesCents)}</dd></div>
+          <div><dt>Shipping</dt><dd className="num">{money(ch.shippingCents)}</dd></div>
+          <div><dt>Estimated proceeds</dt><dd className="num">{money(ch.netCents)}</dd></div>
+        </>}
+        <div><dt>Asking price</dt><dd className="num">{money(ask)}</dd></div>
+        <div><dt>Required profit</dt><dd className="num">{money(v.requiredProfitCents)}</dd></div>
+      </dl>
+      <p className="detail-footnote">Offer ceiling leaves room for the required profit. Estimates depend on the item's condition and a completed resale.</p>
+      {ch?.note && <p className="detail-footnote">{ch.note}</p>}
+    </DetailRow>
+  </section>;
 }
 
 export function Inventory({ inventory }: { inventory: NonNullable<Verdict["inventory"]> }) {
-  const quotedMoney = (cents: number) => `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })}`;
-  return (
-    <section className="sec rise">
-      <SecHead tone="alt" icon={<Tag size={18} />} title="Item prices"
-        note="Quoted from the description. The headline price is a placeholder." />
-      {inventory.sellerContext && <p>Seller says: {inventory.sellerContext}</p>}
-      <div className="panel">
-        {inventory.offers.map((offer, i) => (
-          <div className="flag" key={i}>
-            <div className="txt">
-              <strong>{offer.quantity} × {offer.item}</strong>
-              <p>{offer.askingPriceCents == null ? "Multiple prices or conditions: check the seller's quote below."
-                : `${quotedMoney(offer.askingPriceCents)} ${offer.priceBasis === "each" ? "each" : "for this offer"}`}</p>
-              {offer.valuation?.lowCents != null && offer.valuation.highCents != null && (
-                <p>Resale: {money(offer.valuation.lowCents)} to {money(offer.valuation.highCents)} · {offer.valuation.compCount} sold comps</p>
-              )}
-              <p className="ev">{offer.valuationNote}</p>
-              <details><summary>Seller's exact wording</summary><p>{offer.evidence}</p></details>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
+  return <section className="detail-card inventory-card">
+    <SecHead tone="alt" icon={<Tag size={18}/>} title="Item prices" note={`${inventory.offers.length} offers · headline price is a placeholder`}/>
+    {inventory.sellerContext && <p className="inventory-context">Seller says: {inventory.sellerContext}</p>}
+    <div className="inventory-list">{inventory.offers.map((offer, i) => <article className="inventory-item" key={i}>
+      <div className="inventory-item-head"><span className="inventory-quantity num">{offer.quantity}×</span><h3>{offer.item}</h3></div>
+      <div className="inventory-price">{offer.askingPriceCents == null ? <span>Conditional pricing</span> : <><strong className="num">{money(offer.askingPriceCents)}</strong><span>{offer.priceBasis === "each" ? "each" : offer.priceBasis === "ambiguous" ? "check price basis" : "for this offer"}</span></>}</div>
+      {offer.valuation?.lowCents != null && offer.valuation.highCents != null && <p className="inventory-estimate">Resale {money(offer.valuation.lowCents)}–{money(offer.valuation.highCents)} · {offer.valuation.compCount} sold comps</p>}
+      <p className="detail-footnote">{offer.valuationNote}</p>
+      <details className="inventory-quote"><summary>Seller's exact wording</summary><blockquote>{offer.evidence}</blockquote></details>
+    </article>)}</div>
+  </section>;
 }
 
-/**
- * The comps behind the median, and what happens if you offer less.
- *
- * ── WHY BOTH LIVE IN ONE COMPONENT ─────────────────────────────────────────
- *
- * They answer the two halves of the same question. "Where does $2,500 come
- * from" and "what if they won't take my number" are both people refusing to
- * accept one figure on faith, which is the correct instinct.
- *
- * ⚠ THE SLIDER RECOMPUTES IN THE BROWSER AND THAT IS SAFE HERE. Net is
- * `gross - offer`, pure subtraction over numbers the server already sent, so
- * there is no second engine to drift out of sync. Anything that needed the
- * ENGINE — a different drive time, a different channel's fees — goes back to
- * the server, which is why the drive-time control does.
- */
-export function CompsAndOffer({ v, comps, ask, channel:ch }: {
+/** Price exploration stays beside the valuation; long comp lists expand only
+ * on request. Both use the parent's selected channel and original asking price. */
+export function CompsAndOffer({ v, comps, ask, channel: ch }: {
   v: Verdict; comps: Comp[]; ask: number | null; channel?: Channel;
 }) {
-  const [open, setOpen] = useState(false);
   const [offer, setOffer] = useState<number | null>(null);
   const at = offer ?? ask ?? 0;
   const net = ch ? ch.netCents - at : null;
   const required = v.requiredProfitCents;
-  const available = !!ch && ask != null && required != null;
+  const available = !!ch && ask != null && required != null && !v.inventory;
   const clears = net != null && required != null && net >= required;
-  const target = ch && required != null ? Math.max(0, ch.netCents - required) : null;
-  /**
-   * ⚠ 0 TO THE ASKING PRICE, AND NOTHING CLEVERER THAN THAT.
-   *
-   * The first version derived the floor from the economics
-   * (`netCents - required * 3`), and on the RTX 4090 that produced min $1,720
-   * against max $1,500: an INVERTED RANGE. A range input whose min exceeds its
-   * max does not error, it just pins and never moves, so the control rendered
-   * perfectly and did nothing. Caught by asserting that dragging it changes
-   * the number, which is the only way this was ever going to show up.
-   *
-   * Offering MORE than they asked is not a thing anyone needs a slider for, so
-   * the asking price is the ceiling. $5 steps: fine enough to land on a real
-   * number, coarse enough that a drag feels like it is doing something.
-   */
   const max = Math.max(ask ?? 0, 0);
   const step = max % 500 === 0 ? 500 : max % 100 === 0 ? 100 : max % 50 === 0 ? 50 : 1;
-  const min = 0;
-
-  return (
-    <>
-      {available && <section className="sec rise">
-        <SecHead tone="brand" icon={<Cut size={18} />} title="Offer calculator"
-          note={`${ch?.channel === "facebook" ? "Local" : "eBay"} · target ${money(target)}` } />
-        <div className="panel offer">
-          <div className="offerrow">
-            <span className="offerlbl">You offer</span>
-            <span className="num offerval">{money(at)}</span>
-          </div>
-          <input
-            className="offerslide" type="range"
-            min={min} max={max} step={step} value={at}
-            aria-label="Your offer"
-            onChange={(e) => setOffer(Number(e.target.value))} />
-          <div className={`offerout ${clears ? "ok" : "no"}`} role="status" aria-live="polite">
-            {clears
-              ? <><Check size={15} /><span>You'd make <b className="num">{money(net)}</b>, which is worth the trip.</span></>
-              : <><Info size={15} /><span>You'd make <b className="num">{money(net)}</b>, under the {money(required)} you need.</span></>}
-          </div>
-          {offer != null && offer !== ask && (
-            <button className="offerreset" onClick={() => setOffer(null)}>
-              Back to the asking price
-            </button>
-          )}
+  const offerId = useId();
+  return <div className="valuation-tools">
+    {available && <DetailRow title="Offer calculator" note="Try a different purchase price" icon={<Cut size={17}/> }>
+      <div className="offer">
+        <div className="offerrow"><label className="offerlbl" htmlFor={offerId}>Your offer</label><span className="num offerval">{money(at)}</span></div>
+        <input id={offerId} className="offerslide" type="range" min={0} max={max} step={step} value={at} aria-valuetext={money(at)} onChange={e => setOffer(Number(e.target.value))}/>
+        <div className="offer-scale"><span>$0</span><span>{money(max)} asking</span></div>
+        <div className={`offerout ${clears ? "ok" : "no"}`} role="status" aria-live="polite">
+          {clears ? <Check size={15}/> : <Info size={15}/>}
+          <span>Estimated profit <b className="num">{money(net)}</b><small>{ch?.channel === "facebook" ? "Local" : "eBay"} · {clears ? "meets" : "below"} your {money(required)} target</small></span>
         </div>
-      </section>}
-
-      {comps.length > 0 && (
-        <section className="sec">
-          {/**
-            * ⚠ COLLAPSED BY DEFAULT AND THAT IS THE POINT. Every number on this
-            * screen descends from one median, and the screen used to say "59
-            * sold comps" without ever showing one, which asks for trust on the
-            * strength of a count. Twelve rows expanded by default would bury the
-            * verdict; a disclosure that opens on demand is evidence you can
-            * check without being made to read it.
-            */}
-          <SecHead tone="brand" icon={<Eye size={18} />}
-            title={
-              <button className="disclose" aria-expanded={open} onClick={() => setOpen(!open)}>
-                Sold-price evidence
-                <i aria-hidden="true">{open ? "▴" : "▾"}</i>
-              </button>
-            }
-            note={`${v.valuation.compCount} sold comps used for this decision`} />
-          {open && (
-            <div className="panel comps">
-              {comps.map((c, i) => (
-                <div className="comp" key={i}>
-                  <span className="ctitle">{c.raw_title}</span>
-                  <span className="cmeta">
-                    {[c.condition_norm?.replace(/_/g, " "), c.sold_at?.slice(0, 10)].filter(Boolean).join(" · ")}
-                  </span>
-                  <span className="num cprice">{money(c.total)}</span>
-                </div>
-              ))}
-              <p className="compnote">
-                The {v.valuation.compCount} sold prices behind this decision.
-                Showing {comps.length} recorded comps.
-              </p>
-            </div>
-          )}
-        </section>
-      )}
-    </>
-  );
+        {offer != null && offer !== ask && <button className="offerreset" onClick={() => setOffer(null)}>Back to the asking price</button>}
+      </div>
+    </DetailRow>}
+    {comps.length > 0 && <DetailRow title="Sold-price evidence" note={`${v.valuation.compCount} used · ${comps.length} recorded examples`} icon={<Eye size={17}/>}>
+      <div className="comps">{comps.map((c, i) => <div className="comp" key={i}>
+        <span className="ctitle">{c.raw_title}</span>
+        <span className="cmeta">{[c.condition_norm?.replace(/_/g, " "), c.sold_at?.slice(0, 10)].filter(Boolean).join(" · ")}</span>
+        <span className="num cprice">{money(c.total)}</span>
+      </div>)}</div>
+      <p className="detail-footnote">Showing {comps.length} recorded comps. The valuation used {v.valuation.compCount} sold prices.</p>
+    </DetailRow>}
+  </div>;
 }
 
 export function Questions({ qs }: { qs: string[] }) {
   const [copied, setCopied] = useState<number | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
   if (!qs?.length) return null;
   /**
    * Copy ALL of them, not just one at a time.
@@ -410,21 +285,24 @@ export function Questions({ qs }: { qs: string[] }) {
    * ordered first by `gateQuestions`, so the joined text leads with the one
    * that actually decides it.
    */
-  const copyAll = () => {
-    navigator.clipboard.writeText(qs.map((q, i) => `${i + 1}. ${q}`).join("\n"))
-      .then(() => toast(`${qs.length} question${qs.length === 1 ? "" : "s"} copied`))
-      .catch(() => toast("Couldn't copy", true));
-    setCopied(-1);
-    setTimeout(() => setCopied(null), 1800);
+  const copy = async (text: string, index: number) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      // A denied clipboard write must never show a successful copied label.
+      setCopied(index);
+      toast(index === -1 ? `${qs.length} question${qs.length === 1 ? "" : "s"} copied` : "Question copied");
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(null), 1800);
+    } catch { setCopied(null); toast("Couldn't copy", true); }
   };
 
   return (
     <section className="sec rise">
       <SecHead tone="brand" icon={<Chat size={18} />} title="Ask the seller"
-        note="before you drive anywhere"
+        note={`${qs.length} question${qs.length === 1 ? "" : "s"} before pickup`}
         trailing={
-          <button className={`copyall ${copied === -1 ? "ok" : ""}`} onClick={copyAll}>
-            {copied === -1 ? "copied all" : `copy all ${qs.length}`}
+          <button className={`copyall ${copied === -1 ? "ok" : ""}`} onClick={() => void copy(qs.map((q, i) => `${i + 1}. ${q}`).join("\n"), -1)}>
+            {copied === -1 ? "Copied" : "Copy all"}
           </button>
         } />
       <div className="panel">
@@ -435,13 +313,8 @@ export function Questions({ qs }: { qs: string[] }) {
             <button
               className={copied === i ? "ok" : ""}
               aria-label={`Copy question ${i + 1}`}
-              onClick={() => {
-                navigator.clipboard.writeText(q)
-                  .then(() => toast("Question copied"))
-                  .catch(() => toast("Couldn't copy", true));
-                setCopied(i); setTimeout(() => setCopied(null), 1500);
-              }}
-            >{copied === i ? "copied" : "copy"}</button>
+              onClick={() => void copy(q, i)}
+            >{copied === i ? "Copied" : "Copy"}</button>
           </div>
         ))}
       </div>
@@ -472,6 +345,11 @@ export function Gallery({ urls, onOpen, onBack }: {
 }) {
   const [i, setI] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
+  const total = Math.min(urls?.length ?? 0, 20);
+  const goTo = (next: number) => {
+    const el = ref.current;
+    if (el) el.scrollTo({ left: el.clientWidth * next, behavior: motionAllowed() ? "smooth" : "instant" });
+  };
   if (!urls?.length) return null;
 
   const onScroll = () => {
@@ -503,12 +381,14 @@ export function Gallery({ urls, onOpen, onBack }: {
       )}
       <div className="galstrip" ref={ref} onScroll={onScroll}>
         {urls.slice(0, 20).map((u, n) => (
-          <div className="galshot" key={u}><ListingPhoto src={u} alt={`Photo ${n + 1} of ${Math.min(urls.length,20)}`} eager={n===0} open={()=>onOpen(n)}/></div>
+          <div className="galshot" key={`${n}:${u}`}><ListingPhoto src={u} alt={`Photo ${n + 1} of ${total}`} eager={n===0} open={()=>onOpen(n)}/></div>
         ))}
       </div>
       {urls.length > 1 && (
-        <div className="galdots" aria-hidden="true">
-          <span className="num">{i + 1}/{Math.min(urls.length, 20)}</span>
+        <div className="gallery-controls" role="group" aria-label="Listing photos">
+          <button aria-label="Previous listing photo" disabled={i === 0} onClick={() => goTo(i - 1)}><BackIcon size={17}/></button>
+          <span className="num" aria-live="polite">{i + 1} / {total}</span>
+          <button aria-label="Next listing photo" disabled={i === total - 1} onClick={() => goTo(i + 1)}><BackIcon size={17}/></button>
         </div>
       )}
     </div>
@@ -556,7 +436,7 @@ function PhotoStrip({urls,start}:{urls:string[];start:number}) {
   },[at,goTo]);
   return <div className="photo-viewer">
     <div className="lbxstrip" ref={strip} onScroll={e=>{const el=e.currentTarget;if(el.clientWidth)setAt(Math.max(0,Math.min(total-1,Math.round(el.scrollLeft/el.clientWidth))));}}>
-      {urls.map((url,i)=><ListingPhoto key={url} src={url} alt={`Photo ${i+1} of ${total}`} eager={Math.abs(i-start)<=1}/>)}
+      {urls.map((url,i)=><ListingPhoto key={`${i}:${url}`} src={url} alt={`Photo ${i+1} of ${total}`} eager={Math.abs(i-start)<=1}/>)}
     </div>
     <div className="photo-navigation"><button className="btn2" disabled={at===0} onClick={()=>goTo(at-1)} aria-label="Previous photo">‹</button><span className="num" role="status">Photo {at+1} of {total}</span><button className="btn2" disabled={at===total-1} onClick={()=>goTo(at+1)} aria-label="Next photo">›</button></div>
   </div>;
@@ -706,182 +586,73 @@ export function Outcome({ id }: { id: number }) {
 }
 
 export function Report({
-  listing, verdict, signals, comps, meta, stage, reading, checkId, onBack, onReload,decisionToken,
+  listing, verdict, signals, comps, meta, stage, reading, checkId, onBack, onReload, decisionToken,
 }: {
-  listing: Listing | null; verdict: Verdict | null; signals: Signal[];
-  comps?: Comp[];
-  decisionToken?:string;
-  meta?: Meta; stage: number; reading: number; checkId?: number | null;
-  /** Absent during a paste, where the result appears in place and there is
-      nothing behind it to go back to. */
-  onBack?: () => void;
-  /** Re-fetch after he relabels, so the card and the feed agree immediately. */
-  onReload?: () => void;
+  listing: Listing | null; verdict: Verdict | null; signals: Signal[]; comps?: Comp[]; decisionToken?: string;
+  meta?: Meta; stage: number; reading: number; checkId?: number | null; onBack?: () => void; onReload?: () => void;
 }) {
   const [lbx, setLbx] = useState<number | null>(null);
-  const [channelId,setChannelId]=useState("facebook");
-  useEffect(()=>{setLbx(null);setChannelId("facebook");},[listing?.url]);
-  const usable=(verdict?.channels??[]).filter(c=>c.available && Number.isFinite(c.netCents));
-  const channel=usable.find(c=>c.channel===channelId)??usable.find(c=>c.channel==='facebook')??usable[0];
+  const [channelId, setChannelId] = useState("facebook");
+  useEffect(() => { setLbx(null); setChannelId("facebook"); }, [listing?.url]);
+  const usable = (verdict?.channels ?? []).filter(c => c.available && Number.isFinite(c.netCents));
+  const channel = usable.find(c => c.channel === channelId) ?? usable.find(c => c.channel === 'facebook') ?? usable[0];
   if (!listing) return null;
-
-  const src = listing.source === "craigslist" ? "Craigslist"
-    : listing.source === "facebook" ? "Facebook Marketplace"
-    : listing.source === "offerup" ? "OfferUp"
-    : listing.source === "mercari" ? "Mercari" : listing.source;
-
-  return (
-    <>
-      {/**
-        * ⚠ `.dtop` IS A PLAIN WRAPPER ON A PHONE AND A TWO-COLUMN GRID FROM
-        * 1024px. Photos left, the decision right, and the decision STICKS.
-        *
-        * On a phone you scroll from the photo down to the verdict, which is
-        * correct — there is only one column. On a desktop there is room to have
-        * both at once, and "the number next to the picture" is the entire
-        * product. Everything that is READING rather than DECIDING — questions,
-        * flags, comps, provenance — stays full width below.
-        */}
-      <div className="dtop">
-        <Gallery urls={listing.photoUrls ?? []} onOpen={setLbx} onBack={onBack} />
-        {lbx !== null && (
-          <Lightbox urls={listing.photoUrls} start={lbx} onClose={() => setLbx(null)} />
-        )}
-
-        <div className="dside">
-          {/**
-            * ⚠ A LISTING WITH NO PHOTOS STILL NEEDS A WAY BACK.
-            *
-            * `Gallery` returns null on an empty `photoUrls`, and it is the
-            * element the overlay arrow is positioned against — so putting Back
-            * only there loses it on exactly the listings ZERO_PHOTOS fires on,
-            * which are the ones most worth leaving. Same control, in flow.
-            */}
-          {onBack && !listing.photoUrls?.length && (
-            <button className="dback inflow" onClick={onBack} aria-label="Back">
-              <BackIcon size={20} />
-            </button>
-          )}
-          <div className="lh rise">
-            {/* The listing IS the page here, so its title is the H1. It was an H2
-                under no H1 at all, which leaves a screen reader's outline starting
-                at level 2 with nothing above it. */}
-            <h1>{listing.title}</h1>
-            <div className="meta">
-              <span className="price num">{verdict?.inventory ? "Item prices below" : money(listing.askingPriceCents)}</span>
-              <span className="facts">
-                {[listing.location, ago(listing.postedAt)].filter(Boolean).join(" · ")}
-              </span>
-            </div>
-
-            {/**
-              * The link to the original is a PRIMARY action, not a footnote.
-              *
-              * It was a 12px text link buried under the price. Every path through
-              * this screen ends at the real listing — to message the seller, to
-              * check the photos again, to see whether it is still up — so it gets
-              * a full-width target that says which site it goes to.
-              */}
-            <a className="origin" href={listing.url} target="_blank" rel="noopener noreferrer">
-              <Link size={15} />
-              <span>Open on {src}</span>
-              <span className="arrow" aria-hidden="true">↗</span>
-            </a>
-          </div>
-
-          {verdict ? (
-            <div className={`verdict verdictcard v-${verdict.call} rise`} role="status" aria-live="polite">
-              <span className="vbadge">
-                {verdict.call === "BUY" ? <Check size={13} /> : verdict.call === "RISK" ? <Alert size={13} /> : <Info size={13} />}
-                {LABEL[verdict.call]}
-              </span>
-              <h3>{verdict.headline}</h3>
-              <p>{verdict.reasoning}</p>
-              {!!meta?.missingValueFields?.length && <div className="settles"><b>Missing details:</b> {meta.missingValueFields.join(", ")}</div>}
-              {verdict.decidingUnknown && (
-                <div className="settles"><b>What settles it:</b> {verdict.decidingUnknown}</div>
-              )}
-            </div>
-          ) : (
-            <div className="verdict v-INSUFFICIENT_DATA" aria-busy="true">
-              <div className="skel" style={{ height: 12, width: 76, marginBottom: 14 }} />
-              <div className="skel" style={{ height: 18, width: "68%", marginBottom: 10 }} />
-              <div className="skel" style={{ height: 13, width: "92%", marginBottom: 6 }} />
-              <div className="skel" style={{ height: 13, width: "55%" }} />
-            </div>
-          )}
-
-          {reading > 0 && (
-            <div className="reading" role="status" aria-live="polite">
-              <span className="spin" aria-hidden="true" />
-              Reading {reading} photo{reading === 1 ? "" : "s"} — sellers often put the specs in an image
-            </div>
-          )}
-
-          {stage < 3 && (
-            <div className="prog" aria-hidden="true">
-              {[0, 1, 2].map((i) => <span className={`step ${stage > i ? "on" : ""}`} key={i}><i /></span>)}
-            </div>
-          )}
-
-      {meta?.match?.model && (
-        <div className="prov">
-          {verdict?.valuation?.medianCents != null ? "Priced as" : "Identified as"} <b>{[meta.match.brand, meta.match.model].filter(Boolean).join(" ")}</b>
-          {verdict?.valuation?.compCount
-            ? <> from <span className="num">{verdict.valuation.compCount}</span> sold comps</> : null}
-          {meta.match.confidence ? <> · {meta.match.confidence} confidence match</> : null}
-          {meta.category ? <> · {meta.category}</> : null}
-        </div>
-      )}
-          {verdict && <Numbers v={verdict} ask={listing?.askingPriceCents ?? null} channel={channel} onChannelChange={setChannelId} />}
+  const src = ({ craigslist: "Craigslist", facebook: "Facebook Marketplace", offerup: "OfferUp", mercari: "Mercari" } as Record<string, string>)[listing.source] ?? listing.source;
+  const disclosed = verdict?.riskChecks?.filter(c => c.state === "failed") ?? [];
+  const pickup = verdict?.riskChecks?.filter(c => c.state === "unresolved" && !c.remote) ?? [];
+  const seriousSignals = signals.filter(s => s.polarity !== "positive" && ["blocker", "high"].includes(s.severity));
+  const otherSignals = signals.filter(s => !seriousSignals.includes(s));
+  const needsInspection = !!(pickup.length || signals.length || verdict?.questions?.length);
+  return <article className="listing-report" key={listing.url}>
+    <div className="listing-overview">
+      <Gallery key={listing.url} urls={listing.photoUrls ?? []} onOpen={setLbx} onBack={onBack}/>
+      {!listing.photoUrls?.length && <div className="detail-no-photo">{onBack && <button className="dback" onClick={onBack} aria-label="Back"><BackIcon size={20}/></button>}<Ghost size={30}/><span>No seller photos</span></div>}
+      {lbx !== null && <Lightbox urls={listing.photoUrls} start={lbx} onClose={() => setLbx(null)}/>}
+      <div className="lh">
+        <div className="listing-source"><span>{src}</span>{meta?.category && <span>{meta.category}</span>}</div>
+        <h1>{listing.title}</h1>
+        <p className="listing-location">{[listing.location, ago(listing.postedAt)].filter(Boolean).join(" · ")}</p>
+        <div className="listing-ask"><div><span className="detail-label">{verdict?.inventory ? "Seller inventory" : "Asking price"}</span><strong className={`price ${verdict?.inventory ? "inventory-ask" : "num"}`}>{verdict?.inventory ? "Priced per item" : listing.askingPriceCents == null ? "Not provided" : money(listing.askingPriceCents)}</strong></div>
+          <a className="origin" href={listing.url} target="_blank" rel="noopener noreferrer" aria-label={`Open on ${src}`}><span>View listing</span><span aria-hidden="true">↗</span></a>
         </div>
       </div>
-      <div className="evidence-grid">
-      {meta?.description && <section className="sec"><details className="panel seller-description"><summary>Seller description</summary><p>{meta.description}</p></details></section>}
-      {verdict?.inventory && <Inventory inventory={verdict.inventory} />}
-      {verdict && (
-        <CompsAndOffer key={listing.url} v={verdict} comps={comps ?? []} ask={listing.askingPriceCents} channel={channel} />
-      )}
-      {verdict?.retail && <Ceiling r={verdict.retail} />}
-      {verdict?.riskChecks?.length ? <Blockers checks={verdict.riskChecks} /> : null}
-      <Flags signals={signals} />
-      {verdict && <Questions qs={verdict.questions} />}
-      {/**
-        * ⚠ AFTER the engine's reasoning, never before it. This is the place to
-        * disagree with a conclusion, and a control to relabel a listing shown
-        * above the evidence invites relabelling it without reading any.
-        */}
-      {verdict && checkId && onReload && (
-        <MyCall decisionToken={decisionToken} id={checkId} call={verdict.call} overriddenFrom={verdict.overriddenFrom}
-          onChange={onReload} />
-      )}
-      {/**
-        * "What happened?" was REMOVED from the listing view, 2026-08-28.
-        *
-        * Yish: *"when clicking into a listing I don't want the what happened
-        * section at all."* He is right about the placement. You open a listing
-        * to decide whether to drive there — being asked what you did about it
-        * in the same breath is asking about a trip that has not happened, and
-        * it sat between him and the questions he came for.
-        *
-        * The outcome loop is NOT gone: `OutcomePrompt` still asks on the feed a
-        * DAY later, which is when there is something true to answer. That is
-        * where the data actually comes from.
-        */}
+    </div>
 
-      {/**
-        * What the engine THOUGHT this was, shown last.
-        *
-        * Every wrong verdict this month traced to a wrong match — a network
-        * switch read as a Nintendo Switch, an RTX 5070 Ti priced as a 5070, a
-        * printer as a prebuilt PC. Printing the resolved model and the comp
-        * count makes that visible on the screen where it matters, instead of
-        * requiring someone to notice the number looks odd.
-        */}
-      </div>
+    <div className="decision-card detail-card">
+      {verdict ? <>
+        <div className={`verdict v-${verdict.call}`}>
+          <div className="decision-label"><span className="vbadge">{verdict.call === "BUY" ? <Check size={14}/> : verdict.call === "RISK" ? <Alert size={14}/> : <Info size={14}/>} {LABEL[verdict.call]}</span><span className="decision-owner">{verdict.overriddenFrom ? "Your call" : "Filtrsoft assessment"}</span></div>
+          {verdict.overriddenFrom && <p className="engine-original">Engine: {LABEL[verdict.overriddenFrom]}</p>}
+          <h2>{verdict.headline}</h2>
+          <p className="decision-reasoning">{verdict.reasoning}</p>
+          {!!meta?.missingValueFields?.length && <div className="settles"><b>Missing details</b><ul>{meta.missingValueFields.map(field => <li key={field}>{field}</li>)}</ul></div>}
+          {verdict.decidingUnknown && <div className="settles"><b>Needs confirmation</b><p>{verdict.decidingUnknown}</p></div>}
+        </div>
+        {/* Confirmed defects stay ahead of pricing and outside every disclosure. */}
+        {disclosed.length > 0 && <div className="disclosed-defects"><h2><Alert size={16}/> Disclosed defects</h2>{disclosed.map(c => <div key={c.code}><b>{c.label}</b>{c.evidence && <p>{c.evidence}</p>}</div>)}</div>}
+        {meta?.match?.model && <div className="match-line"><span>{verdict.valuation.medianCents != null ? "Priced as" : "Identified as"}</span><b>{[meta.match.brand, meta.match.model].filter(Boolean).join(" ")}</b><small>{meta.match.confidence} confidence match</small></div>}
+        <Numbers v={verdict} ask={listing.askingPriceCents} channel={channel} onChannelChange={setChannelId}/>
+        <CompsAndOffer key={listing.url} v={verdict} comps={comps ?? []} ask={listing.askingPriceCents} channel={channel}/>
+        {verdict.retail && <DetailRow title="New retail" note={`${money(verdict.retail.priceCents)} · ${verdict.retail.corroborated ? `${verdict.retail.quotes.length} retailers` : "one retailer only"}`} icon={<Store size={17}/>}><p className="detail-footnote">{verdict.retail.title}</p><dl className="detail-facts">{verdict.retail.quotes.map((q,i) => <div key={i}><dt>{q.source}</dt><dd className="num">{money(q.priceCents)}</dd></div>)}</dl><p className="detail-footnote">Observed {verdict.retail.ageDays} days ago. Retail is separate from the used-market estimate.</p></DetailRow>}
+      </> : <div className="verdict v-INSUFFICIENT_DATA" aria-busy="true" aria-label="Assessing listing"><div className="skel" style={{height:14,width:100}}/><div className="skel" style={{height:24,marginTop:18}}/><div className="skel" style={{height:60,marginTop:12}}/></div>}
+      {reading > 0 && <div className="reading" role="status"><span className="spin" aria-hidden="true"/>Reading {reading} photo{reading === 1 ? "" : "s"}</div>}
+      {stage < 3 && <div className="prog" aria-hidden="true">{[0,1,2].map(i => <span className={`step ${stage > i ? "on" : ""}`} key={i}><i/></span>)}</div>}
+    </div>
 
-    </>
-  );
+    {verdict?.inventory && <Inventory inventory={verdict.inventory}/>}
+    {needsInspection && <div className="detail-card inspection-card">
+      {seriousSignals.length > 0 && <Flags signals={seriousSignals}/>}
+      {verdict?.questions?.length ? <Questions key={listing.url} qs={verdict.questions}/> : null}
+      {pickup.length > 0 && <section className="pickup-section"><SecHead tone="verify" icon={<Shield size={18}/>} title="At pickup" note={`${pickup.length} check${pickup.length === 1 ? "" : "s"} to make in person`}/><ul className="pickup">{pickup.map(c => <li key={c.code}><b>{c.label}</b><span>{c.question}</span></li>)}</ul></section>}
+      {otherSignals.length > 0 && <DetailRow title="Listing signals" note={`${otherSignals.length} observation${otherSignals.length === 1 ? "" : "s"} from the listing`} icon={<Info size={17}/>}><Flags signals={otherSignals} compact/></DetailRow>}
+    </div>}
+    <section className="detail-card listing-record">
+      {meta?.description ? <DetailRow title="Seller description" note="Original listing text" icon={<Chat size={17}/>} className="seller-description"><p>{meta.description}</p></DetailRow> : <p className="detail-footnote">No seller description was recorded.</p>}
+      <DetailRow title="Listing details" note={`${src} · source and matched model`} icon={<Link size={17}/>}><dl className="detail-facts"><div><dt>Source</dt><dd>{src}</dd></div>{listing.location && <div><dt>Location</dt><dd>{listing.location}</dd></div>}{meta?.daysOnMarket != null && <div><dt>Days listed</dt><dd>{meta.daysOnMarket}</dd></div>}{meta?.match?.model && <div><dt>Matched model</dt><dd>{[meta.match.brand, meta.match.model].filter(Boolean).join(" ")}</dd></div>}{meta?.category && <div><dt>Category</dt><dd>{meta.category}</dd></div>}</dl></DetailRow>
+    </section>
+    {verdict && checkId && onReload && <div className="detail-card review-card"><MyCall decisionToken={decisionToken} id={checkId} call={verdict.call} overriddenFrom={verdict.overriddenFrom} onChange={onReload}/></div>}
+    {/* Outcomes belong on the feed after the trip, never in this decision screen. */}
+  </article>;
 }
 
 // ------------------------------------------------------------------ app
