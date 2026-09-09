@@ -1,3 +1,4 @@
+import { Popup, motionAllowed, type Dismiss } from "./popup.tsx";
 /**
  * The listing detail: verdict, numbers, comps, risks and questions.
  *
@@ -98,8 +99,11 @@ export function MyCall({ id, call, overriddenFrom, onChange,decisionToken }: {
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-
-  const set = async (next: Call | null) => {
+  const current = useRef(true);
+  useEffect(() => { current.current = true; return () => { current.current = false; }; }, [id]);
+  const [error, setError] = useState(false);
+  const set = async (next: Call | null, dismiss: Dismiss) => {
+    setError(false);
     setBusy(true);
     try {
       const ref = deviceRef();
@@ -115,10 +119,10 @@ export function MyCall({ id, call, overriddenFrom, onChange,decisionToken }: {
         if (!response.ok) throw new Error("Label was not saved");
         toast(`Marked ${LABEL[next]}`);
       }
-      setOpen(false);
-      onChange();
+      if (current.current) dismiss(() => { if (current.current) onChange(); });
     } catch {
-      toast("Couldn't save that", true);
+      setError(true);
+      toast("Couldn't save your review. Try again.");
     } finally { setBusy(false); }
   };
 
@@ -128,26 +132,15 @@ export function MyCall({ id, call, overriddenFrom, onChange,decisionToken }: {
         note={overriddenFrom
           ? `You marked this ${LABEL[call]}. The engine said ${LABEL[overriddenFrom]}.`
           : "Agree with this call, or give it your own. Your review shapes the next batch."} />
-      {!open ? (
-        <button className="btn2 mycallbtn" onClick={() => setOpen(true)}>
-          {overriddenFrom ? "Change your label" : "Review this listing"}
-        </button>
-      ) : (
-        <div className="mycall">
-          {MY_CALLS.map((cx) => (
-            <button key={cx} className={`fchip${cx === call ? " on" : ""}`} disabled={busy}
-              aria-pressed={cx === call} onClick={() => set(cx)}>
-              {LABEL[cx]}
-            </button>
-          ))}
-          {overriddenFrom && (
-            <button className="fchip" disabled={busy} onClick={() => set(null)}>
-              Use the engine's
-            </button>
-          )}
-          <button className="fchip" disabled={busy} onClick={() => setOpen(false)}>Cancel</button>
-        </div>
-      )}
+      <button className="btn2 mycallbtn" onClick={() => setOpen(true)} aria-haspopup="dialog">
+        {overriddenFrom ? "Change your label" : "Review this listing"}
+      </button>
+      {open && <Popup title="Your call" subtitle="What's your judgment on this listing?" onClose={() => setOpen(false)}>{dismiss => <>
+        <div className="mycall-options" aria-busy={busy}>{MY_CALLS.map(cx => <button key={cx} className={`call-choice b-${cx}`} disabled={busy} aria-pressed={cx === call} onClick={() => set(cx, dismiss)}><span className="call-choice-dot"/><span><b>{LABEL[cx]}</b><small>{cx === "BUY" ? "Worth pursuing" : cx === "VERIFY" ? "Need answers first" : cx === "FAIR" ? "Priced about right" : cx === "PASS" ? "Not worth the trip" : "Something feels wrong"}</small></span><span aria-hidden="true">{cx === call ? "✓" : ""}</span></button>)}</div>
+        {error && <p className="popup-error" role="alert">Couldn't save your review. Try again.</p>}
+        {overriddenFrom && <button className="popup-footer-link" disabled={busy} onClick={() => set(null, dismiss)}>Use the engine's call</button>}
+      </>}</Popup>}
+
     </section>
   );
 }
@@ -549,7 +542,7 @@ export function Lightbox({ urls, start, onClose }: { urls: string[]; start: numb
   const goTo = useCallback((n: number) => {
     const i = Math.max(0, Math.min(total - 1, n));
     setAt(i);
-    strip.current?.children[i]?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+    strip.current?.children[i]?.scrollIntoView({ inline: "center", block: "nearest", behavior: motionAllowed() ? "smooth" : "instant" });
   }, [total]);
 
   useEffect(() => {

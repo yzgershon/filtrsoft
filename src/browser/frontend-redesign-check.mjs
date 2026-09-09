@@ -52,8 +52,8 @@ try{
   });
   await check('Filters, keyboard dialog closure and explicit price sorting',async()=>{
     const {ctx,page}=await context();await page.goto(base+'/?quality=all');await page.locator('.dealhero').waitFor();
-    await page.getByRole('combobox',{name:'Sort listings'}).selectOption('price');await page.locator('.gcard').first().waitFor();
-    assert.equal(await page.locator('.dealhero').count(),0);
+    await page.locator('.sort-trigger').click();await page.getByRole('dialog').getByRole('button',{name:/Cheapest/}).click();await page.locator('.gcard').first().waitFor();
+    await until(async()=>new URL(page.url()).searchParams.get('sort')==='price'&&await page.locator('.dealhero').count()===0,'price sort applied');
     const prices=await page.locator('.gprice').allTextContents();assert(prices.every((v,i)=>i===0||Number(v.replace(/[^\d.]/g,''))>=Number(prices[i-1].replace(/[^\d.]/g,''))));
     await page.locator('.filter-action').click();await page.getByRole('dialog').waitFor();await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'hidden'});assert(await page.locator('.filter-action').evaluate(e=>e===document.activeElement));
     await page.getByRole('searchbox',{name:'Search listings'}).fill('Latitude');await page.locator('.discovery-search button').click();await until(async()=>await page.locator('.gbody b').count()===2,'filtered rows');assert((await page.locator('.gbody b').allTextContents()).every(x=>x.includes('Latitude')));
@@ -61,7 +61,7 @@ try{
   });
   await check('Browser Back + Forward followed by app Back preserves the filtered feed',async()=>{
     const {ctx,page}=await context();await page.goto(base+'/?quality=all');await page.locator('.dealhero').waitFor();
-    await page.getByRole('combobox',{name:'Sort listings'}).selectOption('price');await page.locator('.gcard').first().waitFor();
+    await page.locator('.sort-trigger').click();await page.getByRole('dialog').getByRole('button',{name:/Cheapest/}).click();await page.locator('.gcard').first().waitFor();
     await page.locator('.gopen').first().click();await page.locator('.verdict').waitFor();await page.goBack();await page.locator('.gcard').first().waitFor();await page.goForward();await page.locator('.verdict').waitFor();await page.getByRole('button',{name:'Back',exact:true}).click();await page.locator('.gcard').first().waitFor();assert(new URL(page.url()).search.includes('sort=price'));
     await ctx.close();
   });
@@ -86,8 +86,8 @@ try{
     await page.locator('.dealhero').click();await page.locator('.workspace-link').filter({hasText:'Discover'}).click();await page.locator('[data-listing-id="102"] .gopen').click();await page.locator('.lh h1').waitFor();release();await pause(100);assert((await page.locator('.lh h1').innerText()).includes('Latitude'));await ctx.close();
   });
   await check('All five Your call options save with the decision token in the synthetic API',async()=>{
-    const {ctx,page}=await context();await page.goto(base+'/c/103');await page.locator('.verdict').waitFor();await page.getByRole('button',{name:'Review this listing'}).click();assert.equal(await page.locator('.mycall button').count(),6);
-    const saved=page.waitForRequest(r=>r.url().endsWith('/override')&&r.method()==='POST');await page.locator('.mycall').getByRole('button',{name:'Fair price',exact:true}).click();const req=await saved;assert.equal(req.postDataJSON().call,'FAIR');assert.equal(req.postDataJSON().decisionToken,'synthetic-preview-token');await page.getByRole('button',{name:'Change your label'}).waitFor();await ctx.close();
+    const {ctx,page}=await context();await page.goto(base+'/c/103');await page.locator('.verdict').waitFor();await page.getByRole('button',{name:'Review this listing'}).click();assert.equal(await page.locator('.mycall-options button').count(),5);
+    const saved=page.waitForRequest(r=>r.url().endsWith('/override')&&r.method()==='POST');await page.locator('.call-choice.b-FAIR').click();const req=await saved;assert.equal(req.postDataJSON().call,'FAIR');assert.equal(req.postDataJSON().decisionToken,'synthetic-preview-token');await page.getByRole('button',{name:'Change your label'}).waitFor();await ctx.close();
   });
   await check('Canceled detail releases Check and hash Back keeps the feed loaded',async()=>{
     const {ctx,page}=await context();let release;const gate=new Promise(r=>release=r);

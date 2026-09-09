@@ -1,4 +1,4 @@
-import { replaceRoute } from "./history.ts";
+import { NAVIGATE, pushRoute, replaceRoute } from "./history.ts";
 /**
  * Saved, Alerts, Settings, You, the nav bars and the outcome prompt.
  *
@@ -39,13 +39,26 @@ export function Watchlist({ onOpen, onWatchChange, onBrowse }: {
    * sub-tab themselves — which is exactly the burial that putting them in More
    * was meant to undo.
    *
-   * Read once, in a lazy initialiser: it seeds the tab, it does not own it, so
-   * tapping another sub-tab afterwards must not be overridden on re-render.
+   * Quick menus can link here while Saved is already mounted. Both menu links
+   * and tabs therefore use the URL; Back must restore the corresponding tab.
    */
   const [sub, setSub] = useState<"listings" | "alerts" | "bought">(() => {
     const q = new URLSearchParams(location.search).get("sub");
     return q === "alerts" ? "alerts" : q === "purchases" || q === "bought" ? "bought" : "listings";
   });
+  useEffect(() => {
+    const sync = () => {
+      if (location.pathname.replace(/\/$/, "") !== "/saved") return;
+      const q = new URLSearchParams(location.search).get("sub");
+      setSub(q === "alerts" ? "alerts" : q === "purchases" || q === "bought" ? "bought" : "listings");
+    };
+    addEventListener(NAVIGATE, sync); addEventListener("popstate", sync);
+    return () => { removeEventListener(NAVIGATE, sync); removeEventListener("popstate", sync); };
+  }, []);
+  const selectSub = (next: "listings" | "alerts" | "bought") => {
+    if (next === sub) return;
+    pushRoute(next === "listings" ? "/saved" : `/saved?sub=${next === "bought" ? "purchases" : "alerts"}`);
+  };
   const [ids, setIds] = useState<number[]>(readWatch);
   const [items, setItems] = useState<FeedItem[] | null>(null);
   const [summary, setSummary] = useState<{ dropped: number; gone: number }>({ dropped: 0, gone: 0 });
@@ -107,14 +120,14 @@ export function Watchlist({ onOpen, onWatchChange, onBrowse }: {
 
       <div className="subtabs" role="tablist" aria-label="Saved">
         <button role="tab" aria-selected={sub === "listings"} className={sub === "listings" ? "on" : ""}
-          onClick={() => setSub("listings")}>Listings{items?.length ? ` (${items.length})` : ""}</button>
+          onClick={() => selectSub("listings")}>Listings{items?.length ? ` (${items.length})` : ""}</button>
         <button role="tab" aria-selected={sub === "alerts"} className={sub === "alerts" ? "on" : ""}
-          onClick={() => setSub("alerts")}>Alerts</button>
+          onClick={() => selectSub("alerts")}>Alerts</button>
         {/* Purchases live under Saved because Saved is "your stuff", and a
             fourth bottom-nav item would cost the other three the room the 44px
             targets need. */}
         <button role="tab" aria-selected={sub === "bought"} className={sub === "bought" ? "on" : ""}
-          onClick={() => setSub("bought")}>Bought</button>
+          onClick={() => selectSub("bought")}>Bought</button>
       </div>
 
       {sub === "listings" && (
@@ -278,17 +291,19 @@ export const navIcon = (id: NavId, on: boolean, size: number) =>
       : id === "saved" ? <Save size={size} filled={on} />
         : <Dots size={size} />;
 
-export function Tabbar({ tab, go, savedCount }: {
+export function Tabbar({ tab, go, savedCount, onMore, moreOpen = false }: {
   tab: NavId | null;
+  onMore?: () => void; moreOpen?: boolean;
   go: (t: NavId | "settings") => void;
   savedCount: number;
 }) {
   return (
     <nav className="tabbar" aria-label="Main">
       {NAV.map(([id, label]) => (
-        <button key={id} className={`tab${tab === id ? " on" : ""}`}
+        <button key={id} className={`tab${tab === id || (id === "more" && moreOpen) ? " on" : ""}`}
           aria-current={tab === id ? "page" : undefined}
-          onClick={() => go(id)}>
+          aria-haspopup={id === "more" ? "dialog" : undefined} aria-expanded={id === "more" ? moreOpen : undefined}
+          onClick={() => id === "more" && onMore ? onMore() : go(id)}>
           <span className="ti">
             {navIcon(id, tab === id, 21)}
             {id === "saved" && savedCount > 0

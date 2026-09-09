@@ -1,0 +1,57 @@
+{
+  "checkedAt": "2026-09-09T02:23:06.148Z",
+  "synthetic": true,
+  "results": [
+    {
+      "name": "First price visible, large segment counts fit, and mobile menus stay within the screen",
+      "pass": true
+    },
+    {
+      "name": "Menu focus, scroll lock, Escape, backdrop and phone Back preserve the feed",
+      "pass": true
+    },
+    {
+      "name": "Quick choices reach full settings and account, while notification preview keeps unread state",
+      "pass": true
+    },
+    {
+      "name": "Sort and filter choices apply after dismissal and Back undoes each query once",
+      "pass": true
+    },
+    {
+      "name": "Closed popup Forward entries do not add an invisible app Back stop",
+      "pass": true
+    },
+    {
+      "name": "Review still refreshes after a slow successful save outlives its popup",
+      "pass": true
+    },
+    {
+      "name": "Review failure remains recoverable and closing without choosing sends no review",
+      "pass": true
+    },
+    {
+      "name": "OS and app reduced motion disable popup animation; landscape and large text remain usable",
+      "pass": true
+    },
+    {
+      "name": "Quick menus and Back select the intended Saved tab even when Saved is already open",
+      "pass": true
+    }
+  ],
+  "measurements": [
+    {
+      "width": 360,
+      "firstPriceBottom": 430
+    },
+    {
+      "width": 390,
+      "firstPriceBottom": 425
+    },
+    {
+      "width": 430,
+      "firstPriceBottom": 425
+    }
+  ],
+  "errors": []
+}

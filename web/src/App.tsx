@@ -1,3 +1,4 @@
+import { Popup, MenuRow } from "./popup.tsx";
 /**
  * The application shell: the router, and the screen it hands off to.
  *
@@ -7,7 +8,7 @@
  * `nav.ts` where `bun test` can pin them without a DOM.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Back, Bell, Clip, Link, Again, Sliders, User, Grid, Scan, Save, Gear, Shield } from "./icons.tsx";
+import { Back, Bell, Clip, Link, Again, Sliders, User, Grid, Scan, Save, Gear, Shield, Store, Info } from "./icons.tsx";
 import { BrandMark, Wordmark } from "./brand.tsx";
 import type { Comp, Hist, Listing, Meta, Signal, Verdict } from "./types.ts";
 import {
@@ -18,7 +19,7 @@ import {
   DealBanner, publishDealAlert, pushNotes, readNotes, onNotes, unseenNotes,
   onAuthLost, publishAuthLost,
 } from "./lib.tsx";
-import { NAVIGATE, historyDepth, pushRoute, replaceRoute } from "./history.ts";
+import { NAVIGATE, POPUP_KEY, historyDepth, pushRoute, replaceRoute } from "./history.ts";
 import { Feed } from "./feed.tsx";
 import { Report } from "./detail.tsx";
 import {
@@ -59,7 +60,13 @@ function useRoute() {
   const [path, setPath] = useState(location.pathname);
   useEffect(() => {
     replaceRoute(location.href, false);
-    const on = () => setPath(location.pathname);
+    const on = (event: Event) => {
+      // Closed panels leave a forward entry. Skip it so Forward cannot add an
+      // invisible stop between a listing and the feed on the next Back press.
+      if (event.type === "popstate" && history.state?.[POPUP_KEY]) { history.back(); return; }
+      document.documentElement.dataset.navigation = event.type === "popstate" ? "back" : "forward";
+      setPath(location.pathname);
+    };
     addEventListener("popstate", on);
     addEventListener(NAVIGATE, on);
     return () => { removeEventListener("popstate", on); removeEventListener(NAVIGATE, on); };
@@ -69,7 +76,7 @@ function useRoute() {
     path, screen: screenOf(path),
     go: useCallback((p: string) => {
       const target = new URL(p, location.href);
-      if (target.pathname + target.search === location.pathname + location.search) return;
+      if (target.pathname + target.search === location.pathname + location.search) { scrollToTop(); return; }
       mark(); pushRoute(p); scrollToTop();
     }, []),
     replace: useCallback((p: string) => { mark(); replaceRoute(p); }, []),
@@ -238,6 +245,9 @@ export default function App() {
    * the URL say `/` while a listing detail was still on screen.
    */
   const tab = tabOf(screen);
+  const [quickMenu, setQuickMenu] = useState<"more" | "account" | "notifications" | null>(null);
+  const [quickNotes, setQuickNotes] = useState(readNotes);
+  useEffect(() => onNotes(setQuickNotes), []);
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -656,27 +666,26 @@ export default function App() {
           */}
         <button className={`iconbtn bellbtn${unseen ? " on" : ""}`}
           aria-label={unseen ? `Notifications, ${unseen} new` : "Notifications"}
-          aria-pressed={screen.name === "notifications"}
-          onClick={() => go("/notifications")}>
+          aria-haspopup="dialog" aria-expanded={quickMenu === "notifications"}
+          onClick={() => setQuickMenu("notifications")}>
           <Bell size={19} />
           {unseen > 0 && <em className="num">{unseen > 9 ? "9+" : unseen}</em>}
         </button>
 
         <button className={`iconbtn avbtn${screen.name === "account" ? " on" : ""}`}
-          aria-label="Account" aria-pressed={screen.name === "account"}
-          onClick={() => go("/account")}>
+          aria-label="Account" aria-haspopup="dialog" aria-expanded={quickMenu === "account"}
+          onClick={() => setQuickMenu("account")}>
           <User size={18} />
         </button>
       </header>
 
-      <main className="scroll" id="main-content" tabIndex={-1}>
+      <main key={path} className="scroll route-enter" id="main-content" tabIndex={-1}>
             {screen.name === "deals" && (
               <>
-                <div className="feedhead">
+                <div className="feedhead discover-head">
                   {/* Badge, headline with one gradient accent word, subtitle.
                       The demo repeats this exact rhythm in every section. */}
-                  <span className="eyebrow">THE LOCAL TECH EDIT</span>
-                  <h1>Less scrolling.<br className="mobile-break" /> <span className="g">Better finds.</span></h1>
+                  <div className="discover-title"><h1>Discover</h1><span className="market-location">Greater Boston</span></div>
                   {/**
                     * ⚠ THE FRESHNESS LINE REPLACES THE SUBTITLE, IT DOES NOT
                     * JOIN IT. The static copy is read once; "checked 2 min ago,
@@ -877,7 +886,20 @@ export default function App() {
             {screen.name === "how" && <HowScreen />}
           </main>
 
-          <Tabbar tab={tab} go={goTab} savedCount={savedCount} />
+          <Tabbar tab={tab} go={goTab} savedCount={savedCount} onMore={() => setQuickMenu("more")} moreOpen={quickMenu === "more"} />
+          {quickMenu && <Popup title={quickMenu === "more" ? "Your workspace" : quickMenu === "account" ? "Your account" : "Notifications"} subtitle={quickMenu === "account" ? auth.user?.name || auth.user?.email : quickMenu === "more" ? "Everything else, one tap away." : "Recent deals and updates"} onClose={() => setQuickMenu(null)}>{dismiss => <>
+            {quickMenu === "notifications" ? <>
+              {quickNotes.length ? <div className="quick-list">{quickNotes.slice(0,3).map(n => <MenuRow key={n.id} icon={<Bell size={18}/>} label={n.title} detail={LABEL[n.call]} onClick={() => dismiss(() => go(`/c/${n.id}`))} />)}</div> : <div className="quick-empty"><Bell size={26}/><b>You're all caught up</b><p>New deal alerts will appear here.</p></div>}
+              <button className="popup-footer-link" onClick={() => dismiss(() => go("/notifications"))}>All notifications <span aria-hidden="true">→</span></button>
+            </> : <div className="quick-list">
+              {quickMenu === "account" && <MenuRow icon={<User size={19}/>} label="Account details" detail="Your profile and plan" onClick={() => dismiss(() => go("/account"))} />}
+              <MenuRow icon={<Gear size={19}/>} label="Settings" detail="Your numbers, feed and appearance" onClick={() => dismiss(() => go("/settings"))} />
+              <MenuRow icon={<Bell size={19}/>} label="Saved searches & alerts" detail="Stay on top of the tech you want" onClick={() => dismiss(() => go("/saved?sub=alerts"))} />
+              {quickMenu === "more" && <MenuRow icon={<Store size={19}/>} label="Purchases" detail="What you paid and its estimated value" onClick={() => dismiss(() => go("/saved?sub=purchases"))} />}
+              <MenuRow icon={<Info size={19}/>} label="How Filtrsoft works" onClick={() => dismiss(() => go("/how"))} />
+            </div>}
+            {quickMenu === "more" && <button className="popup-footer-link" onClick={() => dismiss(() => go("/more"))}>All options <span aria-hidden="true">→</span></button>}
+          </>}</Popup>}
           {/**
             * ⚠ THE BANNER IS MOUNTED AT THE SHELL, NOT INSIDE THE FEED. A deal
             * landing while he is on Saved, on Check or halfway down a listing

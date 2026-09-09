@@ -89,7 +89,17 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
-### Current frontend checkpoint: 2026-09-08, complete redesign ready for local review
+### Current mobile refinement checkpoint: 2026-09-08 evening, release checks passed
+
+Yish reviewed the first mobile design and asked for a more professional, compact app, crisp purposeful animations, small popup menus leading to full destinations, and **explicitly requested pushing to main so he can try it on his phone**. That deployment is authorized. Active branch remains `codex/frontend-redesign` in `C:\Dev\filtrsoft-backend`; root is the sole editor. Remote main was freshly fetched and remains the deployed ancestor. No archive, engine, database or dependency change is planned.
+
+Implemented compact Discover header/search/review controls, a horizontal featured card on mobile, and shared animated popups for More/Account/Notifications/Sort/Filters/Your call. Menus lead to existing full screens; notifications remain unread until their full screen is opened. Popups trap focus, lock the background, restore focus/scroll, dismiss on Back/Escape/backdrop, and respect OS plus app reduced motion. Closed popup Forward entries no longer add an invisible Back stop. A successful review still refreshes if its request outlives the panel. Saved tabs now follow query navigation even when Saved is already open. No backend, archive or dependency source change.
+
+Verification: **260 tests passed, 0 failed, 755 assertions**, both locally and inside the pinned Linux verification image with networking disabled. TypeScript, Vite, verification image and production image builds passed. **24 browser scenario groups passed** across the existing 15-group redesign harness and new 9-group mobile harness, with no page errors. First price ends at y=430 at 360px and y=425 at 390/430px; large counts fit, landscape panels scroll fully, keyboard/focus/reduced motion and delayed review saves pass. Screenshots in `docs/qa/mobile-polish` and `docs/qa/frontend-redesign` use a synthetic API, not production records. Local and Linux assets agree: `index-rSi9psDU.js`, `index-DJVdkxDg.css`.
+
+Pre-release public health still shows engine **0.3.34**, 31,900 comps, 28,832 usable, archive hash `0f1a2363ffdbf3ac458ddcbe47d9e182052106f222d57aa20cb03afbe4a9386b`, scoring complete with zero pending/failures. Evidence: `docs/sessions/2026-09-09-mobile-health-before.json`. Archive file SHA-256 is unchanged (`0285af42b39f7d9105882ba52591d311823b6b8cf790aa871161862b1ea3e635`). Next: commit, freshly check remote ancestry, non-force push to main, verify Railway/CI and public assets/health, then record the actual deployment outcome. Deployment is authorized; do not ask again.
+
+### Prior frontend checkpoint: 2026-09-08, first redesign before mobile refinement
 
 Yish explicitly requested a **complete redesign**, **UI/UX Pro Max**, and a **full desktop app**. Work is on `codex/frontend-redesign` in `C:\Dev\filtrsoft-backend`, based on the completed backend audit (`fe95f89`; deployed code baseline `7f9f2ea`). The former desktop phone frame is superseded by this request. **This frontend redesign is local and has not been pushed or deployed.** Standing permission to push main and trigger Railway exists from the backend release; this turn presents the new visual direction for review.
 

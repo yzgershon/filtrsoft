@@ -1,3 +1,4 @@
+import { Popup, MenuRow } from "./popup.tsx";
 import { NAVIGATE, pushRoute } from "./history.ts";
 /**
  * The Deals screen: cards, the segment control, and discovery.
@@ -9,7 +10,7 @@ import { NAVIGATE, pushRoute } from "./history.ts";
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Alert, Again, Bell, Check, Cut, Ghost, Save, Sliders, Scan } from "./icons.tsx";
+import { Alert, Again, Bell, Check, Cut, Ghost, Save, Sliders, Scan, Info, Cut as SortIcon } from "./icons.tsx";
 import type { Call, FeedItem } from "./types.ts";
 import {
   type Filters, type Quality,
@@ -164,49 +165,20 @@ export function FilterSheet({ f, facets, onApply, onClose }: {
   onApply: (next: Filters) => void;
   onClose: () => void;
 }) {
-  const box = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<Filters>(f);
   const set = (patch: Partial<Filters>) => setDraft((d) => ({ ...d, ...patch }));
-
-  useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    box.current?.querySelector<HTMLElement>("input,button")?.focus();
-    const on = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); onClose(); return; }
-      if (e.key !== "Tab") return;
-      const els = box.current?.querySelectorAll<HTMLElement>("input,button,select");
-      if (!els?.length) return;
-      const first = els[0], last = els[els.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-    };
-    addEventListener("keydown", on);
-    return () => {
-      removeEventListener("keydown", on);
-      document.body.style.overflow = prev;
-      opener?.focus?.();
-    };
-  }, [onClose]);
 
   const priceInput = draft.maxPrice ? String(Math.round(draft.maxPrice / 100)) : "";
 
   return (
-    <div className="sheetwrap" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="sheet" role="dialog" aria-modal="true" aria-label="Filter deals" ref={box}>
-        <div className="sheethead">
-          <b>Filters</b>
-          <button className="sheetx" onClick={onClose} aria-label="Close filters">✕</button>
-        </div>
-
+    <Popup title="Filters" subtitle="Narrow the market to what you want." onClose={onClose} className="filter-popup">{dismiss => <>
         <label className="fld">
           <span>Search</span>
           <input value={draft.q} placeholder="RTX 4090, MacBook, DDR5"
             onChange={(e) => set({ q: e.target.value })}
             /* Enter applies, because typing then hunting for a button is two
                gestures for something the keyboard already implies. */
-            onKeyDown={(e) => { if (e.key === "Enter") onApply(draft); }}
+            onKeyDown={(e) => { if (e.key === "Enter") dismiss(() => onApply(draft)); }}
             inputMode="search" autoCapitalize="off" autoCorrect="off" spellCheck={false} />
         </label>
 
@@ -252,7 +224,7 @@ export function FilterSheet({ f, facets, onApply, onClose }: {
                 const n = Number(e.target.value.replace(/[^0-9]/g, ""));
                 set({ maxPrice: n > 0 ? n * 100 : null });
               }}
-              onKeyDown={(e) => { if (e.key === "Enter") onApply(draft); }} />
+              onKeyDown={(e) => { if (e.key === "Enter") dismiss(() => onApply(draft)); }} />
           </div>
         </label>
 
@@ -268,13 +240,12 @@ export function FilterSheet({ f, facets, onApply, onClose }: {
         </div>
 
         <div className="sheetfoot">
-          <button className="btn2" onClick={() => onApply({ ...NO_FILTERS, quality: draft.quality })}>
+          <button className="btn2" onClick={() => setDraft({ ...NO_FILTERS, quality: draft.quality })}>
             Clear
           </button>
-          <button className="cta" onClick={() => onApply(draft)}>Show deals</button>
+          <button className="cta" onClick={() => dismiss(() => onApply(draft))}>Apply filters</button>
         </div>
-      </div>
-    </div>
+    </>}</Popup>
   );
 }
 
@@ -381,6 +352,8 @@ export function Feed({ onOpen, onWatchChange }: {
   const quality = filters.quality;
   const setQuality = (q: Quality) => applyFilters({ ...filters, quality: q });
   const [sheet, setSheet] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
+  const [reviewInfo, setReviewInfo] = useState(false);
   const [facets, setFacets] = useState<{ category?: Record<string, number>; source?: Record<string, number> }>({});
   const [segments, setSegments] = useState<Record<string, number>>({});
   /** New-since-you-looked, per segment. Drives the chip badges. */
@@ -602,13 +575,18 @@ export function Feed({ onOpen, onWatchChange }: {
     <>
       <div className="discovery-toolbar">
         <form className="discovery-search" onSubmit={(e) => { e.preventDefault(); const data = new FormData(e.currentTarget); applyFilters({ ...filters, q: String(data.get("q") || "").trim() }); }}>
-          <Scan size={18} /><input key={filters.q} name="q" aria-label="Search listings" defaultValue={filters.q} placeholder="Find your next flip" type="search" /><button type="submit">Search</button>
+          <Scan size={18} /><input key={filters.q} name="q" aria-label="Search listings" defaultValue={filters.q} placeholder="Search local tech" type="search" /><button type="submit">Search</button>
         </form>
-        <button className="filter-action" onClick={() => setSheet(true)}><Sliders size={17} /> Filters{nFilters > 0 && <em>{nFilters}</em>}</button>
-        <label className="sort-control"><span className="vh">Sort listings</span><select value={filters.sort} onChange={e => applyFilters({ ...filters, sort: e.target.value as Filters["sort"] })}>{SORTS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></label>
+        <button className="filter-action" aria-label={nFilters ? `Filters, ${nFilters} active` : "Filters"} aria-haspopup="dialog" onClick={() => setSheet(true)}><Sliders size={17} /> Filters{nFilters > 0 && <em>{nFilters}</em>}</button>
       </div>
       <Segmented value={quality} onChange={setQuality} options={SEGS} />
-      {quality === "review" && <div className="review-intro"><span className="review-icon"><Check size={18} /></span><div><b>Your next ten.</b><p>Open a listing, check the evidence, and give it your call. We'll bring in the next one.</p></div><span className="review-count">{segments.review ?? "…"}<small>to review</small></span></div>}
+      <div className="feed-context">
+        <div>{quality === "review" ? <><span className="context-dot" /><b>Your review queue</b><button className="review-help" aria-label="About your review queue" onClick={() => setReviewInfo(true)}><Info size={15} /></button></> : <span>{total} {total === 1 ? "listing" : "listings"}</span>}</div>
+        <button className="sort-trigger" aria-haspopup="dialog" onClick={() => setSortOpen(true)}><SortIcon size={14} />{SORTS.find(x => x.id === filters.sort)?.label}<span aria-hidden="true">⌄</span></button>
+      </div>
+      {sortOpen && <Popup title="Sort listings" onClose={() => setSortOpen(false)}>{dismiss => <div className="quick-list">{SORTS.map(s => <MenuRow key={s.id} label={s.label} selected={s.id === filters.sort} detail={s.id === "best" ? "Strongest opportunities first" : s.id === "newest" ? "Most recently posted" : s.id === "price" ? "Lowest asking price first" : "Largest reductions first"} onClick={() => dismiss(() => applyFilters({ ...filters, sort: s.id }))} />)}</div>}</Popup>}
+      {reviewInfo && <Popup title="Your review queue" subtitle="A short list, shaped by your judgment." onClose={() => setReviewInfo(false)}>{dismiss => <><p className="popup-copy">Up to ten priced, live listings that you haven't reviewed. Open one, check its evidence, and use Your call to record your judgment. Agreeing with the engine counts as a review too.</p><p className="popup-copy">Reviewed listings leave this queue and remain in the other segments.</p><button className="cta popup-primary" onClick={() => dismiss()}>Got it</button></>}</Popup>}
+
 
       {sheet && (
         <FilterSheet f={filters} facets={facets} onApply={applyFilters} onClose={() => setSheet(false)} />
@@ -698,7 +676,7 @@ export function Feed({ onOpen, onWatchChange }: {
             <>
               <SectionHead
                 tone={hero.call === "BUY" ? "buy" : hero.call === "VERIFY" ? "verify" : "mute"}
-                label={quality === "review" ? "First to review" : hero.call === "RISK" ? "Flagged listing" : "Top of your list"} />
+                label={quality === "review" ? "First to review" : hero.call === "RISK" ? "Flagged listing" : "Top of your list"} className="hero-section-head" />
               {/**
                 * ⚠ THE BOOKMARK IS A SIBLING OF THE OPEN BUTTON, NEVER INSIDE
                 * IT. Audit §18: every grid card could be saved and the best
@@ -740,13 +718,13 @@ export function Feed({ onOpen, onWatchChange }: {
             </>
           )}
 
-          {(filters.sort === "best" && quality !== "review" ? GROUPS : [{ label: quality === "review" && filters.sort === "best" ? "Continue your review" : SORTS.find(s => s.id === filters.sort)?.label || "Listings", note: "listings", tone: "mute", calls: ["BUY","VERIFY","FAIR","PASS","RISK","INSUFFICIENT_DATA","OUT_OF_SCOPE"] as Call[] }]).map((g) => {
+          {(filters.sort === "best" && quality !== "review" ? GROUPS : [{ label: quality === "review" && filters.sort === "best" ? "Next up" : SORTS.find(s => s.id === filters.sort)?.label || "Listings", note: "listings", tone: "mute", calls: ["BUY","VERIFY","FAIR","PASS","RISK","INSUFFICIENT_DATA","OUT_OF_SCOPE"] as Call[] }]).map((g) => {
             const list = rest.filter((i) => g.calls.includes(i.call));
             if (!list.length) return null;
             return (
               <div key={g.label}>
                 <SectionHead tone={g.tone} label={g.label} note={`${list.length} ${g.note}`} />
-                <div className={`grid${readSettings().compact ? " dense" : ""}`}>
+                <div key={key + g.label} className={`grid${readSettings().compact ? " dense" : ""}`}>
                   {list.map((i) => (
                     <Gcard key={i.id} i={i} saved={watch.includes(i.id)}
                       onSave={() => { const n = toggleWatch(i.id); setWatch(n); onWatchChange(n.length); }}
@@ -917,9 +895,9 @@ export function Segmented<T extends string>({ value, onChange, options }: {
 }
 
 /** `note` is optional: the hero head is a label with no count beside it. */
-export function SectionHead({ label, note, tone }: { label: string; note?: string; tone: string }) {
+export function SectionHead({ label, note, tone, className = "" }: { label: string; note?: string; tone: string; className?: string }) {
   return (
-    <div className="sect">
+    <div className={`sect ${className}`}>
       <span className={`sdot t-${tone}`} />
       <h3>{label}</h3><span>{note}</span>
     </div>
