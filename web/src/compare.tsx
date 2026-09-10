@@ -39,7 +39,7 @@ function ListingPicker({kind,selected,onSelect,onClose}:{kind:PartKind;selected:
     <div className="compare-picker-list" aria-busy={busy}>
       {items.map(item=><button className="compare-candidate" key={item.id} disabled={selected.includes(item.id)} onClick={()=>dismiss(()=>onSelect(item.id))}>
         <span className="compare-candidate-photo"><Thumb src={item.thumb} fallbacks={item.photoUrls}/></span>
-        <span className="compare-candidate-text"><b>{item.identity??item.title}</b><span>{item.title}</span><small>{platform[item.source]??item.source}{item.location?' · '+item.location:''}{item.wholeSystem?' · Whole system':''}</small></span>
+        <span className="compare-candidate-text"><b>{item.identity??item.title}</b><span>{item.title}</span><small>{platform[item.source]??item.source}{item.location?' · '+item.location:''}{item.wholeSystem?' · Full listing price':''}</small></span>
         <span className="compare-candidate-price">{selected.includes(item.id)?<Check size={18}/>:money(item.priceCents)}</span>
       </button>)}
       {busy&&!items.length&&<p className="compare-empty" role="status">Finding listings…</p>}

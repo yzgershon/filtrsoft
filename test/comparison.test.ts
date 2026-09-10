@@ -2,7 +2,7 @@ import {test,expect} from 'bun:test';
 import {comparisonSide,compareSides,safeSellerUrl} from '../src/comparison/core.ts';
 import type {BenchmarkSnapshot,PartKind} from '../src/comparison/types.ts';
 const now=Date.parse('2026-09-09T12:00:00Z'),at=new Date(now).toISOString();
-const snapshot:BenchmarkSnapshot={version:1,revision:'test',retrievedAt:at,suite:'Blender 4.5.0',os:'Windows',source:{name:'Fixture',url:'https://opendata.blender.org/benchmarks/query/?blender_version=4.5.0',license:'CC0',licenseUrl:'https://opendata.blender.org/about/'},rows:[
+const snapshot:BenchmarkSnapshot={version:1,revision:'test',retrievedAt:at,suite:'Blender 4.5.0',os:'Windows',source:{name:'Fixture',url:'https://opendata.blender.org/benchmarks/query/?blender_version=4.5.0&response_type=datatables',license:'CC0',licenseUrl:'https://opendata.blender.org/about/'},rows:[
   {device:'NVIDIA GeForce RTX 3070',backend:'OPTIX',median:2000,submissions:20},
   {device:'NVIDIA GeForce RTX 3070 Ti',backend:'OPTIX',median:3000,submissions:40},
   {device:'NVIDIA GeForce RTX 3070 Ti',backend:'CUDA',median:9000,submissions:40},
@@ -18,6 +18,7 @@ function side(title:string,description='',category='gpu',price:number|null=20000
 test('Rendering uses a pinned cohort and preferred backend with transparent relative math',()=>{
   const a=side('RTX 3070'),b=side('RTX 3070 Ti','', 'gpu',40000),r=compareSides([a,b],'gpu','rendering',snapshot);
   expect(b.reference?.backend).toBe('OPTIX');expect(b.reference?.value).toBe(3000);
+  expect(b.reference?.sourceUrl).not.toContain('response_type=');
   expect(r.score.indices).toEqual([66.7,100]);expect(r.score.advantagePercent).toBe(50);expect(r.score.leader).toBe(1);
   expect(r.value.indices).toEqual([100,75]);expect(r.value.leader).toBe(0);
   expect(compareSides([a,a],'gpu','rendering',snapshot).score.leader).toBeNull();

@@ -59,7 +59,7 @@ function benchmark(side:CompareSide,kind:PartKind,data:BenchmarkSnapshot):{refer
   const laptop=side.hardware.form==='laptop';
   const scope=mixed||laptop||/^apple /i.test(identity)?'family':'model';
   const note=mixed?'This benchmark name combines memory variants. It is family context, not an exact-variant score.':laptop?'Laptop power limits and cooling vary. This is a model-family reference, not a test of this laptop.':'Reference hardware submissions, not a benchmark of the seller’s physical item. Board clocks, cooling and condition can change results.';
-  const u=new URL(data.source.url);u.searchParams.append('device_name',row.device);u.searchParams.append('compute_type',row.backend);
+  const u=new URL(data.source.url);u.searchParams.delete('response_type');u.searchParams.append('device_name',row.device);u.searchParams.append('compute_type',row.backend);
   return {reference:{value:row.median,unit:'samples/min',submissions:row.submissions,device:row.device,backend:row.backend,suite:data.suite,os:data.os,sourceUrl:u.href,scope,note},reason:null};
 }
 
