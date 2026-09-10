@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-09T23:58:00.204Z",
+  "at": "2026-09-10T00:16:53.886Z",
   "synthetic": true,
   "results": [
     {
@@ -40,6 +40,10 @@
     },
     {
       "name": "Tab keyboard navigation, reload and history retain one active panel",
+      "pass": true
+    },
+    {
+      "name": "Switching a pinned tab reveals the new panel from its beginning",
       "pass": true
     },
     {

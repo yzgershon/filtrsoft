@@ -112,6 +112,16 @@ try {
     await p.getByRole('tab',{name:'Decision',exact:true}).focus();await p.keyboard.press('ArrowRight');assert.equal(await p.getByRole('tab',{name:'Specs',exact:true}).getAttribute('aria-selected'),'true');assert.equal(await p.getByRole('tabpanel').count(),1);
     assert.equal(await p.evaluate(()=>history.length),before);assert.equal(new URL(p.url()).searchParams.get('tab'),'specs');await p.reload();await p.locator('.spec-sheet').waitFor();assert.equal(await p.getByRole('tab',{name:'Specs',exact:true}).getAttribute('aria-selected'),'true');await p.getByRole('tab',{name:'Specs',exact:true}).focus();await p.keyboard.press('End');assert.equal(await p.getByRole('tab',{name:'Inspect',exact:true}).getAttribute('aria-selected'),'true');await c.close();
   });
+  await check('Switching a pinned tab reveals the new panel from its beginning',async()=>{
+    const {c,p}=await context();
+    for(const width of [390,1440])for(const motion of ['reduce','no-preference']){
+      await p.setViewportSize({width,height:844});await p.emulateMedia({reducedMotion:motion});await go(p,105);await tab(p,'Evidence');await row(p,'Seller description').locator('summary').click();
+      await p.evaluate(()=>scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'}));await p.getByRole('tab',{name:'Inspect',exact:true}).click();
+      await p.waitForFunction(()=>{const panel=document.querySelector('.detail-panel:not([hidden])'),tabs=document.querySelector('.detail-tabs');return panel.getBoundingClientRect().top>=tabs.getBoundingClientRect().bottom-1;});
+      await noOverflow(p);
+    }
+    await c.close();
+  });
   await check('Removal is deliberate, errors are visible, Undo and Settings restore work',async()=>{
     const {c,p}=await context();await go(p);let writes=0;await p.route('**/v1/checks/101/dismiss',r=>{writes++;return r.fulfill({status:503,json:{error:'temporary failure'}});});
     await p.getByRole('button',{name:'Remove listing',exact:true}).click();assert.equal(writes,0);await p.getByRole('button',{name:'Remove from my feed',exact:true}).click();await p.getByRole('dialog').getByRole('alert').waitFor();assert.equal(await p.locator('.removed-notice').count(),0);

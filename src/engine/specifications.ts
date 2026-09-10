@@ -34,7 +34,12 @@ export function specifications(proof:DecisionProvenance|null|undefined):Specific
   ];
   for(const [source,text] of [['title',proof?.facts?.title],['description',proof?.facts?.description]] as const) {
     if(!text)continue;
-    for(const original of text.split(/[\n;]|(?<=[.!?])\s+/).map(s=>s.trim()).filter(Boolean)) {
+    // Craigslist flattens section headings into the final component row. A real
+    // PC ad's "EXTRAS ------" swallowed six accessories into Case and its AIO
+    // LCD became the computer's display. Preserve these sections as evidence.
+    const separated=text.replace(/\s+(?=(?:extras|accessories|included accessories|seller notes)\s*(?:[-=_]{2,}|:))/gi,'\n');
+    for(const original of separated.split(/[\n;]|(?<=[.!?])\s+/).map(s=>s.trim()).filter(Boolean)) {
+      if(/^(?:extras|accessories|included accessories|seller notes)\s*(?:[-=_]{2,}|:)/i.test(original)){notes.push(original);continue;}
       if(optional.test(original)){notes.push(original);continue;}
       for(const line of original.split(/\s+(?=(?:CPU|GPU|processor|graphics card|RAM|memory|storage|SSD|HDD|motherboard|PSU|power supply|cooling|case|display|battery health)\s*[:=])/i).map(s=>s.replace(/[,|]\s*$/, '').trim())) {
       const labelled=line.match(/^\s*([a-z /_-]{2,24})\s*[:=]\s*(.+)$/i);
@@ -42,6 +47,7 @@ export function specifications(proof:DecisionProvenance|null|undefined):Specific
       if(optional.test(line)) { if(patterns.some(([,re])=>{re.lastIndex=0;return re.test(line);}))notes.push(line);continue; }
       for(const [key,re] of patterns)for(const m of line.matchAll(new RegExp(re.source,re.flags))) {
         if(key===labelledKey)continue;
+        if(key==='display'&&((labelledKey&&labelledKey!=='display')||(!['laptop','phone','tablet','monitor'].includes(category)&&! /\bmonitor\b/i.test(line))))continue;
         if(key==='cpu'&&/^M[1-9]/i.test(m[0])&&!/\b(?:MacBook|Mac mini|iMac|Mac Pro|iPad|Apple)\b/i.test(`${proof?.facts?.title} ${line}`))continue;
         const before=line.slice(Math.max(0,m.index!-24),m.index!);
         if(/\b(?:no|without|not|missing)\s*$/i.test(before)&&!/^(?:no dedicated)/i.test(m[0])) {notes.push(line);continue;}

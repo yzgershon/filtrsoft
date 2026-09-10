@@ -568,8 +568,11 @@ export function Report({listing,verdict,signals,comps=[],meta,stage,reading,chec
   const usable=(verdict?.channels??[]).filter(c=>c.available&&Number.isFinite(c.netCents)),channel=usable.find(c=>c.channel===channelId)??usable.find(c=>c.channel==='facebook')??usable[0];
   const choose=(next:DetailTab)=>{
     setTab(next);const url=new URL(location.href);url.searchParams.set('tab',next);history.replaceState(history.state,'',url);
-    requestAnimationFrame(()=>{const el=tabs.current;if(!el)return;const top=document.querySelector('.topbar')?.getBoundingClientRect().height??0;
-      window.scrollTo({top:Math.max(0,window.scrollY+el.getBoundingClientRect().top-top),behavior:motionAllowed()?'smooth':'instant'});
+    requestAnimationFrame(()=>{const el=tabs.current;if(!el?.parentElement)return;const top=document.querySelector('.topbar')?.getBoundingClientRect().height??0;
+      // A pinned tab strip reports its sticky position, not the panel's start.
+      // Measure the workspace so switching after a long spec sheet reveals the
+      // first concern instead of leaving it hidden above the sticky controls.
+      window.scrollTo({top:Math.max(0,window.scrollY+el.parentElement.getBoundingClientRect().top-top),behavior:motionAllowed()?'smooth':'instant'});
     });
   };
   const remove=async(value:boolean,dismiss?:Dismiss)=>{if(!checkId)return;setBusy(true);setError('');try{const r=await fetch(`/v1/checks/${checkId}/dismiss`,{method:value?'PUT':'DELETE'});if(!r.ok)throw Error();setRemoved(value);dismiss?.();toast(value?'Removed from your feed':'Listing restored');}catch{setError(value?"Couldn't remove this listing. Try again.":"Couldn't restore this listing. Try again.");}finally{setBusy(false);}};

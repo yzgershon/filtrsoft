@@ -31,4 +31,12 @@ Ten sampled no-photo Craigslist pages returned 200 without product-image markup.
 - UI testing uses synthetic API fixtures. Public production health/assets will be checked after deployment; authenticated live workflows are not claimed as tested.
 - Deployment archive unchanged: SHA256 `0285af42b39f7d9105882ba52591d311823b6b8cf790aa871161862b1ea3e635`.
 
-Production verification is pending the application push. Final results will be written to `2026-09-09-tabbed-detail-release.json` and HANDOFF.
+Application commit `0c18f9fe6861288d682bdfcdcacce0551577a589` was pushed to main. Railway deployment `6361702793` succeeded at 2026-09-10 00:02:41 UTC. CI run `34419490476` passed on native amd64, including 280 tests / 814 assertions both directly and in the isolated Docker image. At 00:03:41 UTC the public JS/CSS hashes and worker/manifest matched the local build exactly; the private feed/pulse still returned 401 without a session. Production runs engine 0.3.35, database healthy, 31,900 total comps. The scheduler's stored re-score is still in progress with no failures; its completion is being monitored before closing the release.
+
+## Final live-data correction
+
+Read-only UI inspection used Yish's existing signed-in Chrome tab, without logging in, handling credentials, submitting labels or removing records. Actual listing 4254 displays the new tabs and gallery, a linked source title, three recorded eBay item links, and the single Copy questions action with the review/share/trash bar. The source text exposed two specification boundary failures: the flattened Extras section was included in Case, and a 3.5-inch AIO LCD was shown as the computer display. Extras now remain in additional evidence and component-labelled screens do not become host Display. Exact case, GPU variant, RAM kit and accessory preservation are covered by the live-text regression.
+
+The same inspection found that clicking a pinned tab used its sticky viewport rectangle, leaving a new panel's beginning above the viewport. Tab changes now anchor to the workspace. A new built-browser regression switches from long expanded evidence at both 390 and 1440 px, with and without motion, and confirms the first panel content is below the tab strip.
+
+Final local tests: **282 pass / 0 fail / 824 assertions**, Windows and network-disabled Linux ARM64. Typecheck and pinned build pass. **15 tabbed browser groups pass**, 54 groups across the release, with no browser page errors. Application follow-up deployment remains to be checked; physical-phone testing and live account mutations are not claimed.

@@ -43,3 +43,21 @@ test('Phone RAM and storage in the same sentence stay distinct',()=>{
 });
 
 test('M2 storage is not an Apple processor',()=>{expect(specifications(proof('Gaming desktop','M2 NVMe 1TB SSD')).fields.find(f=>f.key==='cpu')!.state).toBe('unknown');});
+
+test('Live flattened PC extras do not become Case or a computer display',()=>{
+  const s=specifications(proof('High End Gaming PC RTX 5080 / Ryzen 7 9800X','FULL SPECS ---------- GPU: ASUS TUF Gaming RTX 5080 16GB GDDR7 OC CPU: AMD Ryzen 7 9800X3D (8-core / 16-thread) RAM: G.SKILL Trident Z5 Royal Neo 32GB (2x16) DDR5-6400 CL30 Storage: WD_Black SN8100 2TB NVMe (PCIe 5.0) Cooling: ASUS ROG Ryujin III 360 ARGB White AIO, 3.5" LCD PSU: Lian Li Edge 1000W 80+ Gold, ATX 3.1 / PCIe 5.1 Case: Lian Li O11 Vision Compact, back-connect, tempered glass EXTRAS ------ - Lian Li 8.8" side display panel (temps / custom graphics) - Lian Li Strimer Wireless 24-pin RGB cable - Lian Li TL LCD Wireless 120mm fan. Fully cable-managed.'));
+  expect(s.fields.find(f=>f.key==='case')!.values.map(v=>v.value)).toEqual(['Lian Li O11 Vision Compact, back-connect, tempered glass']);
+  expect(s.fields.find(f=>f.key==='display')).toBeUndefined();
+  expect(s.fields.find(f=>f.key==='cooling')!.values[0].value).toContain('3.5" LCD');
+  expect(s.notes.some(n=>n.includes('8.8" side display panel')&&n.includes('24-pin RGB cable'))).toBe(true);
+  expect(s.fields.find(f=>f.key==='ram')!.values[0].value).toBe('G.SKILL Trident Z5 Royal Neo 32GB (2x16) DDR5-6400 CL30');
+  expect(s.fields.find(f=>f.key==='gpu')!.values.some(v=>v.value==='ASUS TUF Gaming RTX 5080 16GB GDDR7 OC')).toBe(true);
+});
+
+test('Display extraction keeps real laptop and explicitly included monitor facts',()=>{
+  expect(specifications(proof('Laptop','15.6 inch IPS 1920x1080',{},null,'laptop')).fields.find(f=>f.key==='display')!.values.map(v=>v.value)).toEqual(['15.6 inch IPS','1920x1080']);
+  expect(specifications(proof('Gaming PC','Includes a 27 inch IPS monitor')).fields.find(f=>f.key==='display')!.values[0].value).toBe('27 inch IPS');
+  const s=specifications(proof('Gaming PC','Case: Corsair 4000D Accessories: keyboard and mouse'));
+  expect(s.fields.find(f=>f.key==='case')!.values[0].value).toBe('Corsair 4000D');
+  expect(s.notes).toContain('Accessories: keyboard and mouse');
+});
