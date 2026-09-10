@@ -24,6 +24,7 @@ export type Screen =
   | { name: "notifications" }
   | { name: "account" }
   | { name: "how" }
+  | { name: "compare" }
   | { name: "detail"; id: number };
 
 /**
@@ -48,6 +49,7 @@ export function screenOf(pathname: string): Screen {
   if (/^\/notifications\/?$/.test(pathname)) return { name: "notifications" };
   if (/^\/account\/?$/.test(pathname)) return { name: "account" };
   if (/^\/how\/?$/.test(pathname)) return { name: "how" };
+  if (/^\/compare\/?$/.test(pathname)) return { name: "compare" };
   return { name: "deals" };
 }
 

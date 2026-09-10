@@ -7,7 +7,9 @@ import { Popup, MenuRow } from "./popup.tsx";
  * the parts decidable from a string (routes, settings, filters) live in
  * `nav.ts` where `bun test` can pin them without a DOM.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, lazy, Suspense } from "react";
+import {CompareIcon} from './icons.tsx';
+const ComparisonScreen=lazy(()=>import('./compare.tsx'));
 import { Back, Bell, Clip, Link, Again, Sliders, User, Grid, Scan, Save, Gear, Shield, Store, Info } from "./icons.tsx";
 import { BrandMark, Wordmark } from "./brand.tsx";
 import type { Comp, Hist, Listing, Meta, Signal, Verdict } from "./types.ts";
@@ -35,7 +37,7 @@ import { Landing, AuthScreen, type Providers, type Account } from "./landing.tsx
  * Screens the bottom bar cannot reach, and which therefore must carry a Back
  * button. Kept as data next to the router so adding a screen is one edit.
  */
-const NO_TAB_SCREENS = new Set(["settings", "notifications", "account", "how"]);
+const NO_TAB_SCREENS = new Set(["settings", "notifications", "account", "how", "compare"]);
 /**
  * Routing, settings and the feed query live in `nav.ts` because they are the
  * parts of the shell that are decidable from a string, and `bun test` can pin
@@ -351,7 +353,7 @@ export default function App() {
   const focusedRoute = useRef<string | null>(null);
   useEffect(() => {
     if (auth.state !== "in") return;
-    const titles: Record<string, string> = { deals: "Listings", check: "Check listing", saved: "Saved", more: "More", settings: "Settings", account: "Account", notifications: "Notifications", how: "How Filtrsoft works", detail: listing?.title || "Listing" };
+    const titles: Record<string, string> = { deals: "Listings", check: "Check listing", saved: "Saved", more: "More", settings: "Settings", account: "Account", notifications: "Notifications", how: "How Filtrsoft works", compare: "Compare hardware", detail: listing?.title || "Listing" };
     document.title = `${titles[screen.name]} · Filtrsoft`;
   }, [auth.state, listing?.title, screen.name]);
   useEffect(() => {
@@ -640,6 +642,7 @@ export default function App() {
           {[{ id: "deals", label: "Discover", icon: <Grid size={19} />, route: "/" },
             { id: "check", label: "Check a listing", icon: <Scan size={19} />, route: "/check" },
             { id: "saved", label: "Saved listings", icon: <Save size={19} />, route: "/saved" },
+            { id: "compare", label: "Compare hardware", icon: <CompareIcon size={19} />, route: "/compare" },
             { id: "notifications", label: "Notifications", icon: <Bell size={19} />, route: "/notifications" }].map(n => (
             <button key={n.id} className={`workspace-link${screen.name === n.id ? " active" : ""}`} aria-current={screen.name === n.id ? "page" : undefined} onClick={() => go(n.route)}>
               {n.icon}<span>{n.label}</span>{n.id === "saved" && savedCount > 0 ? <em>{savedCount}</em> : null}
@@ -857,6 +860,7 @@ export default function App() {
                 <Report decisionToken={decisionToken} listing={listing} verdict={verdict} signals={signals} comps={comps}
                   meta={meta} stage={stage} reading={reading} checkId={checkId}
                   onShare={checkId ? () => void shareOrCopy(`${location.origin}/c/${checkId}`, listing?.title) : undefined}
+                  onCompare={checkId?()=>go(`/compare?ids=${checkId}&kind=${meta?.category==='component'?'cpu':['ram','storage','motherboard','psu'].includes(meta?.category??'')?meta!.category:'gpu'}`):undefined}
                   onBack={screen.name === "detail" ? back : undefined}
                   /* Relabelling changes the call the server serves, so the
                      screen re-reads rather than guessing at the new state. */
@@ -879,6 +883,8 @@ export default function App() {
                 onWatchChange={setSavedCount}
                 onBrowse={() => goTab("deals")} />
             )}
+
+            {screen.name === 'compare' && <Suspense fallback={<p role="status" className="compare-empty">Opening comparison…</p>}><ComparisonScreen onOpen={id=>go(`/c/${id}`)}/></Suspense>}
 
 
 
@@ -921,6 +927,7 @@ export default function App() {
             </> : <div className="quick-list">
               {quickMenu === "account" && <MenuRow icon={<User size={19}/>} label="Account details" detail="Your profile and plan" onClick={() => dismiss(() => go("/account"))} />}
               <MenuRow icon={<Gear size={19}/>} label="Settings" detail="Your numbers, feed and appearance" onClick={() => dismiss(() => go("/settings"))} />
+              {quickMenu === 'more' && <MenuRow icon={<CompareIcon size={19}/>} label="Compare hardware" detail="Parts, performance and the actual deal" onClick={()=>dismiss(()=>go('/compare'))}/>}
               <MenuRow icon={<Bell size={19}/>} label="Saved searches & alerts" detail="Saved filters and optional notifications" onClick={() => dismiss(() => go("/saved?sub=alerts"))} />
               {quickMenu === "more" && <MenuRow icon={<Store size={19}/>} label="Purchases" detail="What you paid and its estimated value" onClick={() => dismiss(() => go("/saved?sub=purchases"))} />}
               <MenuRow icon={<Info size={19}/>} label="How Filtrsoft works" onClick={() => dismiss(() => go("/how"))} />

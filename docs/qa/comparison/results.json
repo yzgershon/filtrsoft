@@ -1,0 +1,29 @@
+{
+  "results": [
+    {
+      "name": "Responsive both-theme real bundle at 360/375/390/430/768/1024/1440",
+      "pass": true
+    },
+    {
+      "name": "Picker keyboard selection restores focus; Escape and full report Back retain pair",
+      "pass": true
+    },
+    {
+      "name": "GPU families withheld; CPU rendering scored; workload and difference controls work",
+      "pass": true
+    },
+    {
+      "name": "Motion is optional, skippable, replayable and disabled for reduced motion",
+      "pass": true
+    },
+    {
+      "name": "Invalid pair, empty state, network retry and current response win over stale response",
+      "pass": true
+    },
+    {
+      "name": "Landscape and 200 percent root text remain within the viewport",
+      "pass": true
+    }
+  ],
+  "errors": []
+}

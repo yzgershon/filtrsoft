@@ -1,4 +1,5 @@
 import { requestJSON, requestMessage } from "./api-client.ts";
+import {CompareIcon} from './icons.tsx';
 /**
  * More — the fourth tab — plus the two screens that hang off the top bar.
  *
@@ -76,6 +77,7 @@ export function MoreScreen({ go, savedCount, noteCount }: {
       <div className="sgroup">
         <div className="shead"><User size={14} /> You</div>
         <div className="scard">
+          <Row icon={<CompareIcon size={17}/>} label="Compare hardware" hint="Compare parts, asking prices and evidence." onClick={()=>go('/compare')}/>
           <Row icon={<User size={17} />} label="Account"
             hint="Who you are on this device, and your plan."
             onClick={() => go("/account")} />

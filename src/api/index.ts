@@ -1,5 +1,6 @@
 import { dismissedIds, setDismissed, listDismissed } from "./dismissals.ts";
 import { specifications } from "../engine/specifications.ts";
+import {handleComparison,handleComparisonCandidates} from './compare.ts';
 import { handlePurchases } from "./purchases.ts";
 import {rememberDecision,decisionAt,decisionSku} from "../db/learning.ts";
 import {feedWindow,CursorError} from "./feed-cursor.ts";
@@ -1202,6 +1203,9 @@ app.get("/v1/watchlist", (c) => {
     },
   });
 });
+
+app.get('/v1/compare/candidates',handleComparisonCandidates);
+app.get('/v1/compare',handleComparison);
 
 app.get("/v1/checks/:id", (c) => {
   const id = Number(c.req.param("id"));

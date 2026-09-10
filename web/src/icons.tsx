@@ -12,6 +12,7 @@ const base = {
 };
 
 type P = { size?: number; className?: string };
+export function CompareIcon({size=20}:P){return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="7" height="14" rx="2"/><rect x="14" y="5" width="7" height="14" rx="2"/><path d="M6 9h1m10 6h1M12 2v20"/></svg>;}
 const svg = (size: number, kids: React.ReactNode, cls?: string) => (
   <svg width={size} height={size} viewBox="0 0 24 24" className={cls} aria-hidden="true" {...base}>
     {kids}
