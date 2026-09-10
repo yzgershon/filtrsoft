@@ -1,0 +1,111 @@
+{
+  "checkedAt": "2026-09-10T01:59:41.664Z",
+  "applicationCommit": "c85a75b526f9d8073c377c8a00d47acb7086f1fb",
+  "live": true,
+  "entryReferenced": true,
+  "checks": [
+    {
+      "path": "/assets/compare-cWhB01WE.js",
+      "status": 200,
+      "servedHash": "2b200387260aefe1a5d7450a08f145514ea4bd34e4921a70c427963cdaaecc25",
+      "localHash": "2b200387260aefe1a5d7450a08f145514ea4bd34e4921a70c427963cdaaecc25",
+      "matches": true
+    },
+    {
+      "path": "/assets/index-DRCwsGo0.js",
+      "status": 200,
+      "servedHash": "380c98d41d820071490ba680f565ba54771047f619f92d036f1e3366538f11c6",
+      "localHash": "380c98d41d820071490ba680f565ba54771047f619f92d036f1e3366538f11c6",
+      "matches": true
+    },
+    {
+      "path": "/assets/index-n7KjaD1e.css",
+      "status": 200,
+      "servedHash": "6acc41377d9b43502ba5c5b7e071db11a0a77fb43d9f58d7e3832e1b082f0125",
+      "localHash": "6acc41377d9b43502ba5c5b7e071db11a0a77fb43d9f58d7e3832e1b082f0125",
+      "matches": true
+    },
+    {
+      "path": "/sw.js",
+      "status": 200,
+      "servedHash": "ffeaa7fb65a4cc50565d7a36c97baf07354928061fd74ac520af1e1622785503",
+      "localHash": "87e1cf9311eb00271d1576f120be4a4a99fe1e29270160f7b0d9fcbe284785bf",
+      "matches": false,
+      "matchesNormalizedText": true,
+      "note": "Git uses LF in Linux while these checked-out public files use CRLF on Windows."
+    },
+    {
+      "path": "/manifest.webmanifest",
+      "status": 200,
+      "servedHash": "78ca0055879ba42cfea808b5743d741ccbb39b9f02f5e65827d05d34c8fb7c69",
+      "localHash": "9135b937d0f16efb35061543e0ff46e8c39e8067e85661bb6ada9094ea09e5ca",
+      "matches": false,
+      "matchesNormalizedText": true,
+      "note": "Git uses LF in Linux while these checked-out public files use CRLF on Windows."
+    }
+  ],
+  "privateChecks": [
+    {
+      "path": "/v1/compare?ids=6234,2814",
+      "status": 401
+    },
+    {
+      "path": "/v1/compare/candidates",
+      "status": 401
+    },
+    {
+      "path": "/v1/feed",
+      "status": 401
+    },
+    {
+      "path": "/v1/pulse",
+      "status": 401
+    }
+  ],
+  "health": {
+    "engine": "0.3.35",
+    "db": "ok",
+    "comps": {
+      "total": 31900,
+      "usable": 28745
+    },
+    "scoring": {
+      "signature": "6854|2026-09-10T01",
+      "pending": 0,
+      "failures": 0,
+      "complete": true
+    }
+  },
+  "nativeAmd64CI": {
+    "id": 34427576666,
+    "status": "success",
+    "tests": 296,
+    "failures": 0,
+    "assertions": 881
+  },
+  "railwayDeployment": 6362974473,
+  "authenticatedUI": {
+    "readOnly": true,
+    "listingIds": [
+      6234,
+      2814
+    ],
+    "observations": [
+      "Real candidate picker and search",
+      "RTX 3070 asking $250, estimated resale $274.99",
+      "RTX 4070 asking $475, estimated resale $506.98",
+      "Distinct original Facebook seller URLs",
+      "Verified exact UserBenchmark pair URL",
+      "Unknown seller VRAM retained",
+      "Rendering cohort and pooled-memory score refusal"
+    ],
+    "finalReloadVerifiedReadableSourceLinks": true
+  },
+  "limitation": "Native gaming/FPS scores unavailable; UserBenchmark links and rendering scores do not fulfill that data requirement",
+  "railway": {
+    "id": 6362974473,
+    "status": "success",
+    "completedAt": "2026-09-10T01:58:53Z"
+  },
+  "browserGroups": 21
+}
