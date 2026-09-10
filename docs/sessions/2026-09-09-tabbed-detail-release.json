@@ -1,14 +1,14 @@
 {
-  "checkedAt": "2026-09-10T00:03:41.354Z",
-  "applicationCommit": "0c18f9fe6861288d682bdfcdcacce0551577a589",
+  "checkedAt": "2026-09-10T00:20:29.272Z",
+  "applicationCommit": "7e5374a1f2962d47761c613504d84809c8d43216",
   "publicVerificationOnly": true,
   "live": true,
   "checks": [
     {
-      "path": "/assets/index-Cofsal4O.js",
+      "path": "/assets/index-1wGjf14k.js",
       "status": 200,
-      "servedHash": "aef46e0e5c51c8efe0004463140ad1509766a97d0a9263f221e0ddffc5d5b919",
-      "localHash": "aef46e0e5c51c8efe0004463140ad1509766a97d0a9263f221e0ddffc5d5b919",
+      "servedHash": "94ce8b7325864b0d37b1a6fecbc6a0f411ee90bb6c036859f4792f38ee9aff00",
+      "localHash": "94ce8b7325864b0d37b1a6fecbc6a0f411ee90bb6c036859f4792f38ee9aff00",
       "matches": true
     },
     {
@@ -189,22 +189,22 @@
     },
     "funnel": {
       "cohort": {
-        "capturedSince": "2026-09-09T00:03:36.340Z"
+        "capturedSince": "2026-09-09T00:20:29.102Z"
       },
       "counts": {
-        "discovered": 113,
-        "detailed": 113,
-        "photos": 102,
-        "decisionProvenance": 113,
+        "discovered": 116,
+        "detailed": 116,
+        "photos": 105,
+        "decisionProvenance": 116,
         "exactIdentity": 11,
         "usableEvidence": 11,
-        "scored": 113,
+        "scored": 116,
         "feedEligible": 23,
         "synchronized": null,
         "alerted": 1
       },
       "firstScoreSeconds": {
-        "samples": 113,
+        "samples": 116,
         "p50": 0.009,
         "p95": 0.163
       },
@@ -249,9 +249,9 @@
     },
     "scoring": {
       "signature": "6854|2026-09-10T00",
-      "pending": 6425,
+      "pending": 0,
       "failures": 0,
-      "complete": false
+      "complete": true
     },
     "billing": {
       "enabled": false
@@ -276,21 +276,35 @@
     },
     "thumbs": {
       "enabled": true,
-      "count": 3838,
+      "count": 3841,
       "mb": 65.1
     }
   },
   "archiveHash": "0285af42b39f7d9105882ba52591d311823b6b8cf790aa871161862b1ea3e635",
   "railway": {
-    "deploymentId": 6361702793,
+    "deploymentId": 6361897832,
     "state": "success",
-    "applicationCommit": "0c18f9fe6861288d682bdfcdcacce0551577a589",
-    "completedAt": "2026-09-10T00:02:41Z"
+    "applicationCommit": "7e5374a1f2962d47761c613504d84809c8d43216",
+    "completedAt": "2026-09-10T00:19:53Z"
   },
   "ci": {
-    "runId": 34419490476,
+    "runId": 34420787710,
     "conclusion": "success",
-    "url": "https://github.com/yzgershon/filtrsoft/actions/runs/34419490476",
+    "url": "https://github.com/yzgershon/filtrsoft/actions/runs/34420787710",
     "nativeArchitecture": "amd64"
+  },
+  "signedInReadOnlyVerification": {
+    "listingId": 4254,
+    "tabs": true,
+    "gallery": true,
+    "recordedEbayItemLinks": 3,
+    "specificationBoundaryCorrection": true,
+    "preservedAdditionalEvidence": true,
+    "inspectPanelTop": 151,
+    "tabStripBottom": 136,
+    "viewportWidth": 1440,
+    "documentWidth": 1440,
+    "accountMutations": false,
+    "physicalHandset": false
   }
 }

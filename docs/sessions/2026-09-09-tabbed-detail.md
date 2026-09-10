@@ -39,4 +39,10 @@ Read-only UI inspection used Yish's existing signed-in Chrome tab, without loggi
 
 The same inspection found that clicking a pinned tab used its sticky viewport rectangle, leaving a new panel's beginning above the viewport. Tab changes now anchor to the workspace. A new built-browser regression switches from long expanded evidence at both 390 and 1440 px, with and without motion, and confirms the first panel content is below the tab strip.
 
-Final local tests: **282 pass / 0 fail / 824 assertions**, Windows and network-disabled Linux ARM64. Typecheck and pinned build pass. **15 tabbed browser groups pass**, 54 groups across the release, with no browser page errors. Application follow-up deployment remains to be checked; physical-phone testing and live account mutations are not claimed.
+Final local tests: **282 pass / 0 fail / 824 assertions**, Windows and network-disabled Linux ARM64. Typecheck and pinned build pass. **15 tabbed browser groups pass**, 54 groups across the release, with no browser page errors. Physical-phone testing and live account mutations are not claimed.
+
+## Final release verification
+
+Final correction `7e5374a1f2962d47761c613504d84809c8d43216` was pushed to main. Railway deployment **6361897832 succeeded at 2026-09-10T00:19:53Z**. Native amd64 CI **34420787710 passed**, including the complete host suite, TypeScript/Vite and the network-disabled Docker suite/build. At **2026-09-10T00:20:29.272Z**, served JS `index-1wGjf14k.js` and CSS `index-DhEv3KMU.css` match the tested bytes, worker/manifest match, and private feed/pulse remain 401. Production engine 0.3.35 has **0 pending / 0 failures / complete** re-scoring, database healthy, 31,900 total and 28,745 usable comps. The archive is unchanged.
+
+Reloading the existing signed-in live tab verified the final correction on listing 4254. Case ends at `tempered glass`; cooler retains `3.5" LCD` without inventing a computer Display; all Extras are present in Additional evidence. After switching from expanded long Specs to Inspect, the first panel begins at y=151 below the tabs ending at y=136, with document width equal to the 1440px viewport. No account mutations were performed. Release is complete; closing evidence is committed locally without another production deployment.
