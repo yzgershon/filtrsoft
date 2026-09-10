@@ -144,7 +144,9 @@ export function detailToListing(
     location: locLine ?? card?.location ?? null,
     postedAt: ageDays == null ? null : new Date(Date.now() - ageDays * 86_400_000).toISOString(),
     updatedAt: null,
-    photoUrls: d.photos,
+    // A still-loading detail gallery must not discard this item's working
+    // search-card photo. A different item after a redirect cannot supply it.
+    photoUrls: d.photos.length ? d.photos : card?.thumb && card.sourceId === d.url.match(/\/marketplace\/item\/(\d+)/)?.[1] ? [card.thumb] : [],
     /**
      * Facebook's own Condition dropdown is a value the seller PICKED, not prose
      * we guessed at, so it feeds condition normalisation directly and beats any

@@ -1,3 +1,5 @@
+import { dismissedIds, setDismissed, listDismissed } from "./dismissals.ts";
+import { specifications } from "../engine/specifications.ts";
 import { handlePurchases } from "./purchases.ts";
 import {rememberDecision,decisionAt,decisionSku} from "../db/learning.ts";
 import {feedWindow,CursorError} from "./feed-cursor.ts";
@@ -451,6 +453,8 @@ app.post("/v1/checks", async (c) => {
         sellerSophistication: r.signals.sellerSophistication,
         daysOnMarket: r.signals.daysOnMarket,
         match: r.match,
+        description: r.listing.description,
+        specifications: specifications(r.verdict.provenance),
       },
       vision: r.vision,
       visionStatus: vd.reason,
@@ -490,7 +494,7 @@ app.get("/v1/checks/stream", (c) => {
           vision, persist: true, driveMinutes: drive,
           onStage: (s: Stage) => {
             const data=s.data as any;
-            send(s.stage,{elapsedMs:s.elapsedMs,...data,...(s.stage==='done' && data.listingId?{decisionToken:rememberDecision(data.listingId,currentUser(c)?.id,data.verdict)}:{})});
+            send(s.stage,{elapsedMs:s.elapsedMs,...data,...(s.stage==='done' && data.listingId?{decisionToken:rememberDecision(data.listingId,currentUser(c)?.id,data.verdict),meta:{specifications:specifications(data.verdict?.provenance)}}:{})});
           },
         });
       } catch (e) {
@@ -745,6 +749,10 @@ export function tracker(r: {
 const thumbUrl = (r: { id: number; has_thumb?: number; thumb?: string | null }) =>
   r.has_thumb ? `/v1/thumb/${r.id}` : r.thumb ?? null;
 
+const photoFallbacks=(r:{thumb_candidates?:string}):string[]=>{
+  try{return JSON.parse(r.thumb_candidates??'[]');}catch{return [];}
+};
+
 /**
  * A cached thumbnail. Immutable for a day: the bytes only change when the
  * listing's photos do, and a card that re-downloads its image on every feed
@@ -754,6 +762,9 @@ const thumbUrl = (r: { id: number; has_thumb?: number; thumb?: string | null }) 
  * His own call on a listing. See `api/overrides.ts` — device-scoped, stored
  * separately from `verdicts` so a re-score cannot erase it.
  */
+app.get("/v1/dismissals", listDismissed);
+app.put("/v1/checks/:id/dismiss", c => setDismissed(c,true));
+app.delete("/v1/checks/:id/dismiss", c => setDismissed(c,false));
 app.post("/v1/checks/:id/override", handleSetOverride);
 app.delete("/v1/checks/:id/override", handleClearOverride);
 
@@ -829,6 +840,7 @@ app.get("/v1/feed", (c) => {
   const filters = parseFilters((k) => c.req.query(k));
   const { quality } = filters;
   const overrides = loadAccountOverrides(currentUser(c)!.id);
+  const removed = dismissedIds(currentUser(c)!.id);
 
   const rows = db().query(`
     SELECT l.id, l.title, l.url, l.asking_price_cents, l.location, l.posted_at, l.source,
@@ -843,6 +855,7 @@ app.get("/v1/feed", (c) => {
            l.captured_at,
            v.call, v.confidence, v.payload,
            (SELECT url FROM listing_photos p WHERE p.listing_id = l.id ORDER BY position LIMIT 1) thumb,
+    (SELECT json_group_array(url) FROM (SELECT url FROM listing_photos p WHERE p.listing_id=l.id ORDER BY position LIMIT 3)) thumb_candidates,
            EXISTS(SELECT 1 FROM listing_thumbs t WHERE t.listing_id = l.id) has_thumb,
            /**
             * FIRST and LATEST observed price, both filtered to POSITIVE values.
@@ -894,7 +907,7 @@ app.get("/v1/feed", (c) => {
    * the listings we priced and rejected.
    */
   const RANK: Record<string, number> = { BUY: 0, VERIFY: 1, RISK: 2, FAIR: 3, PASS: 4, INSUFFICIENT_DATA: 5 };
-  const ranked = rows.map((r) => {
+  const ranked = rows.filter(r => !removed.has(r.id)).map((r) => {
     const v = r.payload ? JSON.parse(r.payload) : null;
     const net = v?.netProfitCents ?? 0;
     const ageDays = r.posted_at ? (Date.now() - Date.parse(r.posted_at)) / 86_400_000 : 99;
@@ -932,7 +945,7 @@ app.get("/v1/feed", (c) => {
       askingPriceCents: r.asking_price_cents, location: r.location, postedAt: r.posted_at,
       /** Read only by `newSegmentCounts`; harmless on the wire. */
       capturedAt: r.captured_at,
-      thumb: thumbUrl(r), call: r.call, confidence: r.confidence,
+      thumb: thumbUrl(r), thumbFallbacks: photoFallbacks(r), call: r.call, confidence: r.confidence,
       headline: v?.headline ?? null,
       priceIsPlaceholder: Boolean(v?.inventory),
       netProfitCents: v?.netProfitCents ?? null,
@@ -1101,15 +1114,17 @@ app.get("/v1/pulse", (c) => {
   }
   const calls=c.req.query('verify')==='1'?['BUY','VERIFY']:['BUY'];
   const overrides=loadAccountOverrides(currentUser(c)!.id);
+  const removed=dismissedIds(currentUser(c)!.id);
   const rows=d.query(`SELECT l.id,l.title,l.asking_price_cents,l.source,v.id event_id,latest.call,
     (SELECT url FROM listing_photos p WHERE p.listing_id=l.id ORDER BY position LIMIT 1) thumb,
+    (SELECT json_group_array(url) FROM (SELECT url FROM listing_photos p WHERE p.listing_id=l.id ORDER BY position LIMIT 3)) thumb_candidates,
     EXISTS(SELECT 1 FROM listing_thumbs t WHERE t.listing_id=l.id) has_thumb
     FROM listings l JOIN verdicts v ON v.id=(SELECT MIN(id) FROM verdicts WHERE listing_id=l.id AND call IN (${calls.map(()=>'?').join(',')}))
     JOIN verdicts latest ON latest.id=(SELECT MAX(id) FROM verdicts WHERE listing_id=l.id)
     WHERE v.id>? AND v.id<=? AND l.delisted_at IS NULL
     AND COALESCE(l.posted_at,l.last_seen,l.captured_at)>=strftime('%Y-%m-%dT%H:%M:%fZ','now','-28 days')
     ORDER BY v.id ASC`).all(...calls,after,max) as any[];
-  const eligible=rows.map(r=>({...applyOverride({id:r.id,title:r.title,call:r.call,askingPriceCents:r.asking_price_cents,source:r.source,thumb:thumbUrl(r)},overrides),eventId:r.event_id}))
+  const eligible=rows.filter(r=>!removed.has(r.id)).map(r=>({...applyOverride({id:r.id,title:r.title,call:r.call,askingPriceCents:r.asking_price_cents,source:r.source,thumb:thumbUrl(r),thumbFallbacks:photoFallbacks(r)},overrides),eventId:r.event_id}))
     .filter(r=>calls.includes(r.call));
   const page=eligible.slice(0,20),hasMore=eligible.length>page.length;
   const cursor=`v1:${hasMore?page.at(-1)!.eventId:max}`;
@@ -1136,6 +1151,7 @@ app.get("/v1/pulse", (c) => {
  * entire reason the sweep exists.
  */
 app.get("/v1/watchlist", (c) => {
+  const removed = dismissedIds(currentUser(c)!.id);
   const raw = (c.req.query("ids") ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0);
   // Bounded: this is a public GET taking a caller-supplied id list, and an
   // unbounded IN clause is a way to make one request read the whole table.
@@ -1147,6 +1163,7 @@ app.get("/v1/watchlist", (c) => {
            l.delisted_at, l.delist_reason, l.last_price_cents, l.last_seen,
            v.call, v.confidence, v.payload,
            (SELECT url FROM listing_photos p WHERE p.listing_id = l.id ORDER BY position LIMIT 1) thumb,
+    (SELECT json_group_array(url) FROM (SELECT url FROM listing_photos p WHERE p.listing_id=l.id ORDER BY position LIMIT 3)) thumb_candidates,
            EXISTS(SELECT 1 FROM listing_thumbs t WHERE t.listing_id = l.id) has_thumb,
            (SELECT price_cents FROM listing_prices lp WHERE lp.listing_id = l.id
              AND lp.price_cents > 0 ORDER BY lp.observed_at ASC LIMIT 1) first_price_cents,
@@ -1157,12 +1174,12 @@ app.get("/v1/watchlist", (c) => {
     WHERE l.id IN (${ids.map(() => "?").join(",")})
   `).all(...ids) as any[];
 
-  const items = rows.map((r) => {
+  const items = rows.filter(r => !removed.has(r.id)).map((r) => {
     const v = r.payload ? JSON.parse(r.payload) : null;
     return {
       id: r.id, title: r.title, url: r.url, source: r.source,
       askingPriceCents: r.asking_price_cents, location: r.location, postedAt: r.posted_at,
-      thumb: thumbUrl(r), call: r.call, confidence: r.confidence,
+      thumb: thumbUrl(r), thumbFallbacks: photoFallbacks(r), call: r.call, confidence: r.confidence,
       headline: v?.headline ?? null,
       netProfitCents: v?.netProfitCents ?? null,
       flagCount: v?.blockers?.length ?? 0,
@@ -1250,7 +1267,7 @@ app.get("/v1/checks/:id", (c) => {
     verdict,
     signals,
     comps,
-    meta,
+    meta: {...meta, dismissed: dismissedIds(currentUser(c)!.id).has(id), specifications: verdict?.inventory ? {fields:[],photoStatus:proof?.visionEvidence?"recorded":"not_read",notes:["This listing contains multiple items. Use each offer’s exact seller wording below."],attributes:[]} : specifications(proof)},
   });
 });
 

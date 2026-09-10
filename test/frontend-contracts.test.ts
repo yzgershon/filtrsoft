@@ -122,3 +122,41 @@ test('outcome retries acknowledge one committed record and reject conflicting re
   assert.equal((await request(2,path,'POST',body)).status,200);
   assert.equal((await (await request(1,'/v1/purchases')).json()).items.length,1);
 `));
+
+
+test('Personal listing removal is idempotent, account-owned and reversible across feeds and cursors',()=>isolated(fixture+`
+  const first=listing(),second=listing();
+  const before=await (await request(1,'/v1/feed?quality=all&limit=1')).json();
+  assert.equal(before.items.length,1);const id=before.items[0].id;
+  assert.equal((await app.request('/v1/checks/'+id+'/dismiss',{method:'PUT'})).status,401);
+  assert.equal((await request(1,'/v1/checks/'+id+'/dismiss','PUT')).status,200);
+  assert.equal((await request(1,'/v1/checks/'+id+'/dismiss','PUT')).status,200);
+  assert.equal(d.query('SELECT COUNT(*) n FROM listing_dismissals').get().n,1);
+  const mine=await (await request(1,'/v1/feed?quality=all')).json();assert(!mine.items.some(i=>i.id===id));
+  const theirs=await (await request(2,'/v1/feed?quality=all')).json();assert(theirs.items.some(i=>i.id===id));
+  const watch=await (await request(1,'/v1/watchlist?ids='+id)).json();assert.equal(watch.items.length,0);
+  const hidden=await (await request(1,'/v1/dismissals')).json();assert.equal(hidden.items[0].id,id);
+  assert.equal((await (await request(2,'/v1/dismissals')).json()).items.length,0);
+  await request(2,'/v1/checks/'+id+'/dismiss','DELETE');assert.equal(d.query('SELECT COUNT(*) n FROM listing_dismissals').get().n,1);
+  assert.equal(d.query('SELECT delisted_at FROM listings WHERE id=?').get(id).delisted_at,null);
+  if(before.nextCursor){const page=await (await request(1,'/v1/feed?quality=all&limit=1&cursor='+encodeURIComponent(before.nextCursor))).json();assert(!page.items.some(i=>i.id===id));}
+  await request(1,'/v1/checks/'+id+'/dismiss','DELETE');
+  assert((await (await request(1,'/v1/feed?quality=all')).json()).items.some(i=>i.id===id));
+`));
+
+test('Detail specs use the displayed frozen evidence and feed photos retain ordered bounded fallbacks',()=>isolated(fixture+`
+  import {checkStored,ENGINE_VERSION} from '@/src/engine/index.ts';
+  import {syncPhotoUrls} from '@/src/vision/merge.ts';
+  import {putThumb} from '@/src/photos/thumb.ts';
+  const id=listing('BUY','RTX 4090 graphics card');
+  d.run('UPDATE listings SET description=? WHERE id=?',['GPU: ASUS RTX 4090 24GB GDDR6X',id]);
+  const urls=[0,1,2,3].map(i=>'https://example.invalid/photo-'+i);syncPhotoUrls(id,urls);
+  const report=checkStored(id).verdict;storeVerdict(id,ENGINE_VERSION,report);
+  d.run('UPDATE listings SET description=? WHERE id=?',['GPU: RTX 4060',id]);
+  const detail=await (await request(1,'/v1/checks/'+id)).json();
+  assert(detail.meta.specifications.fields.find(f=>f.key==='gpu').values.some(v=>v.value.includes('ASUS RTX 4090')));
+  assert(!JSON.stringify(detail.meta.specifications).includes('RTX 4060'));
+  const before=await (await request(1,'/v1/watchlist?ids='+id)).json();assert.deepEqual(before.items[0].thumbFallbacks,urls.slice(0,3));assert.equal(before.items[0].thumb,urls[0]);
+  putThumb(id,urls[0],{bytes:new Uint8Array([1]),mime:'image/webp',width:1,height:1});
+  const cached=await (await request(1,'/v1/watchlist?ids='+id)).json();assert.equal(cached.items[0].thumb,'/v1/thumb/'+id);assert.deepEqual(cached.items[0].thumbFallbacks,urls.slice(0,3));
+`));

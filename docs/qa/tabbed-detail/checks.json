@@ -1,0 +1,63 @@
+{
+  "at": "2026-09-09T23:58:00.204Z",
+  "synthetic": true,
+  "results": [
+    {
+      "name": "Six responsive widths: priced, unknown, risky, inventory and long-text reports",
+      "pass": true
+    },
+    {
+      "name": "Disclosure keyboard access, complete evidence and coherent selected-channel arithmetic",
+      "pass": true
+    },
+    {
+      "name": "Missing prices stay unknown; risky evidence stays outside disclosures",
+      "pass": true
+    },
+    {
+      "name": "Fourteen inventory offers retain exact cents, quantities, tiers and seller quotes",
+      "pass": true
+    },
+    {
+      "name": "Decimal asking/offer values remain exact and zero-profit targets remain visible",
+      "pass": true
+    },
+    {
+      "name": "Gallery controls, full image, Back dismissal and failed-photo recovery",
+      "pass": true
+    },
+    {
+      "name": "Clipboard denial shows no success; confirmed copies contain exact questions",
+      "pass": true
+    },
+    {
+      "name": "Review remains deliberate and errors preserve the label and decision token",
+      "pass": true
+    },
+    {
+      "name": "Reduced motion, larger text and landscape keep controls and evidence usable",
+      "pass": true
+    },
+    {
+      "name": "Tab keyboard navigation, reload and history retain one active panel",
+      "pass": true
+    },
+    {
+      "name": "Removal is deliberate, errors are visible, Undo and Settings restore work",
+      "pass": true
+    },
+    {
+      "name": "Light, dark and system themes persist with readable tokens across app surfaces",
+      "pass": true
+    },
+    {
+      "name": "Review dock stays above navigation with motion enabled and after scrolling",
+      "pass": true
+    },
+    {
+      "name": "Feed images fall back from a broken cache and first URL to a working gallery photo",
+      "pass": true
+    }
+  ],
+  "errors": []
+}

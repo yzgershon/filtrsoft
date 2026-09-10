@@ -80,6 +80,7 @@ export interface Settings {
   driveMinutes: number;
   hideGone: boolean;
   reduceMotion: boolean;
+  theme: "dark" | "light" | "system";
   askOutcomes: boolean;
   /** Stamps the one-shot 15 -> 20 default migration. See `mergeSettings`. */
   driveVersion?: number;
@@ -122,6 +123,7 @@ export const DEFAULT_SETTINGS: Settings = {
   driveMinutes: 20,
   hideGone: true,
   reduceMotion: false,
+  theme: "dark",
   askOutcomes: true,
   alerts: true,
   alertVerify: false,
@@ -143,6 +145,7 @@ export function mergeSettings(raw: string | null): Settings {
     const parsed = JSON.parse(raw || "{}");
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return DEFAULT_SETTINGS;
     const merged = { ...DEFAULT_SETTINGS, ...parsed };
+    if (!["dark", "light", "system"].includes(merged.theme)) merged.theme = DEFAULT_SETTINGS.theme;
     /**
      * ⚠ A STORED VALUE EQUAL TO THE OLD DEFAULT IS NOT A CHOICE.
      *

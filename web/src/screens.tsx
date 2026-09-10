@@ -1,3 +1,4 @@
+import { RemovedListings } from './removed-listings.tsx';
 import { SavedSearches } from "./saved-searches.tsx";
 import { NAVIGATE, pushRoute, replaceRoute } from "./history.ts";
 /**
@@ -641,7 +642,7 @@ export function Toggle({ label, hint, on, onChange }: {
  * bunch others like what apps usually have even things we havent talked
  * about."* Every group below exists because a real control needed a home —
  * the ones a normal app has that Filtrsoft genuinely has no answer for (dark/
- * light mode: there is one theme; language: there is one language; sign out:
+ * language: there is one language; sign out:
  * there is no account) are NOT stubbed in as disabled rows. An app that says
  * "coming soon" four times is worse than one that is honestly small.
  */
@@ -815,19 +816,14 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
           <Toggle label="Reduce motion"
             hint="Turns off screen and card entry animations."
             on={s.reduceMotion} onChange={(v) => save({ reduceMotion: v })} />
-          {/**
-            * ⚠ NO THEME PICKER, AND THAT IS NOT AN OVERSIGHT. There is one
-            * theme; the verdict colours are tuned against this exact ground
-            * (`--vfill` / `--vink` in 08-polish.css) and a light mode is a
-            * palette rewrite, not a switch. A disabled "Light" row here would
-            * be a promise the CSS cannot keep.
-            */}
-          <p className="snote">
-            Filtrsoft is dark only. The verdict colours are contrast-tuned against
-            this background, so a light theme is a repaint rather than a switch.
-          </p>
+          <div className="appearance-picker">
+            <b>Color theme</b><p>Choose a look or follow your device.</p>
+            <div className="theme-options" role="group" aria-label="Color theme">{(['light','dark','system'] as const).map(theme=><button key={theme} className={`theme-option theme-${theme}`} aria-pressed={s.theme===theme} onClick={()=>save({theme})}><span className="theme-sample" aria-hidden="true"><i/><i/><i/></span><span>{theme==='system'?'System':theme==='light'?'Light':'Dark'}{s.theme===theme&&<Check size={14}/>}</span></button>)}</div>
+          </div>
         </div>
       </div>
+
+      <RemovedListings />
 
       {/* ── APP ────────────────────────────────────────────────────────── */}
       <div className="sgroup">

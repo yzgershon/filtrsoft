@@ -75,9 +75,7 @@ export function Gcard({ i, saved, onSave, onOpen }: {
       <button data-open-listing-id={i.id} className="gopen" onClick={(e) => onOpen(e.currentTarget.closest(".gcard") as HTMLElement)}
         aria-label={`Open ${i.title}`} aria-describedby={descId}>
         <span className="gshot">
-          {i.thumb
-            ? <Thumb src={i.thumb} />
-            : <span className="noimg"><Ghost size={22} /></span>}
+          <Thumb src={i.thumb} fallbacks={i.thumbFallbacks}/>
           {/**
             * ⚠ AN OVERRIDDEN CARD SAYS SO. `overriddenFrom` is only present
             * when HE relabelled it, and without the marker his own judgement
@@ -625,9 +623,7 @@ export function Feed({ onOpen, onWatchChange, freshness }: {
               <div className="herowrap">
               <button data-open-listing-id={hero.id} className={`dealhero v-${hero.call}`} onClick={() => onOpen(hero.id)}>
                 <span className="hshot">
-                  {hero.thumb
-                    ? <Thumb src={hero.thumb} size={28} />
-                    : <span className="noimg"><Ghost size={28} /></span>}
+                  <Thumb src={hero.thumb} fallbacks={hero.thumbFallbacks} size={28}/>
                 </span>
                 <span className="hero-content">
                     <span className={`dcall b-${hero.call}${hero.overriddenFrom ? " mine" : ""}`}>

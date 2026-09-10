@@ -382,6 +382,25 @@ export default function App() {
     document.documentElement.classList.toggle("no-motion", settings.reduceMotion);
   }, [settings.reduceMotion]);
 
+  useEffect(() => {
+    const media = matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => {
+      const theme = settings.theme === "system" ? (media.matches ? "dark" : "light") : settings.theme;
+      document.documentElement.dataset.theme = theme;
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#f5f6f8" : "#0d1017");
+    };
+    apply(); media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, [settings.theme]);
+
+  useEffect(() => {
+    const elements = [document.querySelector('.topbar'), document.querySelector('.tabbar')];
+    const measure = () => elements.forEach((el,i) => document.documentElement.style.setProperty(i ? '--app-bottom-nav-height' : '--app-topbar-height', `${el?.getBoundingClientRect().height ?? 0}px`));
+    const observer = new ResizeObserver(measure);
+    elements.forEach(el => { if(el) observer.observe(el); }); measure();
+    return () => observer.disconnect();
+  }, [auth.user, screen.name]);
+
   /**
    * ANDROID SHARE SHEET. The manifest registers `/share` as a share target, so
    * Filtrsoft appears in Chrome's Share menu on a Craigslist page and the whole
@@ -546,6 +565,7 @@ export default function App() {
     src.addEventListener("done", (ev) => {
       const d = JSON.parse((ev as MessageEvent).data);
       setDecisionToken(d.decisionToken);
+      if(d.meta) setMeta(d.meta);
       if (d.listingId) {
         setCheckId(d.listingId);
         replaceRoute(`/c/${d.listingId}`);
@@ -836,6 +856,7 @@ export default function App() {
                     behind it to return to. */}
                 <Report decisionToken={decisionToken} listing={listing} verdict={verdict} signals={signals} comps={comps}
                   meta={meta} stage={stage} reading={reading} checkId={checkId}
+                  onShare={checkId ? () => void shareOrCopy(`${location.origin}/c/${checkId}`, listing?.title) : undefined}
                   onBack={screen.name === "detail" ? back : undefined}
                   /* Relabelling changes the call the server serves, so the
                      screen re-reads rather than guessing at the new state. */
@@ -845,10 +866,6 @@ export default function App() {
 
                 {checkId && (
                   <div className="actions">
-                    <button className="btn2"
-                      onClick={() => shareOrCopy(`${location.origin}/c/${checkId}`, listing?.title)}>
-                      <Link /> Share
-                    </button>
                     <button className="btn2" onClick={() => { reset(); setUrl(""); go("/check"); }}>
                       <Again /> New check
                     </button>

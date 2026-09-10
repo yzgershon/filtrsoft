@@ -519,3 +519,11 @@ CREATE TABLE IF NOT EXISTS crawl_jobs (
   error       TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_crawl_jobs_status ON crawl_jobs(status, id);
+
+-- Personal removal is recoverable and must survive crawls/re-scoring.
+CREATE TABLE IF NOT EXISTS listing_dismissals (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY(user_id,listing_id)
+);

@@ -4,6 +4,19 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
     <meta name="theme-color" content="#0a0e17" />
+    <script>
+      // Apply the saved appearance before the stylesheet paints, including on
+      // sign-in and offline launches. Corrupt or blocked storage keeps dark mode.
+      (() => {
+        let theme = 'dark';
+        try { const saved = JSON.parse(localStorage.getItem('filtrsoft:settings') || '{}').theme;
+          if (saved === 'light' || saved === 'dark') theme = saved;
+          if (saved === 'system') theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        } catch {}
+        document.documentElement.dataset.theme = theme;
+        document.querySelector('meta[name="theme-color"]').content = theme === 'light' ? '#f5f6f8' : '#0d1017';
+      })();
+    </script>
     <title>Filtrsoft — what a used tech listing is really worth</title>
     <meta name="description" content="Paste a listing. Find out what it's actually worth and what's wrong with it, before you drive." />
     <link rel="preconnect" href="https://images.craigslist.org" />

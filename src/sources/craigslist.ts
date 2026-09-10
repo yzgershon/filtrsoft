@@ -74,10 +74,8 @@ export async function fetchListing(url: string): Promise<RawListing> {
    *
    * Craigslist renders "cryptocurrency ok" and "delivery available" as flag
    * attributes with no `labl` span, so the pattern above skipped them entirely
-   * and they never reached the engine. On a live $2,500 RTX 5090 at 59% of
-   * market, "cryptocurrency ok" and "delivery available" were both present and
-   * Filtrsoft returned **zero flags** — throwing away the two strongest scam
-   * signals on the page, both of which Craigslist hands us as structured data.
+   * and they never reached the engine. Preserve these as seller attributes,
+   * but optional crypto acceptance is not an exclusive payment requirement.
    *
    * Stored under their own text as the key so they survive into the
    * description the signal layer reads.

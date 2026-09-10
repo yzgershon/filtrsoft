@@ -89,7 +89,13 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
-### Active implementation: 2026-09-09, listing detail organization
+### Active correction: 2026-09-09, tabbed detail and light mode
+
+Progress: implementation and local release checks are complete. Windows and Linux ARM64: **280 tests / 0 failures / 814 assertions**, typecheck and production build pass. **53 built-browser check groups pass**, including all four tabs, source evidence, mobile swiping, review/dismissal/restore, clipboards, light/dark/system persistence, contrast, offline and prior frontend behavior. Pinned production image builds. Source-backed specs and exclusive-payment signals ship as engine **0.3.35**. Account-owned recoverable removal and bounded card-photo fallback are included. Photo diagnosis and precise limits are in `docs/TABBED-DETAIL-PLAN-2026-09-09.md`. Ready to push main under Yish's standing Railway deployment authorization; current-task code is not live yet. Last measured production baseline: engine 0.3.34, 31,900 total comps, scoring complete / zero failures (2026-09-09 23:51 UTC).
+
+Yish rejected the stacked-card organization as insufficiently different. He explicitly wants tabs (numbers/calculations, sold evidence, concerns/questions, plus a dedicated accurate specifications section), review controls in a better position, simpler copying, three clickable sold comps shown before expansion, swipe-first filled photo hero, linked title instead of View listing, recoverable trash action, full light mode, crypto-only payment detection and investigation of missing marketplace photos. This supersedes the previous detail layout below. Start clean at `7271d9a` in `C:\Dev\filtrsoft-backend`; root is the only editor. Plan: `docs/TABBED-DETAIL-PLAN-2026-09-09.md`. Inspect actual seller/photo facts and label unknowns/conflicts; never fill specifications from a generic SKU. No new deployment yet.
+
+### Prior implementation: 2026-09-09, listing detail organization
 
 Yish requested a premium, organized listing detail screen. Work started clean at `b2411b7` in `C:\Dev\filtrsoft-backend`, branch `codex/frontend-redesign`; root is the sole editor. Implemented grouped listing identity/photos, verdict/valuation, inspection and seller evidence, compact native disclosure rows, a two-column desktop report, exact-cent money and inventory offers, visible gallery controls and confirmed clipboard feedback. Defects, serious signals, unknowns and match identity remain visible. All valuation formulas, verdict rules and API writes preserve their contracts. No changes to shared checkout, crawls or archive.
 

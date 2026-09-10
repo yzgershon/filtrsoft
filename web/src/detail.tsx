@@ -1,3 +1,4 @@
+import {SpecificationSheet} from "./specifications.tsx";
 import { Popup, motionAllowed, type Dismiss } from "./popup.tsx";
 /**
  * The listing detail: verdict, numbers, comps, risks and questions.
@@ -10,7 +11,7 @@ import { Popup, motionAllowed, type Dismiss } from "./popup.tsx";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
-  Alert, Back as BackIcon, Chat, Check, Cut, Eye, Ghost, Info, Link, Shield, Store, Tag,
+  Alert, Back as BackIcon, Chat, Check, Cut, Eye, Ghost, Info, Link, Shield, Store, Tag, Trash, Clip,
 } from "./icons.tsx";
 import type { Channel, Call, Comp, Listing, Meta, Retail, RiskCheck, Signal, Verdict } from "./types.ts";
 import { LABEL, ago, toast, Thumb, deviceRef } from "./lib.tsx";
@@ -82,8 +83,9 @@ function DetailRow({ title, note, icon, children, className = "" }: {
  */
 const MY_CALLS: Call[] = ["BUY", "VERIFY", "FAIR", "PASS", "RISK"];
 
-export function MyCall({ id, call, overriddenFrom, onChange,decisionToken }: {
+export function MyCall({ id, call, overriddenFrom, onChange,decisionToken,compact=false }: {
   id: number;
+  compact?: boolean;
   call: Call;
   overriddenFrom?: Call | null;
   decisionToken?:string;
@@ -120,12 +122,12 @@ export function MyCall({ id, call, overriddenFrom, onChange,decisionToken }: {
 
   return (
     <section className="sec rise">
-      <SecHead tone="alt" icon={<Eye size={18} />} title="Your call"
+      {!compact && <SecHead tone="alt" icon={<Eye size={18} />} title="Your call"
         note={overriddenFrom
           ? `You marked this ${LABEL[call]}. The engine said ${LABEL[overriddenFrom]}.`
-          : "Agree with the assessment or change the label."} />
-      <button className="btn2 mycallbtn" onClick={() => setOpen(true)} aria-haspopup="dialog">
-        {overriddenFrom ? "Change your label" : "Review this listing"}
+          : "Agree with the assessment or change the label."} />}
+      <button aria-label={overriddenFrom ? "Change your label" : "Review this listing"} className={`btn2 mycallbtn${compact ? " primary-review" : ""}`} onClick={() => setOpen(true)} aria-haspopup="dialog">
+        {overriddenFrom ? "Change review" : "Review listing"}
       </button>
       {open && <Popup title="Your call" subtitle="What's your judgment on this listing?" onClose={() => setOpen(false)}>{dismiss => <>
         <div className="mycall-options" aria-busy={busy}>{MY_CALLS.map(cx => <button key={cx} className={`call-choice b-${cx}`} disabled={busy} aria-pressed={cx === call} onClick={() => set(cx, dismiss)}><span className="call-choice-dot"/><span><b>{LABEL[cx]}</b><small>{cx === "BUY" ? "Worth pursuing" : cx === "VERIFY" ? "Need answers first" : cx === "FAIR" ? "Priced about right" : cx === "PASS" ? "Not worth the trip" : "Something feels wrong"}</small></span><span aria-hidden="true">{cx === call ? "✓" : ""}</span></button>)}</div>
@@ -260,66 +262,36 @@ export function CompsAndOffer({ v, comps, ask, channel: ch }: {
         {offer != null && offer !== ask && <button className="offerreset" onClick={() => setOffer(null)}>Back to the asking price</button>}
       </div>
     </DetailRow>}
-    {comps.length > 0 && <DetailRow title="Sold-price evidence" note={`${v.valuation.compCount} used · ${comps.length} recorded examples`} icon={<Eye size={17}/>}>
-      <div className="comps">{comps.map((c, i) => <div className="comp" key={i}>
-        <span className="ctitle">{c.raw_title}</span>
-        <span className="cmeta">{[c.condition_norm?.replace(/_/g, " "), c.sold_at?.slice(0, 10)].filter(Boolean).join(" · ")}</span>
-        <span className="num cprice">{money(c.total)}</span>
-      </div>)}</div>
-      <p className="detail-footnote">Showing {comps.length} recorded comps. The valuation used {v.valuation.compCount} sold prices.</p>
-    </DetailRow>}
+
   </div>;
 }
 
-export function Questions({ qs }: { qs: string[] }) {
-  const [copied, setCopied] = useState<number | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => clearTimeout(timer.current), []);
-  if (!qs?.length) return null;
-  /**
-   * Copy ALL of them, not just one at a time.
-   *
-   * Codex: "Copy these three questions". The per-question buttons made you
-   * paste, switch app, send, come back, and repeat — which is why in practice
-   * you ask one question instead of three. The unresolved blockers are already
-   * ordered first by `gateQuestions`, so the joined text leads with the one
-   * that actually decides it.
-   */
-  const copy = async (text: string, index: number) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      // A denied clipboard write must never show a successful copied label.
-      setCopied(index);
-      toast(index === -1 ? `${qs.length} question${qs.length === 1 ? "" : "s"} copied` : "Question copied");
-      clearTimeout(timer.current);
-      timer.current = setTimeout(() => setCopied(null), 1800);
-    } catch { setCopied(null); toast("Couldn't copy", true); }
-  };
+export function SoldComparisons({comps,count}:{comps:Comp[];count:number}) {
+  const [expanded,setExpanded]=useState(false);
+  const href=(raw:string|null)=>{try{const u=new URL(raw??'');return ['http:','https:'].includes(u.protocol)&&/(^|\.)ebay\.(?:com|co\.uk|ca|de|com\.au)$/.test(u.hostname)&&/^\/itm\//.test(u.pathname)?u.href:null;}catch{return null;}};
+  return <section className="sold-comparisons">
+    <header className="tab-section-head"><div><h2>Comparable sales</h2><p>{count} sales used in this valuation</p></div><Eye size={21}/></header>
+    {!comps.length && <p className="spec-notice">No individual sold listings were recorded for this decision.</p>}
+    <div className="sold-list">{comps.slice(0,expanded?comps.length:3).map((c,i)=>{
+      const url=href(c.url),content=<><span className="sold-index num">{String(i+1).padStart(2,'0')}</span><span className="sold-description"><b>{c.raw_title}</b><small>{[c.condition_norm?.replace(/_/g,' '),c.sold_at?.slice(0,10)].filter(Boolean).join(' · ')}</small><span className="sold-market">{url?'eBay · sold listing ↗':'Original sale link unavailable'}</span></span><strong className="num">{money(c.total)}</strong></>;
+      return url?<a className="sold-record" href={url} target="_blank" rel="noopener noreferrer" key={i}>{content}</a>:<div className="sold-record" key={i}>{content}</div>;
+    })}</div>
+    {comps.length>3 && <button className="show-sales" aria-expanded={expanded} onClick={()=>setExpanded(!expanded)}>{expanded?'Show fewer sales':`Show ${comps.length-3} more sales`}<span aria-hidden="true">{expanded?'−':'+'}</span></button>}
+    {!!comps.length && <p className="detail-footnote">{comps.length} recorded examples available. Values are the comp totals used by the valuation.</p>}
+  </section>;
+}
 
-  return (
-    <section className="sec rise">
-      <SecHead tone="brand" icon={<Chat size={18} />} title="Ask the seller"
-        note={`${qs.length} question${qs.length === 1 ? "" : "s"} before pickup`}
-        trailing={
-          <button className={`copyall ${copied === -1 ? "ok" : ""}`} onClick={() => void copy(qs.map((q, i) => `${i + 1}. ${q}`).join("\n"), -1)}>
-            {copied === -1 ? "Copied" : "Copy all"}
-          </button>
-        } />
-      <div className="panel">
-        {qs.map((q, i) => (
-          <div className="q" key={i}>
-            <span className="n num">{i + 1}</span>
-            <span className="t">{q}</span>
-            <button
-              className={copied === i ? "ok" : ""}
-              aria-label={`Copy question ${i + 1}`}
-              onClick={() => void copy(q, i)}
-            >{copied === i ? "Copied" : "Copy"}</button>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
+export function Questions({qs}:{qs:string[]}) {
+  const [copied,setCopied]=useState(false),[busy,setBusy]=useState(false);
+  const timer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
+  useEffect(()=>()=>clearTimeout(timer.current),[]);
+  if(!qs?.length)return null;
+  const copy=async()=>{setBusy(true);try{await navigator.clipboard.writeText(qs.map((q,i)=>`${i+1}. ${q}`).join('\n'));setCopied(true);toast('Questions copied');clearTimeout(timer.current);timer.current=setTimeout(()=>setCopied(false),1800);}catch{setCopied(false);toast("Couldn't copy. Try again.",true);}finally{setBusy(false);}};
+  return <section className="seller-questions">
+    <header className="tab-section-head"><div><h2>Ask the seller</h2><p>Resolve these before arranging pickup.</p></div><Chat size={21}/></header>
+    <ol>{qs.map((q,i)=><li key={i}><span className="question-number num">{i+1}</span><p>{q}</p></li>)}</ol>
+    <button className={`question-copy${copied?' ok':''}`} disabled={busy} onClick={()=>void copy()}><Clip size={17}/>{copied?'Copied':busy?'Copying…':`Copy ${qs.length===1?'question':'questions'}`}</button>
+  </section>;
 }
 
 /**
@@ -379,17 +351,13 @@ export function Gallery({ urls, onOpen, onBack }: {
           <BackIcon size={20} />
         </button>
       )}
-      <div className="galstrip" ref={ref} onScroll={onScroll}>
+      <div className="galstrip" ref={ref} onScroll={onScroll} onKeyDown={e=>{if(e.key==="ArrowRight"||e.key==="ArrowLeft"){e.preventDefault();goTo(Math.max(0,Math.min(total-1,i+(e.key==="ArrowRight"?1:-1))));}}}>
         {urls.slice(0, 20).map((u, n) => (
           <div className="galshot" key={`${n}:${u}`}><ListingPhoto src={u} alt={`Photo ${n + 1} of ${total}`} eager={n===0} open={()=>onOpen(n)}/></div>
         ))}
       </div>
       {urls.length > 1 && (
-        <div className="gallery-controls" role="group" aria-label="Listing photos">
-          <button aria-label="Previous listing photo" disabled={i === 0} onClick={() => goTo(i - 1)}><BackIcon size={17}/></button>
-          <span className="num" aria-live="polite">{i + 1} / {total}</span>
-          <button aria-label="Next listing photo" disabled={i === total - 1} onClick={() => goTo(i + 1)}><BackIcon size={17}/></button>
-        </div>
+        <div className="gallery-count" aria-label={`Photo ${i+1} of ${total}`}><span className="num">{i+1} / {total}</span><span className="gallery-pips" aria-hidden="true">{urls.slice(0,Math.min(total,8)).map((_,n)=><i key={n} className={n===i?'on':''}/>)}</span></div>
       )}
     </div>
   );
@@ -585,73 +553,83 @@ export function Outcome({ id }: { id: number }) {
   );
 }
 
-export function Report({
-  listing, verdict, signals, comps, meta, stage, reading, checkId, onBack, onReload, decisionToken,
-}: {
-  listing: Listing | null; verdict: Verdict | null; signals: Signal[]; comps?: Comp[]; decisionToken?: string;
-  meta?: Meta; stage: number; reading: number; checkId?: number | null; onBack?: () => void; onReload?: () => void;
+const DETAIL_TABS=[['decision','Decision'],['specs','Specs'],['evidence','Evidence'],['inspect','Inspect']] as const;
+type DetailTab=typeof DETAIL_TABS[number][0];
+const initialTab=():DetailTab=>{const t=new URLSearchParams(typeof location==='undefined'?'':location.search).get('tab');return DETAIL_TABS.some(([k])=>k===t)?t as DetailTab:'decision';};
+export function Report({listing,verdict,signals,comps=[],meta,stage,reading,checkId,onBack,onReload,decisionToken,onShare}:{
+  listing:Listing|null;verdict:Verdict|null;signals:Signal[];comps?:Comp[];meta?:Meta;stage:number;reading:number;checkId?:number|null;
+  onBack?:()=>void;onReload?:()=>void;decisionToken?:string;onShare?:()=>void;
 }) {
-  const [lbx, setLbx] = useState<number | null>(null);
-  const [channelId, setChannelId] = useState("facebook");
-  useEffect(() => { setLbx(null); setChannelId("facebook"); }, [listing?.url]);
-  const usable = (verdict?.channels ?? []).filter(c => c.available && Number.isFinite(c.netCents));
-  const channel = usable.find(c => c.channel === channelId) ?? usable.find(c => c.channel === 'facebook') ?? usable[0];
-  if (!listing) return null;
-  const src = ({ craigslist: "Craigslist", facebook: "Facebook Marketplace", offerup: "OfferUp", mercari: "Mercari" } as Record<string, string>)[listing.source] ?? listing.source;
-  const disclosed = verdict?.riskChecks?.filter(c => c.state === "failed") ?? [];
-  const pickup = verdict?.riskChecks?.filter(c => c.state === "unresolved" && !c.remote) ?? [];
-  const seriousSignals = signals.filter(s => s.polarity !== "positive" && ["blocker", "high"].includes(s.severity));
-  const otherSignals = signals.filter(s => !seriousSignals.includes(s));
-  const needsInspection = !!(pickup.length || signals.length || verdict?.questions?.length);
-  return <article className="listing-report" key={listing.url}>
-    <div className="listing-overview">
-      <Gallery key={listing.url} urls={listing.photoUrls ?? []} onOpen={setLbx} onBack={onBack}/>
-      {!listing.photoUrls?.length && <div className="detail-no-photo">{onBack && <button className="dback" onClick={onBack} aria-label="Back"><BackIcon size={20}/></button>}<Ghost size={30}/><span>No seller photos</span></div>}
-      {lbx !== null && <Lightbox urls={listing.photoUrls} start={lbx} onClose={() => setLbx(null)}/>}
-      <div className="lh">
-        <div className="listing-source"><span>{src}</span>{meta?.category && <span>{meta.category}</span>}</div>
-        <h1>{listing.title}</h1>
-        <p className="listing-location">{[listing.location, ago(listing.postedAt)].filter(Boolean).join(" · ")}</p>
-        <div className="listing-ask"><div><span className="detail-label">{verdict?.inventory ? "Seller inventory" : "Asking price"}</span><strong className={`price ${verdict?.inventory ? "inventory-ask" : "num"}`}>{verdict?.inventory ? "Priced per item" : listing.askingPriceCents == null ? "Not provided" : money(listing.askingPriceCents)}</strong></div>
-          <a className="origin" href={listing.url} target="_blank" rel="noopener noreferrer" aria-label={`Open on ${src}`}><span>View listing</span><span aria-hidden="true">↗</span></a>
-        </div>
+  const [lbx,setLbx]=useState<number|null>(null),[channelId,setChannelId]=useState('facebook'),[tab,setTab]=useState<DetailTab>(initialTab);
+  const [removeOpen,setRemoveOpen]=useState(false),[removed,setRemoved]=useState(!!meta?.dismissed),[busy,setBusy]=useState(false),[error,setError]=useState('');
+  const tabs=useRef<HTMLDivElement>(null),prefix=useId();
+  useEffect(()=>{setLbx(null);setChannelId('facebook');setTab(initialTab());setRemoveOpen(false);setError('');},[listing?.url]);
+  useEffect(()=>setRemoved(!!meta?.dismissed),[checkId,meta?.dismissed]);
+  const usable=(verdict?.channels??[]).filter(c=>c.available&&Number.isFinite(c.netCents)),channel=usable.find(c=>c.channel===channelId)??usable.find(c=>c.channel==='facebook')??usable[0];
+  const choose=(next:DetailTab)=>{
+    setTab(next);const url=new URL(location.href);url.searchParams.set('tab',next);history.replaceState(history.state,'',url);
+    requestAnimationFrame(()=>{const el=tabs.current;if(!el)return;const top=document.querySelector('.topbar')?.getBoundingClientRect().height??0;
+      window.scrollTo({top:Math.max(0,window.scrollY+el.getBoundingClientRect().top-top),behavior:motionAllowed()?'smooth':'instant'});
+    });
+  };
+  const remove=async(value:boolean,dismiss?:Dismiss)=>{if(!checkId)return;setBusy(true);setError('');try{const r=await fetch(`/v1/checks/${checkId}/dismiss`,{method:value?'PUT':'DELETE'});if(!r.ok)throw Error();setRemoved(value);dismiss?.();toast(value?'Removed from your feed':'Listing restored');}catch{setError(value?"Couldn't remove this listing. Try again.":"Couldn't restore this listing. Try again.");}finally{setBusy(false);}};
+  if(!listing)return null;
+  const src=({craigslist:'Craigslist',facebook:'Facebook Marketplace',offerup:'OfferUp',mercari:'Mercari'} as Record<string,string>)[listing.source]??listing.source;
+  const disclosed=verdict?.riskChecks?.filter(c=>c.state==='failed')??[],pickup=verdict?.riskChecks?.filter(c=>c.state==='unresolved'&&!c.remote)??[];
+  const concerns=signals.filter(s=>s.polarity!=='positive'),positive=signals.filter(s=>s.polarity==='positive');
+  const safeListing=(()=>{try{const u=new URL(listing.url);return ['https:','http:'].includes(u.protocol)?u.href:null;}catch{return null;}})();
+  return <article className="listing-report tabbed-report" key={listing.url}>
+    <header className="listing-overview">
+      <Gallery key={listing.url} urls={listing.photoUrls??[]} onOpen={setLbx} onBack={onBack}/>
+      {!listing.photoUrls?.length&&<div className="detail-no-photo">{onBack&&<button className="dback" onClick={onBack} aria-label="Back"><BackIcon size={20}/></button>}<Ghost size={30}/><span>No seller photos</span></div>}
+      {lbx!==null&&<Lightbox urls={listing.photoUrls} start={lbx} onClose={()=>setLbx(null)}/>}
+      <div className="lh"><div className="listing-source"><span>{src}</span><span>{listing.location||'Location not stated'}</span></div>
+        <h1>{safeListing?<a href={safeListing} target="_blank" rel="noopener noreferrer">{listing.title}<span className="title-external" aria-hidden="true">↗</span></a>:listing.title}</h1>
+        <div className="hero-price-row"><strong className={`price ${verdict?.inventory?'inventory-ask':'num'}`}>{verdict?.inventory?'Individual prices':listing.askingPriceCents==null?'Price not stated':money(listing.askingPriceCents)}</strong><span>{ago(listing.postedAt)}</span></div>
+      </div>
+    </header>
+    {removed&&<div className="removed-notice" role="status"><span>Removed from your feed</span><button disabled={busy} onClick={()=>void remove(false)}>Undo removal</button></div>}
+    {error&&!removeOpen&&<p role="alert" className="popup-error">{error}</p>}
+    <div className="detail-workspace">
+      <div className="detail-tabs" role="tablist" aria-label="Listing information" ref={tabs}>
+        {DETAIL_TABS.map(([key,label],i)=><button key={key} id={`${prefix}-${key}-tab`} role="tab" aria-label={label} aria-selected={tab===key} aria-controls={`${prefix}-${key}-panel`} tabIndex={tab===key?0:-1} onClick={()=>choose(key)} onKeyDown={e=>{let n=i;if(e.key==='ArrowRight')n=(i+1)%4;else if(e.key==='ArrowLeft')n=(i+3)%4;else if(e.key==='Home')n=0;else if(e.key==='End')n=3;else return;e.preventDefault();choose(DETAIL_TABS[n][0]);tabs.current?.querySelectorAll('button')[n].focus();}}>{label}{key==='inspect'&&disclosed.length>0&&<i aria-hidden="true" title="Disclosed defects"/>}</button>)}
+      </div>
+      <div className="detail-panel" id={`${prefix}-decision-panel`} role="tabpanel" aria-labelledby={`${prefix}-decision-tab`} hidden={tab!=='decision'}>
+        {verdict?<>
+          <section className={`verdict v-${verdict.call}`}><div className="decision-label"><span className="vbadge">{verdict.call==='BUY'?<Check size={14}/>:verdict.call==='RISK'?<Alert size={14}/>:<Info size={14}/>} {LABEL[verdict.call]}</span><span className="decision-owner">{verdict.overriddenFrom?'Your call':'Filtrsoft assessment'}</span></div>
+            {verdict.overriddenFrom&&<p className="engine-original">Engine: {LABEL[verdict.overriddenFrom]}</p>}<h2>{verdict.headline}</h2><p>{verdict.reasoning}</p>
+            {!!meta?.missingValueFields?.length&&<div className="settles"><b>Missing details</b><p>{meta.missingValueFields.join(' · ')}</p></div>}
+            {verdict.decidingUnknown&&<div className="settles"><b>Needs confirmation</b><p>{verdict.decidingUnknown}</p></div>}
+            {disclosed.length>0&&<button className="critical-summary" onClick={()=>choose('inspect')}><Alert size={17}/><span>{disclosed.map(c=>c.label).join(' · ')}</span><span aria-hidden="true">↗</span></button>}
+          </section>
+          {verdict.valuation.medianCents!=null&&!verdict.inventory&&<section className="detail-card money-card"><Numbers v={verdict} ask={listing.askingPriceCents} channel={channel} onChannelChange={setChannelId}/><CompsAndOffer key={listing.url} v={verdict} comps={[]} ask={listing.askingPriceCents} channel={channel}/></section>}
+          {meta?.match?.model&&<div className="match-line"><span>Valuation matched to</span><b>{[meta.match.brand,meta.match.model].filter(Boolean).join(' ')}</b><small>{meta.match.confidence} confidence match · specifications are in Specs</small></div>}
+          {verdict.inventory&&<Inventory inventory={verdict.inventory}/>}
+        </>:<div className="verdict v-INSUFFICIENT_DATA" aria-busy="true"><h2>Assessing listing</h2><div className="skel" style={{height:60}}/></div>}
+        {reading>0&&<div className="reading" role="status"><span className="spin"/>Reading {reading} photos</div>}
+        {stage<3&&<div className="prog" aria-hidden="true">{[0,1,2].map(i=><span className={`step ${stage>i?'on':''}`} key={i}><i/></span>)}</div>}
+      </div>
+      <div className="detail-panel" id={`${prefix}-specs-panel`} role="tabpanel" aria-labelledby={`${prefix}-specs-tab`} hidden={tab!=='specs'}><SpecificationSheet specs={meta?.specifications} inventory={!!verdict?.inventory}/></div>
+      <div className="detail-panel" id={`${prefix}-evidence-panel`} role="tabpanel" aria-labelledby={`${prefix}-evidence-tab`} hidden={tab!=='evidence'}>
+        <SoldComparisons key={listing.url} comps={comps} count={verdict?.valuation.compCount??0}/>
+        {meta?.description&&<DetailRow title="Seller description" note="Original listing text" icon={<Chat size={17}/>} className="seller-description"><p>{meta.description}</p></DetailRow>}
+        {verdict?.retail&&<DetailRow title="New retail" note={`${money(verdict.retail.priceCents)} · ${verdict.retail.corroborated?'corroborated':'one retailer only'}`} icon={<Store size={17}/>}><p>{verdict.retail.title}</p><dl className="detail-facts">{verdict.retail.quotes.map((q,i)=><div key={i}><dt>{q.source}</dt><dd>{money(q.priceCents)}</dd></div>)}</dl></DetailRow>}
+      </div>
+      <div className="detail-panel" id={`${prefix}-inspect-panel`} role="tabpanel" aria-labelledby={`${prefix}-inspect-tab`} hidden={tab!=='inspect'}>
+        {disclosed.length>0&&<section className="disclosed-defects"><h2><Alert size={17}/> Disclosed defects</h2>{disclosed.map(c=><div key={c.code}><b>{c.label}</b>{c.evidence&&<p>{c.evidence}</p>}</div>)}</section>}
+        {!!concerns.length&&<Flags signals={concerns}/>}
+        {!!verdict?.questions?.length&&<Questions key={listing.url} qs={verdict.questions}/>}
+        {pickup.length>0&&<section className="pickup-section"><header className="tab-section-head"><div><h2>At pickup</h2><p>Check the item in person.</p></div><Shield size={21}/></header><ul className="pickup">{pickup.map(c=><li key={c.code}><b>{c.label}</b><span>{c.question}</span></li>)}</ul></section>}
+        {positive.length>0&&<DetailRow title="Positive signals" note={`${positive.length} recorded observations`} icon={<Check size={17}/>}><Flags signals={positive} compact/></DetailRow>}
+        {!concerns.length&&!disclosed.length&&!pickup.length&&!verdict?.questions?.length&&<p className="spec-notice">No specific inspection checks were recorded. This does not verify the item's condition.</p>}
       </div>
     </div>
-
-    <div className="decision-card detail-card">
-      {verdict ? <>
-        <div className={`verdict v-${verdict.call}`}>
-          <div className="decision-label"><span className="vbadge">{verdict.call === "BUY" ? <Check size={14}/> : verdict.call === "RISK" ? <Alert size={14}/> : <Info size={14}/>} {LABEL[verdict.call]}</span><span className="decision-owner">{verdict.overriddenFrom ? "Your call" : "Filtrsoft assessment"}</span></div>
-          {verdict.overriddenFrom && <p className="engine-original">Engine: {LABEL[verdict.overriddenFrom]}</p>}
-          <h2>{verdict.headline}</h2>
-          <p className="decision-reasoning">{verdict.reasoning}</p>
-          {!!meta?.missingValueFields?.length && <div className="settles"><b>Missing details</b><ul>{meta.missingValueFields.map(field => <li key={field}>{field}</li>)}</ul></div>}
-          {verdict.decidingUnknown && <div className="settles"><b>Needs confirmation</b><p>{verdict.decidingUnknown}</p></div>}
-        </div>
-        {/* Confirmed defects stay ahead of pricing and outside every disclosure. */}
-        {disclosed.length > 0 && <div className="disclosed-defects"><h2><Alert size={16}/> Disclosed defects</h2>{disclosed.map(c => <div key={c.code}><b>{c.label}</b>{c.evidence && <p>{c.evidence}</p>}</div>)}</div>}
-        {meta?.match?.model && <div className="match-line"><span>{verdict.valuation.medianCents != null ? "Priced as" : "Identified as"}</span><b>{[meta.match.brand, meta.match.model].filter(Boolean).join(" ")}</b><small>{meta.match.confidence} confidence match</small></div>}
-        <Numbers v={verdict} ask={listing.askingPriceCents} channel={channel} onChannelChange={setChannelId}/>
-        <CompsAndOffer key={listing.url} v={verdict} comps={comps ?? []} ask={listing.askingPriceCents} channel={channel}/>
-        {verdict.retail && <DetailRow title="New retail" note={`${money(verdict.retail.priceCents)} · ${verdict.retail.corroborated ? `${verdict.retail.quotes.length} retailers` : "one retailer only"}`} icon={<Store size={17}/>}><p className="detail-footnote">{verdict.retail.title}</p><dl className="detail-facts">{verdict.retail.quotes.map((q,i) => <div key={i}><dt>{q.source}</dt><dd className="num">{money(q.priceCents)}</dd></div>)}</dl><p className="detail-footnote">Observed {verdict.retail.ageDays} days ago. Retail is separate from the used-market estimate.</p></DetailRow>}
-      </> : <div className="verdict v-INSUFFICIENT_DATA" aria-busy="true" aria-label="Assessing listing"><div className="skel" style={{height:14,width:100}}/><div className="skel" style={{height:24,marginTop:18}}/><div className="skel" style={{height:60,marginTop:12}}/></div>}
-      {reading > 0 && <div className="reading" role="status"><span className="spin" aria-hidden="true"/>Reading {reading} photo{reading === 1 ? "" : "s"}</div>}
-      {stage < 3 && <div className="prog" aria-hidden="true">{[0,1,2].map(i => <span className={`step ${stage > i ? "on" : ""}`} key={i}><i/></span>)}</div>}
-    </div>
-
-    {verdict?.inventory && <Inventory inventory={verdict.inventory}/>}
-    {needsInspection && <div className="detail-card inspection-card">
-      {seriousSignals.length > 0 && <Flags signals={seriousSignals}/>}
-      {verdict?.questions?.length ? <Questions key={listing.url} qs={verdict.questions}/> : null}
-      {pickup.length > 0 && <section className="pickup-section"><SecHead tone="verify" icon={<Shield size={18}/>} title="At pickup" note={`${pickup.length} check${pickup.length === 1 ? "" : "s"} to make in person`}/><ul className="pickup">{pickup.map(c => <li key={c.code}><b>{c.label}</b><span>{c.question}</span></li>)}</ul></section>}
-      {otherSignals.length > 0 && <DetailRow title="Listing signals" note={`${otherSignals.length} observation${otherSignals.length === 1 ? "" : "s"} from the listing`} icon={<Info size={17}/>}><Flags signals={otherSignals} compact/></DetailRow>}
-    </div>}
-    <section className="detail-card listing-record">
-      {meta?.description ? <DetailRow title="Seller description" note="Original listing text" icon={<Chat size={17}/>} className="seller-description"><p>{meta.description}</p></DetailRow> : <p className="detail-footnote">No seller description was recorded.</p>}
-      <DetailRow title="Listing details" note={`${src} · source and matched model`} icon={<Link size={17}/>}><dl className="detail-facts"><div><dt>Source</dt><dd>{src}</dd></div>{listing.location && <div><dt>Location</dt><dd>{listing.location}</dd></div>}{meta?.daysOnMarket != null && <div><dt>Days listed</dt><dd>{meta.daysOnMarket}</dd></div>}{meta?.match?.model && <div><dt>Matched model</dt><dd>{[meta.match.brand, meta.match.model].filter(Boolean).join(" ")}</dd></div>}{meta?.category && <div><dt>Category</dt><dd>{meta.category}</dd></div>}</dl></DetailRow>
-    </section>
-    {verdict && checkId && onReload && <div className="detail-card review-card"><MyCall decisionToken={decisionToken} id={checkId} call={verdict.call} overriddenFrom={verdict.overriddenFrom} onChange={onReload}/></div>}
-    {/* Outcomes belong on the feed after the trip, never in this decision screen. */}
+    {verdict&&checkId&&onReload&&<div className="detail-dock"><div className="dock-inner">
+      {removed?<button className="btn2 primary-review" disabled={busy} onClick={()=>void remove(false)}>Restore listing</button>:<MyCall compact id={checkId} call={verdict.call} overriddenFrom={verdict.overriddenFrom} decisionToken={decisionToken} onChange={onReload}/>}
+      {onShare&&<button className="dock-icon" aria-label="Share listing" onClick={onShare}><Link size={19}/></button>}
+      {!removed&&<button className="dock-icon remove-trigger" aria-label="Remove listing" aria-haspopup="dialog" onClick={()=>{setError('');setRemoveOpen(true);}}><Trash size={19}/></button>}
+    </div></div>}
+    {removeOpen&&<Popup title="Remove listing" subtitle="Hide it from your feed, saved listings and alerts. You can restore it in Settings." onClose={()=>setRemoveOpen(false)}>{dismiss=><div className="remove-confirm"><button className="remove-confirm-button" disabled={busy} onClick={()=>void remove(true,dismiss)}>{busy?'Removing…':'Remove from my feed'}</button><button className="btn2" disabled={busy} onClick={()=>dismiss()}>Keep listing</button>{error&&<p className="popup-error" role="alert">{error}</p>}</div>}</Popup>}
   </article>;
 }
 

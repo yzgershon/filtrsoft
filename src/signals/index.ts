@@ -1,3 +1,4 @@
+import { exclusivePayment } from "./payment.ts";
 /**
  * The cheap-signals layer.
  *
@@ -106,22 +107,6 @@ const VALUE_FIELDS: Partial<Record<Category, Array<[string, RegExp]>>> = {
 };
 
 /**
- * Payment rails with no recall. **Crypto was missing and it is the worst one.**
- *
- * Found 2026-08-25 on a live listing Yish wanted to buy: a $2,500 RTX 5090
- * (59% of market) whose Craigslist attributes read *"cryptocurrency ok"* and
- * *"delivery available"*. The engine returned **zero flags**. A crypto payment
- * is not merely irreversible like Zelle — it is untraceable and off-platform,
- * which is why it is the rail of choice for exactly this scam.
- *
- * Craigslist prints the attribute as the literal phrase "cryptocurrency ok",
- * so that form is matched directly rather than relying on the word appearing
- * in prose.
- */
-const IRREVERSIBLE_RAILS =
-  /\b(friends\s*(and|&)\s*family|f\s*&\s*f|cash\s?app|cashapp|zelle|venmo|gift ?card|wire transfer|western union|apple ?pay only|crypto(currency)?( ok)?|bitcoin|btc|usdt|ethereum)\b/i;
-
-/**
  * A LOCAL listing offering to SHIP is the classic remote-seller pattern.
  *
  * Craigslist and Facebook Marketplace are pickup markets. A private seller
@@ -130,7 +115,7 @@ const IRREVERSIBLE_RAILS =
  * is, and the local town name is there purely to make the deal look reachable.
  *
  * On its own this is worth a flag, not a veto: some genuine sellers ship. Next
- * to crypto and a price far below market it is the whole scam in one post.
+ * to an exclusive payment demand and a price far below market it merits review.
  */
 const SHIPS_ON_LOCAL_MARKET =
   /\b(flat[- ]rate shipping|shipping (is )?(available|included|only)|will ship|can ship|ships? (nationwide|anywhere|to you)|delivery available|i deliver)\b/i;
@@ -369,9 +354,8 @@ export function analyze(l: RawListing, opts?: { clusterSize?: number; visionText
    *
    * Craigslist states "cryptocurrency ok" and "delivery available" as
    * STRUCTURED attributes, not prose. Reading only title + description threw
-   * both away, so a $2,500 RTX 5090 at 59% of market — crypto accepted,
-   * shipping offered, Nonantum — came back with zero flags. The seller told us
-   * exactly what they were; we just were not listening.
+   * both away. Preserve these as evidence; optional cryptocurrency acceptance
+   * alone is not a payment concern. The exclusive-demand guard below owns that.
    *
    * Included as `key value` so a bare flag reads as "cryptocurrency ok yes"
    * and a real pair as "condition like new".
@@ -524,10 +508,11 @@ export function analyze(l: RawListing, opts?: { clusterSize?: number; visionText
   }
 
   // ------------------------------------------------- payment rails (3k)
-  if (IRREVERSIBLE_RAILS.test(text)) {
+  const paymentDemand = exclusivePayment(text);
+  if (paymentDemand) {
     signals.push({
       code: "IRREVERSIBLE_PAYMENT", severity: "high", polarity: "negative",
-      evidence: `Seller offers an irreversible payment rail (${text.match(IRREVERSIBLE_RAILS)?.[0]}). These strip buyer protection. Insist on cash in person; if they push back, walk.`,
+      evidence: `Seller requires an exclusive payment method: “${paymentDemand}”. Confirm a payment method you are comfortable with before arranging pickup.`,
     });
   }
 

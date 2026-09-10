@@ -1,3 +1,4 @@
+import {dismissedIds} from "./dismissals.ts";
 /**
  * Saved searches and web-push alerts.
  *
@@ -320,6 +321,7 @@ export async function runAlerts(): Promise<number> {
   let sent = 0;
   for (const s of searches) {
     const overrides=s.user_id ? loadAccountOverrides(s.user_id) : new Map();
+    const removed=s.user_id ? dismissedIds(s.user_id) : new Set<number>();
     const at=now();
     /**
      * `captured_at > s.created_at` is the backlog guard. Without it, saving a
@@ -341,7 +343,7 @@ export async function runAlerts(): Promise<number> {
 
     // Match first, then bound delivery work. A newer nonmatch must not hide an
     // older BUY forever. Personal risk labels also apply before this limit.
-    const eligible=rows.map(r=>({...r,call:overrides.get(r.id)?.call??r.call,reviewed:overrides.has(r.id)})).filter(r=>{
+    const eligible=rows.filter(r=>!removed.has(r.id)).map(r=>({...r,call:overrides.get(r.id)?.call??r.call,reviewed:overrides.has(r.id)})).filter(r=>{
       let net=null;try{net=r.payload?JSON.parse(r.payload).netProfitCents??null:null;}catch{return false;}
       return matches(s,{title:r.title,source:r.source,price:r.price,call:r.call,net,reviewed:r.reviewed});
     }).slice(0,40);
@@ -351,6 +353,7 @@ export async function runAlerts(): Promise<number> {
       const latest=db().query(`SELECT s.*,p.endpoint,p.p256dh,p.auth FROM saved_searches s JOIN push_subs p ON p.id=s.sub_id
         WHERE s.id=? AND s.user_id=p.user_id AND (s.standing=1 OR (s.criteria_version=2 AND s.notify_since IS NOT NULL))`).get(s.id) as SearchRow|null;
       if (!latest || latest.sub_id !== s.sub_id || latest.user_id !== s.user_id) continue;
+      if(latest.user_id && dismissedIds(latest.user_id).has(candidate.id))continue;
       const r=db().query(`SELECT l.id,l.title,l.source,l.captured_at,l.asking_price_cents price,v.call,v.payload FROM listings l
         JOIN verdicts v ON v.id=(SELECT MAX(id) FROM verdicts WHERE listing_id=l.id)
         WHERE l.id=? AND l.delisted_at IS NULL`).get(candidate.id) as any;

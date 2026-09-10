@@ -1,0 +1,63 @@
+/* Light mode is a full semantic palette. Photographs and their floating
+   controls keep independent contrast; ordinary surfaces follow these tokens. */
+:root { color-scheme: dark; }
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f5f6f8; --surface: #ffffff; --surface-2: #eef1f5; --surface-3: #e1e6ef;
+  --line: #d7dde5; --line-soft: #e7eaf0;
+  --ink: #172231; --ink-1: #172231; --ink-2: #44536a; --ink-3: #5d6c80;
+  --brand: #345ac2; --brand-2: #6353b6; --on-brand: #ffffff;
+  --grad: linear-gradient(120deg,#345ac2,#6353b6);
+  --buy: #18744f; --verify: #8b5c0b; --risk: #ba3346; --on-risk: #fff;
+  --fair: #6b4baa; --unknown: #5d6c80; --pass: #5d6c80;
+}
+.appearance-picker { padding: 19px; border-top: 1px solid var(--line-soft); }
+.appearance-picker > b { font-size: 14px; font-weight: 500; }
+.appearance-picker > p { color: var(--ink-3); font-size: 12px; margin: 5px 0 17px; line-height: 1.5; }
+.theme-options { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+.theme-option { display: grid; gap: 10px; padding: 7px 7px 10px; color: var(--ink-2); border: 1px solid var(--line); border-radius: 11px; background: transparent; text-align: left; }
+.theme-option[aria-pressed="true"] { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); color: var(--brand); }
+.theme-option > span:last-child { display: flex; align-items: center; justify-content: space-between; gap: 5px; padding-inline: 2px; font-size: 12px; }
+.theme-sample { display: grid; gap: 5px; padding: 12px 9px; height: 65px; border-radius: 6px; background: #f1f3f7; border: 1px solid #d7dde5; }
+.theme-sample i { display: block; height: 5px; border-radius: 3px; background: #c0ccdf; }
+.theme-sample i:first-child { width: 36%; background: #4765a8; }
+.theme-sample i:last-child { width: 70%; }
+.theme-dark .theme-sample { background: #161d28; border-color: #344055; }
+.theme-dark .theme-sample i { background: #35455c; }
+.theme-dark .theme-sample i:first-child { background: #91acff; }
+.theme-system .theme-sample { background: linear-gradient(110deg,#f1f3f7 50%,#161d28 50%); }
+.removed-listings > summary { min-height: 48px; cursor: pointer; list-style: none; }
+.removed-listings > summary > span { margin-left: auto; font-size: 11px; color: var(--brand); }
+.removed-row { display: flex; gap: 12px; align-items: center; padding: 14px 18px; border-top: 1px solid var(--line-soft); }
+.removed-row a { color: var(--ink); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; flex: 1; }
+.removed-row button { flex: none; font-size: 12px; min-height: 44px; }
+html[data-theme="light"] .topbar,html[data-theme="light"] .tabbar { background: #f5f6f8f5; box-shadow: none; }
+html[data-theme="light"] .workspace-nav { background: #f0f2f6; }
+html[data-theme="light"] .workspace-link.active { background: #e2e9fb; border-color: #c9d5f2; color: #304f9f; }
+html[data-theme="light"] .profile-initial { background: #e1e5f5; color: #504887; }
+html[data-theme="light"] .topbar .avbtn { background: var(--surface); border-color: var(--line); }
+html[data-theme="light"] .tab.on .ti::before { background: #e4ebfb; border-color: #d5dff5; }
+html[data-theme="light"] .gcard { background: var(--surface); box-shadow: 0 2px 5px #17223104; }
+html[data-theme="light"] .gshot { background: #e7ebf1; }
+html[data-theme="light"] .hnet { border-color: #b8d8c7; background: #eaf6ef; color: var(--buy); }
+html[data-theme="light"] .review-intro { background: #edf1fc; border-color: #ccd7f0; }
+html[data-theme="light"] .review-icon { background: #dfe7fa; }
+html[data-theme="light"] .popup-backdrop { background: #17223152; }
+html[data-theme="light"] .popup-panel,html[data-theme="light"] .sheet { background: var(--surface); border-color: var(--line); box-shadow: 0 24px 90px #17223130; }
+html[data-theme="light"] .popup-close,html[data-theme="light"] .quick-icon { background: var(--surface-2); border-color: var(--line-soft); }
+html[data-theme="light"] .quick-row.selected { background: #edf1fc; border-color: #d3ddf6; }
+html[data-theme="light"] .filter-popup .fchip,html[data-theme="light"] .call-choice { background: var(--surface-2); border-color: var(--line); }
+html[data-theme="light"] .filter-popup .fchip.on { color: #fff; background: var(--brand); border-color: var(--brand); }
+html[data-theme="light"] .filter-popup .sheetfoot { background: var(--surface); }
+html[data-theme="light"] .quick-row:active,html[data-theme="light"] .quick-row:hover { background: var(--surface-2); }
+html[data-theme="light"] .b-BUY,html[data-theme="light"] .b-VERIFY,html[data-theme="light"] .b-RISK,html[data-theme="light"] .b-FAIR,html[data-theme="light"] .b-PASS,html[data-theme="light"] .b-INSUFFICIENT_DATA,html[data-theme="light"] .b-OUT_OF_SCOPE { --vfill: color-mix(in srgb,var(--vc) 10%,#fff); --vink: var(--vc); }
+html[data-theme="light"] .gcall { background: #fffffff5; border-color: #ffffff90; color: var(--vc,var(--ink)); }
+html[data-theme="light"] .gsave,html[data-theme="light"] .gsave.on { color: #fff; }
+html[data-theme="light"] .gsave.on::before { background: #345ac2; }
+html[data-theme="light"] .landing-evidence { border-color: var(--line); box-shadow: 0 20px 60px #17223115; }
+html[data-theme="light"] .hardware-drawing { background: radial-gradient(ellipse at 50% 60%,#d4dfee,#e9eef6 60%); }
+html[data-theme="light"] .hardware-tag { color: var(--ink-2); }
+/* Full-screen evidence uses a dark canvas in either theme. */
+html[data-theme="light"] .popup-panel.photo-popup { background: #090d14; color: #f3f5fa; --ink: #f3f5fa; --ink-2: #b4bfce; --ink-3: #9aa8bb; --surface-2: #1c2330; --line: #2b3443; }
+html[data-theme="light"] .photo-popup .popup-close { background: #1c2330; color: #f3f5fa; }
+html[data-theme="light"] .photo-popup .btn2 { color: #f3f5fa; }

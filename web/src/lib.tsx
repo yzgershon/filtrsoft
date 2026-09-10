@@ -384,11 +384,16 @@ export async function shareOrCopy(url: string, title?: string) {
  * the SAME placeholder a listing with no photo uses: an expired image and an
  * absent one are indistinguishable to the reader, and both are true.
  */
-export function Thumb({ src, size = 22 }: { src: string | null; size?: number }) {
-  const [dead, setDead] = useState(false);
-  useEffect(() => setDead(false), [src]);
-  if (!src || dead) return <span className="noimg"><Ghost size={size} /></span>;
-  return <img src={src} alt="" loading="lazy" onError={() => setDead(true)} />;
+export function Thumb({src,fallbacks=[],size=22}:{src:string|null;fallbacks?:string[];size?:number}) {
+  const candidates=[...new Set([src,...fallbacks].filter((s):s is string=>!!s))].slice(0,4);
+  const identity=JSON.stringify(candidates);
+  const [failure,setFailure]=useState({identity,at:0});
+  const at=failure.identity===identity?failure.at:0;
+  const current=candidates[at];
+  if(!current)return <span className="noimg"><Ghost size={size}/></span>;
+  // A cache miss or expired first photo must not hide a working later photo.
+  // Each URL is attempted once; a fresh gallery resets the sequence.
+  return <img key={current} src={current} alt="" loading="lazy" onError={()=>setFailure({identity,at:at+1})}/>;
 }
 
 /**

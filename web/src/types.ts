@@ -37,6 +37,8 @@ export interface Verdict {
 export interface Signal { code: string; severity: string; polarity: string; evidence: string }
 /** What the engine decided the listing IS, shown so a wrong match is visible. */
 export interface Meta {
+  specifications?: import('../../src/engine/specifications.ts').Specifications;
+  dismissed?: boolean;
   category?: string; daysOnMarket?: number | null; description?: string;
   missingValueFields?: string[];
   match?: { model: string | null; brand: string | null; confidence: string; method: string };
@@ -45,7 +47,7 @@ export interface FeedItem {
   priceIsPlaceholder?: boolean;
   id: number; title: string; url: string; source: string;
   askingPriceCents: number | null; location: string | null; postedAt: string | null;
-  thumb: string | null; call: Call; headline: string | null; netProfitCents: number | null;
+  thumb: string | null; thumbFallbacks?:string[]; call: Call; headline: string | null; netProfitCents: number | null;
   /** Present only when HE relabelled it — what the engine had said. */
   overriddenFrom?: Call | null;
   /** From the daily sweep. The difference between a list and a tracker. */

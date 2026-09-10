@@ -1,5 +1,6 @@
 /** Synthetic detail scenarios. No database, engine, login or external API. */
 import {pathToFileURL} from 'node:url';
+import {specifications} from '../engine/specifications.ts';
 import {startPreview, detail} from './frontend-preview.mjs';
 
 export function detailFixture(id=101) {
@@ -10,7 +11,7 @@ export function detailFixture(id=101) {
   d.verdict.reasoning='There is room for your target profit at the asking price. Confirm the configuration and test it under load before buying.';
   d.meta.match={model:'Gaming desktop · RTX 3070 / Ryzen 7',brand:'NZXT',confidence:'high',method:'fixture'};
   d.meta.daysOnMarket=3;
-  d.meta.description='NZXT gaming PC. RTX 3070, Ryzen 7. Available to test at pickup in Newton.\n\nCash only. No trades. Message me with a pickup time.';
+  d.meta.description='NZXT gaming PC. CPU: AMD Ryzen 7 5800X; GPU: NVIDIA RTX 3070; RAM: 32GB DDR4-3200 (2x16GB); Storage: 1TB NVMe SSD; PSU: Corsair RM750x 750W. Available to test at pickup in Newton.\n\nCash only. No trades. Message me with a pickup time.';
   d.verdict.riskChecks=[{code:'TEST_AT_PICKUP',label:'Stability under load',state:'unresolved',question:'Run a benchmark and check temperatures.',remote:false}];
   if(id===102) {
     d.listing={...d.listing,title:'Memory bundle with mixed specifications',askingPriceCents:null,photoUrls:[],location:null,postedAt:null};
@@ -39,13 +40,21 @@ export function detailFixture(id=101) {
     d.verdict.reasoning+=' '+ 'Additional written evidence retained in full. '.repeat(8);
   }
   if(id===106) { d.verdict.overriddenFrom='VERIFY'; d.verdict.call='FAIR'; }
+  d.meta.specifications=specifications({facts:{title:d.listing.title,description:d.meta.description,attributes:{}},signals:{category:d.meta.category},visionEvidence:null});
+  // Clearly synthetic browser fixtures; external navigation is intercepted in QA.
+  d.comps=[...d.comps,...d.comps.slice(0,2)].map((c,i)=>({...c,url:`https://www.ebay.com/itm/${900000000000+i}`}));
   d.checkId=id;
   return d;
 }
 export function startDetailPreview(port=3197) {
+  const removed=new Set();
   return startPreview(port,async(req,res)=>{
     const url=new URL(req.url,'http://127.0.0.1'), match=url.pathname.match(/^\/v1\/checks\/(\d+)$/);
-    if(match && req.method==='GET') { res.writeHead(200,{'content-type':'application/json','cache-control':'no-store'});res.end(JSON.stringify(detailFixture(Number(match[1]))));return true; }
+    const write=data=>{res.writeHead(200,{'content-type':'application/json','cache-control':'no-store'});res.end(JSON.stringify(data));return true;};
+    const removal=url.pathname.match(/^\/v1\/checks\/(\d+)\/dismiss$/);
+    if(removal){const id=Number(removal[1]);req.method==='DELETE'?removed.delete(id):removed.add(id);return write({id,removed:removed.has(id)});}
+    if(url.pathname==='/v1/dismissals')return write({items:[...removed].map(id=>({id,title:detailFixture(id).listing.title})),nextOffset:null});
+    if(match && req.method==='GET') { res.writeHead(200,{'content-type':'application/json','cache-control':'no-store'});res.end(JSON.stringify({...detailFixture(Number(match[1])),meta:{...detailFixture(Number(match[1])).meta,dismissed:removed.has(Number(match[1]))}}));return true; }
     return false;
   });
 }
