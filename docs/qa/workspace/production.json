@@ -1,0 +1,80 @@
+{
+  "at": "2026-09-12T18:17:02.372Z",
+  "commit": "d04ce5d5db783ffa91ac3df3f28f025d7cb4d788",
+  "deployment": 6412820697,
+  "ci": 34710515278,
+  "health": {
+    "ok": true,
+    "canPrice": true,
+    "engine": "0.3.35",
+    "db": "ok",
+    "comps": {
+      "total": 31900,
+      "usable": 28567,
+      "skusPriceable": 492,
+      "skusTotal": 559
+    },
+    "skus": 571,
+    "scoring": {
+      "signature": "6857|2026-09-12T18",
+      "pending": 0,
+      "failures": 0,
+      "complete": true
+    }
+  },
+  "privateRegistration": true,
+  "emptySignupRejected": true,
+  "guards": [
+    {
+      "path": "/v1/feed",
+      "status": 401
+    },
+    {
+      "path": "/v1/checks/1",
+      "status": 401
+    },
+    {
+      "path": "/v1/checks/1/inspection",
+      "status": 401
+    },
+    {
+      "path": "/v1/checks/1/price-history",
+      "status": 401
+    },
+    {
+      "path": "/v1/purchases",
+      "status": 401
+    },
+    {
+      "path": "/v1/thumb/1",
+      "status": 401
+    }
+  ],
+  "assets": [
+    {
+      "name": "compare-XT3a4tYk.js",
+      "sha256": "797d112e59e6e47ab532d03f4912f7759b83ad889bda242332d3df8d972b3ae7",
+      "bytes": 22160
+    },
+    {
+      "name": "index-C0HwHAJl.css",
+      "sha256": "9b949f25849f787a531b98ddb4517096520766e85b3d48c20da7f8d03636cf37",
+      "bytes": 162460
+    },
+    {
+      "name": "index-zR0jgQtF.js",
+      "sha256": "717d4bb9c3f187454a93a04e78beb693a73a98c84ab9135859162b97786beeff",
+      "bytes": 351854
+    },
+    {
+      "name": "listing-workspace-CuNSToMJ.js",
+      "sha256": "19da86856964bb1c4fd6fd0093d7f8057334a3c375b97b923bab5c82d9eb6296",
+      "bytes": 8537
+    },
+    {
+      "name": "purchase-editor-0Rvrzlzq.js",
+      "sha256": "35f66607e6c2ebe2a7db1984bee535377a895c51dd87903348df06d348e483da",
+      "bytes": 6469
+    }
+  ]
+}
