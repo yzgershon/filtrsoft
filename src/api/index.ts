@@ -1,7 +1,8 @@
 import { dismissedIds, setDismissed, listDismissed } from "./dismissals.ts";
+import {handleInspection,saveInspection,handlePriceHistory} from './listing-workspace.ts';
 import { specifications } from "../engine/specifications.ts";
 import {handleComparison,handleComparisonCandidates} from './compare.ts';
-import { handlePurchases } from "./purchases.ts";
+import { handlePurchases, handleUpdatePurchase } from "./purchases.ts";
 import {rememberDecision,decisionAt,decisionSku} from "../db/learning.ts";
 import {feedWindow,CursorError} from "./feed-cursor.ts";
 import {checkInput,outcomeInput} from "./check-input.ts";
@@ -151,12 +152,18 @@ app.use("/*", async (c, next) => {
  * crawler and the delisting tracker as collateral damage.
  */
 app.use("/v1/checks/*", async (c, next) => {
-  const { ok, retryAfter } = rateLimit(clientKey(c.req.raw.headers));
+  if(new URL(c.req.url).pathname==='/v1/checks')return next();
+  const path=new URL(c.req.url).pathname,local=/^\/v1\/checks\/\d+(?:\/(inspection|price-history|outcome|override|dismiss))?$/.test(path);
+  // Stored evidence reads do not fetch Craigslist or run paid vision. The old
+  // shared 20/minute bucket blocked normal tab changes and even sign-in after
+  // reviewing a few listings. Keep source work at 20; bound local work separately.
+  const bucket=local?(c.req.method==='GET'?'stored-read':'stored-write'):'source-check';
+  const { ok, retryAfter } = rateLimit(`${bucket}:${clientKey(c.req.raw.headers)}`,local?(c.req.method==='GET'?180:60):20);
   if (!ok) return c.json({ error: "too many requests" }, 429, { "Retry-After": String(retryAfter) });
   await next();
 });
 app.use("/v1/checks", async (c, next) => {
-  const { ok, retryAfter } = rateLimit(clientKey(c.req.raw.headers));
+  const { ok, retryAfter } = rateLimit(`source-check:${clientKey(c.req.raw.headers)}`);
   if (!ok) return c.json({ error: "too many requests" }, 429, { "Retry-After": String(retryAfter) });
   await next();
 });
@@ -181,8 +188,8 @@ app.use("/v1/checks", async (c, next) => {
  *   · `/v1/billing/webhook` stays open because STRIPE calls it, not a browser;
  *     it is authenticated by its own signature.
  *   · `/v1/ebay/deletion` stays open for the same reason — eBay calls it.
- *   · `/v1/thumb/:id` stays open: it is an <img> src, and a cookie-gated image
- *     that 401s renders as a broken photo rather than a sign-in prompt.
+ *   · Thumbnails require the same session as listing data. Same-origin <img>
+ *     requests send that cookie, so private photos still render in the app.
  *
  * Everything else — the feed, checks, the watchlist, purchases, the pulse,
  * saved searches — is the product, and the product now needs an account.
@@ -192,7 +199,6 @@ const PUBLIC_PREFIXES = [
   "/v1/auth/",
   "/v1/billing/webhook",
   "/v1/ebay/deletion",
-  "/v1/thumb/",
   "/v1/landing",
 ];
 
@@ -315,6 +321,12 @@ app.get("/v1/health", (c) => {
   } catch (e) {
     stats = { db: "error", dbPath: DB_PATH, error: (e as Error).message };
   }
+  // A public liveness read must not enumerate a private workspace's agent,
+  // notification address, spend or activity. Same-origin signed-in requests
+  // retain the diagnostic detail. Thumbnail requests carry that same cookie.
+  if(!currentUser(c))return c.json({ok:canPrice,canPrice,engine:ENGINE_VERSION,db:stats.db,
+    comps:coverage?{total:coverage.total,usable:coverage.usable,skusPriceable:coverage.skusPriceable,skusTotal:coverage.skusTotal}:null,
+    skus:stats.skus,scoring:(()=>{try{return scoringStatus();}catch{return {complete:false,error:'unavailable'};}})()});
   return c.json({
     ok: canPrice,
     canPrice,
@@ -586,7 +598,7 @@ app.use("/v1/auth/*", async (c, next) => {
    * costs one indexed SELECT.
    */
   if (new URL(c.req.url).pathname.replace(/\/$/, "") === "/v1/auth/me") return next();
-  const { ok, retryAfter } = rateLimit(clientKey(c.req.raw.headers));
+  const { ok, retryAfter } = rateLimit(`auth:${clientKey(c.req.raw.headers)}`);
   if (!ok) return c.json({ error: "too many requests" }, 429, { "Retry-After": String(retryAfter) });
   await next();
 });
@@ -786,6 +798,10 @@ app.delete("/v1/checks/:id/override", handleClearOverride);
  * preserved privately; seeing an outcome button is not proof of ownership.
  */
 app.get("/v1/purchases", handlePurchases);
+app.put('/v1/purchases/:id',handleUpdatePurchase);
+app.get('/v1/checks/:id/inspection',handleInspection);
+app.put('/v1/checks/:id/inspection',saveInspection);
+app.get('/v1/checks/:id/price-history',handlePriceHistory);
 
 app.get("/v1/thumb/:id", (c) => {
   const id = Number(c.req.param("id"));
@@ -795,7 +811,7 @@ app.get("/v1/thumb/:id", (c) => {
   return new Response(t.bytes, {
     headers: {
       "content-type": t.mime,
-      "cache-control": "public, max-age=86400",
+      "cache-control": "private, max-age=86400",
       "content-length": String(t.length),
     },
   });

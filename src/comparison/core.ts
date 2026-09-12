@@ -10,7 +10,11 @@ const unsupportedDevice=/\b(?:\d+\s*[x×]\s*(?:nvidia|amd|intel|geforce|radeon)|
 function modelTokens(text:string,kind:PartKind):string[]{
   if(kind!=='cpu'&&kind!=='gpu')return [];
   if(kind==='gpu'&&/\b(?:quadro|ada|rtx pro|rtx a\d)|\brtx\s*[1-9]000\b/i.test(text))return [];
-  return [...text.matchAll(new RegExp((kind==='cpu'?CPU:GPU).source,'gi'))].map(m=>clean(m[0]).replace(/^core (i[3579])/,'$1').replace(/^(rtx|gtx|rx|arc)\s*/,'$1 ').replace(/\s+/g,' ').replace(/i([3579])\s*-?\s*(\d)/,'i$1-$2').trim());
+  return [...text.matchAll(new RegExp((kind==='cpu'?CPU:GPU).source,'gi'))].map(m=>clean(m[0]).replace(/^core (i[3579])/,'$1').replace(/^(rtx|gtx|rx|arc)\s*/,'$1 ')
+    // Sellers omit spaces in 3070ti / 7900xtx / 5090dv2. Normalize spacing
+    // only; retain every suffix so a compact token never inherits a base score.
+    .replace(/^((?:rtx|gtx|rx) \d{3,4})\s*(ti|super|xtx|xt|gre|d|m)/,'$1 $2').replace(/\bti\s*super\b/,'ti super').replace(/\bd\s*v2\b/,'d v2').replace(/\bm\s*xt\b/,'m xt')
+    .replace(/\s+/g,' ').replace(/i([3579])\s*-?\s*(\d)/,'i$1-$2').trim());
 }
 const displayModel=(s:string)=>s.replace(/\b(rtx|gtx|rx|xtx|xt|ti|super|arc|pro|max|ultra|ryzen|threadripper|apple)\b/g,v=>['rtx','gtx','rx','xtx','xt'].includes(v)?v.toUpperCase():v[0].toUpperCase()+v.slice(1)).replace(/(\d)(x3d|xt|kf|ks|hx|hs|x|g|f|k|h|u|t)\b/gi,(_,n,s)=>n+s.toUpperCase());
 const fieldValues=(side:CompareSide,key:string)=>side.specs.fields.find(f=>f.key===key)?.values??[];

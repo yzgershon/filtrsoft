@@ -12,7 +12,8 @@ import { Alert, Check, Cross, Ghost } from "./icons.tsx";
 import type { Call, Hist } from "./types.ts";
 import { mergeSettings, DEFAULT_SETTINGS, SETTINGS_KEY, type Settings } from "./nav.ts";
 
-export const money = (c?: number | null) => (c == null ? "—" : `$${Math.round(c / 100).toLocaleString()}`);
+import {money} from './money.ts';
+export {money} from './money.ts';
 export const ago = (iso: string | null) => {
   if (!iso) return null;
   const d = Math.floor((Date.now() - Date.parse(iso)) / 86_400_000);

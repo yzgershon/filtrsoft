@@ -141,7 +141,7 @@ test('disappearance never becomes a sale price and reported calibration uses fro
   const observed=recordObservedOutcomes();assert.equal(observed.recorded,1);
   const o=d.query('SELECT * FROM outcomes').get();assert.equal(o.sold_price_cents,null);assert.equal(o.observed_ask_cents,80000);
   assert.equal(calibration().length,0);assert.equal(realisedMargin().length,0);
-  recordReportedOutcome({userId:1,listingId:r.listingId,action:'bought',purchasePriceCents:80000,soldPriceCents:100000,feesCents:0,shippingCents:0});
+  recordReportedOutcome({userId:1,listingId:r.listingId,action:'bought',purchasePriceCents:80000,soldPriceCents:100000,feesCents:0,shippingCents:0,otherCostsCents:0});
   storeVerdict(r.listingId,'future',{call:'PASS',valuation:{medianCents:999999}});
   const cal=calibration(1);assert.equal(cal.length,1);assert.equal(cal[0].call,r.verdict.call);
   assert.equal(realisedMargin(1)[0].netCents,20000);assert.equal(realisedMargin(2).length,0);

@@ -56,3 +56,7 @@ node_modules/
 
 # Local undo copy written by atomic archive export.
 /data/archive.json.gz.previous
+
+# Regenerate visual workspace/concept checks locally; keep their assertions.
+/docs/qa/workspace/*.png
+/docs/qa/afterbuild/*.png

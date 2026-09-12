@@ -27,6 +27,14 @@ test('Gaming never inherits rendering numbers or seller FPS claims',()=>{
   const r=compareSides([side('RTX 3070','Runs every game at 300 FPS'),side('RTX 4070')],'gpu','gaming',snapshot);
   expect(r.score.state).toBe('unavailable');expect(r.score.indices).toEqual([null,null]);expect(r.value.leader).toBeNull();
 });
+test('compact GPU suffixes match their exact spaced model without collapsing variants',()=>{
+  expect(side('RTX3070ti').hardware.identity).toBe('RTX 3070 Ti');
+  expect(side('RTX3070ti').reference?.value).toBe(3000);
+  expect(side('RTX3070ti','GPU: RTX 3070 Ti').hardware.state).toBe('identified');
+  expect(side('RTX3070ti','GPU: RTX 3070').hardware.state).toBe('ambiguous');
+  expect(side('RTX5090dv2').reference).toBeNull();
+  expect(side('RX7900xtx').hardware.identity).toContain('XTX');
+});
 test('Literal suffix and memory conflicts cannot inherit a base-model score',()=>{
   expect(side('RTX 5090 D V2').reference).toBeNull();
   expect(side('RTX 4070 12GB','GPU: RTX 4070 16GB').hardware.state).toBe('ambiguous');

@@ -35,23 +35,23 @@ export function calibration(userId?:number):Calibration[] {
   return [...groups].map(([call,b])=>({call,n:b.n,medianDays:median(b.days),medianErrorPct:median(b.errors)}));
 }
 export function recordReportedOutcome(o:{userId:number;listingId:number;action:'bought'|'passed'|'no_reply'|'was_scam'|'seller_sold';
-  purchasePriceCents?:number;soldPriceCents?:number;soldChannel?:string;feesCents?:number;shippingCents?:number;daysToSell?:number;notes?:string;decisionToken?:string}):number {
-  for(const value of [o.purchasePriceCents,o.soldPriceCents,o.feesCents,o.shippingCents,o.daysToSell])
+  purchasePriceCents?:number;soldPriceCents?:number;soldChannel?:string;feesCents?:number;shippingCents?:number;otherCostsCents?:number;daysToSell?:number;notes?:string;decisionToken?:string}):number {
+  for(const value of [o.purchasePriceCents,o.soldPriceCents,o.feesCents,o.shippingCents,o.otherCostsCents,o.daysToSell])
     if(value!=null && (!Number.isSafeInteger(value)||value<0))throw new Error('Outcome amounts must be nonnegative integers');
   const decision=decisionAt(o.listingId,o.userId,o.decisionToken);
   const kind=o.action==='seller_sold'?'seller_reported_sale':o.action==='bought' && o.soldPriceCents!=null?'personal_transaction':'personal_report';
-  return Number(db().run(`INSERT INTO outcomes(listing_id,user_id,sku_id,action,purchase_price_cents,sold_price_cents,sold_channel,fees_cents,shipping_cents,days_to_sell,notes,created_at,decision_id,decision_json,evidence_kind)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[o.listingId,o.userId,decisionSku(decision.payload),o.action,o.purchasePriceCents??null,o.soldPriceCents??null,o.soldChannel??null,
-      o.feesCents??null,o.shippingCents??null,o.daysToSell??null,o.notes??null,now(),decision.id,decision.payload,kind]).lastInsertRowid);
+  return Number(db().run(`INSERT INTO outcomes(listing_id,user_id,sku_id,action,purchase_price_cents,sold_price_cents,sold_channel,fees_cents,shipping_cents,other_costs_cents,days_to_sell,notes,created_at,decision_id,decision_json,evidence_kind)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[o.listingId,o.userId,decisionSku(decision.payload),o.action,o.purchasePriceCents??null,o.soldPriceCents??null,o.soldChannel??null,
+      o.feesCents??null,o.shippingCents??null,o.otherCostsCents??null,o.daysToSell??null,o.notes??null,now(),decision.id,decision.payload,kind]).lastInsertRowid);
 }
 /** Unknown transaction costs cannot silently become zero-dollar costs. */
-export function transactionProfit(r:{evidence_kind:string|null;purchase_price_cents:number|null;sold_price_cents:number|null;fees_cents:number|null;shipping_cents:number|null}):number|null {
-  if(r.evidence_kind!=='personal_transaction' || [r.purchase_price_cents,r.sold_price_cents,r.fees_cents,r.shipping_cents].some(v=>v==null))return null;
-  return r.sold_price_cents!-r.purchase_price_cents!-r.fees_cents!-r.shipping_cents!;
+export function transactionProfit(r:{evidence_kind:string|null;purchase_price_cents:number|null;sold_price_cents:number|null;fees_cents:number|null;shipping_cents:number|null;other_costs_cents?:number|null}):number|null {
+  if(r.evidence_kind!=='personal_transaction' || [r.purchase_price_cents,r.sold_price_cents,r.fees_cents,r.shipping_cents,r.other_costs_cents].some(v=>v==null||!Number.isSafeInteger(v)||v<0))return null;
+  return r.sold_price_cents!-r.purchase_price_cents!-r.fees_cents!-r.shipping_cents!-r.other_costs_cents!;
 }
 export function realisedMargin(userId?:number):Array<{listingId:number;buyCents:number;sellCents:number;netCents:number;days:number|null}> {
-  return (db().query(`SELECT listing_id,purchase_price_cents,sold_price_cents,fees_cents,shipping_cents,days_to_sell FROM outcomes
+  return (db().query(`SELECT listing_id,purchase_price_cents,sold_price_cents,fees_cents,shipping_cents,other_costs_cents,days_to_sell FROM outcomes
     WHERE evidence_kind='personal_transaction' AND action='bought' AND purchase_price_cents IS NOT NULL
-    AND sold_price_cents IS NOT NULL AND fees_cents IS NOT NULL AND shipping_cents IS NOT NULL AND (? IS NULL OR user_id=?)`).all(userId??null,userId??null) as any[])
+    AND sold_price_cents IS NOT NULL AND fees_cents IS NOT NULL AND shipping_cents IS NOT NULL AND other_costs_cents IS NOT NULL AND (? IS NULL OR user_id=?)`).all(userId??null,userId??null) as any[])
     .map(r=>({listingId:r.listing_id,buyCents:r.purchase_price_cents,sellCents:r.sold_price_cents,netCents:transactionProfit({...r,evidence_kind:'personal_transaction'})!,days:r.days_to_sell}));
 }

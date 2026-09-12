@@ -1,4 +1,7 @@
+import {LoadBoundary} from './load-boundary.tsx';
 import {SpecificationSheet} from "./specifications.tsx";
+const PriceHistory=lazy(()=>import('./listing-workspace.tsx').then(m=>({default:m.PriceHistory})));
+const InspectionWorkspace=lazy(()=>import('./listing-workspace.tsx').then(m=>({default:m.InspectionWorkspace})));
 import { Popup, motionAllowed, type Dismiss } from "./popup.tsx";
 /**
  * The listing detail: verdict, numbers, comps, risks and questions.
@@ -9,7 +12,7 @@ import { Popup, motionAllowed, type Dismiss } from "./popup.tsx";
  * and a utils/ for three pieces of the same feature.
  */
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   Alert, Back as BackIcon, Chat, Check, Cut, Eye, Ghost, Info, Link, Shield, Store, Tag, Trash, Clip,
 } from "./icons.tsx";
@@ -616,6 +619,7 @@ export function Report({listing,verdict,signals,comps=[],meta,stage,reading,chec
       <div className="detail-panel" id={`${prefix}-specs-panel`} role="tabpanel" aria-labelledby={`${prefix}-specs-tab`} hidden={tab!=='specs'}><SpecificationSheet specs={meta?.specifications} inventory={!!verdict?.inventory}/></div>
       <div className="detail-panel" id={`${prefix}-evidence-panel`} role="tabpanel" aria-labelledby={`${prefix}-evidence-tab`} hidden={tab!=='evidence'}>
         <SoldComparisons key={listing.url} comps={comps} count={verdict?.valuation.compCount??0}/>
+        {checkId&&tab==='evidence'&&<LoadBoundary><Suspense fallback={<p role="status">Loading history…</p>}><PriceHistory key={checkId} id={checkId} placeholder={!!verdict?.inventory||listing.askingPriceCents!==null&&listing.askingPriceCents<=100}/></Suspense></LoadBoundary>}
         {meta?.description&&<DetailRow title="Seller description" note="Original listing text" icon={<Chat size={17}/>} className="seller-description"><p>{meta.description}</p></DetailRow>}
         {verdict?.retail&&<DetailRow title="New retail" note={`${money(verdict.retail.priceCents)} · ${verdict.retail.corroborated?'corroborated':'one retailer only'}`} icon={<Store size={17}/>}><p>{verdict.retail.title}</p><dl className="detail-facts">{verdict.retail.quotes.map((q,i)=><div key={i}><dt>{q.source}</dt><dd>{money(q.priceCents)}</dd></div>)}</dl></DetailRow>}
       </div>
@@ -623,7 +627,8 @@ export function Report({listing,verdict,signals,comps=[],meta,stage,reading,chec
         {disclosed.length>0&&<section className="disclosed-defects"><h2><Alert size={17}/> Disclosed defects</h2>{disclosed.map(c=><div key={c.code}><b>{c.label}</b>{c.evidence&&<p>{c.evidence}</p>}</div>)}</section>}
         {!!concerns.length&&<Flags signals={concerns}/>}
         {!!verdict?.questions?.length&&<Questions key={listing.url} qs={verdict.questions}/>}
-        {pickup.length>0&&<section className="pickup-section"><header className="tab-section-head"><div><h2>At pickup</h2><p>Check the item in person.</p></div><Shield size={21}/></header><ul className="pickup">{pickup.map(c=><li key={c.code}><b>{c.label}</b><span>{c.question}</span></li>)}</ul></section>}
+        {checkId&&tab==='inspect'&&<LoadBoundary><Suspense fallback={<p role="status">Loading inspection…</p>}><InspectionWorkspace key={checkId} id={checkId}/></Suspense></LoadBoundary>}
+        {pickup.length>0&&!checkId&&<section className="pickup-section"><header className="tab-section-head"><div><h2>At pickup</h2><p>Check the item in person.</p></div><Shield size={21}/></header><ul className="pickup">{pickup.map(c=><li key={c.code}><b>{c.label}</b><span>{c.question}</span></li>)}</ul></section>}
         {positive.length>0&&<DetailRow title="Positive signals" note={`${positive.length} recorded observations`} icon={<Check size={17}/>}><Flags signals={positive} compact/></DetailRow>}
         {!concerns.length&&!disclosed.length&&!pickup.length&&!verdict?.questions?.length&&<p className="spec-notice">No specific inspection checks were recorded. This does not verify the item's condition.</p>}
       </div>

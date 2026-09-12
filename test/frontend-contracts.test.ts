@@ -100,6 +100,7 @@ test('purchase reports separate recorded money, frozen decisions, current estima
   insert(a,null,null,null,null,'personal_report',JSON.stringify({call:'FAIR',valuation:{medianCents:45000}}));
   insert(b,10000,null,null,null,'personal_report',null);
   insert(c,0,70000,0,0,'personal_transaction',JSON.stringify({call:'VERIFY'}));
+  d.run("UPDATE outcomes SET other_costs_cents=0 WHERE listing_id=?",[c]);
   insert(e,20000,40000,null,0,'personal_transaction','{broken');
   d.run("UPDATE verdicts SET payload='{broken' WHERE listing_id=?",[e]);
   const r=await request(1,'/v1/purchases');assert.equal(r.status,200);const {items,summary}=await r.json();

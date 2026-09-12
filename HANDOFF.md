@@ -3,7 +3,7 @@
 **Master plan AND current state. Update before you stop working.** A stale line
 here is worse than a missing one, because a fresh session will believe it.
 
-**Last updated 2026-09-09.** Read section 0 first and in order; it is the record
+**Last updated 2026-09-12.** Read section 0 first and in order; it is the record
 of every session since the rename and it supersedes anything below it that
 disagrees. Sections 1 onward are older material kept for the reasoning, not for
 current numbers.
@@ -88,6 +88,20 @@ and it supersedes anything below that disagrees with it.** Section 2 onward is
 older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
+
+### Current work: 2026-09-12, private ecosystem improvement pass
+
+Yish requests a sustained frontend/backend improvement pass with implementation, and a researched tech software business that does not distribute the same scarce local deals. **Filtrsoft's scanner is intended for private use for now.** Plan and checkpoints: `docs/ECOSYSTEM-PLAN-2026-09-12.md`. Sole editor in `C:\Dev\filtrsoft-backend`, clean start `75fc352`; remote main verified `c85a75b`. Shared main `C:\Dev\filtrsoft` is at `e5a7023` with existing `web/src/detail.tsx` and `web/src/types.ts` edits; preserve it and its database. Existing main/Railway deployment authorization persists. No new paid services, seller messages or duplicate crawls.
+
+September 12 production baseline: engine 0.3.35, DB healthy, 31,900 total / 28,567 usable comps, 118 discoveries/scored in the last day, laptop agent last poll September 10. The health observation has **554 pending scores / 0 failures**; previous complete-scoring counts below are historical. No shared or production data operation performed. Initial focus: private registration, actual listing history, persistent account-owned inspection notes/checks, and purchase resale/cost recording with honest realized profit. Research recommendation will remain separate from a public launch.
+
+**Local release checkpoint:** **311 tests / 0 failures / 907 assertions** on Windows and Linux ARM64, TypeScript and Vite passed. The real-API workspace browser suite covers privacy, authenticated thumbnails, chronological asking prices, account-owned inspections, drafts/failed saves, exact sale costs, pipeline health, rejected lazy imports and ten viewport/theme combinations. Existing 15 detail and 6 comparison browser groups also passed; a separate synthetic AfterBuild concept passed at 360/768/1440 widths. Final image/release checks are in progress; nothing from this pass has been pushed yet.
+
+Implemented closed new registration (existing accounts remain usable), private cached thumbnails/operational diagnostics, listing price history, inspection notes/checks, sale/cost editing with revisions, inventory/sold views, exact shared money formatting, pipeline status, atomic fact/history writes and separate local-read/source/auth rate limits. Sold items no longer inflate inventory estimates. Unknown costs never become zero. Drafts survive closing within the current browser tab, and stale versions are offered for recovery. Added lazy loading plus recovery boundaries for failed chunks. Normalize compact GPU suffix spacing without relaxing exact variants. Engine remains 0.3.35; verdict rules and the 31,900-comp deployment archive are unchanged.
+
+Measured archive-status overhead: six uncached reads took 340–539 ms each; after caching verified file metadata, first read 345.47 ms and repeated reads 0.03–0.18 ms. This is a local benchmark of archive status, not an end-to-end production latency claim. Imports still validate fully, file replacement invalidates the summary, and import acknowledgements remain fresh.
+
+Operations and routes: `docs/PRIVATE-WORKSPACE-OPERATIONS.md`. Business recommendation, competitor evidence, pricing hypothesis and validation gates: `docs/AFTERBUILD-OPPORTUNITY-2026-09-12.md`. Local synthetic concept: `docs/prototypes/afterbuild.html`, serve with `node src/browser/afterbuild-preview.mjs` on 3212. It does not run diagnostics, send messages, collect customer data or appear in the production app. Keep the scanner private; choose/validate a commercial workflow before adding billing. Native gaming FPS remains unavailable; rendering is still separate. Public health intentionally omits private pipeline details; signed-in More > Pipeline status exposes them. Full checkpoints: `docs/ECOSYSTEM-PLAN-2026-09-12.md`.
 
 ### Current release: 2026-09-09, hardware comparison, pushed and live
 

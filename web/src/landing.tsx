@@ -11,6 +11,7 @@ import { BrandMark, Wordmark } from "./brand.tsx";
 // ─────────────────────────────────────────────────────────────────── types
 
 export interface Providers {
+  registrationOpen?: boolean;
   password: boolean;
   google: boolean; googleClientId: string | null;
   apple: boolean; appleClientId: string | null;
@@ -18,6 +19,17 @@ export interface Providers {
 export interface Account {
   id: number; email: string; name: string | null;
   avatarUrl: string | null; createdAt: string;
+}
+
+export function PrivateLanding({onSignIn}:{onSignIn:()=>void}) {
+  return <main className="private-entry"><div className="private-entry-card">
+    <div className="mkbrand"><BrandMark size={38}/><Wordmark/></div>
+    <span className="private-entry-label"><Shield size={15}/> Private workspace</span>
+    <h1>Your market.<br/>Your call.</h1>
+    <p>Listings, evidence and the tools to follow a deal through.</p>
+    <button className="btn" onClick={onSignIn}>Sign in <span aria-hidden="true">↗</span></button>
+    <small>Access is limited to existing accounts.</small>
+  </div></main>;
 }
 
 // ────────────────────────────────────────────────────────────────── landing
@@ -122,7 +134,7 @@ export function AuthScreen({ mode, providers, onDone, onMode, onBack }: {
   const [error, setError] = useState<string | null>(null);
   const googleBox = useRef<HTMLDivElement>(null);
 
-  const signup = mode === "signup";
+  const signup = mode === "signup" && providers?.registrationOpen !== false;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -321,10 +333,12 @@ export function AuthScreen({ mode, providers, onDone, onMode, onBack }: {
       </form>
 
       <p className="authswap">
-        {signup ? "Already have an account? " : "New to Filtrsoft? "}
+        {providers?.registrationOpen === false ? 'Private workspace. Existing accounts only.' : signup ? "Already have an account? " : "New to Filtrsoft? "}
+        {providers?.registrationOpen !== false && <>
         <button onClick={() => { setError(null); onMode(signup ? "signin" : "signup"); }}>
           {signup ? "Sign in" : "Create one"}
         </button>
+        </>}
       </p>
 
       {signup && (

@@ -1,0 +1,46 @@
+{
+  "at": "2026-09-12T18:07:25.333Z",
+  "results": [
+    {
+      "name": "Private landing offers existing-account sign-in without signup",
+      "pass": true
+    },
+    {
+      "name": "Private thumbnail renders through an authenticated image request and rejects anonymous reads",
+      "pass": true
+    },
+    {
+      "name": "Price history shows real persisted cents and source observation dates",
+      "pass": true
+    },
+    {
+      "name": "Inspection saves through the API, survives refresh and remains account-owned",
+      "pass": true
+    },
+    {
+      "name": "Inspection draft survives navigation and failed save without false success",
+      "pass": true
+    },
+    {
+      "name": "Purchase editor records a real sale with exact fees and other costs",
+      "pass": true
+    },
+    {
+      "name": "Purchase drafts survive closing and explicit discard restores the saved record",
+      "pass": true
+    },
+    {
+      "name": "Signed-in pipeline status reads actual API health and distinguishes an offline laptop",
+      "pass": true
+    },
+    {
+      "name": "Failed lazy screen download keeps navigation and offers an explicit reload recovery",
+      "pass": true
+    },
+    {
+      "name": "Responsive workspace and dialog fit phone, landscape, tablet and desktop in both themes",
+      "pass": true
+    }
+  ],
+  "errors": []
+}

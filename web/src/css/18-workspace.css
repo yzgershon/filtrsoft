@@ -1,0 +1,94 @@
+/* Private buying workflow. Uses the same theme tokens as detail and comparison. */
+.workspace-card .btn,.purchase-editor .btn,.private-entry .btn { display:inline-flex; align-items:center; justify-content:center; gap:10px; min-height:46px; padding:12px 18px; border:1px solid transparent; border-radius:10px; background:var(--brand); color:var(--on-brand); font-size:14px; font-weight:700; line-height:1.3; flex-shrink:0; }
+.workspace-card .btn:disabled,.purchase-editor .btn:disabled { opacity:.5; cursor:default; }
+.purchase-editor .btn2 { flex-shrink:0; }
+.load-recovery { margin:24px 16px; }
+.load-recovery p { font-size:14px; color:var(--ink-2); margin:12px 0 20px; }
+.workspace-card { border:1px solid var(--line); border-radius:16px; background:var(--surface); padding:20px; margin:16px 0; min-width:0; }
+.workspace-card h2 { font-size:18px; letter-spacing:-.025em; }
+.workspace-card p,.workspace-card blockquote { overflow-wrap:anywhere; }
+.workspace-error { color:var(--risk); border:1px solid var(--risk); border-radius:10px; padding:12px; font-size:14px; line-height:1.5; margin:12px 0; }
+.workspace-error button { margin:10px 0 0; display:block; }
+.workspace-notice { background:var(--surface-2); border-radius:10px; color:var(--ink-2); padding:12px 14px; font-size:13px; line-height:1.65; margin:14px 0; }
+.workspace-wide { width:100%; }
+.observation-meta { display:grid; gap:12px; grid-template-columns:1fr 1fr; margin:16px 0 20px; }
+.observation-meta dt { color:var(--ink-3); font-size:12px; margin-bottom:5px; }
+.observation-meta dd { margin:0; color:var(--ink-2); font-size:13px; line-height:1.5; }
+.price-timeline { list-style:none; padding:0; margin:12px 0; }
+.price-timeline li { position:relative; display:flex; align-items:center; gap:14px; padding:12px 0; min-height:65px; }
+.price-timeline li:not(:last-child)::after { content:''; position:absolute; left:4px; top:36px; bottom:-20px; width:1px; background:var(--line); }
+.timeline-dot { background:var(--brand); width:9px; height:9px; border-radius:50%; flex:none; z-index:1; }
+.price-timeline li>div { display:grid; gap:4px; min-width:0; }
+.price-timeline time { font-size:12px; color:var(--ink-3); }
+.price-timeline strong { font-size:17px; }
+.price-change { margin-left:auto; flex-shrink:0; font-size:12px; }
+.inspection-progress { display:flex; flex-wrap:wrap; justify-content:space-between; gap:10px; margin:20px 0 10px; color:var(--ink-2); font-size:13px; }
+.inspection-progress b { color:var(--ink); }
+.inspection-progress progress { appearance:none; width:100%; height:4px; border:0; border-radius:10px; accent-color:var(--brand); overflow:hidden; }
+.inspection-progress progress::-webkit-progress-bar { background:var(--surface-3); }
+.inspection-progress progress::-webkit-progress-value { background:var(--brand); }
+.inspection-check { padding:17px 0; border-top:1px solid var(--line-soft); display:grid; grid-template-columns:minmax(0,1fr) 150px; gap:10px 16px; }
+.inspection-question label { color:var(--ink); font-size:15px; font-weight:600; display:block; }
+.inspection-question p { color:var(--ink-2); font-size:13px; line-height:1.6; margin:6px 0; }
+.inspection-question blockquote { margin:10px 0; padding:0 0 0 12px; border-left:2px solid var(--line); color:var(--ink-3); font-size:13px; line-height:1.6; }
+.inspection-check select,.workspace-field input,.workspace-field select,.workspace-field textarea,.inspection-evidence textarea { min-width:0; width:100%; min-height:46px; background:var(--surface-2); border:1px solid var(--line); border-radius:9px; color:var(--ink); padding:11px 12px; font-size:16px; }
+.inspection-check select { align-self:start; }
+.state-failed select { border-color:var(--risk); }
+.state-passed select { border-color:var(--buy); }
+.inspection-evidence { grid-column:1/-1; }
+.inspection-evidence summary,.draft-recovery summary { color:var(--brand); font-size:13px; cursor:pointer; padding:12px 0; min-height:44px; }
+.inspection-evidence label { font-size:12px; display:block; margin:4px 0 8px; color:var(--ink-2); }
+.inspection-evidence textarea,.workspace-field textarea { resize:vertical; line-height:1.5; }
+.workspace-field { display:flex; flex-direction:column; gap:8px; margin:16px 0; min-width:0; }
+.workspace-field>span,.workspace-field>label { font-size:13px; font-weight:500; color:var(--ink-2); }
+.workspace-save { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-top:12px; }
+.workspace-save>span { color:var(--ink-3); font-size:12px; line-height:1.5; }
+.workspace-save .btn { width:auto; min-width:150px; white-space:nowrap; margin:0; }
+.draft-recovery { border:1px solid var(--line); border-radius:10px; padding:0 12px 12px; }
+.draft-recovery pre { white-space:pre-wrap; overflow-wrap:anywhere; font:13px/1.6 inherit; }
+.transaction-state { display:flex; gap:4px; padding:4px; border:1px solid var(--line); border-radius:12px; margin:16px 0; background:var(--surface); }
+.transaction-state button { flex:1; min-height:44px; border:0; border-radius:8px; background:transparent; color:var(--ink-3); font-size:13px; padding:9px; transition:background 160ms ease,color 160ms ease; }
+.transaction-state button[aria-pressed=true] { background:var(--surface-3); color:var(--ink); }
+.purchase-record { border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--surface); }
+.purchase-record .buy { border:0; border-radius:0; }
+.purchase-record-actions { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px; border-top:1px solid var(--line-soft); }
+.purchase-record-actions>span { color:var(--ink-2); font-size:12px; line-height:1.6; }
+.purchase-record-actions .btn2 { font-size:12px; min-height:44px; padding:10px 13px; flex-shrink:0; }
+.purchase-editor fieldset { padding:0; border:0; margin:0; min-width:0; }
+.purchase-editor h3 { font-size:15px; margin-top:24px; }
+.transaction-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 12px; }
+.transaction-full { grid-column:1/-1; }
+.money-input { display:flex; align-items:center; border:1px solid var(--line); background:var(--surface-2); border-radius:9px; min-width:0; }
+.money-input>span { color:var(--ink-3); padding-left:12px; }
+.money-input input { border:0; background:transparent; }
+.transaction-profit { display:grid; gap:8px; border-top:1px solid var(--line); margin-top:20px; padding:20px 0 8px; }
+.transaction-profit>span { color:var(--ink-2); font-size:13px; }
+.transaction-profit strong { font-size:28px; line-height:1.2; }
+.transaction-profit small { color:var(--ink-3); font-size:12px; line-height:1.6; }
+.transaction-footer { display:flex; justify-content:flex-end; gap:10px; margin:18px 0; }
+.transaction-footer .btn { width:auto; margin:0; }
+.private-entry { min-height:100dvh; display:grid; place-items:center; padding:24px; background:radial-gradient(ellipse at 15% 10%,var(--surface-3),transparent 65%),var(--bg); }
+.private-entry-card { width:min(100%,460px); padding:clamp(24px,6vw,44px); background:var(--surface); border:1px solid var(--line); border-radius:24px; }
+.private-entry-label { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--ink-3); margin:38px 0 16px; }
+.private-entry h1 { font-size:clamp(36px,8vw,52px); line-height:1.1; letter-spacing:-.045em; margin:0 0 20px; }
+.private-entry p { font-size:15px; color:var(--ink-2); line-height:1.7; margin:0 0 32px; }
+.private-entry .btn { width:100%; justify-content:space-between; }
+.private-entry small { display:block; color:var(--ink-3); font-size:12px; text-align:center; margin:20px 0 0; }
+.system-status>summary { cursor:pointer; color:var(--ink); font-weight:600; font-size:15px; padding:8px 0; min-height:44px; }
+.system-status>summary>span { display:block; color:var(--ink-3); font-weight:400; font-size:12px; margin-top:5px; }
+.system-metrics { display:grid; grid-template-columns:1fr 1fr; gap:18px 14px; margin:24px 0; }
+.system-metrics dt { color:var(--ink-3); font-size:12px; line-height:1.5; }
+.system-metrics dd { color:var(--ink); font-size:17px; margin:6px 0 0; font-variant-numeric:tabular-nums; }
+@media(max-width:480px) {
+  .workspace-card { padding:16px; }
+  .inspection-check { grid-template-columns:1fr; }
+  .inspection-check select { width:100%; }
+  .workspace-save { align-items:stretch; flex-direction:column; }
+  .workspace-save .btn { width:100%; }
+  .purchase-record-actions { align-items:flex-start; flex-direction:column; gap:8px; }
+  .purchase-record-actions .btn2 { width:100%; }
+}
+@media(prefers-reduced-motion:reduce) { .transaction-state button { transition:none; } }
+
+.draft-discard { color:var(--brand); border:0; background:transparent; text-decoration:underline; min-height:44px; padding:8px 0; }
+.transaction-footer { position:sticky; bottom:-1px; background:var(--surface); border-top:1px solid var(--line); padding:12px 0; z-index:1; }

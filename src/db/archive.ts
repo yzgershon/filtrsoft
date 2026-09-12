@@ -32,7 +32,7 @@ import { soldEvidenceSql, soldEvidence } from "./comp-evidence.ts";
  * export and are re-resolved against the destination on import.
  */
 import { gunzipSync, gzipSync } from "node:zlib";
-import { existsSync, readFileSync, writeFileSync, mkdirSync,renameSync,copyFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync,renameSync,copyFileSync,statSync } from "node:fs";
 import { createHash,randomUUID } from "node:crypto";
 import { join, dirname,resolve } from "node:path";
 import { db, now } from "./index.ts";
@@ -144,6 +144,7 @@ export function writeArchive(a: Archive, path = ARCHIVE_PATH): number {
   readArchive(temporary); // Validate compressed bytes before replacing the last good artifact.
   if(existsSync(path)) copyFileSync(path,`${path}.previous`);
   renameSync(temporary,path);
+  statusCache=null;
   return buf.length;
 }
 
@@ -290,21 +291,33 @@ export function importArchive(a: Archive): ImportResult {
  * Reported on /v1/health so the next person can tell "the file never shipped"
  * from "the file shipped and had nothing new" without reading container logs.
  */
-export function archiveStatus(): {
+type ArchiveMetadata={present:boolean;path:string;comps:number;skus:number;exportedAt:string|null;sha256:string|null};
+let statusCache:{key:string;value:ArchiveMetadata}|null=null;
+function archiveMetadata(path:string):ArchiveMetadata {
+  path=resolve(path);
+  let stat;try{stat=statSync(path,{bigint:true});}catch(error){
+    if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;
+    statusCache=null;return {present:false,path,comps:0,skus:0,exportedAt:null,sha256:null};
+  }
+  const key=[path,stat.dev,stat.ino,stat.size,stat.mtimeNs,stat.ctimeNs].join('|');
+  if(statusCache?.key===key)return {...statusCache.value};
+  // Six status reads of the 31,900-comp archive took 340-539ms EACH on the
+  // ARM laptop. Keep only verified metadata between reads, never the comp
+  // arrays. Imports still validate every byte; file replacement invalidates.
+  const a=readArchive(path);
+  const value={present:!!a,path,comps:a?.comps.length??0,skus:a?.skus.length??0,
+    exportedAt:a?.exportedAt??null,sha256:a?(a.version===2?a.manifest!.sha256:archiveManifest(a).sha256):null};
+  statusCache={key,value};return {...value};
+}
+export function archiveStatus(path=ARCHIVE_PATH): {
   present: boolean; path: string; comps: number; skus: number; exportedAt: string | null;
   sha256:string|null;imported:boolean;importedAt:string|null;
 } {
-  const a = readArchive();
-  const sha=a?archiveManifest(a).sha256:null;
+  const metadata=archiveMetadata(path),sha=metadata.sha256;
   const exists=db().query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='archive_imports'").get();
   const imported=exists&&sha?db().query("SELECT imported_at FROM archive_imports WHERE sha256=?").get(sha) as {imported_at:string}|null:null;
   return {
-    present: Boolean(a),
-    path: ARCHIVE_PATH,
-    comps: a?.comps.length ?? 0,
-    skus: a?.skus.length ?? 0,
-    exportedAt: a?.exportedAt ?? null,
-    sha256:sha,imported:Boolean(imported),importedAt:imported?.imported_at??null,
+    ...metadata,imported:Boolean(imported),importedAt:imported?.imported_at??null,
   };
 }
 

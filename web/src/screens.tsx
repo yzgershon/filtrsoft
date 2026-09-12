@@ -1,4 +1,7 @@
+import {LoadBoundary} from './load-boundary.tsx';
 import { RemovedListings } from './removed-listings.tsx';
+import type {Purchase} from './purchase-editor.tsx';
+const PurchaseEditor=lazy(()=>import('./purchase-editor.tsx').then(m=>({default:m.PurchaseEditor})));
 import { SavedSearches } from "./saved-searches.tsx";
 import { NAVIGATE, pushRoute, replaceRoute } from "./history.ts";
 /**
@@ -10,7 +13,7 @@ import { NAVIGATE, pushRoute, replaceRoute } from "./history.ts";
  * and a utils/ for three pieces of the same feature.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   Again, Alert, Bell, Card, Check, Clock, Cut, Gear, Grid, Save, Scan, Tag, User,
   Cross, Dots, Phone, Shield, Spark, Star, Trash,
@@ -181,12 +184,15 @@ export function Watchlist({ onOpen, onWatchChange, onBrowse }: {
  * are the rows worth reading.
  */
 export function Purchases() {
+  const [editing,setEditing]=useState<Purchase|null>(null);
+  const [filter,setFilter]=useState<'all'|'inventory'|'sold'>('all');
   type Buy = {
     id: number; listingId: number; title: string; source: string;
     thumb: string | null; paidCents: number | null; worthCents: number | null;
     marginCents: number | null; engineCall: Call | null; askingPriceCents: number | null;
     decisionWorthCents: number | null; realizedProfitCents: number | null;
     boughtAt: string; notes: string | null;
+    soldPriceCents:number|null;feesCents:number|null;shippingCents:number|null;otherCostsCents:number|null;soldChannel:string|null;soldAt:string|null;revision:number;
   };
   const [d, setD] = useState<{ items: Buy[]; summary: any; total?: number; limit?: number } | null>(null);
 
@@ -215,26 +221,23 @@ export function Purchases() {
   }
 
   const s = d.summary;
+  const visible=d.items.filter(b=>filter==='all'||(filter==='sold'?b.soldPriceCents!=null:b.soldPriceCents==null));
   return (
     <>
-      {/* The scoreboard first: the sum is the reason to open this screen. */}
       <div className="buysum">
-        <div><span>Bought</span><b className="num">{s.count}</b></div>
-        <div><span>Recorded paid</span><b className="num">{s.spentCents == null ? "Unknown" : money(s.spentCents)}</b></div>
-        <div><span>Est. value</span><b className="num">{s.worthCents == null ? "Unknown" : money(s.worthCents)}</b></div>
-        <div className="buysumhi">
-          <span>Est. difference</span>
-          <b className={`num ${s.marginCents >= 0 ? "pos" : "neg"}`}>
-            {s.marginCents == null ? "Unknown" : `${s.marginCents >= 0 ? "+" : ""}${money(s.marginCents)}`}
-          </b>
-        </div>
+        <div><span>In inventory</span><b className="num">{d.items.filter(i=>i.soldPriceCents==null).length}</b></div>
+        <div><span>Inventory paid</span><b className="num">{s.inventory?.paidCents==null?'Unknown':money(s.inventory.paidCents)}</b></div>
+        <div><span>Inventory estimate</span><b className="num">{s.inventory?.worthCents==null?'Unknown':money(s.inventory.worthCents)}</b></div>
+        <div className="buysumhi"><span>Recorded profit</span><b className={`num ${s.realizedProfitCents==null?'':s.realizedProfitCents>=0?'pos':'neg'}`}>{s.realizedProfitCents==null?'Unknown':money(s.realizedProfitCents)}</b></div>
       </div>
-
-      <p className="micro2">{s.paidMissingCount || 0} purchase amounts unrecorded. Estimated difference uses {s.estimatedDifferenceCount || 0} records with both a paid amount and a current estimate. It is not realized profit.</p>
-      {s.completeSaleCount > 0 && <p className="micro2">Recorded realized profit: {money(s.realizedProfitCents)} from {s.completeSaleCount} complete sales.</p>}
+      <p className="micro2">{s.paidMissingCount||0} purchase amounts unrecorded. Inventory estimates cover {s.inventory?.valueKnownCount??0} unsold items and exclude unrecorded costs.</p>
+      <p className="micro2">Recorded profit covers {s.completeSaleCount||0} sales with all costs entered. {s.incompleteSaleCount||0} sold records still have unknown costs. Totals cover all records below, regardless of the selected filter.</p>
       {d.total != null && d.total > d.items.length && <p className="micro2">Showing the latest {d.items.length} of {d.total} purchases. Totals cover these records.</p>}
+      <div className="transaction-state" role="group" aria-label="Purchase filter">{(['all','inventory','sold'] as const).map(k=><button key={k} aria-pressed={filter===k} onClick={()=>setFilter(k)}>{k==='all'?'All purchases':k==='inventory'?'In inventory':'Sold'}</button>)}</div>
+      {visible.length===0&&<p className="micro2">No purchases in this view.</p>}
       <div className="buys">
-        {d.items.map((b) => (
+        {visible.map((b) => (
+          <article className="purchase-record" key={b.id}>
           <a className="buy" key={b.id} href={`/c/${b.listingId}`}>
             <span className="buyshot">
               {b.thumb ? <Thumb src={b.thumb} size={20} /> : <span className="noimg"><Ghost size={20} /></span>}
@@ -247,22 +250,25 @@ export function Purchases() {
                     equal to what he paid is noise. */}
                 {b.askingPriceCents && b.paidCents && b.askingPriceCents > b.paidCents
                   ? <s className="num">{money(b.askingPriceCents)}</s> : null}
-                {b.marginCents != null && (
+                {b.soldPriceCents==null && b.marginCents != null && (
                   <span className={`num buymargin ${b.marginCents >= 0 ? "pos" : "neg"}`}>
                     {b.marginCents >= 0 ? "+" : ""}{money(b.marginCents)}
                   </span>
                 )}
               </span>
               <span className="buymeta">
-                {b.worthCents != null ? `current estimate ${money(b.worthCents)}` : "current value unknown"}
+                {b.soldPriceCents!=null?`Sold ${b.soldAt??'date unrecorded'}`:b.worthCents != null ? `current estimate ${money(b.worthCents)}` : "current value unknown"}
                 {b.engineCall ? <> · at the decision <em className={`b-${b.engineCall}`}>{LABEL[b.engineCall]}</em></> : null}
               </span>
               <span className="buymeta">{b.decisionWorthCents != null ? `Decision estimate ${money(b.decisionWorthCents)}` : "Decision estimate unrecorded"}{b.realizedProfitCents != null ? ` · realized profit ${money(b.realizedProfitCents)}` : ""}</span>
             </span>
           </a>
+          <div className="purchase-record-actions"><span>{b.soldPriceCents!=null?`Sold for ${money(b.soldPriceCents)}${b.realizedProfitCents===null?' · costs incomplete':''}`:'In inventory'}</span><button className="btn2" onClick={()=>setEditing(b)}>{b.soldPriceCents!=null?'Edit sale':'Record sale / costs'}</button></div>
+          </article>
         ))}
       </div>
       <p className="micro2">Recorded when you answer "what happened with this one?"</p>
+      {editing&&<LoadBoundary><Suspense fallback={<p role="status">Opening purchase record…</p>}><PurchaseEditor purchase={editing} onClose={()=>setEditing(null)} onSaved={()=>{setEditing(null);setRetryAt(n=>n+1);}}/></Suspense></LoadBoundary>}
     </>
   );
 }

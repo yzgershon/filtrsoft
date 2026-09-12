@@ -1,3 +1,4 @@
+import {LoadBoundary} from './load-boundary.tsx';
 import { Popup, MenuRow } from "./popup.tsx";
 /**
  * The application shell: the router, and the screen it hands off to.
@@ -31,7 +32,7 @@ import {
 import {
   MoreScreen, NotificationsScreen, AccountScreen, HowScreen,
 } from "./more.tsx";
-import { Landing, AuthScreen, type Providers, type Account } from "./landing.tsx";
+import { Landing, PrivateLanding, AuthScreen, type Providers, type Account } from "./landing.tsx";
 
 /**
  * Screens the bottom bar cannot reach, and which therefore must carry a Back
@@ -605,6 +606,7 @@ export default function App() {
   if (auth.state === "out") {
     return authMode === "none"
       ? (
+        auth.providers?.registrationOpen === false ? <PrivateLanding onSignIn={() => setAuthMode('signin')}/> :
         <Landing
           onStart={() => setAuthMode("signup")}
           onSignIn={() => setAuthMode("signin")} />
@@ -884,7 +886,7 @@ export default function App() {
                 onBrowse={() => goTab("deals")} />
             )}
 
-            {screen.name === 'compare' && <Suspense fallback={<p role="status" className="compare-empty">Opening comparison…</p>}><ComparisonScreen onOpen={id=>go(`/c/${id}`)}/></Suspense>}
+            {screen.name === 'compare' && <LoadBoundary><Suspense fallback={<p role="status" className="compare-empty">Opening comparison…</p>}><ComparisonScreen onOpen={id=>go(`/c/${id}`)}/></Suspense></LoadBoundary>}
 
 
 

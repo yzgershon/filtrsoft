@@ -253,10 +253,17 @@ export function passwordProblem(pw: unknown): string | null {
 const findByEmail = (email: string) =>
   db().query(`SELECT * FROM users WHERE email = ?`).get(email.trim().toLowerCase()) as any;
 
+// Local deal discovery is a private workspace. Reopening registration must be
+// deliberate; existing password accounts and verified provider links still work.
+export const registrationOpen = () => process.env.FILTRSOFT_REGISTRATION === 'open';
+export class RegistrationClosed extends Error {}
+const PRIVATE_MESSAGE = 'Filtrsoft is a private workspace. Sign in with an existing account.';
+
 export async function handleSignup(c: Context) {
+  if (!registrationOpen()) return c.json({ error: PRIVATE_MESSAGE, registrationClosed: true }, 403);
   const b = await c.req.json().catch(() => null) as
     { email?: string; password?: string; name?: string; ref?: string } | null;
-  const email = (b?.email ?? "").trim().toLowerCase();
+  const email = typeof b?.email === 'string' ? b.email.trim().toLowerCase() : '';
   if (!EMAIL_OK.test(email)) return c.json({ error: "enter a valid email address" }, 400);
   const pwErr = passwordProblem(b?.password);
   if (pwErr) return c.json({ error: pwErr }, 400);
@@ -276,7 +283,7 @@ export async function handleSignup(c: Context) {
   }
 
   const hash = await Bun.password.hash(b!.password!);
-  const name = (b?.name ?? "").trim().slice(0, 80) || null;
+  const name = typeof b?.name === 'string' ? b.name.trim().slice(0, 80) || null : null;
   const r = db().run(
     `INSERT INTO users (email, password_hash, name, created_at, last_seen_at) VALUES (?,?,?,?,?)`,
     [email, hash, name, now(), now()],
@@ -290,7 +297,7 @@ export async function handleSignup(c: Context) {
 export async function handleSignin(c: Context) {
   const b = await c.req.json().catch(() => null) as
     { email?: string; password?: string; ref?: string } | null;
-  const email = (b?.email ?? "").trim().toLowerCase();
+  const email = typeof b?.email === 'string' ? b.email.trim().toLowerCase() : '';
   const password = b?.password;
 
   /**
@@ -359,6 +366,7 @@ export function handleMe(c: Context) {
 /** Which sign-in buttons the UI may show. See the file header. */
 export function authProviders() {
   return {
+    registrationOpen: registrationOpen(),
     password: true,
     google: Boolean(GOOGLE_CLIENT_ID()),
     googleClientId: GOOGLE_CLIENT_ID() || null,
@@ -453,7 +461,7 @@ async function verifyIdToken(idToken: string, opts: {
  * the merge happens only when the provider says `email_verified`, and
  * otherwise a separate account is created.
  */
-function upsertIdentity(opts: {
+export function upsertIdentity(opts: {
   provider: "google" | "apple";
   subject: string; email: string | null; emailVerified: boolean;
   name: string | null; picture: string | null;
@@ -477,6 +485,7 @@ function upsertIdentity(opts: {
   }
 
   if (userId == null) {
+    if (!registrationOpen()) throw new RegistrationClosed(PRIVATE_MESSAGE);
     /**
      * `users.email` is NOT NULL and UNIQUE. Apple lets a user hide their real
      * address and, on a repeat authorisation, may send no email at all — so a
@@ -525,6 +534,7 @@ export async function handleGoogle(c: Context) {
   } catch (e) {
     // The reason is logged, never returned: "wrong audience" tells an attacker
     // exactly which check to work around next.
+    if (e instanceof RegistrationClosed) return c.json({error:PRIVATE_MESSAGE,registrationClosed:true},403);
     console.error("google sign-in rejected:", (e as Error).message);
     return c.json({ error: "could not verify that Google sign-in" }, 401);
   }
@@ -564,6 +574,7 @@ export async function handleApple(c: Context) {
     setSessionCookie(c, newSession(user.id, c.req.header("user-agent")));
     return c.json({ user });
   } catch (e) {
+    if (e instanceof RegistrationClosed) return c.json({error:PRIVATE_MESSAGE,registrationClosed:true},403);
     console.error("apple sign-in rejected:", (e as Error).message);
     return c.json({ error: "could not verify that Apple sign-in" }, 401);
   }

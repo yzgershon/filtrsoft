@@ -39,6 +39,14 @@ export function upsertListingFacts(
   facts: ListingFacts,
   observedAt = now(),
 ): UpsertListingResult {
+  if(!Number.isFinite(Date.parse(observedAt)))throw new Error('Invalid listing observation time');
+  // A caller outside a batch transaction must not commit the new asking price
+  // while losing its history on a second-statement failure. Nested Bun SQLite
+  // transactions use savepoints, so the sync receiver keeps its outer boundary.
+  return d.transaction(()=>persistListingFacts(d,facts,new Date(observedAt).toISOString()))();
+}
+
+function persistListingFacts(d:Database,facts:ListingFacts,observedAt:string):UpsertListingResult {
   const price = positivePrice(facts.askingPriceCents);
   const existing = d.query(
     `SELECT id, asking_price_cents, last_price_cents, captured_at, last_seen, raw_json
@@ -86,7 +94,7 @@ export function upsertListingFacts(
     return { id: row.id, inserted: true };
   }
 
-  if (observedAt < (existing.last_seen ?? existing.captured_at)) return {id:existing.id,inserted:false,stale:true};
+  if (Date.parse(observedAt) < Date.parse(existing.last_seen ?? existing.captured_at)) return {id:existing.id,inserted:false,stale:true};
 
   const prior = positivePrice(existing.last_price_cents) ?? positivePrice(existing.asking_price_cents);
   if (prior !== null) {

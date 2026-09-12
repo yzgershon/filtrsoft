@@ -8,8 +8,9 @@ import "./migrate.ts";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
+import {LoadBoundary} from './load-boundary.tsx';
 import "./styles.css";
 
 createRoot(document.getElementById("root")!).render(
-  <StrictMode><App /></StrictMode>,
+  <StrictMode><LoadBoundary><App /></LoadBoundary></StrictMode>,
 );

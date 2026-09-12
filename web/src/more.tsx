@@ -1,4 +1,5 @@
 import { requestJSON, requestMessage } from "./api-client.ts";
+import {SystemStatus} from './system-status.tsx';
 import {CompareIcon} from './icons.tsx';
 /**
  * More — the fourth tab — plus the two screens that hang off the top bar.
@@ -86,7 +87,7 @@ export function MoreScreen({ go, savedCount, noteCount }: {
             badge={noteCount}
             onClick={() => go("/notifications")} />
           <Row icon={<Store size={17} />} label="Purchases"
-            hint="Recorded purchases and current estimates."
+            hint="Purchases, sales, costs and recorded profit."
             badge={bought ?? undefined}
             onClick={() => go("/saved?sub=purchases")} />
           <Row icon={<Save size={17} />} label="Saved listings"
@@ -132,6 +133,7 @@ export function MoreScreen({ go, savedCount, noteCount }: {
         </div>
       </div>
 
+      <SystemStatus/>
       <p className="micro2">Filtrsoft · filtrsoft.com</p>
     </div>
   );
@@ -353,9 +355,9 @@ export function AccountScreen({ go, savedCount, user, onSignedOut }: {
  * request fails the sentence loses its number rather than inventing one.
  */
 export function HowScreen() {
-  const [h, setH] = useState<{ comps?: number; skus?: number } | null>(null);
+  const [h, setH] = useState<{ comps?: {total:number;usable:number}; skus?: number } | null>(null);
   useEffect(() => {
-    fetch("/v1/health").then((r) => r.json()).then(setH).catch(() => {});
+    const ac=new AbortController();requestJSON<{comps?:{total:number;usable:number};skus?:number}>('/v1/health',{signal:ac.signal}).then(v=>{if(!ac.signal.aborted)setH(v);}).catch(()=>{});return()=>ac.abort();
   }, []);
   const n = (v?: number) => (typeof v === "number" ? v.toLocaleString() : null);
 
@@ -363,14 +365,14 @@ export function HowScreen() {
     {
       icon: <Scan size={18} />,
       title: "It reads the listing",
-      body: "Title, description and every photo, to work out what the thing actually is: the exact GPU, the exact CPU, how much RAM and storage.",
+      body: "It extracts hardware from the seller's text and available photo evidence. Unread photos, missing specifications and conflicting claims remain visible.",
     },
     {
       icon: <Tag size={18} />,
       title: "It prices it against real sales",
-      body: n(h?.comps)
-        ? `Not asking prices. ${n(h?.comps)} completed eBay sales across ${n(h?.skus)} models, which is what the thing is worth rather than what someone hoped for.`
-        : "Not asking prices. Completed eBay sales, which is what the thing is worth rather than what someone hoped for.",
+      body: n(h?.comps?.usable)
+        ? `${n(h?.comps?.usable)} eligible sold records in the current window. A listing still needs comparable model, variant, quantity and condition evidence before it can receive an estimate.`
+        : "Matching completed sales support an estimate. Sparse evidence stays unpriced; a generic model price cannot stand in for the exact item.",
     },
     {
       icon: <Alert size={18} />,
@@ -380,16 +382,16 @@ export function HowScreen() {
     {
       icon: <Grid size={18} />,
       title: "It subtracts your costs",
-      body: "Fees, shipping and the drive. A deal is only a deal after the round trip is paid for, so the verdict is what you actually clear.",
+      body: "It estimates fees, shipping and the drive against your profit floor. Record your actual purchase, sale and costs in Purchases to see the realized result.",
     },
   ];
 
   const CALLS: Array<{ call: keyof typeof LABEL; body: string }> = [
-    { call: "BUY", body: "Priced, checked, and clears your floor. Go." },
-    { call: "VERIFY", body: "One question stands between this and a Buy it. The app writes the message for you." },
-    { call: "RISK", body: "Something failed a scam check. Kept out of the main feed on purpose." },
-    { call: "FAIR", body: "Correctly priced. Nothing in it for you." },
-    { call: "PASS", body: "Above what it is worth." },
+    { call: "BUY", body: "The supported estimate clears your floor. Check any in-person conditions before paying." },
+    { call: "VERIFY", body: "Unresolved questions or evidence need checking before the deal qualifies." },
+    { call: "RISK", body: "A material defect or risk was recorded. Read the evidence; this is not proof of fraud." },
+    { call: "FAIR", body: "The asking price is near the supported estimate, with limited room after costs." },
+    { call: "PASS", body: "The price or expected return does not justify this purchase under your settings." },
     { call: "INSUFFICIENT_DATA", body: "Not enough stated to price it honestly. Filtrsoft would rather say so than guess." },
   ];
 
