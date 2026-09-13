@@ -295,6 +295,7 @@ export function Feed({ onOpen, onWatchChange, freshness }: {
   const [total, setTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [failureMessage,setFailureMessage]=useState('');
   /**
    * Offline is a DIFFERENT message from a failed request, because the fix is
    * different: one is "reconnect", the other is "try again". `navigator.onLine`
@@ -337,7 +338,10 @@ export function Feed({ onOpen, onWatchChange, freshness }: {
         if (response.status === 409 && cursor && !restarted) {
           restarted = true; target += start; start = 0; rows = []; cursor = null; continue;
         }
-        if (!response.ok) throw new Error(String(response.status));
+        if (!response.ok) {
+          const problem=await response.json().catch(()=>null);
+          throw new Error(typeof problem?.error==='string'?problem.error:response.status>=500?'Filtrsoft’s server could not load the feed. Please try again.':`The feed request failed (${response.status}). Please try again.`);
+        }
         const data = await response.json();
         if (!current()) return;
         rows.push(...(data.items ?? [])); cursor = data.nextCursor ?? null;
@@ -350,8 +354,8 @@ export function Feed({ onOpen, onWatchChange, freshness }: {
         publishFreshness({ at: data.lastCrawl?.started_at ?? null, fresh: data.freshCount ?? 0, everyMs: data.crawlEveryMs ?? 180000 });
         break;
       }
-    } catch {
-      if (current()) { if (offset === 0) setItems([]); setFailed(true); }
+    } catch(error) {
+      if (current()) { if (offset === 0) setItems([]); setFailed(true); setFailureMessage(error instanceof Error&&error.message!=='Failed to fetch'?error.message:'The feed could not be reached. Please try again.'); }
     } finally { if (current()) setLoadingMore(false); }
   }, []);
   useEffect(() => () => { ++loadGeneration.current; request.current?.abort(); }, []);
@@ -595,7 +599,7 @@ export function Feed({ onOpen, onWatchChange, freshness }: {
           <b>{offline ? "No connection" : "Couldn't load the feed"}</b>
           <p>{offline
             ? "Reconnect and try again. Nothing was lost."
-            : "The request didn't finish. This is usually the connection, not the deals."}</p>
+            : failureMessage}</p>
           <button className="btn2" onClick={() => { setFailed(false); setItems(null); void load(0, filters, spot ? Math.max(PAGE, spot.n) : PAGE); }}>
             <Again size={15} /> Try again
           </button>

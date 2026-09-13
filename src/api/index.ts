@@ -46,6 +46,7 @@ import {
 } from "./auth.ts";
 import { getEconomics } from "../valuation/index.ts";
 import { db, DB_PATH } from "../db/index.ts";
+import {storageStatus} from '../db/storage.ts';
 import { isoAgo } from "../db/time.ts";
 import { getThumb, thumbStats, pruneThumbs, THUMBS_OFF } from "../photos/thumb.ts";
 import {
@@ -66,6 +67,14 @@ import {
 } from "./guard.ts";
 
 export const app = new Hono();
+app.onError((error,c)=>{
+  console.error(error);
+  if((error as {code?:string}).code==='SQLITE_FULL') {
+    c.header('Retry-After','60');
+    return c.json({error:'Server storage is full. This operation could not be saved. Please try again after storage is restored.',code:'storage_full'},503);
+  }
+  return c.json({error:'Filtrsoft could not complete this request. Please try again.',code:'server_error'},500);
+});
 
 /** Facet counts, so a filter chip never offers a value with nothing behind it. */
 function countBy<T>(rows: T[], key: (r: T) => string | null | undefined): Record<string, number> {
@@ -301,6 +310,7 @@ function badUrl(url: string | undefined): string | null {
  * this. `canPrice` is the field to alert on.
  */
 app.get("/v1/health", (c) => {
+  const storage=storageStatus(DB_PATH);
   let stats: Record<string, unknown> = { db: "unavailable" };
   let canPrice = false;
   let coverage:ReturnType<typeof compsHealth>|null=null;
@@ -324,11 +334,12 @@ app.get("/v1/health", (c) => {
   // A public liveness read must not enumerate a private workspace's agent,
   // notification address, spend or activity. Same-origin signed-in requests
   // retain the diagnostic detail. Thumbnail requests carry that same cookie.
-  if(!currentUser(c))return c.json({ok:canPrice,canPrice,engine:ENGINE_VERSION,db:stats.db,
+  if(!currentUser(c))return c.json({ok:canPrice&&storage.pressure!=='critical',canPrice,engine:ENGINE_VERSION,db:stats.db,storage:{pressure:storage.pressure},
     comps:coverage?{total:coverage.total,usable:coverage.usable,skusPriceable:coverage.skusPriceable,skusTotal:coverage.skusTotal}:null,
     skus:stats.skus,scoring:(()=>{try{return scoringStatus();}catch{return {complete:false,error:'unavailable'};}})()});
   return c.json({
-    ok: canPrice,
+    ok: canPrice&&storage.pressure!=='critical',
+    storage,
     canPrice,
     engine: ENGINE_VERSION,
     ...stats,

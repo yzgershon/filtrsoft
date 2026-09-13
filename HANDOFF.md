@@ -3,7 +3,7 @@
 **Master plan AND current state. Update before you stop working.** A stale line
 here is worse than a missing one, because a fresh session will believe it.
 
-**Last updated 2026-09-12.** Read section 0 first and in order; it is the record
+**Last updated 2026-09-13.** Read section 0 first and in order; it is the record
 of every session since the rename and it supersedes anything below it that
 disagrees. Sections 1 onward are older material kept for the reasoning, not for
 current numbers.
@@ -89,7 +89,17 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
-### Current release: 2026-09-12, private workspace, pushed and live
+### Active work: 2026-09-13, restore access and add market history
+
+**Yish explicitly wants public account creation restored.** The September 12 registration closure was an incorrect interpretation of his private-scanner plans; it is superseded. Keep account-owned data isolated and add Google sign-in to both authentication modes. Google needs a public OAuth web client ID, not Yish's personal token. No credential handling or paid services.
+
+Current requested work: fix the production feed failure; only ask purchase follow-ups for actual clicks to original seller listings; build interactive product market-price history across supported categories, with truthful time coverage and exact variants; complete useful integrated improvements and release. Plan: `docs/MARKET-HISTORY-PLAN-2026-09-13.md`. Work only in `C:\Dev\filtrsoft-backend`, clean start `7f8ac6c`, remote main verified `d04ce5d`. Preserve shared checkout edits and database. Existing permission to push main and deploy Railway persists.
+
+Initial diagnosis: failure reproduced in Yish's signed-in Chrome. A direct authenticated `/v1/feed?quality=review&limit=60&offset=0` returns **Internal Server Error**, so the UI's connection explanation is unsupported. Old follow-up eligibility reads detail-view history, not outbound clicks. No current-task fixes deployed yet. Historical coverage remains unmeasured; never fabricate a three-year series from the current sold-search archive.
+
+**Urgent recovery checkpoint:** Railway logs confirm `SQLITE_FULL` at `feedWindow`'s pagination INSERT, plus failed enrichment and crawl writes. Railway volume UI reports **5 GB, 100% capacity**. Prepared a bounded memory pagination cache (account/filter isolation and 409 recovery retained), default-open signup, accurate API/UI storage errors, storage-pressure health and startup file/table-size diagnostics. SQLite performs its own guarded WAL checkpoint; no manual file deletion, user-record removal, volume resizing or purchase. Windows and network-disabled Linux ARM64: **314 tests / 0 failures / 915 assertions**, TypeScript and Vite passed. This small deployment precedes outcome and market-history work so live storage can be diagnosed first. Engine and archive unchanged. Recovery is not yet verified live.
+
+### Previous release: 2026-09-12, private workspace, pushed and live
 
 Yish requests a sustained frontend/backend improvement pass with implementation, and a researched tech software business that does not distribute the same scarce local deals. **Filtrsoft's scanner is intended for private use for now.** Plan and checkpoints: `docs/ECOSYSTEM-PLAN-2026-09-12.md`. Sole editor in `C:\Dev\filtrsoft-backend`, clean start `75fc352`; pre-release remote main was `c85a75b`, now `d04ce5d`. Shared main `C:\Dev\filtrsoft` is at `e5a7023` with existing `web/src/detail.tsx` and `web/src/types.ts` edits; preserve it and its database. Existing main/Railway deployment authorization persists. No new paid services, seller messages or duplicate crawls.
 

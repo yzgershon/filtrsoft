@@ -6,6 +6,7 @@ import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { installCompEvidence, soldEvidence } from "./comp-evidence.ts";
 import { installPricingRevisions } from "./revisions.ts";
+import {logStorage} from './storage.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const DB_PATH = process.env.FILTRSOFT_DB ?? join(here, "../../filtrsoft.db");
@@ -59,6 +60,8 @@ export function db(): Database {
    */
   _db.exec("PRAGMA journal_mode = WAL");
   _db.exec("PRAGMA busy_timeout = 5000");
+  _db.exec("PRAGMA journal_size_limit = 16777216");
+  if(process.env.RAILWAY_ENVIRONMENT_ID)logStorage(_db,DB_PATH);
 
   _db.exec(readFileSync(join(here, "schema.sql"), "utf8"));
   migrate(_db);

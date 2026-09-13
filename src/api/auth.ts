@@ -255,7 +255,8 @@ const findByEmail = (email: string) =>
 
 // Local deal discovery is a private workspace. Reopening registration must be
 // deliberate; existing password accounts and verified provider links still work.
-export const registrationOpen = () => process.env.FILTRSOFT_REGISTRATION === 'open';
+// Yish explicitly restored public signup on September 13. Closure is opt-in.
+export const registrationOpen = () => process.env.FILTRSOFT_REGISTRATION !== 'closed';
 export class RegistrationClosed extends Error {}
 const PRIVATE_MESSAGE = 'Filtrsoft is a private workspace. Sign in with an existing account.';
 

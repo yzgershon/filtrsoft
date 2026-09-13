@@ -18,9 +18,23 @@ const fixture=`
   const payload=v=>({revision:v.revision,basis:v.basis,notes:v.notes,answers:v.checks.map(({id,state,note})=>({id,state,note}))});
 `;
 
+test('authenticated feed serves real persisted listings',()=>isolated(fixture+`
+  d.exec('PRAGMA query_only=ON');
+  const r=await request(1,'/v1/feed?quality=review&limit=60&offset=0');
+  assert.equal(r.status,200,await r.clone().text());
+  assert.equal((await r.json()).items[0].id,listingId);
+`));
+
+test('registration is open without configuration',()=>isolated(fixture+`
+  delete process.env.FILTRSOFT_REGISTRATION;
+  assert.equal((await (await request(null,'/v1/auth/me')).json()).providers.registrationOpen,true);
+  const r=await request(null,'/v1/auth/signup','POST',{email:'signup@example.invalid',password:'a long synthetic password'});
+  assert.equal(r.status,200,await r.clone().text());
+`));
+
 test('private registration closes password and new social accounts while preserving existing provider access',()=>isolated(fixture+`
   import {upsertIdentity,RegistrationClosed} from '@/src/api/auth.ts';
-  delete process.env.FILTRSOFT_REGISTRATION;
+  process.env.FILTRSOFT_REGISTRATION='closed';
   assert.equal((await request(null,'/v1/auth/signup','POST',{email:'new@example.invalid',password:'a long test password'})).status,403);
   assert.equal((await (await request(null,'/v1/auth/me')).json()).providers.registrationOpen,false);
   const claims={provider:'google',subject:'new-google',email:'new@example.invalid',emailVerified:true,name:null,picture:null};
