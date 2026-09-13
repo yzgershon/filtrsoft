@@ -521,6 +521,20 @@ describe("listing fact persistence", () => {
 });
 
 describe("verdict retention", () => {
+  test('hourly scheduling markers do not duplicate identical evidence or rewrite its provenance',()=>{
+    const d=new Database(':memory:');
+    d.exec('CREATE TABLE verdicts(id INTEGER PRIMARY KEY,listing_id INTEGER,engine_version TEXT,call TEXT,confidence TEXT,payload TEXT,created_at TEXT)');
+    const first={call:'VERIFY',confidence:'medium',provenance:{dataRevision:'1|2026-09-13T10',factsHash:'same',facts:{description:'Exact seller words'}},valuation:{medianCents:25000,comps:[{id:1,priceCents:25000}]}};
+    const original=storeVerdictWithDb(d,1,'test',first,'2026-09-13T10:00:00Z');
+    const later={...first,provenance:{...first.provenance,dataRevision:'2|2026-09-13T11'}};
+    expect(storeVerdictWithDb(d,1,'test',later,'2026-09-13T11:00:00Z')).toEqual({inserted:false,refreshed:false,id:original.id});
+    expect(JSON.parse((d.query('SELECT payload FROM verdicts').get() as {payload:string}).payload).provenance.dataRevision).toBe(first.provenance.dataRevision);
+    expect(later.provenance.dataRevision).toBe('2|2026-09-13T11');
+    expect(storeVerdictWithDb(d,1,'test',{...later,valuation:{...later.valuation,comps:[{id:2,priceCents:25000}]}},'2026-09-13T12:00:00Z').inserted).toBe(true);
+    expect(storeVerdictWithDb(d,1,'test',later,'2026-09-13T13:00:00Z').inserted).toBe(true);
+    expect(storeVerdictWithDb(d,1,'next',later,'2026-09-13T14:00:00Z').inserted).toBe(true);
+    d.close();
+  });
   test("deduplicates same-revision answers and preserves prior engine revisions", () => {
     const db = new Database(":memory:");
     db.run(`CREATE TABLE verdicts (

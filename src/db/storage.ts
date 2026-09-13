@@ -28,4 +28,10 @@ export function logStorage(d:Database,path:string) {
   console.log('storage checkpoint',JSON.stringify(checkpointStorage(d,path)));
   try {console.log('storage files',JSON.stringify(readdirSync(dirname(path),{withFileTypes:true}).map(f=>({name:f.name,directory:f.isDirectory(),bytes:f.isFile()?statSync(join(dirname(path),f.name)).size:null}))));}catch{}
   try {console.log('storage tables',JSON.stringify(d.query('SELECT name,SUM(pgsize) bytes FROM dbstat GROUP BY name ORDER BY bytes DESC LIMIT 12').all()));}catch{}
+  try {console.log('storage pages',JSON.stringify({pages:d.query('PRAGMA page_count').get(),free:d.query('PRAGMA freelist_count').get(),pageSize:d.query('PRAGMA page_size').get()}));}catch{}
+  for(const name of ['backups','photos'])try {console.log('storage directory',name,JSON.stringify(readdirSync(join(dirname(path),name),{withFileTypes:true}).slice(0,100).map(f=>({name:f.name,directory:f.isDirectory(),bytes:f.isFile()?statSync(join(dirname(path),name,f.name)).size:null}))));}catch{}
+  // Counts use indexes; sample only recent payload lengths rather than scanning
+  // gigabytes of history on the API's startup path.
+  for(const table of ['verdicts','decision_views','outcomes','comps'])try {console.log('storage rows',table,JSON.stringify(d.query(`SELECT COUNT(*) n FROM ${table}`).get()));}catch{}
+  try {console.log('storage verdict sample',JSON.stringify(d.query('SELECT AVG(length(payload)) meanBytes,MIN(created_at) oldest,MAX(created_at) newest FROM (SELECT payload,created_at FROM verdicts ORDER BY id DESC LIMIT 1000)').get()));}catch{}
 }

@@ -36,6 +36,19 @@ export interface StoreVerdictResult {
   id: number;
 }
 
+/** A global hourly expiry tick is a reason to recompute, not a new answer.
+ * Keep the first persisted revision as provenance when every actual fact,
+ * selected comp, risk, value and economic input is unchanged. September 13's
+ * 4.42 GB production database exposed the timestamp defeating exact dedupe.
+ * Only this scheduling marker is ignored; no seller evidence is normalized. */
+function decisionContent(payload:string):string {
+  try {
+    const value=JSON.parse(payload);
+    if(value?.provenance && typeof value.provenance==='object')delete value.provenance.dataRevision;
+    return JSON.stringify(value);
+  }catch{return payload;}
+}
+
 export function storeVerdict(
   listingId: number,
   engineVersion: string,
@@ -67,7 +80,7 @@ export function storeVerdictWithDb(
   } | null;
 
   if (latest && latest.call === verdict.call &&
-      latest.confidence === confidence && latest.payload === payload) {
+      latest.confidence === confidence && (latest.payload === payload || decisionContent(latest.payload)===decisionContent(payload))) {
     if(latest.engine_version===engineVersion)return {inserted:false,refreshed:false,id:latest.id};
     // An engine revision is historical evidence once a label references it.
     // Append rather than rewriting its version and timestamp under that label.
