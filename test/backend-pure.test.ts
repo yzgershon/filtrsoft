@@ -530,7 +530,8 @@ describe("verdict retention", () => {
     expect(storeVerdictWithDb(d,1,'test',later,'2026-09-13T11:00:00Z')).toEqual({inserted:false,refreshed:false,id:original.id});
     expect(JSON.parse((d.query('SELECT payload FROM verdicts').get() as {payload:string}).payload).provenance.dataRevision).toBe(first.provenance.dataRevision);
     expect(later.provenance.dataRevision).toBe('2|2026-09-13T11');
-    expect(storeVerdictWithDb(d,1,'test',{...later,valuation:{...later.valuation,comps:[{id:2,priceCents:25000}]}},'2026-09-13T12:00:00Z').inserted).toBe(true);
+    const differentEvidence={...later,valuation:{...later.valuation,comps:[{id:2,priceCents:25000}]}};
+    expect(storeVerdictWithDb(d,1,'test',differentEvidence,'2026-09-13T12:00:00Z').inserted).toBe(true);
     expect(storeVerdictWithDb(d,1,'test',later,'2026-09-13T13:00:00Z').inserted).toBe(true);
     expect(storeVerdictWithDb(d,1,'next',later,'2026-09-13T14:00:00Z').inserted).toBe(true);
     d.close();
