@@ -89,7 +89,11 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
-### Active work: September 14 UTC, account sync and public website
+### Current release: September 14 UTC, account sync and public website live
+
+**Pushed and verified:** final application commit **d922b11fc02b8fbc178aa110f77284abb01ac077** follows implementation **ddb5c5b** on main. Railway deployment **6429540507** succeeded **2026-09-14T02:50:03Z**. Native amd64 CI **34800487989** completed successfully **02:51:15Z**, including all tests, typecheck, frontend build, Docker verification and production image build. The **02:51:06Z** public receipt matched all six JS/CSS assets and both WebP images by SHA-256, confirmed anonymous isolation and public registration, and found engine **0.3.35**, **31,900 total / 28,431 usable comps**, healthy DB, low storage pressure and **zero pending / zero failed scores**. Receipt: `docs/qa/account-sync/production.json`.
+
+The live public website and eight-character signup helper/HTML minimum were visibly verified. Cross-device theme/save/removal and account separation were verified against disposable sessions on independent loopback origins; no physical phone test or signed-in production sync test is claimed because the available production browser was signed out. Google remains unconfigured and its prepared setup still awaits Yish's final client-creation action. No credential was handled. The local disposable preview was stopped after QA. This release supersedes the in-progress checkpoints below.
 
 Yish requested same-account sync across computers/phone, eight-character passwords, and a richer public website with generated images and animations. Sole editor in `C:\Dev\filtrsoft-backend`, clean start `48b0953`; shared main remains untouched. Plan: `docs/ACCOUNT-SYNC-WEBSITE-PLAN-2026-09-14.md`. Saved listings, preferences, local history/notifications and read markers need new account persistence; reviews, purchases, inspections, market pins, dismissals and saved searches are already account-owned. Preserve old device records during owner-verified migration, prevent account mixing and stale deletion resurrection, and show real sync/retry/conflict state. Public artwork is illustrative, never listing evidence. Main/Railway deployment remains authorized. Google client creation is still pending with Yish.
 

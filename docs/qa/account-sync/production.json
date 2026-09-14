@@ -1,0 +1,99 @@
+{
+  "at": "2026-09-14T02:51:06.384Z",
+  "commit": "d922b11fc02b8fbc178aa110f77284abb01ac077",
+  "assets": [
+    {
+      "path": "assets/compare-Ne_DyKdr.js",
+      "status": 200,
+      "type": "text/javascript; charset=utf-8",
+      "matches": true
+    },
+    {
+      "path": "assets/index-DxKSbV8h.js",
+      "status": 200,
+      "type": "text/javascript; charset=utf-8",
+      "matches": true
+    },
+    {
+      "path": "assets/index-kw56CDQN.css",
+      "status": 200,
+      "type": "text/css; charset=utf-8",
+      "matches": true
+    },
+    {
+      "path": "assets/listing-workspace-BFua5NJd.js",
+      "status": 200,
+      "type": "text/javascript; charset=utf-8",
+      "matches": true
+    },
+    {
+      "path": "assets/market-CEAvwoFe.js",
+      "status": 200,
+      "type": "text/javascript; charset=utf-8",
+      "matches": true
+    },
+    {
+      "path": "assets/purchase-editor-DUecgYhl.js",
+      "status": 200,
+      "type": "text/javascript; charset=utf-8",
+      "matches": true
+    },
+    {
+      "path": "art/hardware-studio.webp",
+      "status": 200,
+      "type": "image/webp",
+      "matches": true
+    },
+    {
+      "path": "art/silicon-detail.webp",
+      "status": 200,
+      "type": "image/webp",
+      "matches": true
+    }
+  ],
+  "routes": [
+    {
+      "path": "/v1/feed",
+      "status": 401
+    },
+    {
+      "path": "/v1/account/sync?account=1",
+      "status": 401
+    },
+    {
+      "path": "/v1/market/products",
+      "status": 401
+    },
+    {
+      "path": "/v1/follow-ups",
+      "status": 401
+    }
+  ],
+  "health": {
+    "ok": true,
+    "canPrice": true,
+    "engine": "0.3.35",
+    "db": "ok",
+    "storage": {
+      "pressure": "low"
+    },
+    "comps": {
+      "total": 31900,
+      "usable": 28431,
+      "skusPriceable": 492,
+      "skusTotal": 563
+    },
+    "skus": 575,
+    "scoring": {
+      "signature": "6861|2026-09-14T02",
+      "pending": 0,
+      "failures": 0,
+      "complete": true
+    }
+  },
+  "registrationOpen": true,
+  "googleConfigured": false,
+  "privacy": true,
+  "entryMatches": true,
+  "ok": true
+}
