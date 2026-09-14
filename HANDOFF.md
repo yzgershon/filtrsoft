@@ -95,7 +95,9 @@ Yish requested same-account sync across computers/phone, eight-character passwor
 
 Implementation checkpoint: per-entry account revisions, owner-checked legacy import, offline outbox, deletion tombstones, per-field conflict choices and cache recovery are implemented. Windows and pinned Linux **337 pass / 0 fail / 975 assertions**; typecheck/Vite pass. Two independent browser origins verified preference sync and saving/removing the same listing in both directions; a separate account opened an isolated workspace. Public website inspected at desktop and in a 375px frame; menu, keyboard-operated walkthrough tabs and FAQ work. Linux first pass exposed two test fixture imports resolving from a temporary directory; fixed using the existing absolute package-fixture convention and full rerun passed. Ready to push. No physical-phone verification claimed. Results: `docs/ACCOUNT-SYNC-WEBSITE-RESULTS-2026-09-14.md`.
 
-### Current release: 2026-09-13 EDT / September 14 UTC, access and market history live
+Push checkpoint: application `ddb5c5b` reached main; Railway `6429522886` succeeded at `2026-09-14T02:48:08Z`. Final signup visual check found one stale helper sentence spelling out twelve despite correct eight-character input and API enforcement. Corrected it to derive from the shared constant; final live verification follows that copy correction.
+
+### Previous release: 2026-09-13 EDT / September 14 UTC, access and market history live
 
 **Pushed and verified live:** application commit **20df9209703f34c1b60c1580f03d05c42fcf2db4** is on `origin/main`. Railway deployment **6428823295** succeeded at **2026-09-14T01:32:29Z**; native CI **34796210266** passed. The public release check at **01:33:41Z** matched all six compiled JS/CSS assets by SHA-256, verified the real privacy document and anonymous API isolation, and observed registration open, engine **0.3.35**, **31,900 total / 28,431 usable comps**, database healthy, storage pressure low, and **zero pending / zero failed scores**. Receipt: `docs/qa/market/production.json`.
 

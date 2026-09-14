@@ -262,7 +262,7 @@ export function AuthScreen({ mode, providers, onDone, onMode, onBack }: {
           </span>
           {signup && (
             <em className="authhint">
-              Twelve characters or more. A short sentence beats a scrambled word.
+              At least {PASSWORD_MIN} characters. A short sentence beats a scrambled word.
             </em>
           )}
         </label>
