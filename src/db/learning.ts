@@ -1,6 +1,7 @@
 import {randomUUID} from "node:crypto";
 import type {Database} from "bun:sqlite";
 import {db,now} from "./index.ts";
+import {decodeVerdictPayload} from './verdict-history.ts';
 
 export function installLearning(d:Database) {
   const add=(table:string,columns:Record<string,string>)=>{
@@ -32,7 +33,8 @@ export function decisionAt(listingId:number,userId:number|null,token?:string,at=
     const r=d.query('SELECT decision_id id,payload FROM decision_views WHERE token=? AND user_id=? AND listing_id=? AND expires_at>?').get(token,userId,listingId,now()) as {id:number|null;payload:string}|null;
     if(!r)throw new Error('Decision reference expired or belongs to another account/listing');return r;
   }
-  return d.query('SELECT id,payload FROM verdicts WHERE listing_id=? AND created_at<=? ORDER BY id DESC LIMIT 1').get(listingId,at) as {id:number;payload:string}|null ?? {id:null,payload:null};
+  const row=d.query('SELECT id,payload FROM verdicts WHERE listing_id=? AND created_at<=? ORDER BY id DESC LIMIT 1').get(listingId,at) as {id:number;payload:string}|null;
+  return row?{id:row.id,payload:decodeVerdictPayload(row.payload)}:{id:null,payload:null};
 }
 export function decisionSku(payload:string|null):number|null {
   try{return JSON.parse(payload??'null')?.provenance?.match?.skuId??null;}catch{return null;}
