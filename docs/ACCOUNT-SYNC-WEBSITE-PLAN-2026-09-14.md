@@ -1,0 +1,11 @@
+# Account sync and public website
+
+Yish requested automatic same-account sync across PCs and phone, an eight-character password minimum, and a substantially redesigned public website with generated images and motion. Existing main/Railway deployment authorization applies. Work starts from clean `48b0953` in the isolated frontend checkout; preserve the shared main checkout.
+
+1. Add account-scoped saved listings, preferences, recently viewed history, notification history and read markers. Migrate existing device records only to their verified owner. Merge independent edits, preserve deletion tombstones and surface same-field conflicts. Queue offline changes; refresh on reconnect/focus and while visible. Settings must report actual sync state and retry.
+2. Keep already server-owned reviews, purchases, inspections, pins, dismissals and searches under the existing account. Browser permission grants and unsaved editor drafts remain device-local and are explained.
+3. Set the shared password minimum to eight; preserve password hashing, upper bound and sign-in protections.
+4. Rebuild the public landing page with original generated hardware artwork, interactive product storytelling, restrained scroll reveals, responsive layout and reduced-motion behavior. No fabricated market prices, testimonials, earnings or completeness claims.
+5. Verify two independent sessions and account isolation against a disposable API; run regressions, typecheck/build and responsive browser QA; push and verify deployed assets, health and CI. Update handoff with measured results and any remaining external Google setup.
+
+Current checkpoint: sync protocol, account-scoped offline queue, owner-verified migration, conflict preservation, settings status and eight-character signup are implemented. Windows suite: **335 tests / 0 failures / 968 assertions**; TypeScript and Vite pass. Two generated hardware artworks are optimized WebP (about 94 KB and 152 KB) and integrated into the new public website. Desktop visual QA and walkthrough tabs pass. Two independent loopback origins verified a light-theme change crossing devices. Continuing saved-list/removal/account-switch and mobile verification, then pinned Linux release checks. No new release pushed yet.

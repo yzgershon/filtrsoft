@@ -239,7 +239,8 @@ const EMAIL_OK = /^[^@\s]+@[^@\s.]+\.[^@\s]+$/;
  * cracking dictionary — while banning the long passphrase that would actually
  * be strong. NIST dropped composition rules for exactly this reason.
  */
-export const PASSWORD_MIN = 12;
+export {PASSWORD_MIN} from '../account-sync.ts';
+import {PASSWORD_MIN} from '../account-sync.ts';
 
 export function passwordProblem(pw: unknown): string | null {
   if (typeof pw !== "string" || !pw) return "a password is required";

@@ -12,6 +12,7 @@ COPY web/ ./
 # Compare's part-kind contract is shared with the API; Vite imports its small
 # runtime constant while erasing the type-only engine references.
 COPY src/comparison/types.ts /src/comparison/types.ts
+COPY src/account-sync.ts /src/account-sync.ts
 RUN node node_modules/vite/bin/vite.js build
 
 # ── stage 2: server ──────────────────────────────────────────────────────────

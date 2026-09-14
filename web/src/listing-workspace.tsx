@@ -1,4 +1,5 @@
-import {useEffect,useId,useState} from 'react';
+import {useEffect,useId,useState,useRef} from 'react';
+import {useAccountRefresh} from './account-refresh.ts';
 import {requestJSON,requestMessage} from './api-client.ts';
 import {money,toast} from './lib.tsx';
 import {Clock,Shield} from './icons.tsx';
@@ -43,6 +44,18 @@ export function InspectionWorkspace({id}:{id:number}) {
   const [view,setView]=useState<Inspection|null>(null),[draft,setDraft]=useState<Draft|null>(null),[recovery,setRecovery]=useState<Draft|null>(null);
   const [error,setError]=useState(''),[busy,setBusy]=useState(false),[retry,setRetry]=useState(0);
   const prefix=useId(),dirty=!!view&&!!draft&&contents(view)!==contents(draft);
+  const background=useRef<AbortController|null>(null);
+  const latest=useRef({dirty,busy,id,view});latest.current={dirty,busy,id,view};
+  useEffect(()=>()=>{background.current?.abort();},[id,dirty,busy,retry]);
+  useAccountRefresh(()=>{
+    if(dirty||busy||!view)return;
+    background.current?.abort();const ac=new AbortController();background.current=ac;
+    void requestJSON<Inspection>(`/v1/checks/${id}/inspection`,{signal:ac.signal},v=>Array.isArray(v?.checks)&&Number.isInteger(v.revision)&&typeof v.basis==='string').then(v=>{
+      const current=latest.current;
+      if(ac.signal.aborted||current.id!==id||current.dirty||current.busy||!current.view||v.revision<current.view.revision)return;
+      if(v.revision!==current.view.revision||v.basis!==current.view.basis){setView(v);setDraft(v);}
+    }).catch(()=>{});
+  },!dirty&&!busy);
   useEffect(()=>{const ac=new AbortController();setView(null);setDraft(null);setError('');setRecovery(null);
     requestJSON<Inspection>(`/v1/checks/${id}/inspection`,{signal:ac.signal},v=>Array.isArray(v?.checks)&&Number.isInteger(v.revision)&&typeof v.basis==='string')
       .then(v=>{if(ac.signal.aborted)return;setView(v);setDraft(v);

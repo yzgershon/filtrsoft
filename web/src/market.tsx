@@ -1,5 +1,6 @@
 import {useEffect,useRef,useState,useId} from 'react';
 import {requestJSON,requestMessage} from './api-client.ts';
+import {useAccountRefresh} from './account-refresh.ts';
 import {NAVIGATE,pushRoute,replaceRoute} from './history.ts';
 import {Popup} from './popup.tsx';
 import {Alert,Again,Search,Star,Cross} from './icons.tsx';
@@ -24,6 +25,16 @@ function ProductPicker({initialQuery,onChoose}:{initialQuery:string;onChoose:(p:
     }catch(e){if(!ac.signal.aborted)setError(requestMessage(e));}finally{if(!ac.signal.aborted)setBusy(false);}
   };
   useEffect(()=>{setData(null);setBusy(true);const timer=setTimeout(()=>void load(),200);return()=>{clearTimeout(timer);controller.current?.abort();};},[q,category,pinned,retry]);
+  useAccountRefresh(signal=>{
+    void requestJSON<Catalog>('/v1/market/products?pinned=1',{signal}).then(result=>{
+      if(signal.aborted)return;
+      const ids=new Set(result.items.map(p=>p.id));
+      setData(old=>{if(!old)return old;if(!pinned)return {...old,items:old.items.map(p=>({...p,pinned:ids.has(p.id)}))};
+        const items=result.items.filter(p=>(!category||category===p.category)&&q.toLowerCase().split(/\s+/).every(w=>`${p.brand} ${p.model}`.toLowerCase().includes(w)));
+        return {...old,items,total:items.length,nextOffset:null};
+      });
+    }).catch(()=>{});
+  },!busy);
   return <div className="market-picker">
     <label className="market-search"><Search size={19}/><input type="search" value={q} onChange={e=>setQ(e.target.value)} placeholder="Search hardware, phones and more" aria-label="Search market products" maxLength={100}/>{q&&<button aria-label="Clear product search" onClick={()=>setQ('')}><Cross/></button>}</label>
     <div className="market-picker-filters"><label className="sr-only" htmlFor="market-category">Product category</label><select id="market-category" value={category} onChange={e=>setCategory(e.target.value)}><option value="">All categories</option>{(data?.categories??Object.keys(categories)).map(c=><option key={c} value={c}>{categories[c]??c}</option>)}</select><button className={pinned?'active':''} aria-pressed={pinned} onClick={()=>setPinned(v=>!v)}><Star size={16} filled={pinned}/>Pinned</button></div>
@@ -83,6 +94,9 @@ export default function MarketScreen() {
     void requestJSON<MarketResponse>(resource,{signal:ac.signal},d=>Array.isArray(d?.points)&&Array.isArray(d?.cohorts)&&Array.isArray(d?.sales)&&typeof d?.product?.model==='string').then(d=>{if(!ac.signal.aborted)setData(d);}).catch(e=>{if(!ac.signal.aborted)setError(requestMessage(e));}).finally(()=>{if(!ac.signal.aborted)setBusy(false);});
     return()=>ac.abort();
   },[resource,retry]);
+  useAccountRefresh(signal=>{
+    void requestJSON<Catalog>('/v1/market/products?pinned=1',{signal}).then(result=>{if(!signal.aborted)setData(d=>d?{...d,pinned:result.items.some(p=>p.id===d.product.id)}:d);}).catch(()=>{});
+  },!!data&&!pinBusy&&!busy);
   const select=(changes:Record<string,string|null>,push=false)=>{const next=new URLSearchParams(location.search);for(const [key,value] of Object.entries(changes)){if(value===null)next.delete(key);else next.set(key,value);}(push?pushRoute:replaceRoute)(`/market?${next}`);};
   const choose=(p:MarketProduct)=>{setPicker(false);select({product:String(p.id),cohort:null},true);};
   const pin=async()=>{if(!data)return;setPinBusy(true);setPinError('');const target=data.product.id,wanted=!data.pinned;try{await requestJSON(`/v1/market/products/${target}/pin`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pinned:wanted})});setData(d=>d?.product.id===target?{...d,pinned:wanted}:d);}catch(e){setPinError(requestMessage(e));}finally{setPinBusy(false);}};

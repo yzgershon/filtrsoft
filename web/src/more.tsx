@@ -299,7 +299,7 @@ export function AccountScreen({ go, savedCount, user, onSignedOut }: {
           </button>
         </div>
         <p className="snote">
-          Saved listings and preferences are stored in this browser. Your account connects your plan and listing reviews; keep the device ID if you need help recovering this browser's data.
+          Your saved listings, preferences, history and workspace sync across devices signed into this account. See Account sync in Settings for status and pending changes.
         </p>
       </div>
 

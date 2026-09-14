@@ -1,3 +1,4 @@
+import {accountSync} from './account-sync.ts';
 import { dismissedIds, setDismissed, listDismissed } from "./dismissals.ts";
 import {recordSellerClick,followUp,dismissFollowUp} from './follow-ups.ts';
 import {handleInspection,saveInspection,handlePriceHistory} from './listing-workspace.ts';
@@ -645,6 +646,8 @@ app.get("/v1/landing", (c) => {
   }
 });
 
+app.get('/v1/account/sync',accountSync);
+app.post('/v1/account/sync',accountSync);
 app.post("/v1/auth/signup", handleSignup);
 app.post("/v1/auth/signin", handleSignin);
 app.post("/v1/auth/signout", handleSignout);
@@ -1321,6 +1324,7 @@ const hasBuild = existsSync(`${DIST}/index.html`);
 if (hasBuild) {
   app.get('/privacy',serveStatic({path:`${DIST}/privacy.html`}));
   app.use("/assets/*", serveStatic({ root: DIST }));
+  app.use('/art/*',serveStatic({root:DIST}));
 
   /**
    * ROOT-LEVEL STATIC FILES MUST BE LISTED, or the SPA fallback eats them.

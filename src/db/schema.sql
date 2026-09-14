@@ -162,6 +162,15 @@ CREATE INDEX IF NOT EXISTS idx_outcomes_sku ON outcomes(sku_id);
 -- Verdicts are computed RELATIVE TO THE USER, not globally.
 -- See CALIBRATION-2026-08-23.md finding 1: "but thats just me."
 
+CREATE TABLE IF NOT EXISTS account_sync (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  value_json TEXT NOT NULL,
+  revision INTEGER NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY(user_id,key)
+);
+
 CREATE TABLE IF NOT EXISTS user_economics (
   id                           INTEGER PRIMARY KEY,
   label                        TEXT NOT NULL UNIQUE,

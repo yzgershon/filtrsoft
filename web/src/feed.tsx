@@ -1,4 +1,5 @@
 import { SaveSearch } from "./saved-searches.tsx";
+import {onAccountData} from './account-sync.ts';
 export { SaveSearch } from "./saved-searches.tsx";
 import { Popup, MenuRow } from "./popup.tsx";
 import { NAVIGATE, pushRoute } from "./history.ts";
@@ -304,6 +305,7 @@ export function Feed({ onOpen, onWatchChange, freshness }: {
    */
   const [offline, setOffline] = useState(() => typeof navigator !== "undefined" && !navigator.onLine);
   const [watch, setWatch] = useState<number[]>(readWatch);
+  useEffect(()=>onAccountData(()=>setWatch(readWatch())),[]);
 
   /**
    * ⚠ WHERE YOU WERE, RESTORED WHEN THE ROWS LAND — NOT BEFORE.

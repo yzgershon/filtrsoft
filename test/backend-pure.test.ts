@@ -1527,15 +1527,15 @@ describe("password rules", () => {
    * while rejecting the long passphrase that would actually be strong. NIST
    * dropped composition requirements for exactly this reason.
    */
-  test("twelve characters is the bar, and a passphrase clears it", () => {
+  test("eight characters is the bar, and a passphrase clears it", () => {
     expect(passwordProblem("correct horse battery")).toBeNull();
-    expect(PASSWORD_MIN).toBe(12);
+    expect(PASSWORD_MIN).toBe(8);
   });
 
   test("short passwords are refused with the reason", () => {
-    expect(passwordProblem("short")).toMatch(/at least 12/);
-    expect(passwordProblem("elevenchars")).toMatch(/at least 12/);   // 11
-    expect(passwordProblem("twelvechars!")).toBeNull();              // 12
+    expect(passwordProblem("short")).toMatch(/at least 8/);
+    expect(passwordProblem("seven77")).toMatch(/at least 8/);
+    expect(passwordProblem("eight888")).toBeNull();
   });
 
   test("a missing or non-string password is refused, never crashed on", () => {

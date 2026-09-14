@@ -8,6 +8,7 @@ import {
 import { deviceRef, toast } from "./lib.tsx";
 import { BrandMark, Wordmark } from "./brand.tsx";
 import { loadGoogleIdentity } from './google-identity.ts';
+import {PASSWORD_MIN} from '../../src/account-sync.ts';
 
 // ─────────────────────────────────────────────────────────────────── types
 
@@ -35,75 +36,7 @@ export function PrivateLanding({onSignIn}:{onSignIn:()=>void}) {
 
 // ────────────────────────────────────────────────────────────────── landing
 
-export function Landing({ onStart, onSignIn }: {
-  onStart: () => void; onSignIn: () => void;
-}) {
-  const [stats, setStats] = useState<{ comps?: number; skus?: number; listings?: number } | null>(null);
-
-  useEffect(() => {
-    /**
-     * `/v1/landing` is public and returns counts only, never listings — the
-     * whole point of the change is that the deals themselves are behind the
-     * wall. If it fails, the copy degrades to the version with no numbers in
-     * it rather than showing zeros, which would read as a dead product.
-     */
-    fetch("/v1/landing").then((r) => r.json()).then(setStats).catch(() => {});
-  }, []);
-
-  const n = (v?: number) => (typeof v === "number" && v > 0 ? v.toLocaleString() : null);
-
-  return (
-    <div className="mk redesign-landing">
-      <header className="mknav">
-        <span className="mkbrand"><BrandMark size={27} className="mark" /><Wordmark /></span>
-        <a className="landing-how-link" href="#how-it-works">How it works</a>
-        <div className="mknavr"><button className="mklink" onClick={onSignIn}>Sign in</button><button className="mkcta sm" onClick={onStart}>Get started <span aria-hidden="true">↗</span></button></div>
-      </header>
-      <main>
-        <section className="landing-intro">
-          <div className="landing-message">
-            <span className="landing-kicker"><i /> BUILT FOR THE BOSTON TECH HUNT</span>
-            <h1>A good price.<br />Or a good<br /><span>story?</span></h1>
-            <p>Know the difference before you drive. Filtrsoft checks used tech against real sold prices and looks for the risks hiding behind the deal.</p>
-            <button className="mkcta" onClick={onStart}>Find your next flip <span aria-hidden="true">↗</span></button>
-            <small>Free to get started. Your final call, always.</small>
-          </div>
-          <div className="landing-evidence" aria-label="Illustration of how Filtrsoft reviews a listing">
-            <div className="evidence-caption"><span>THE LISTING, LOOKED AT CLOSER</span><span>EXAMPLE</span></div>
-            <div className="hardware-drawing" aria-hidden="true">
-              <svg viewBox="0 0 520 300" fill="none"><defs><linearGradient id="cardMetal" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#727f90"/><stop offset=".5" stopColor="#293442"/><stop offset="1" stopColor="#48586e"/></linearGradient></defs>
-                <g transform="translate(78 60) rotate(-12 180 100)"><rect x="0" y="6" width="365" height="184" rx="17" fill="url(#cardMetal)" stroke="#abb9ce"/><rect x="12" y="18" width="340" height="157" rx="10" fill="#161e2a"/>
-                  {[96,265].map(x=><g key={x} transform={`translate(${x} 96)`}><circle r="66" fill="#293443" stroke="#6b7d96"/>{Array.from({length:9},(_,i)=><path key={i} d="M5 -12 C16 -64 48 -54 44 -26 L16 4 Z" fill="#526177" transform={`rotate(${i*40})`}/>)}<circle r="21" fill="#1d2938" stroke="#7d91ab"/><circle r="8" fill="#90aeec"/></g>)}
-                  <path d="M30 190H153V198H30" fill="#bc9f69"/><path d="M363 5H376V184H365" stroke="#a2adbe" strokeWidth="5"/>
-                </g>
-              </svg>
-              <span className="hardware-tag">LOOK BEYOND THE ASKING PRICE</span>
-            </div>
-            <div className="evidence-sample">
-              <span className="sample-verdict"><Shield size={15}/> VERIFY FIRST</span>
-              <h2>The model matches.<br />The condition still matters.</h2>
-              <div className="evidence-check"><Check size={16}/><span>Compare the exact model to completed sales</span></div>
-              <div className="evidence-check"><Alert size={16}/><span>Check the unresolved risks before pickup</span></div>
-              <div className="sample-foot">Illustrative review <span>Value · Condition · Risk</span></div>
-            </div>
-          </div>
-        </section>
-        <div className="landing-sources"><span>YOUR LOCAL MARKET, WITH CONTEXT</span><b>Craigslist</b><b>Facebook Marketplace</b><b>OfferUp</b><b>Mercari</b></div>
-        <section className="landing-method" id="how-it-works">
-          <div className="method-head"><span className="eyebrow">LESS GUESSWORK</span><h2>The asking price<br />is just the beginning.</h2><p>A cheap listing can be a great buy or an expensive mistake. See what supports the price, what remains unknown, and what to ask next.</p></div>
-          <div className="method-grid">
-            {[{n:"01", icon:<Tag size={22}/>, title:"Know the real value.",body:"Comparable completed sales for the matching hardware. If the evidence is too thin, Filtrsoft says it can't tell."},
-              {n:"02",icon:<Shield size={22}/>,title:"Spot the catch.",body:"Activation locks, missing parts, conflicting specs and seller warning signs. The unresolved questions stay visible."},
-              {n:"03",icon:<Grid size={22}/>,title:"Make your own call.",body:"See the estimated return after costs, inspect the evidence, and review the listing. Your judgment belongs in the workflow."}].map(x=><article key={x.n}><div>{x.icon}<span>{x.n}</span></div><h3>{x.title}</h3><p>{x.body}</p></article>)}
-          </div>
-        </section>
-        {(n(stats?.comps) || n(stats?.listings)) && <section className="landing-data" aria-label="Current catalog counts"><div><span className="eyebrow">EVIDENCE, NOT HYPE</span><h2>Grounded in the market.</h2></div><div><b className="num">{n(stats?.comps) || "—"}</b><span>completed sales in the archive</span></div><div><b className="num">{n(stats?.listings) || "—"}</b><span>listings tracked</span></div></section>}
-        <section className="landing-finish"><span className="eyebrow">YOUR NEXT FIND IS OUT THERE</span><h2>Go in informed.</h2><p>Start with a short list. Leave with a clearer picture.</p><button className="mkcta" onClick={onStart}>Open your workspace <span aria-hidden="true">↗</span></button></section>
-      </main>
-      <footer className="mkfoot"><span className="mkbrand"><BrandMark size={20} className="mark" /><Wordmark /></span><span>Greater Boston · Used tech, priced with evidence</span><button className="mklink" onClick={onSignIn}>Sign in ↗</button></footer>
-    </div>
-  );
-}
+export {LandingPage as Landing} from './landing-page.tsx';
 
 // ───────────────────────────────────────────────────────────────── auth UI
 
@@ -320,8 +253,8 @@ export function AuthScreen({ mode, providers, onDone, onMode, onBack }: {
                * Using one for both is why managers sometimes do neither.
                */
               autoComplete={signup ? "new-password" : "current-password"}
-              minLength={signup ? 12 : undefined}
-              placeholder={signup ? "at least 12 characters" : ""} />
+              minLength={signup ? PASSWORD_MIN : undefined}
+              placeholder={signup ? `at least ${PASSWORD_MIN} characters` : ""} />
             <button type="button" className="authshow" onClick={() => setShow((v) => !v)}
               aria-label={show ? "Hide password" : "Show password"}>
               {show ? "Hide" : "Show"}

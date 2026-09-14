@@ -71,27 +71,27 @@ export const LABEL: Record<Call, string> = {
 };
 
 // -------------------------------------------------------------- storage
+import {readAccountLocal,writeAccountLocal,onAccountData} from './account-sync.ts';
 export const HKEY = "filtrsoft:history";
-export const readHist = (): Hist[] => { try { return JSON.parse(localStorage.getItem(HKEY) || "[]"); } catch { return []; } };
+export const readHist = (): Hist[] => { try { return JSON.parse(readAccountLocal(HKEY) || "[]"); } catch { return []; } };
 export const pushHist = (h: Hist) => {
   const all = [h, ...readHist().filter((x) => x.id !== h.id)].slice(0, 30);
-  localStorage.setItem(HKEY, JSON.stringify(all));
+  writeAccountLocal(HKEY, JSON.stringify(all));
 };
 
 /**
- * The watchlist is a list of IDS in localStorage, never a copy of the listing.
+ * The watchlist syncs IDs to the account, never a frozen copy of the listing.
  *
  * Storing the listing itself would freeze the price and the verdict at the
  * moment you saved it, which defeats the entire point — the reason to save
  * something is to be told when it CHANGES. `/v1/watchlist` re-reads current
  * state for the ids on every visit, so a saved card is always live.
  *
- * No account required, and the tradeoff is stated on the screen: the list does
- * not follow you to another device.
+ * The account cache queues offline edits until the next successful sync.
  */
 export const WKEY = "filtrsoft:watch";
-export const readWatch = (): number[] => { try { return JSON.parse(localStorage.getItem(WKEY) || "[]"); } catch { return []; } };
-export const writeWatch = (ids: number[]) => localStorage.setItem(WKEY, JSON.stringify(ids.slice(0, 200)));
+export const readWatch = (): number[] => { try { return JSON.parse(readAccountLocal(WKEY) || "[]"); } catch { return []; } };
+export const writeWatch = (ids: number[]) => writeAccountLocal(WKEY, JSON.stringify(ids.slice(0, 200)));
 export const toggleWatch = (id: number): number[] => {
   const cur = readWatch();
   const next = cur.includes(id) ? cur.filter((x) => x !== id) : [id, ...cur];
@@ -123,7 +123,7 @@ export type Note = {
   at: number; seen?: boolean;
 };
 export const readNotes = (): Note[] => {
-  try { return JSON.parse(localStorage.getItem(NKEY) || "[]"); } catch { return []; }
+  try { return JSON.parse(readAccountLocal(NKEY) || "[]"); } catch { return []; }
 };
 /** Newest first, deduped by listing, capped at 60. */
 export function pushNotes(items: Note[]): Note[] {
@@ -131,13 +131,13 @@ export function pushNotes(items: Note[]): Note[] {
   if (!fresh.length) return readNotes();
   const seenIds = new Set(fresh.map((n) => n.id));
   const next = [...fresh, ...readNotes().filter((n) => !seenIds.has(n.id))].slice(0, 60);
-  try { localStorage.setItem(NKEY, JSON.stringify(next)); } catch { /* private mode */ }
+  writeAccountLocal(NKEY, JSON.stringify(next));
   notesListeners.forEach((fn) => fn(next));
   return next;
 }
 export function markNotesSeen(): Note[] {
   const next = readNotes().map((n) => ({ ...n, seen: true }));
-  try { localStorage.setItem(NKEY, JSON.stringify(next)); } catch { /* private mode */ }
+  writeAccountLocal(NKEY, JSON.stringify(next));
   notesListeners.forEach((fn) => fn(next));
   return next;
 }
@@ -146,7 +146,8 @@ const notesListeners = new Set<(n: Note[]) => void>();
 /** The bell lives in the top bar and the writer is the pulse, three files away. */
 export function onNotes(fn: (n: Note[]) => void) {
   notesListeners.add(fn);
-  return () => { notesListeners.delete(fn); };
+  const off=onAccountData(()=>fn(readNotes()));
+  return () => { notesListeners.delete(fn);off(); };
 }
 
 /**
@@ -157,10 +158,10 @@ export function onNotes(fn: (n: Note[]) => void) {
  * the end or the same listing would come back around and ask again.
  */
 export const AKEY = "filtrsoft:asked";
-export const readAsked = (): number[] => { try { return JSON.parse(localStorage.getItem(AKEY) || "[]"); } catch { return []; } };
+export const readAsked = (): number[] => { try { return JSON.parse(readAccountLocal(AKEY) || "[]"); } catch { return []; } };
 export const markAsked = (id: number) => {
   const all = [id, ...readAsked().filter((x) => x !== id)].slice(0, 200);
-  localStorage.setItem(AKEY, JSON.stringify(all));
+  writeAccountLocal(AKEY, JSON.stringify(all));
 };
 
 /**
@@ -187,10 +188,10 @@ export function pendingOutcome(hist: Hist[], asked: number[]): Hist | null {
  * test cannot run.
  */
 export const readSettings = (): Settings => {
-  try { return mergeSettings(localStorage.getItem(SETTINGS_KEY)); }
+  try { return mergeSettings(readAccountLocal(SETTINGS_KEY)); }
   catch { return DEFAULT_SETTINGS; }
 };
-export const writeSettings = (s: Settings) => localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+export const writeSettings = (s: Settings) => writeAccountLocal(SETTINGS_KEY, JSON.stringify(s));
 
 // ----------------------------------------------------------------- feedback
 /**

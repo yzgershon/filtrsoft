@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import {useAccountRefresh} from './account-refresh.ts';
 import { Bell, Save } from "./icons.tsx";
 import { Popup } from "./popup.tsx";
 import { RequestError } from "./request-state.tsx";
@@ -80,6 +81,7 @@ export function SavedSearches() {
   const [items,setItems]=useState<Search[]|null>(null), [loadError,setLoadError]=useState<string|null>(null), [note,setNote]=useState<string|null>(null);
   const [subId,setSubId]=useState<number|null>(null), [retry,setRetry]=useState(0), [pending,setPending]=useState<string|null>(null);
   const [editor,setEditor]=useState<Search|"new"|null>(null);
+  useAccountRefresh(()=>setRetry(n=>n+1),editor===null&&pending===null);
   const sending=useRef(false);
   useEffect(()=>{let alive=true;reconcilePushSubscription().then(id=>{if(alive)setSubId(id);}).catch(error=>{if(alive)setNote(requestMessage(error));});return()=>{alive=false;};},[]);
   const readController=useRef<AbortController|null>(null);

@@ -67,6 +67,7 @@ export function Watchlist({ onOpen, onWatchChange, onBrowse }: {
     pushRoute(next === "listings" ? "/saved" : `/saved?sub=${next === "bought" ? "purchases" : "alerts"}`);
   };
   const [ids, setIds] = useState<number[]>(readWatch);
+  useEffect(()=>onAccountData(()=>setIds(readWatch())),[]);
   const [items, setItems] = useState<FeedItem[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryAt, setRetryAt] = useState(0);
@@ -154,7 +155,7 @@ export function Watchlist({ onOpen, onWatchChange, onBrowse }: {
               ))}
             </div>
             {/* Present tense: this is what the product does, not a promise. */}
-            <p className="micro2">Saved on this device.</p>
+            <p className="micro2">Saved to your account. Sync status is in Settings.</p>
           </>
         )
       )}
@@ -198,6 +199,7 @@ export function Purchases() {
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryAt, setRetryAt] = useState(0);
+  useAccountRefresh(()=>setRetryAt(n=>n+1),editing===null);
   useEffect(() => {
     const controller = new AbortController(); setLoadError(null);
     requestJSON<{ items: Buy[]; summary: any }>("/v1/purchases", { signal: controller.signal },
@@ -656,6 +658,9 @@ export function Toggle({ label, hint, on, onChange }: {
  * there is no account) are NOT stubbed in as disabled rows. An app that says
  * "coming soon" four times is worse than one that is honestly small.
  */
+import {SyncSettings} from './sync-settings.tsx';
+import {useAccountRefresh} from './account-refresh.ts';
+import {onAccountData,writeAccountLocal,clearSyncedCache} from './account-sync.ts';
 export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
   s: Settings; save: (p: Partial<Settings>) => void;
   savedCount: number; onClearSaved: () => void;
@@ -684,19 +689,6 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
    * and support for a lost subscription is impossible without it.
    */
   const ref = deviceRef();
-
-  /** Rough localStorage footprint, for the Data group. */
-  const kb = (() => {
-    try {
-      let n = 0;
-      for (const k in localStorage) {
-        if (Object.prototype.hasOwnProperty.call(localStorage, k)) {
-          n += (localStorage.getItem(k)?.length ?? 0) + k.length;
-        }
-      }
-      return Math.max(1, Math.round(n / 1024));
-    } catch { return null; }
-  })();
 
   /**
    * ⚠ INSTALL STATE IS DETECTED, NOT ASSUMED. `display-mode: standalone` is
@@ -730,6 +722,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
         * started by accident on a phone in a pocket.
         */}
 
+      <SyncSettings/>
       {/* ── ALERTS ─────────────────────────────────────────────────────── */}
       <div className="sgroup">
         <div className="shead"><Bell size={14} /> Alerts</div>
@@ -876,7 +869,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
             <Cut size={15} />
           </button>
           <p className="snote">
-            Saved listings and preferences are stored in this browser. Your account connects your plan and listing reviews. Copy the device ID before clearing browser data if you need help recovering it.
+            Your account keeps your workspace in sync. This device ID helps diagnose notification delivery and recover older device records.
           </p>
         </div>
       </div>
@@ -888,7 +881,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
           <div className="srow static">
             <span className="stext">
               <b>{savedCount} saved {savedCount === 1 ? "listing" : "listings"}</b>
-              <span>Stored on this device{kb ? ` · about ${kb} KB in total` : ""}.</span>
+              <span>Synced with your account. Clearing removes them on all your devices.</span>
             </span>
             {savedCount > 0 && !cleared && (
               <button className="btn3" onClick={() => { onClearSaved(); setCleared(true); }}>Clear</button>
@@ -899,12 +892,12 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
           <div className="srow static">
             <span className="stext">
               <b>Recently checked</b>
-              <span>The reports you've opened, stored on this device.</span>
+              <span>The reports you have opened across your devices. Clearing applies everywhere.</span>
             </span>
             {!histCleared
               ? (
                 <button className="btn3" onClick={() => {
-                  try { localStorage.removeItem(HKEY); localStorage.removeItem(AKEY); } catch { /* ignore */ }
+                  writeAccountLocal(HKEY,null);writeAccountLocal(AKEY,null);
                   setHistCleared(true);
                   toast("History cleared");
                 }}>Clear</button>
@@ -927,7 +920,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
             {!badgesReset
               ? (
                 <button className="btn3" onClick={() => {
-                  try { localStorage.removeItem(SEEN_KEY); } catch { /* ignore */ }
+                  writeAccountLocal(SEEN_KEY,null);
                   setBadgesReset(true);
                   toast("Badges reset");
                 }}>Reset</button>
@@ -953,7 +946,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
           <p className="snote nolead">
             Filtrsoft never handles a card number. Payment happens on Stripe's own
             page. It never asks for a marketplace login. There is no analytics
-            service. Saved listings and preferences stay in this browser; account details, listing reviews and seller-link follow-ups are stored on the server. Google sign-in loads Google's identity service when you open a configured sign-in form. <a href="/privacy">Privacy details</a>.
+            service. Workspace data and preferences sync with your account; a local cache holds offline changes until they sync. Google sign-in loads Google's identity service when you open a configured sign-in form. <a href="/privacy">Privacy details</a>.
           </p>
         </div>
       </div>
@@ -962,13 +955,6 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
       <div className="sgroup">
         <div className="shead danger"><Trash size={14} /> Reset</div>
         <div className="scard">
-          {/**
-            * ⚠ TWO TAPS, AND THE SECOND ONE SAYS WHAT IT DESTROYS. This wipes
-            * the saved list, the history, the overrides binding and the plan
-            * binding — everything that makes this device his. A single
-            * unguarded tap here is the one control on this screen that cannot
-            * be undone.
-            */}
           <ResetEverything />
         </div>
       </div>
@@ -979,7 +965,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
 }
 
 /**
- * "Reset everything", armed in two steps.
+ * Clear the current account's acknowledged cache, armed in two steps.
  *
  * ⚠ THE CONFIRM IS INLINE, NOT `window.confirm`. A native confirm is a modal
  * the page cannot style, it reads as a browser warning rather than as part of
@@ -989,23 +975,13 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
  */
 function ResetEverything() {
   const [armed, setArmed] = useState(false);
-  const [done, setDone] = useState(false);
-
-  if (done) {
-    return (
-      <div className="srow static">
-        <span className="stext"><b>Cleared</b><span>Reopen Filtrsoft to start fresh.</span></span>
-        <span className="pill">Done</span>
-      </div>
-    );
-  }
 
   if (!armed) {
     return (
       <button className="srow" onClick={() => setArmed(true)}>
         <span className="stext">
-          <b className="danger">Reset everything</b>
-          <span>Saved listings, history, your own labels and this device's ID.</span>
+          <b className="danger">Clear this device’s cache</b>
+          <span>Synced data returns from your account. Pending changes must finish syncing first.</span>
         </span>
         <Trash size={16} />
       </button>
@@ -1015,11 +991,10 @@ function ResetEverything() {
   return (
     <div className="srow static confirm">
       <span className="stext">
-        <b className="danger">Delete it all?</b>
+        <b className="danger">Clear the local cache?</b>
         <span>
-          This cannot be undone. Your saved listings, every verdict you
-          relabelled and your plan are tied to this device's ID and will be
-          unrecoverable.
+          Your account, saved work, reviews and plan remain. The app will reload
+          and download your synced data again.
         </span>
       </span>
       <span className="confirmrow">
@@ -1027,15 +1002,11 @@ function ResetEverything() {
           <Cross size={13} /> Keep
         </button>
         <button className="btn3 danger" onClick={() => {
-          /**
-           * ⚠ `localStorage.clear()`, not a list of keys. A list goes stale the
-           * moment a feature adds one, and a "reset everything" that quietly
-           * leaves something behind is worse than no reset at all.
-           */
-          try { localStorage.clear(); } catch { /* ignore */ }
-          setDone(true);
+          // Pending work, device ownership and other accounts must survive.
+          if(!clearSyncedCache())return toast('Finish syncing or resolve pending changes first.',true);
+          location.reload();
         }}>
-          Delete
+          Clear cache
         </button>
       </span>
     </div>

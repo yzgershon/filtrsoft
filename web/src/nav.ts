@@ -373,12 +373,13 @@ export const restoreLimit = (n: number): number =>
  * explain why. Same reason `parseSeen` exists server-side.
  */
 export const SEEN_KEY = "filtrsoft:seen";
+import {readAccountLocal,writeAccountLocal} from './account-sync.ts';
 
 export type Seen = Partial<Record<Quality, string>>;
 
 export function readSeen(): Seen {
   try {
-    const parsed = JSON.parse(localStorage.getItem(SEEN_KEY) || "{}");
+    const parsed = JSON.parse(readAccountLocal(SEEN_KEY) || "{}");
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
     const out: Seen = {};
     for (const q of QUALITIES) {
@@ -401,7 +402,7 @@ export function markSeen(q: Quality, at: string): Seen {
   const prev = seen[q];
   if (prev && Date.parse(prev) >= Date.parse(at)) return seen;
   const next = { ...seen, [q]: at };
-  try { localStorage.setItem(SEEN_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+  writeAccountLocal(SEEN_KEY, JSON.stringify(next));
   return next;
 }
 

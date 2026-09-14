@@ -1,4 +1,5 @@
 import {LoadBoundary} from './load-boundary.tsx';
+import {beginAccountSync,onAccountData,readAccountLocal,writeAccountLocal,syncStatus} from './account-sync.ts';
 import {requestJSON} from './api-client.ts';
 import { Popup, MenuRow } from "./popup.tsx";
 /**
@@ -240,6 +241,7 @@ function useAuth() {
 export default function App() {
   const { path, screen, go, replace, back } = useRoute();
   const auth = useAuth();
+  useEffect(()=>{const refresh=()=>auth.refresh();window.addEventListener('filtrsoft:sync-auth-changed',refresh);return()=>window.removeEventListener('filtrsoft:sync-auth-changed',refresh);},[auth.refresh]);
   /**
    * Which signed-out screen is showing. Kept in state rather than the URL:
    * `/signin` would be a real route that a signed-IN user could land on, and
@@ -271,18 +273,26 @@ export default function App() {
   const [hist, setHist] = useState<Hist[]>(readHist);
   const [savedCount, setSavedCount] = useState(() => readWatch().length);
   const [settings, setSettings] = useState<Settings>(readSettings);
+  const [accountSync,setAccountSync]=useState(syncStatus);
+  useEffect(()=>onAccountData(()=>{
+    setAccountSync(syncStatus());setSettings(readSettings());setHist(readHist());setSavedCount(readWatch().length);
+  }),[]);
+  useEffect(()=>{
+    if(auth.state!=='in'||!auth.user)return;
+    return beginAccountSync(auth.user.id,deviceRef());
+  },[auth.state,auth.user?.id]);
   const [ask, setAsk] = useState<Hist | null>(null);
   useEffect(()=>{
     setAsk(null);
-    if(auth.state!=='in'||!auth.user||!settings.askOutcomes)return;
-    const ac=new AbortController(),key=`filtrsoft:followup-shown:${auth.user.id}`,at=Date.now();
-    try{const last=Number(localStorage.getItem(key));if(Number.isFinite(last)&&last>at-86400000)return;}catch{}
+    if(auth.state!=='in'||!auth.user||!settings.askOutcomes||accountSync.userId!==auth.user.id||!accountSync.lastSync)return;
+    const ac=new AbortController(),at=Date.now();
+    try{const last=Number(JSON.parse(readAccountLocal('filtrsoft:followup')??'{}').shown);if(Number.isFinite(last)&&last>at-86400000)return;}catch{}
     void requestJSON<{pending:Hist|null}>('/v1/follow-ups',{signal:ac.signal}).then(d=>{
       if(ac.signal.aborted||!d.pending)return;
-      setAsk(d.pending);try{localStorage.setItem(key,String(at));}catch{}
+      setAsk(d.pending);writeAccountLocal('filtrsoft:followup',JSON.stringify({shown:at}));
     }).catch(()=>{});
     return()=>ac.abort();
-  },[auth.state,auth.user?.id,settings.askOutcomes]);
+  },[auth.state,auth.user?.id,settings.askOutcomes,accountSync.userId,!!accountSync.lastSync]);
   /**
    * ⚠ THE FILTERS BUTTON IS HERE BECAUSE IT DID NOT FIT BESIDE THE SEGMENT
    * CONTROL. Measured on a real Galaxy S24 (360px, Android UA): four chips
@@ -647,8 +657,9 @@ export default function App() {
       );
   }
 
+  if(accountSync.userId!==auth.user?.id)return <main className="auth-loading" role="status">Opening your synced workspace…</main>;
   return (
-    <div className={`app screen-${screen.name}`}>
+    <div key={auth.user?.id} className={`app screen-${screen.name}`}>
       <a className="skip-link" href="#main-content">Skip to content</a>
       <aside className="workspace-nav" aria-label="Workspace">
         <button className="workspace-brand" onClick={() => goTab("deals")} aria-label="Filtrsoft home"><BrandMark size={27} /><Wordmark /></button>
