@@ -89,7 +89,15 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
-### Active work: 2026-09-13, restore access and add market history
+### Current release: 2026-09-13 EDT / September 14 UTC, access and market history live
+
+**Pushed and verified live:** application commit **20df9209703f34c1b60c1580f03d05c42fcf2db4** is on `origin/main`. Railway deployment **6428823295** succeeded at **2026-09-14T01:32:29Z**; native CI **34796210266** passed. The public release check at **01:33:41Z** matched all six compiled JS/CSS assets by SHA-256, verified the real privacy document and anonymous API isolation, and observed registration open, engine **0.3.35**, **31,900 total / 28,431 usable comps**, database healthy, storage pressure low, and **zero pending / zero failed scores**. Receipt: `docs/qa/market/production.json`.
+
+**Signed-in production UI verified after deployment:** Review rendered ten real listings with no purchase follow-up banner. Price history opened the live catalog (563 non-console products), then Ryzen 5 5600X: 3M showed **55 sales / $129.99 median**; 3Y showed **74 sales / $130 median**, explicitly only seven of 37 months with observations. Actual eBay item links and configuration-specific CSV links were present; deployed desktop dark presentation was visually inspected. No fabricated purchase, seller contact, account creation, label or removal was used for this verification.
+
+**Final checks and limits:** Windows and network-disabled Linux ARM64 each passed **328 tests / 0 failures / 951 assertions**, plus TypeScript, Vite and the pinned image/privacy checks. Storage recovery is applied and audited, retaining every historical verdict and creating about **1.2 GB reusable SQLite capacity**; the physical file did not shrink. Future changed verdicts now atomically archive the preceding payload in production. Native RAM/storage history is sparse, and universal three-year history is not available. Google branding exists but the client creation/public client ID and manual sign-in remain pending with Yish. Do not claim Google sign-in live. Results: `docs/MARKET-HISTORY-RESULTS-2026-09-13.md`.
+
+The following checkpoints record the investigation in progress; the verified release above supersedes their pending-work and not-yet-applied claims.
 
 **Release gates complete:** final source passed **328 tests / 0 failures / 951 assertions** on Windows and network-disabled Linux ARM64, TypeScript, Vite, pinned container build, and a real built-image public privacy-route check. Browser checks include measured 360px light layout, desktop light layout, dark presentation, source/configuration controls, URL range changes, retained CPU pins and keyboard inspection. Final application commit and Railway/CI receipts will be recorded after the push. Price-history native coverage remains limited to existing observations, particularly sparse RAM/storage. Google is the sole external configuration step still waiting on Yish.
 

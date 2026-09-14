@@ -1,0 +1,81 @@
+{
+  "at": "2026-09-14T01:33:41.292Z",
+  "commit": "20df9209703f34c1b60c1580f03d05c42fcf2db4",
+  "assets": [
+    {
+      "name": "compare-BHJxML0Z.js",
+      "status": 200,
+      "matches": true
+    },
+    {
+      "name": "index-BWnIsAFc.js",
+      "status": 200,
+      "matches": true
+    },
+    {
+      "name": "index-CNV2ALZu.css",
+      "status": 200,
+      "matches": true
+    },
+    {
+      "name": "listing-workspace-BDRk97QI.js",
+      "status": 200,
+      "matches": true
+    },
+    {
+      "name": "market-CBfDiZqq.js",
+      "status": 200,
+      "matches": true
+    },
+    {
+      "name": "purchase-editor-XYytzHlL.js",
+      "status": 200,
+      "matches": true
+    }
+  ],
+  "routes": [
+    {
+      "path": "/v1/feed",
+      "status": 401
+    },
+    {
+      "path": "/v1/follow-ups",
+      "status": 401
+    },
+    {
+      "path": "/v1/market/products",
+      "status": 401
+    },
+    {
+      "path": "/v1/market/products/1/history",
+      "status": 401
+    }
+  ],
+  "health": {
+    "ok": true,
+    "canPrice": true,
+    "engine": "0.3.35",
+    "db": "ok",
+    "storage": {
+      "pressure": "low"
+    },
+    "comps": {
+      "total": 31900,
+      "usable": 28431,
+      "skusPriceable": 492,
+      "skusTotal": 563
+    },
+    "skus": 575,
+    "scoring": {
+      "signature": "6861|2026-09-14T01",
+      "pending": 0,
+      "failures": 0,
+      "complete": true
+    }
+  },
+  "registrationOpen": true,
+  "googleConfigured": false,
+  "privacy": true,
+  "entryMatches": true,
+  "ok": true
+}
