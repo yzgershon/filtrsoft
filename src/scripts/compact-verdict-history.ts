@@ -6,7 +6,9 @@ import {dirname,resolve} from 'node:path';
 import {compactVerdictBatch} from '../db/verdict-history.ts';
 const args=process.argv.slice(2),apply=args.includes('--apply'),restore=args.includes('--restore');
 const pathArg=args.find(a=>a.startsWith('--db='));if(!pathArg)throw new Error('Supply an explicit --db=/absolute/path; shared databases are never selected implicitly.');
-const path=resolve(pathArg.slice(5)),d=new Database(path,{readonly:!apply});
+// Bun requires an explicit readwrite flag. {readonly:false} becomes zero
+// SQLite open flags on Linux and fails before entering the maintenance loop.
+const path=resolve(pathArg.slice(5)),d=new Database(path,apply?{readwrite:true}:{readonly:true});
 d.exec('PRAGMA busy_timeout=5000');
 const batchArg=args.find(a=>a.startsWith('--batches=')),batches=batchArg?Number(batchArg.slice(10)):apply?10000:1;
 if(!Number.isSafeInteger(batches)||batches<1||batches>10000)throw new Error('Invalid batch count');

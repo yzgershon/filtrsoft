@@ -41,3 +41,17 @@ test('batched WAL recovery frees reusable pages while preserving every historica
   for(let i=0;i<rows.length;i++){assert.equal(rows[i].id,i+1);assert.equal(decodeVerdictPayload(rows[i].payload),payload);}
   assert.equal(rows.at(-1).payload,payload);assert.equal(d.query('PRAGMA quick_check').get().quick_check,'ok');
 `));
+
+test('maintenance CLI opens an existing database for dry-run, application and rollback',()=>isolated(`
+  import {db} from '@/src/db/index.ts';import {fileURLToPath} from 'node:url';
+  const d=db();d.run("INSERT INTO listings(id,source,source_id,url,title,captured_at) VALUES(1,'craigslist','1','https://example.invalid','test','2026-09-01')");
+  const payload=JSON.stringify({quote:'exact evidence '.repeat(200)});
+  for(let id=1;id<=2;id++)d.run("INSERT INTO verdicts(id,listing_id,engine_version,call,payload,created_at) VALUES(?,1,'one','VERIFY',?,'2026-09-01')",[id,payload]);
+  const path=fileURLToPath(new URL('src/scripts/compact-verdict-history.ts',${JSON.stringify(new URL('../',import.meta.url).href)}));
+  for(const args of [[],['--apply'],['--restore','--apply']]){
+    const result=Bun.spawnSync({cmd:[process.execPath,'run',path,'--db='+process.env.FILTRSOFT_DB,'--batches=1',...args],stdout:'pipe',stderr:'pipe'});
+    assert.equal(result.exitCode,0,new TextDecoder().decode(result.stderr));
+    const rows=d.query('SELECT payload FROM verdicts ORDER BY id').all();assert.equal(rows[1].payload,payload);
+    if(args.length===1)assert.notEqual(rows[0].payload,payload);else assert.equal(rows[0].payload,payload);
+  }
+`));
