@@ -538,7 +538,7 @@ export function Feed({ onOpen, onWatchChange, freshness }: {
         * feed looks empty and nothing on screen says why.
         */}
       {nFilters > 0 && (
-        <div className="active" role="status">
+        <div className="feed-active-filters" role="status">
           {filters.q && (
             <button className="apill" onClick={() => applyFilters({ ...filters, q: "" })}>
               "{filters.q}" <i aria-hidden="true">✕</i>

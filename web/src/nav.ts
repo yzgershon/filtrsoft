@@ -25,6 +25,7 @@ export type Screen =
   | { name: "account" }
   | { name: "how" }
   | { name: "compare" }
+  | { name: "market" }
   | { name: "detail"; id: number };
 
 /**
@@ -50,6 +51,7 @@ export function screenOf(pathname: string): Screen {
   if (/^\/account\/?$/.test(pathname)) return { name: "account" };
   if (/^\/how\/?$/.test(pathname)) return { name: "how" };
   if (/^\/compare\/?$/.test(pathname)) return { name: "compare" };
+  if (/^\/market\/?$/.test(pathname)) return { name: "market" };
   return { name: "deals" };
 }
 
@@ -71,7 +73,7 @@ export function tabOf(s: Screen): "deals" | "check" | "saved" | "more" | null {
   if (s.name === "deals") return "deals";
   if (s.name === "check") return "check";
   if (s.name === "saved") return "saved";
-  if (s.name === "more" || s.name === "settings" || s.name === "how") return "more";
+  if (s.name === "more" || s.name === "settings" || s.name === "how" || s.name === "market") return "more";
   return null;
 }
 

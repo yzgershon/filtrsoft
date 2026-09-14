@@ -6,7 +6,14 @@ export function installWorkspace(d:Database) {
   for(const [name,type] of Object.entries({other_costs_cents:'INTEGER',transaction_revision:'INTEGER NOT NULL DEFAULT 0',transaction_updated_at:'TEXT'})) {
     if(!columns.has(name))d.exec(`ALTER TABLE outcomes ADD COLUMN ${name} ${type}`);
   }
-  d.exec(`CREATE TABLE IF NOT EXISTS outcome_revisions (
+  d.exec(`CREATE TABLE IF NOT EXISTS market_pins (
+    user_id INTEGER NOT NULL REFERENCES users(id),sku_id INTEGER NOT NULL REFERENCES skus(id),PRIMARY KEY(user_id,sku_id));
+    CREATE TABLE IF NOT EXISTS listing_contacts (
+    user_id INTEGER NOT NULL REFERENCES users(id), listing_id INTEGER NOT NULL REFERENCES listings(id),
+    first_clicked_at TEXT NOT NULL, last_clicked_at TEXT NOT NULL, dismissed_at TEXT,
+    PRIMARY KEY(user_id,listing_id));
+    CREATE INDEX IF NOT EXISTS idx_contacts_pending ON listing_contacts(user_id,dismissed_at,last_clicked_at);
+    CREATE TABLE IF NOT EXISTS outcome_revisions (
     id INTEGER PRIMARY KEY, outcome_id INTEGER NOT NULL REFERENCES outcomes(id),
     user_id INTEGER NOT NULL REFERENCES users(id), revision INTEGER NOT NULL,
     before_json TEXT NOT NULL, after_json TEXT NOT NULL, created_at TEXT NOT NULL,

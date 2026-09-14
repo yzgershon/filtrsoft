@@ -1,7 +1,9 @@
 import { dismissedIds, setDismissed, listDismissed } from "./dismissals.ts";
+import {recordSellerClick,followUp,dismissFollowUp} from './follow-ups.ts';
 import {handleInspection,saveInspection,handlePriceHistory} from './listing-workspace.ts';
 import { specifications } from "../engine/specifications.ts";
 import {handleComparison,handleComparisonCandidates} from './compare.ts';
+import {marketCatalog,marketHistory,marketPin} from './market.ts';
 import { handlePurchases, handleUpdatePurchase } from "./purchases.ts";
 import {rememberDecision,decisionAt,decisionSku} from "../db/learning.ts";
 import {feedWindow,CursorError} from "./feed-cursor.ts";
@@ -828,6 +830,10 @@ app.get("/v1/thumb/:id", (c) => {
   });
 });
 
+app.post('/v1/checks/:id/seller-click',recordSellerClick);
+app.get('/v1/follow-ups',followUp);
+app.post('/v1/follow-ups/:id/dismiss',dismissFollowUp);
+
 app.get("/v1/feed", (c) => {
   const call = c.req.query("call");           // optional filter
   /**
@@ -1233,6 +1239,9 @@ app.get("/v1/watchlist", (c) => {
 
 app.get('/v1/compare/candidates',handleComparisonCandidates);
 app.get('/v1/compare',handleComparison);
+app.get('/v1/market/products',marketCatalog);
+app.get('/v1/market/products/:id/history',marketHistory);
+app.post('/v1/market/products/:id/pin',marketPin);
 
 app.get("/v1/checks/:id", (c) => {
   const id = Number(c.req.param("id"));
@@ -1310,6 +1319,7 @@ const DIST = "./web/dist";
 const hasBuild = existsSync(`${DIST}/index.html`);
 
 if (hasBuild) {
+  app.get('/privacy',serveStatic({path:`${DIST}/privacy.html`}));
   app.use("/assets/*", serveStatic({ root: DIST }));
 
   /**

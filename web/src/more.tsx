@@ -21,7 +21,7 @@ import {CompareIcon} from './icons.tsx';
 import { useEffect, useState } from "react";
 import {
   Alert, Bell, Card, Check, Clock, Gear, Ghost, Grid, Info, Save, Scan,
-  Shield, Star, Store, Tag, User,
+  Shield, Star, Store, Tag, User, Trend,
 } from "./icons.tsx";
 import type { Hist } from "./types.ts";
 import {
@@ -79,6 +79,7 @@ export function MoreScreen({ go, savedCount, noteCount }: {
         <div className="shead"><User size={14} /> You</div>
         <div className="scard">
           <Row icon={<CompareIcon size={17}/>} label="Compare hardware" hint="Compare parts, asking prices and evidence." onClick={()=>go('/compare')}/>
+          <Row icon={<Trend size={17}/>} label="Price history" hint="Recorded sales, configurations and market trends." onClick={()=>go('/market')}/>
           <Row icon={<User size={17} />} label="Account"
             hint="Who you are on this device, and your plan."
             onClick={() => go("/account")} />

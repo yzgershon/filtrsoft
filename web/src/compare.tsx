@@ -1,8 +1,9 @@
 import {useEffect,useRef,useState,type CSSProperties} from 'react';
 import {requestJSON,requestMessage} from './api-client.ts';
+import {sellerClick} from './seller-click.ts';
 import {Popup,motionAllowed} from './popup.tsx';
 import {Thumb,shareOrCopy,LABEL} from './lib.tsx';
-import {NAVIGATE,replaceRoute} from './history.ts';
+import {NAVIGATE,replaceRoute,pushRoute} from './history.ts';
 import {Again,Alert,Chat,Check,Cross,Info,Link,Shield,CompareIcon} from './icons.tsx';
 import {PART_KINDS,type PartKind,type CompareResult,type CompareSide,type CompareCandidate} from '../../src/comparison/types.ts';
 
@@ -78,7 +79,8 @@ function ContactCard({side,index,onOpen}:{side:CompareSide;index:number;onOpen:(
     {side.concerns.length>0?<ul>{side.concerns.slice(0,3).map((c,i)=><li key={i}><Alert size={13}/><span>{c.label.toLowerCase().replace(/(^|\s)\S/g,c=>c.toUpperCase())}</span></li>)}</ul>:<p className="compare-contact-note">No specific concerns recorded. The item still needs an in-person check.</p>}
     {side.questions.length>0&&<details><summary>Questions to ask <span>{side.questions.length}</span></summary><ol>{side.questions.map((q,i)=><li key={i}>{q}</li>)}</ol></details>}
     <button className="compare-detail-link" onClick={()=>onOpen(side.id)}>Open full listing report ↗</button>
-    {side.url&&side.status==='active'?<a className="compare-message" href={side.url} target="_blank" rel="noopener noreferrer"><Chat size={18}/>Message seller<span aria-hidden="true">↗</span></a>:<button className="compare-message" disabled>Contact unavailable</button>}
+    {side.url&&side.status==='active'?<a className="compare-message" href={side.url} target="_blank" rel="noopener noreferrer" onClick={e=>sellerClick(side.id,e)} onAuxClick={e=>sellerClick(side.id,e)}><Chat size={18}/>Message seller<span aria-hidden="true">↗</span></a>:<button className="compare-message" disabled>Contact unavailable</button>}
+    {side.hardware.identity&&<button className="compare-market-link" onClick={()=>pushRoute(`/market?q=${encodeURIComponent(side.hardware.identity!)}`)}>Explore price history <span aria-hidden="true">↗</span></button>}
     <small className="compare-contact-help">{side.source==='craigslist'?'Opens Craigslist. Choose Reply on the ad.':`Opens ${platform[side.source]??'the original listing'}. You send the message there.`}</small>
   </article>;
 }

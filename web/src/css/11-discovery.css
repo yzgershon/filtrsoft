@@ -18,7 +18,9 @@
  * cannot see is a filter you think is a bug: the feed looks empty and nothing
  * on screen says why.
  */
-.active { display: flex; flex-wrap: wrap; gap: 6px; margin: var(--s3) 0 0; }
+/* Scope this layout to feed pills. A global .active rule was shifting selected
+   navigation, chart-range and pin buttons by 12px and changing their display. */
+.feed-active-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: var(--s3) 0 0; }
 .apill {
   display: inline-flex; align-items: center; gap: 6px;
   min-height: 32px; padding: 0 10px; border-radius: 999px;

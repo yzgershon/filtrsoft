@@ -1,4 +1,5 @@
 import {LoadBoundary} from './load-boundary.tsx';
+import {sellerClick} from './seller-click.ts';
 import {SpecificationSheet} from "./specifications.tsx";
 const PriceHistory=lazy(()=>import('./listing-workspace.tsx').then(m=>({default:m.PriceHistory})));
 const InspectionWorkspace=lazy(()=>import('./listing-workspace.tsx').then(m=>({default:m.InspectionWorkspace})));
@@ -559,9 +560,9 @@ export function Outcome({ id }: { id: number }) {
 const DETAIL_TABS=[['decision','Decision'],['specs','Specs'],['evidence','Evidence'],['inspect','Inspect']] as const;
 type DetailTab=typeof DETAIL_TABS[number][0];
 const initialTab=():DetailTab=>{const t=new URLSearchParams(typeof location==='undefined'?'':location.search).get('tab');return DETAIL_TABS.some(([k])=>k===t)?t as DetailTab:'decision';};
-export function Report({listing,verdict,signals,comps=[],meta,stage,reading,checkId,onBack,onReload,decisionToken,onShare,onCompare}:{
+export function Report({listing,verdict,signals,comps=[],meta,stage,reading,checkId,onBack,onReload,decisionToken,onShare,onCompare,onMarket}:{
   listing:Listing|null;verdict:Verdict|null;signals:Signal[];comps?:Comp[];meta?:Meta;stage:number;reading:number;checkId?:number|null;
-  onBack?:()=>void;onReload?:()=>void;decisionToken?:string;onShare?:()=>void;onCompare?:()=>void;
+  onBack?:()=>void;onReload?:()=>void;decisionToken?:string;onShare?:()=>void;onCompare?:()=>void;onMarket?:()=>void;
 }) {
   const [lbx,setLbx]=useState<number|null>(null),[channelId,setChannelId]=useState('facebook'),[tab,setTab]=useState<DetailTab>(initialTab);
   const [removeOpen,setRemoveOpen]=useState(false),[removed,setRemoved]=useState(!!meta?.dismissed),[busy,setBusy]=useState(false),[error,setError]=useState('');
@@ -590,9 +591,9 @@ export function Report({listing,verdict,signals,comps=[],meta,stage,reading,chec
       {!listing.photoUrls?.length&&<div className="detail-no-photo">{onBack&&<button className="dback" onClick={onBack} aria-label="Back"><BackIcon size={20}/></button>}<Ghost size={30}/><span>No seller photos</span></div>}
       {lbx!==null&&<Lightbox urls={listing.photoUrls} start={lbx} onClose={()=>setLbx(null)}/>}
       <div className="lh"><div className="listing-source"><span>{src}</span><span>{listing.location||'Location not stated'}</span></div>
-        <h1>{safeListing?<a href={safeListing} target="_blank" rel="noopener noreferrer">{listing.title}<span className="title-external" aria-hidden="true">↗</span></a>:listing.title}</h1>
+        <h1>{safeListing?<a href={safeListing} target="_blank" rel="noopener noreferrer" onClick={e=>sellerClick(checkId,e)} onAuxClick={e=>sellerClick(checkId,e)}>{listing.title}<span className="title-external" aria-hidden="true">↗</span></a>:listing.title}</h1>
         <div className="hero-price-row"><strong className={`price ${verdict?.inventory?'inventory-ask':'num'}`}>{verdict?.inventory?'Individual prices':listing.askingPriceCents==null?'Price not stated':money(listing.askingPriceCents)}</strong><span>{ago(listing.postedAt)}</span></div>
-        {onCompare&&<button className="detail-compare" onClick={onCompare}><span aria-hidden="true">⇄</span>Compare hardware</button>}
+        <div className="detail-research-actions">{onCompare&&<button className="detail-compare" onClick={onCompare}><span aria-hidden="true">⇄</span>Compare hardware</button>}{onMarket&&<button className="detail-compare" onClick={onMarket}>Price history <span aria-hidden="true">↗</span></button>}</div>
       </div>
     </header>
     {removed&&<div className="removed-notice" role="status"><span>Removed from your feed</span><button disabled={busy} onClick={()=>void remove(false)}>Undo removal</button></div>}

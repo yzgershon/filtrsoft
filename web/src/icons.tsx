@@ -124,6 +124,9 @@ export const Card = ({ size = 22, className }: P) =>
 export const Cross = ({ size = 16, className }: P) =>
   svg(size, <><path d="M6 6l12 12" /><path d="M18 6 6 18" /></>, className);
 
+export const Search = ({size=20,className}:P)=>svg(size,<><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></>,className);
+export const Trend = ({size=20,className}:P)=>svg(size,<><path d="M3 4v16h18M6 15l5-5 4 3 6-8"/></>,className);
+
 /** Star — the plan tier marker. */
 export const Star = ({ size = 18, className, filled }: P & { filled?: boolean }) =>
   svg(size, <path d="m12 3.6 2.6 5.3 5.8.85-4.2 4.1 1 5.75L12 16.9l-5.2 2.7 1-5.75-4.2-4.1 5.8-.85Z"

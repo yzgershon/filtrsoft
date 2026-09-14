@@ -4,7 +4,7 @@ Introduced September 12, 2026. This file describes implemented behavior; HANDOFF
 
 ## Access
 
-New password and social account creation is closed by default. Existing accounts can still sign in. An explicitly set `FILTRSOFT_REGISTRATION=open` reopens registration; any other value keeps it closed. No existing account was revoked by this change. This is not an account allowlist.
+New password and configured social account creation is open by default, as Yish requested September 13. An explicitly set `FILTRSOFT_REGISTRATION=closed` closes new registration; existing accounts can still sign in. Account-owned notes, purchases, dismissals, pins and follow-ups remain isolated. This is not an account allowlist.
 
 The frontend reads `providers.registrationOpen` from `/v1/auth/me`. Private mode serves a sign-in entry instead of public signup copy. Anonymous health checks retain readiness, engine, coverage counts and scoring state for deployment monitoring. Signed-in health requests retain pipeline diagnostics. Thumbnail requests require the same account session as listing data and use private browser caching.
 

@@ -370,7 +370,7 @@ export function OutcomePrompt({ h, onDone }: { h: Hist; onDone: () => void }) {
       await requestJSON(`/v1/checks/${h.id}/outcome`, {
         method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, requestId }),
       }, d=>d?.ok===true && d.action===action && Number.isInteger(d.totalOutcomes));
-      markAsked(h.id); setSent(label);
+      setSent(label);
     } catch (error) { setError(requestMessage(error)); }
     finally { sending.current = false; setPending(false); }
   };
@@ -387,9 +387,13 @@ export function OutcomePrompt({ h, onDone }: { h: Hist; onDone: () => void }) {
     <div className="ask">
       <div className="askhead">
         <b>What happened with this one?</b>
-        <button className="askx" disabled={pending} onClick={() => { markAsked(h.id); onDone(); }} aria-label="Dismiss">×</button>
+        <button className="askx" disabled={pending} onClick={async () => {
+          setPending(true);setError(null);
+          try{await requestJSON(`/v1/follow-ups/${h.id}/dismiss`,{method:'POST'});onDone();}
+          catch(e){setError(requestMessage(e));}finally{setPending(false);}
+        }} aria-label="Dismiss">×</button>
       </div>
-      <span className="asktitle">{h.title}</span>
+      <span className="asktitle">{h.title}</span><small>You opened this listing on the seller’s marketplace.</small>
       <div className="askrow" aria-busy={pending}>
         <button disabled={pending} onClick={() => void send("bought", "Bought")}>I bought it</button>
         <button disabled={pending} onClick={() => void send("passed", "Passed")}>Passed</button>
@@ -810,7 +814,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
             hint="Shorter cards and a tighter grid fit more listings on screen."
             on={s.compact} onChange={(v) => save({ compact: v })} />
           <Toggle label="Ask what happened"
-            hint="A day after you open a listing, ask if you bought it. This is what teaches the engine."
+            hint="After you open a seller's original ad, ask what happened the next day. Viewing a Filtrsoft report alone won't trigger this."
             on={s.askOutcomes} onChange={(v) => save({ askOutcomes: v })} />
         </div>
       </div>
@@ -895,7 +899,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
           <div className="srow static">
             <span className="stext">
               <b>Recently checked</b>
-              <span>The listings you've opened, kept for the outcome question.</span>
+              <span>The reports you've opened, stored on this device.</span>
             </span>
             {!histCleared
               ? (
@@ -949,7 +953,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
           <p className="snote nolead">
             Filtrsoft never handles a card number. Payment happens on Stripe's own
             page. It never asks for a marketplace login. There is no analytics
-            and no third-party tracking. Saved listings and preferences stay in this browser; account details and listing reviews are stored on the server.
+            service. Saved listings and preferences stay in this browser; account details, listing reviews and seller-link follow-ups are stored on the server. Google sign-in loads Google's identity service when you open a configured sign-in form. <a href="/privacy">Privacy details</a>.
           </p>
         </div>
       </div>

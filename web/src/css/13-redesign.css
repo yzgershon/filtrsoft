@@ -17,6 +17,8 @@ button { cursor: pointer; }
 button:disabled { cursor: default; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
 .app { max-width: none; width: 100%; min-height: 100dvh; margin: 0; }
+/* The app now uses solid surfaces. Retire the unused animated wallpaper. */
+body::before { content:none; }
 .workspace-nav { display: none; }
 .skip-link { position: fixed; top: 10px; left: 16px; transform: translateY(-150%); z-index: 200; background: var(--brand); color: var(--on-brand); padding: 14px 20px; border-radius: 8px; opacity: 0; pointer-events: none; }
 .skip-link:focus { transform: none; opacity: 1; pointer-events: auto; }

@@ -13,6 +13,7 @@
  */
 import { db, now } from "./index.ts";
 import type { Database } from "bun:sqlite";
+import {encodeVerdictPayload} from './verdict-history.ts';
 
 /**
  * What this layer needs from a verdict: the two columns it indexes, and the
@@ -66,6 +67,7 @@ export function storeVerdictWithDb(
   verdict: VerdictPayload,
   createdAt: string,
 ): StoreVerdictResult {
+  return d.transaction(()=>{
   const payload = JSON.stringify(verdict);
   const confidence = verdict.confidence ?? null;
   const latest = d.query(
@@ -97,5 +99,10 @@ export function storeVerdictWithDb(
     $p: payload,
     $now: createdAt,
   });
+  // Once replaced, the preceding answer is history. Keep its exact evidence
+  // compact automatically so future history does not resume uncompressed
+  // payload growth. The new latest stays plain JSON.
+  if(latest){const archived=encodeVerdictPayload(latest.payload);if(archived!==latest.payload)d.run('UPDATE verdicts SET payload=? WHERE id=?',[archived,latest.id]);}
   return { inserted: true, refreshed: false, id: Number(r.lastInsertRowid) };
+  })();
 }

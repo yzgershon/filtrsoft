@@ -1,4 +1,5 @@
 import {LoadBoundary} from './load-boundary.tsx';
+import {requestJSON} from './api-client.ts';
 import { Popup, MenuRow } from "./popup.tsx";
 /**
  * The application shell: the router, and the screen it hands off to.
@@ -9,14 +10,15 @@ import { Popup, MenuRow } from "./popup.tsx";
  * `nav.ts` where `bun test` can pin them without a DOM.
  */
 import { useCallback, useEffect, useRef, useState, lazy, Suspense } from "react";
-import {CompareIcon} from './icons.tsx';
+import {CompareIcon,Trend} from './icons.tsx';
 const ComparisonScreen=lazy(()=>import('./compare.tsx'));
+const MarketScreen=lazy(()=>import('./market.tsx'));
 import { Back, Bell, Clip, Link, Again, Sliders, User, Grid, Scan, Save, Gear, Shield, Store, Info } from "./icons.tsx";
 import { BrandMark, Wordmark } from "./brand.tsx";
 import type { Comp, Hist, Listing, Meta, Signal, Verdict } from "./types.ts";
 import {
-  LABEL, Toaster, pushHist, readHist, readAsked, readWatch, writeWatch,
-  readSettings, writeSettings, pendingOutcome, shareOrCopy, toast,
+  LABEL, Toaster, pushHist, readHist, readWatch, writeWatch,
+  readSettings, writeSettings, shareOrCopy, toast,
   openFilters, onFilterCount, rememberSpot, feedRows, deviceRef, scrollToTop,
   onFreshness, freshnessLine, type Freshness,
   DealBanner, publishDealAlert, pushNotes, readNotes, onNotes, unseenNotes,
@@ -269,7 +271,18 @@ export default function App() {
   const [hist, setHist] = useState<Hist[]>(readHist);
   const [savedCount, setSavedCount] = useState(() => readWatch().length);
   const [settings, setSettings] = useState<Settings>(readSettings);
-  const [ask, setAsk] = useState<Hist | null>(() => pendingOutcome(readHist(), readAsked()));
+  const [ask, setAsk] = useState<Hist | null>(null);
+  useEffect(()=>{
+    setAsk(null);
+    if(auth.state!=='in'||!auth.user||!settings.askOutcomes)return;
+    const ac=new AbortController(),key=`filtrsoft:followup-shown:${auth.user.id}`,at=Date.now();
+    try{const last=Number(localStorage.getItem(key));if(Number.isFinite(last)&&last>at-86400000)return;}catch{}
+    void requestJSON<{pending:Hist|null}>('/v1/follow-ups',{signal:ac.signal}).then(d=>{
+      if(ac.signal.aborted||!d.pending)return;
+      setAsk(d.pending);try{localStorage.setItem(key,String(at));}catch{}
+    }).catch(()=>{});
+    return()=>ac.abort();
+  },[auth.state,auth.user?.id,settings.askOutcomes]);
   /**
    * ⚠ THE FILTERS BUTTON IS HERE BECAUSE IT DID NOT FIT BESIDE THE SEGMENT
    * CONTROL. Measured on a real Galaxy S24 (360px, Android UA): four chips
@@ -354,7 +367,7 @@ export default function App() {
   const focusedRoute = useRef<string | null>(null);
   useEffect(() => {
     if (auth.state !== "in") return;
-    const titles: Record<string, string> = { deals: "Listings", check: "Check listing", saved: "Saved", more: "More", settings: "Settings", account: "Account", notifications: "Notifications", how: "How Filtrsoft works", compare: "Compare hardware", detail: listing?.title || "Listing" };
+    const titles: Record<string, string> = { deals: "Listings", check: "Check listing", saved: "Saved", more: "More", settings: "Settings", account: "Account", notifications: "Notifications", how: "How Filtrsoft works", compare: "Compare hardware", market: "Price history", detail: listing?.title || "Listing" };
     document.title = `${titles[screen.name]} · Filtrsoft`;
   }, [auth.state, listing?.title, screen.name]);
   useEffect(() => {
@@ -645,6 +658,7 @@ export default function App() {
             { id: "check", label: "Check a listing", icon: <Scan size={19} />, route: "/check" },
             { id: "saved", label: "Saved listings", icon: <Save size={19} />, route: "/saved" },
             { id: "compare", label: "Compare hardware", icon: <CompareIcon size={19} />, route: "/compare" },
+            { id: "market", label: "Price history", icon: <Trend size={19} />, route: "/market" },
             { id: "notifications", label: "Notifications", icon: <Bell size={19} />, route: "/notifications" }].map(n => (
             <button key={n.id} className={`workspace-link${screen.name === n.id ? " active" : ""}`} aria-current={screen.name === n.id ? "page" : undefined} onClick={() => go(n.route)}>
               {n.icon}<span>{n.label}</span>{n.id === "saved" && savedCount > 0 ? <em>{savedCount}</em> : null}
@@ -863,6 +877,7 @@ export default function App() {
                   meta={meta} stage={stage} reading={reading} checkId={checkId}
                   onShare={checkId ? () => void shareOrCopy(`${location.origin}/c/${checkId}`, listing?.title) : undefined}
                   onCompare={checkId?()=>go(`/compare?ids=${checkId}&kind=${meta?.category==='component'?'cpu':['ram','storage','motherboard','psu'].includes(meta?.category??'')?meta!.category:'gpu'}`):undefined}
+                  onMarket={()=>go(`/market?q=${encodeURIComponent(meta?.match?.model??'')}`)}
                   onBack={screen.name === "detail" ? back : undefined}
                   /* Relabelling changes the call the server serves, so the
                      screen re-reads rather than guessing at the new state. */
@@ -887,6 +902,7 @@ export default function App() {
             )}
 
             {screen.name === 'compare' && <LoadBoundary><Suspense fallback={<p role="status" className="compare-empty">Opening comparison…</p>}><ComparisonScreen onOpen={id=>go(`/c/${id}`)}/></Suspense></LoadBoundary>}
+            {screen.name === 'market' && <LoadBoundary><Suspense fallback={<p role="status" className="compare-empty">Opening price history…</p>}><MarketScreen/></Suspense></LoadBoundary>}
 
 
 
@@ -930,6 +946,7 @@ export default function App() {
               {quickMenu === "account" && <MenuRow icon={<User size={19}/>} label="Account details" detail="Your profile and plan" onClick={() => dismiss(() => go("/account"))} />}
               <MenuRow icon={<Gear size={19}/>} label="Settings" detail="Your numbers, feed and appearance" onClick={() => dismiss(() => go("/settings"))} />
               {quickMenu === 'more' && <MenuRow icon={<CompareIcon size={19}/>} label="Compare hardware" detail="Parts, performance and the actual deal" onClick={()=>dismiss(()=>go('/compare'))}/>}
+              {quickMenu === 'more' && <MenuRow icon={<Trend size={19}/>} label="Price history" detail="Recorded sales and market trends" onClick={()=>dismiss(()=>go('/market'))}/>}
               <MenuRow icon={<Bell size={19}/>} label="Saved searches & alerts" detail="Saved filters and optional notifications" onClick={() => dismiss(() => go("/saved?sub=alerts"))} />
               {quickMenu === "more" && <MenuRow icon={<Store size={19}/>} label="Purchases" detail="What you paid and its estimated value" onClick={() => dismiss(() => go("/saved?sub=purchases"))} />}
               <MenuRow icon={<Info size={19}/>} label="How Filtrsoft works" onClick={() => dismiss(() => go("/how"))} />

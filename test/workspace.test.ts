@@ -32,6 +32,45 @@ test('registration is open without configuration',()=>isolated(fixture+`
   assert.equal(r.status,200,await r.clone().text());
 `));
 
+test('market reads need no writes, preserve account pins, export every matching sale and invalidate changed evidence',()=>isolated(fixture+`
+  d.run("INSERT INTO skus(id,category,brand,model,created_at) VALUES(1,'component','AMD','Ryzen 5 5600X',?)",[at]);
+  const date=new Date(Date.now()-3*86400000).toISOString().slice(0,10);
+  for(let i=0;i<120;i++)d.run("INSERT INTO comps(source,source_item_id,raw_title,sold_price_cents,shipping_cents,captured_at,sold_at,sku_id,raw_json,condition_norm,url) VALUES('ebay',?,'AMD Ryzen 5 5600X CPU',10000,NULL,?,?,1,?,'used',?)",[String(i),at,date,JSON.stringify({soldAt:date}),'https://www.ebay.com/itm/'+(900000000000+i)]);
+  const path='/v1/market/products/1/history?range=1m';
+  assert.equal((await request(null,path)).status,401);
+  assert.equal((await request(1,'/v1/market/products/1/pin','POST',{pinned:true})).status,200);
+  assert.equal((await (await request(2,path)).json()).pinned,false);
+  d.exec('PRAGMA query_only=ON');
+  const response=await request(1,path);assert.equal(response.status,200,await response.clone().text());
+  const data=await response.json();assert.equal(data.totalSales,120);assert.equal(data.sales.length,100);assert.equal(data.pinned,true);
+  assert.equal(data.product.category,'cpu');assert.equal(data.summary.medianCents,10000);
+  const products=await (await request(1,'/v1/market/products?category=cpu&pinned=1')).json();assert.equal(products.items.length,1);
+  const csv=await (await request(1,path+'&format=csv')).text();assert.equal(csv.trim().split(String.fromCharCode(10)).length,121);
+  assert.equal((await request(1,path+'&cohort=not-valid')).status,400);
+  d.exec('PRAGMA query_only=OFF');d.run('UPDATE comps SET sold_price_cents=20000');
+  assert.equal((await (await request(1,path)).json()).summary.medianCents,20000);
+  await request(2,'/v1/market/products/1/pin','POST',{pinned:false});assert.equal((await (await request(1,path)).json()).pinned,true);
+`));
+
+test('follow-ups require an original seller click, a delay, the same account and an unanswered listing',()=>isolated(fixture+`
+  const pending=async owner=>(await (await request(owner,'/v1/follow-ups')).json()).pending;
+  assert.equal((await request(null,'/v1/checks/'+listingId+'/seller-click','POST')).status,401);
+  assert.equal(await pending(1),null);
+  await request(1,'/v1/checks/'+listingId);
+  assert.equal(await pending(1),null,'Viewing our report is not a seller click');
+  assert.equal((await request(1,'/v1/checks/'+listingId+'/seller-click','POST')).status,200);
+  assert.equal(await pending(1),null,'Do not ask immediately after the click');
+  const age=days=>d.run('UPDATE listing_contacts SET last_clicked_at=?',[new Date(Date.now()-days*86400000).toISOString()]);
+  age(2);assert.equal((await pending(1)).id,listingId);assert.equal(await pending(2),null);
+  age(15);assert.equal(await pending(1),null);age(2);
+  await request(2,'/v1/follow-ups/'+listingId+'/dismiss','POST');assert.equal((await pending(1)).id,listingId);
+  await request(1,'/v1/follow-ups/'+listingId+'/dismiss','POST');assert.equal(await pending(1),null);
+  await request(1,'/v1/checks/'+listingId+'/seller-click','POST');age(2);assert.equal(await pending(1),null,'New click does not undo dismissal');
+  d.run('UPDATE listing_contacts SET dismissed_at=NULL');
+  d.run('INSERT INTO outcomes(listing_id,user_id,action,created_at,evidence_kind) VALUES(?,?,?, ?,?)',[listingId,1,'passed',at,'personal_report']);
+  assert.equal(await pending(1),null,'Any personal outcome resolves the question');
+`));
+
 test('private registration closes password and new social accounts while preserving existing provider access',()=>isolated(fixture+`
   import {upsertIdentity,RegistrationClosed} from '@/src/api/auth.ts';
   process.env.FILTRSOFT_REGISTRATION='closed';

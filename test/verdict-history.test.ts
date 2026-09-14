@@ -2,6 +2,18 @@ import {test,expect} from 'bun:test';
 import {Database} from 'bun:sqlite';
 import {compactVerdictBatch,encodeVerdictPayload,decodeVerdictPayload} from '../src/db/verdict-history.ts';
 import {isolated} from './isolated.ts';
+import {storeVerdictWithDb} from '../src/db/verdicts.ts';
+
+test('future changed answers archive the previous evidence atomically and keep the current JSON readable',()=>{
+  const d=new Database(':memory:');d.exec('CREATE TABLE verdicts(id INTEGER PRIMARY KEY,listing_id INTEGER,engine_version TEXT,call TEXT,confidence TEXT,payload TEXT,created_at TEXT)');
+  const first={call:'VERIFY',quote:'Original evidence '.repeat(200)},second={call:'BUY',quote:'New exact evidence '.repeat(200)};
+  storeVerdictWithDb(d,1,'same',first,'2026-09-13');storeVerdictWithDb(d,1,'same',second,'2026-09-14');
+  const rows=d.query('SELECT * FROM verdicts ORDER BY id').all() as Array<{payload:string}>;
+  expect(rows[0].payload).not.toBe(JSON.stringify(first));expect(decodeVerdictPayload(rows[0].payload)).toBe(JSON.stringify(first));expect(rows[1].payload).toBe(JSON.stringify(second));
+  expect(storeVerdictWithDb(d,1,'same',second,'2026-09-15').inserted).toBe(false);
+  d.exec("CREATE TRIGGER abort_archive BEFORE UPDATE ON verdicts BEGIN SELECT RAISE(ABORT,'fixture failure'); END");
+  expect(()=>storeVerdictWithDb(d,1,'same',first,'2026-09-15')).toThrow('fixture failure');expect(d.query('SELECT * FROM verdicts ORDER BY id').all()).toEqual(rows);d.close();
+});
 test('historical compression preserves exact bytes, row identity and latest payloads',()=>{
   const d=new Database(':memory:');d.exec('CREATE TABLE verdicts(id INTEGER PRIMARY KEY,listing_id INTEGER,payload TEXT,created_at TEXT); CREATE INDEX history_listing ON verdicts(listing_id,id)');
   const original=JSON.stringify({call:'VERIFY',quote:'Seller’s exact words × 2 😀 '.repeat(150),provenance:{dataRevision:'original'}});

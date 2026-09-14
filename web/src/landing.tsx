@@ -7,6 +7,7 @@ import {
 } from "./icons.tsx";
 import { deviceRef, toast } from "./lib.tsx";
 import { BrandMark, Wordmark } from "./brand.tsx";
+import { loadGoogleIdentity } from './google-identity.ts';
 
 // ─────────────────────────────────────────────────────────────────── types
 
@@ -133,16 +134,22 @@ export function AuthScreen({ mode, providers, onDone, onMode, onBack }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const googleBox = useRef<HTMLDivElement>(null);
+  const [googleState,setGoogleState]=useState<'loading'|'ready'|'error'>('loading');
+  const [googleRetry,setGoogleRetry]=useState(0);
+  const done=useRef(onDone);done.current=onDone;
+  const submitting=useRef(false);
 
   const signup = mode === "signup" && providers?.registrationOpen !== false;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (busy) return;
+    if (submitting.current) return;
+    submitting.current=true;
     setBusy(true); setError(null);
     try {
       const r = await fetch(`/v1/auth/${signup ? "signup" : "signin"}`, {
         method: "POST",
+        signal: AbortSignal.timeout(15000),
         headers: { "content-type": "application/json" },
         /**
          * ⚠ THE DEVICE REF TRAVELS WITH THE SIGN-IN. The server adopts it onto
@@ -162,8 +169,8 @@ export function AuthScreen({ mode, providers, onDone, onMode, onBack }: {
       }
       onDone(d.user);
     } catch {
-      setError("Couldn't reach Filtrsoft. Check your connection.");
-    } finally { setBusy(false); }
+      setError("The sign-in request couldn't finish. Please try again.");
+    } finally { submitting.current=false;setBusy(false); }
   }
 
   /**
@@ -175,42 +182,40 @@ export function AuthScreen({ mode, providers, onDone, onMode, onBack }: {
    */
   useEffect(() => {
     if (!providers?.google || !providers.googleClientId || !googleBox.current) return;
+    const clientId=providers.googleClientId;
     let cancelled = false;
 
-    const init = () => {
-      const g = (window as any).google?.accounts?.id;
-      if (!g || cancelled || !googleBox.current) return;
+    setGoogleState('loading');
+    loadGoogleIdentity().then(g=>{
+      if (cancelled || !googleBox.current) return;
       g.initialize({
-        client_id: providers.googleClientId,
+        client_id: clientId,
         callback: async (resp: { credential: string }) => {
+          if(cancelled||submitting.current)return;
+          submitting.current=true;
           setBusy(true); setError(null);
           try {
             const r = await fetch("/v1/auth/google", {
               method: "POST",
+              signal: AbortSignal.timeout(15000),
               headers: { "content-type": "application/json" },
               body: JSON.stringify({ credential: resp.credential, ref: deviceRef() }),
             });
             const d = await r.json();
             if (!r.ok) { setError(d.error ?? "Google sign-in failed."); return; }
-            onDone(d.user);
-          } finally { setBusy(false); }
+            if(!cancelled)done.current(d.user);
+          } catch {if(!cancelled)setError("Google sign-in couldn't finish. Please try again.");}
+          finally {submitting.current=false;if(!cancelled)setBusy(false);}
         },
       });
       g.renderButton(googleBox.current, {
-        theme: "filled_black", size: "large", shape: "pill",
-        text: signup ? "signup_with" : "signin_with", width: 300,
+        theme: document.documentElement.dataset.theme==='light'?'outline':'filled_black', size: "large", shape: "pill",
+        text: signup ? "signup_with" : "signin_with", width: Math.min(360,googleBox.current.clientWidth||300),
       });
-    };
-
-    const existing = document.getElementById("gsi-script");
-    if (existing) { init(); return () => { cancelled = true; }; }
-    const sc = document.createElement("script");
-    sc.src = "https://accounts.google.com/gsi/client";
-    sc.async = true; sc.defer = true; sc.id = "gsi-script";
-    sc.onload = init;
-    document.head.appendChild(sc);
+      setGoogleState('ready');
+    }).catch(()=>{if(!cancelled)setGoogleState('error');});
     return () => { cancelled = true; };
-  }, [providers?.google, providers?.googleClientId, signup]);
+  }, [providers?.google, providers?.googleClientId, signup,googleRetry]);
 
   return (
     <div className="auth">
@@ -232,7 +237,11 @@ export function AuthScreen({ mode, providers, onDone, onMode, onBack }: {
       {(providers?.google || providers?.apple) && (
         <>
           <div className="authprov">
-            {providers?.google && <div className="gbtn" ref={googleBox} />}
+            {providers?.google && <div className="google-provider" aria-busy={googleState==='loading'||busy}>
+              <div className="gbtn" ref={googleBox} inert={busy}/>
+              {googleState==='loading'&&<p role="status">Loading Google sign-in…</p>}
+              {googleState==='error'&&<div role="alert"><p>Google sign-in couldn't load. You can still use email.</p><button type="button" className="btn sm" onClick={()=>setGoogleRetry(v=>v+1)}>Retry Google</button></div>}
+            </div>}
             {providers?.apple && (
               <button className="applebtn" disabled={busy} onClick={() => {
                 /**
@@ -341,12 +350,7 @@ export function AuthScreen({ mode, providers, onDone, onMode, onBack }: {
         </>}
       </p>
 
-      {signup && (
-        <p className="authlegal">
-          Filtrsoft stores your email and what you save. It never asks for a
-          marketplace login and never handles a card number.
-        </p>
-      )}
+      <p className="authlegal">Your account connects your reviews and workspace. <a href="/privacy">Privacy details</a>.</p>
     </div>
   );
 }
