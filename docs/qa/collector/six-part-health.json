@@ -1,0 +1,27 @@
+{
+  "at": "2026-09-15T15:14:02.319Z",
+  "health": {
+    "ok": true,
+    "canPrice": true,
+    "engine": "0.3.36",
+    "db": "ok",
+    "storage": {
+      "pressure": "low"
+    },
+    "comps": {
+      "total": 31992,
+      "usable": 28394,
+      "skusPriceable": 444,
+      "skusTotal": 565
+    },
+    "skus": 577,
+    "scoring": {
+      "signature": "6955|2026-09-15T15",
+      "pending": 7377,
+      "failures": 0,
+      "complete": false
+    }
+  },
+  "expectedAsset": "/assets/index-DdXzI38N.js",
+  "liveAssetMatches": true
+}

@@ -1,0 +1,106 @@
+{
+  "verifiedAt": "2026-09-15T15:17:22.394Z",
+  "applicationRevision": "789213d3bbc3a5b833d082ebba4b4e1c307e2165",
+  "engine": "0.3.36",
+  "ci": {
+    "id": 34986826853,
+    "conclusion": "success",
+    "status": "completed",
+    "url": "https://github.com/yzgershon/filtrsoft/actions/runs/34986826853"
+  },
+  "railway": {
+    "deploymentId": "df4083fe-36fe-408c-b4d8-de5b5ef3c263",
+    "status": "success"
+  },
+  "checks": {
+    "windows": {
+      "passed": 358,
+      "failed": 0,
+      "assertions": 1013
+    },
+    "linux": {
+      "passed": 358,
+      "failed": 0,
+      "assertions": 1013,
+      "networkDisabled": true
+    },
+    "typecheck": true,
+    "productionBuild": true,
+    "fixtureUi": {
+      "widths": [
+        390,
+        1280
+      ],
+      "themes": [
+        "dark",
+        "light"
+      ],
+      "checks": 4
+    },
+    "liveAssetMatches": true
+  },
+  "collector": {
+    "id": "3d4eccad-5df9-47fe-8830-b555bb7a508f",
+    "label": "Yishai XPS",
+    "revision": "789213d3bbc3",
+    "seenAt": "2026-09-15T15:13:45.395Z",
+    "online": true,
+    "nodeId": "3d4eccad-5df9-47fe-8830-b555bb7a508f",
+    "status": "online",
+    "jobId": null,
+    "pending": {},
+    "maintenance": {
+      "backup": {
+        "status": "done",
+        "attemptedAt": "2026-09-15T15:03:38.306Z",
+        "finishedAt": "2026-09-15T15:03:40.453Z",
+        "nextAt": "2026-09-16T15:03:40.453Z",
+        "note": "Completed and verified"
+      },
+      "comps": {
+        "status": "done",
+        "attemptedAt": "2026-09-15T15:03:40.461Z",
+        "finishedAt": "2026-09-15T15:04:07.059Z",
+        "nextAt": "2026-09-15T19:04:07.059Z",
+        "note": "Completed and verified"
+      }
+    }
+  },
+  "storage": {
+    "totalBytes": 4685873152,
+    "freeBytes": 97583104,
+    "pressure": "low",
+    "databaseBytes": 4447391744,
+    "walBytes": 4363112
+  },
+  "limits": [
+    "Gaming desktop migration, physical sleep/reboot and GPU evaluation deferred by Yish.",
+    "Server backup safely refused for insufficient free space; complete approval for Pro upgrade and 32 GB volume is pending.",
+    "No separate offsite backup destination configured.",
+    "Production stored-fact re-scoring remains in progress."
+  ],
+  "storageDiagnosis": {
+    "at": "2026-09-15T15:13:20Z",
+    "verdictRows": 750170,
+    "pageCount": 1085789,
+    "freePages": 278547,
+    "pageSize": 4096,
+    "note": "Existing hourly-marker deduplication and lossless history compression are present. Old allocated database pages and retained history still consume the volume. No historical rows were deleted."
+  },
+  "storageApproval": {
+    "currentPlan": "Hobby",
+    "currentLimitGB": 5,
+    "requestedPlan": "Pro",
+    "requestedVolumeGB": 32,
+    "monthlyMinimumUSD": 20,
+    "includedUsageUSD": 20,
+    "storageUSDPerGBMonth": 0.15,
+    "status": "pending",
+    "note": "The earlier storage-only question is superseded because it omitted the required Pro upgrade. No billing or volume change made."
+  },
+  "scoringFollowUp": {
+    "pending": 5878,
+    "failures": 0,
+    "note": "Down from 7377; catch-up still running."
+  }
+}

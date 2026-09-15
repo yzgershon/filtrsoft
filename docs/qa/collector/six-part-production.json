@@ -1,0 +1,310 @@
+{
+  "status.json": {
+    "pid": 13660,
+    "host": "Yishai_XPS",
+    "platform": "win32",
+    "arch": "arm64",
+    "updatedAt": "2026-09-15T15:13:45.320Z",
+    "status": "online",
+    "revision": "789213d3bbc3",
+    "api": "https://filtrsoft.com",
+    "database": "C:\\Dev\\filtrsoft\\filtrsoft.db",
+    "lastPollAt": "2026-09-15T15:13:45.319Z",
+    "lastError": null,
+    "progress": "starting",
+    "jobId": null,
+    "ageSeconds": 11
+  },
+  "supervisor.json": {
+    "pid": 34204,
+    "childPid": 13660,
+    "restarts": 0,
+    "updatedAt": "2026-09-15T15:13:54.898Z",
+    "ageSeconds": 1
+  },
+  "production": {
+    "at": "2026-09-15T15:13:56.486Z",
+    "arrivals": [
+      {
+        "source": "craigslist",
+        "total": 6149,
+        "newestCapture": "2026-09-15T15:10:58.516Z",
+        "newestSeen": "2026-09-15T15:10:58.516Z",
+        "captured24h": 143,
+        "captured7d": 828
+      },
+      {
+        "source": "facebook",
+        "total": 576,
+        "newestCapture": "2026-09-15T14:58:50.752Z",
+        "newestSeen": "2026-09-15T14:58:50.752Z",
+        "captured24h": 50,
+        "captured7d": 65
+      },
+      {
+        "source": "mercari",
+        "total": 141,
+        "newestCapture": "2026-09-15T14:56:13.730Z",
+        "newestSeen": "2026-09-15T14:56:13.730Z",
+        "captured24h": 32,
+        "captured7d": 32
+      },
+      {
+        "source": "offerup",
+        "total": 511,
+        "newestCapture": "2026-09-15T14:55:54.849Z",
+        "newestSeen": "2026-09-15T14:55:54.849Z",
+        "captured24h": 31,
+        "captured7d": 31
+      }
+    ],
+    "recentCalls": [
+      {
+        "source": "craigslist",
+        "call": "FAIR",
+        "count": 7
+      },
+      {
+        "source": "craigslist",
+        "call": "INSUFFICIENT_DATA",
+        "count": 114
+      },
+      {
+        "source": "craigslist",
+        "call": "OUT_OF_SCOPE",
+        "count": 673
+      },
+      {
+        "source": "craigslist",
+        "call": "PASS",
+        "count": 22
+      },
+      {
+        "source": "craigslist",
+        "call": "RISK",
+        "count": 5
+      },
+      {
+        "source": "craigslist",
+        "call": "VERIFY",
+        "count": 3
+      },
+      {
+        "source": "facebook",
+        "call": "FAIR",
+        "count": 2
+      },
+      {
+        "source": "facebook",
+        "call": "INSUFFICIENT_DATA",
+        "count": 37
+      },
+      {
+        "source": "facebook",
+        "call": "OUT_OF_SCOPE",
+        "count": 15
+      },
+      {
+        "source": "facebook",
+        "call": "PASS",
+        "count": 10
+      },
+      {
+        "source": "facebook",
+        "call": "RISK",
+        "count": 1
+      },
+      {
+        "source": "mercari",
+        "call": "FAIR",
+        "count": 1
+      },
+      {
+        "source": "mercari",
+        "call": "INSUFFICIENT_DATA",
+        "count": 22
+      },
+      {
+        "source": "mercari",
+        "call": "OUT_OF_SCOPE",
+        "count": 4
+      },
+      {
+        "source": "mercari",
+        "call": "PASS",
+        "count": 5
+      },
+      {
+        "source": "offerup",
+        "call": "FAIR",
+        "count": 1
+      },
+      {
+        "source": "offerup",
+        "call": "INSUFFICIENT_DATA",
+        "count": 25
+      },
+      {
+        "source": "offerup",
+        "call": "OUT_OF_SCOPE",
+        "count": 3
+      },
+      {
+        "source": "offerup",
+        "call": "PASS",
+        "count": 1
+      },
+      {
+        "source": "offerup",
+        "call": "VERIFY",
+        "count": 1
+      }
+    ],
+    "latestServerCrawls": [
+      {
+        "started_at": "2026-09-15T15:10:57.935Z",
+        "discovered": 1342,
+        "analysed": 1,
+        "failed": 0
+      },
+      {
+        "started_at": "2026-09-15T15:07:57.934Z",
+        "discovered": 1340,
+        "analysed": 0,
+        "failed": 0
+      },
+      {
+        "started_at": "2026-09-15T15:02:18.278Z",
+        "discovered": 1340,
+        "analysed": 1,
+        "failed": 0
+      },
+      {
+        "started_at": "2026-09-15T14:59:18.277Z",
+        "discovered": 1346,
+        "analysed": 0,
+        "failed": 0
+      },
+      {
+        "started_at": "2026-09-15T14:56:18.276Z",
+        "discovered": 1346,
+        "analysed": 1,
+        "failed": 0
+      }
+    ],
+    "serverCrawlEnabled": true,
+    "collection": {
+      "everyMinutes": 45,
+      "agentOnline": true,
+      "lastAgentPollAt": "2026-09-15T15:13:45.418Z",
+      "collectors": [
+        {
+          "seenAt": "2026-09-15T15:13:45.418Z",
+          "jobId": null,
+          "revision": "789213d3bbc3"
+        },
+        {
+          "seenAt": "2026-09-15T15:13:11.375Z",
+          "jobId": null,
+          "revision": "a47716afee6c"
+        },
+        {
+          "seenAt": "2026-09-15T14:58:57.822Z",
+          "jobId": 11,
+          "revision": "d3d116eb2802"
+        },
+        {
+          "seenAt": "2026-09-15T01:42:01.717Z",
+          "jobId": null,
+          "revision": "legacy"
+        }
+      ]
+    },
+    "health": {
+      "at": "2026-09-15T15:13:56.487Z",
+      "nodes": [
+        {
+          "id": "3d4eccad-5df9-47fe-8830-b555bb7a508f",
+          "label": "Yishai XPS",
+          "revision": "789213d3bbc3",
+          "seenAt": "2026-09-15T15:13:45.395Z",
+          "online": true,
+          "nodeId": "3d4eccad-5df9-47fe-8830-b555bb7a508f",
+          "status": "online",
+          "jobId": null,
+          "pending": {},
+          "maintenance": {
+            "backup": {
+              "status": "done",
+              "attemptedAt": "2026-09-15T15:03:38.306Z",
+              "finishedAt": "2026-09-15T15:03:40.453Z",
+              "nextAt": "2026-09-16T15:03:40.453Z",
+              "note": "Completed and verified"
+            },
+            "comps": {
+              "status": "done",
+              "attemptedAt": "2026-09-15T15:03:40.461Z",
+              "finishedAt": "2026-09-15T15:04:07.059Z",
+              "nextAt": "2026-09-15T19:04:07.059Z",
+              "note": "Completed and verified"
+            }
+          }
+        }
+      ],
+      "sources": [
+        {
+          "source": "facebook",
+          "status": "attention",
+          "lastSearchAt": "2026-09-15T14:58:57.341Z",
+          "lastSuccessAt": "2026-09-15T14:55:42.006Z",
+          "newestCaptureAt": "2026-09-15T14:58:50.752Z",
+          "lastUploadAt": "2026-09-15T14:58:57.786Z",
+          "issue": "Collection needs attention",
+          "activeStage": null
+        },
+        {
+          "source": "offerup",
+          "status": "healthy",
+          "lastSearchAt": "2026-09-15T14:55:59.882Z",
+          "lastSuccessAt": "2026-09-15T14:55:59.882Z",
+          "newestCaptureAt": "2026-09-15T14:55:54.849Z",
+          "lastUploadAt": "2026-09-15T14:56:00.216Z",
+          "issue": null,
+          "activeStage": null
+        },
+        {
+          "source": "mercari",
+          "status": "healthy",
+          "lastSearchAt": "2026-09-15T14:56:18.587Z",
+          "lastSuccessAt": "2026-09-15T14:56:18.587Z",
+          "newestCaptureAt": "2026-09-15T14:56:13.730Z",
+          "lastUploadAt": "2026-09-15T14:56:18.926Z",
+          "issue": null,
+          "activeStage": null
+        }
+      ],
+      "policy": {
+        "preferredNode": null,
+        "fallbackMinutes": 5
+      },
+      "server": {
+        "source": "craigslist",
+        "enabled": true,
+        "backup": {
+          "status": "failed",
+          "attemptedAt": "2026-09-15T15:07:57.931Z",
+          "finishedAt": "2026-09-15T15:07:57.931Z",
+          "nextAt": "2026-09-15T16:07:57.931Z",
+          "note": "Not enough verified free space for a safe backup"
+        },
+        "storage": {
+          "totalBytes": 4685873152,
+          "freeBytes": 97583104,
+          "pressure": "low",
+          "databaseBytes": 4447391744,
+          "walBytes": 4363112
+        }
+      }
+    }
+  }
+}
