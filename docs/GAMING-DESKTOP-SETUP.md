@@ -44,25 +44,34 @@ Use the existing installer with `--prepare`, explicit `--node`, `--env-file`,
 `--database` and `--state` paths, plus `--label "Gaming desktop"`. This writes a
 reviewable configuration without installing startup. Run `bun run agent:doctor`
 with the same state/environment/database paths; it prints presence checks only.
-After setup is ready, run the installer without `--prepare` and start the generated
-`start.cjs`. Do not reuse the laptop's `node-id` file.
+After setup is ready, run the installer without `--prepare`. Start through the
+daily task as described below. Do not reuse the laptop's `node-id` file.
 
-On a fresh Windows PC, the current installer creates the logon shortcut but only
-updates an already existing **Filtrsoft Daily Crawl** task. On the OMEN its first
-attempt exited 1 after creating the shortcut because that task was absent.
-Create the per-user daily task using the prepared action in `install-preview.json`,
-then rerun the installer. The measured OMEN schedule is 10 AM Eastern, interactive
-user, `StartWhenAvailable`, and `IgnoreNew` for duplicate task launches. Start the
+The installer fix on the desktop setup branch creates **Filtrsoft Daily Crawl**
+when absent: daily 10 AM, current interactive user, `StartWhenAvailable`,
+`IgnoreNew` and a five-minute launcher limit. An existing task retains its schedule,
+principal and settings while its action is updated. Its old XML and any previous
+shortcut/legacy launcher are backed up in runner state.
+
+The currently pinned OMEN runtime at **43c4fa744134** predates that fix: it only
+updates an existing task, and the first installation exited 1 when none existed.
+For that revision, create the per-user task using `install-preview.json`, then
+rerun the installer. This workaround is already completed on the OMEN. Start the
 collector with `Start-ScheduledTask -TaskName 'Filtrsoft Daily Crawl'` so it runs
 independently of the terminal or Codex command session. Verify the task returns 0
 and a fresh `supervisor.json`/`status.json` appears; invoking a shortcut alone is
 not evidence that its child survived the session.
 
 The doctor checks path presence. It does not validate the upload token or account
-sign-in. Check authenticated diagnostics, actual marketplace results, and server
-acknowledgements separately. The existing eBay login command can mistake a generic
-greeting element for a signed-in session; the OMEN setup verified the manual
-sign-in using actual dated sold comps and applied server acknowledgements.
+sign-in. The setup-branch fix honors `--state` and the configured Node path;
+on the currently pinned runtime, load `FILTRSOFT_AGENT_STATE` from the private
+environment file so doctor checks the intended installation. Check authenticated
+diagnostics, actual marketplace results, and server acknowledgements separately.
+The older eBay login command can mistake a generic greeting for a signed-in
+session. The setup-branch fix requires positive account-header evidence and treats
+unconfirmed sign-in as a failed check. A successful header check still does not
+prove sold-search access; the OMEN's actual dated comps and applied server
+acknowledgements provide that evidence.
 
 If Collection is missing from Settings while signed in, the existing server
 checks whether the account owns the device named by `FILTRSOFT_OWNER_REF`.

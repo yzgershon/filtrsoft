@@ -1,7 +1,7 @@
 # Reliable automatic collection
 
 Yish approved permanent automatic collection and all six pieces on September 15,
-2026, then clarified: **prepare here; migrate the gaming desktop later**.
+2026, and subsequently authorized the HP OMEN installation that same day.
 Read the newest HANDOFF checkpoint for the deployed revision and actual receipts.
 
 ## Implemented in the agreed order
@@ -52,10 +52,13 @@ checks at mobile/desktop sizes in both themes. Current totals and production
 receipts belong in HANDOFF. The laptop's hidden logon launcher and daily recovery
 task were already installed and duplicate-tested in the preceding release.
 
-The HP OMEN is not configured yet. Use the existing private GitHub repo for code;
-keep environment files, databases and browser sessions outside Git. Set up fresh
-manual marketplace sign-ins, then select that connected machine in Settings.
-Measure a complete cycle and controlled fallback before retiring the laptop role.
+The HP OMEN now collects automatically with fresh ingestion data and local
+marketplace profiles. Actual discovery, acknowledged uploads, verified ingestion
+backups and both child/supervisor recovery are measured in HANDOFF. Primary
+selection still awaits the owner-configuration check, and the laptop is unavailable
+for physical fallback testing. Keep the laptop registration; do not call the
+two-computer migration finished until those remaining checks pass. Environment
+files, databases and browser sessions stay outside the private GitHub repository.
 
 Remaining device-dependent checks: sleep/resume, reboot/logon, sustained network
 loss, multiple unattended cycles, actual 4070 Ti latency/VRAM/accuracy and gaming
