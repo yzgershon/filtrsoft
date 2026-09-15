@@ -1,6 +1,7 @@
 import type {Context} from 'hono';
 import {z} from 'zod';
-import {db,now} from '../db/index.ts';
+import {db,now,DB_PATH} from '../db/index.ts';
+import {storageStatus} from '../db/storage.ts';
 import {currentUser,ownsDevice} from './auth.ts';
 import {agentAuthorised,AGENT_SOURCES,touchAgent} from './jobs.ts';
 import {readHostPolicy} from '../agent/host-policy.ts';
@@ -59,7 +60,7 @@ export function collectionHealth(at=Date.now()) {
       newestCaptureAt:newest.capturedAt,lastUploadAt:sync?.finished_at??null,issue:unresolved?failureLabel(failed.error):null,
       activeStage:active?.stage.split('/')[1]??null};
   });
-  return {at:stamp,nodes,sources,policy:readHostPolicy(d),server:{source:'craigslist',enabled:(process.env.FILTRSOFT_CRAWL??'on').toLowerCase()!=='off',backup:serverBackupStatus()}};
+  return {at:stamp,nodes,sources,policy:readHostPolicy(d),server:{source:'craigslist',enabled:(process.env.FILTRSOFT_CRAWL??'on').toLowerCase()!=='off',backup:serverBackupStatus(),storage:storageStatus(DB_PATH)}};
 }
 export function handleCollectionHealth(c:Context) {
   if(!collectionOwner(c))return c.json({allowed:false});

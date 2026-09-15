@@ -18,6 +18,7 @@ export function CollectionHealthView({data,refresh,busy,error}:{data:CollectionH
     <details className="collection-routing"><summary>Backups & sold-price updates</summary>
       {data.nodes.map(n=><div className="collection-machine" key={n.id}><b>{n.label}</b><p>Local backup: {n.maintenance?.backup?`${n.maintenance.backup.status} · ${time(n.maintenance.backup.finishedAt??null)}`:'Not reported'}</p><p>Sold-price refresh: {n.maintenance?.comps?`${n.maintenance.comps.status} · ${time(n.maintenance.comps.finishedAt??null)}`:'Not reported'}</p>{Object.entries(n.maintenance??{}).filter(([,m])=>m.status==='failed').map(([name,m])=><p key={name} className="collection-issue">{name}: {m.note}</p>)}</div>)}
       <p className="micro2">Server backup: {data.server.backup?`${data.server.backup.status} · ${time(data.server.backup.finishedAt??null)}`:'Not recorded'}. Local snapshots protect against bad changes; a separate backup location is needed for loss of the computer or volume.</p>
+      {data.server.backup?.status==='failed'&&<p className="collection-issue">{data.server.backup.note}</p>}
     </details>
     <p className="workspace-notice">Craigslist runs on the server{data.server.enabled?'.':' and is currently disabled.'} Facebook, OfferUp and Mercari need an awake computer. A successful search can find zero new listings.</p>
     <p className="micro2">Status received {time(data.at)}. Queued changes describe saved uploads; an offline computer may have newer work.</p>

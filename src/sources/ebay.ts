@@ -1,4 +1,5 @@
 import {workerEvents} from "../agent/worker.ts";
+import {macbookCompIdentity} from '../catalog/macbook.ts';
 /**
  * eBay sold comps — the archive's real source.
  *
@@ -268,6 +269,7 @@ const UNIT_SUFFIX = "(?:mt\\/s|mts|mhz|ghz|gbps|hz|gb|tb|mb)";
 export function compMatchesQuery(
   title: string, query: string, skuCategory?: string | null,
 ): { ok: boolean; why: string } {
+  if(!macbookCompIdentity(title,query))return {ok:false,why:'MacBook hardware generation is missing or different'};
   skuCategory = skuCategory ? catalogCategory(skuCategory, query) : skuCategory;
   if (skuCategory && !exactPartIdentity(title, query, skuCategory)) {
     return { ok: false, why: "part brand/model/configuration is not explicit and identical" };

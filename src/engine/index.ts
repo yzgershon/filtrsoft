@@ -465,4 +465,5 @@ export function checkStored(
  */
 // 0.3.33: preserve item/quantity/price pairs in placeholder inventory ads.
 // Never compare the headline $1 with a median assembled from different items.
-export const ENGINE_VERSION = "0.3.35";
+// 0.3.36: ambiguous MacBook families cannot pool Intel and Apple Silicon sales.
+export const ENGINE_VERSION = "0.3.36";

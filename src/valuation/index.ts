@@ -1,4 +1,5 @@
 import {extractAttributes} from "../catalog/match.ts";
+import {macbookCompIdentity} from '../catalog/macbook.ts';
 import { usableCompSql } from "../db/comp-evidence.ts";
 /**
  * Valuation and channel economics.
@@ -185,6 +186,7 @@ export function valueSku(
 
   const identity = db().query("SELECT brand,model,category FROM skus WHERE id=?").get(skuId) as {brand:string;model:string;category:string} | null;
   if (identity) {
+    raw=raw.filter(r=>macbookCompIdentity(r.raw_title,`${identity.brand} ${identity.model}`));
     const category = catalogCategory(identity.category, identity.model);
     if (EXACT_PARTS.has(category)) raw = raw.filter(r => exactPartIdentity(r.raw_title, `${identity.brand} ${identity.model}`, category));
   }

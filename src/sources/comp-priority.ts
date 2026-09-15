@@ -1,4 +1,5 @@
 import {db,now} from "../db/index.ts";
+import {macbookCompIdentity} from '../catalog/macbook.ts';
 import {catalogCoverage} from "../valuation/coverage.ts";
 import {matchSku} from "../catalog/match.ts";
 import {usableCompSql} from "../db/comp-evidence.ts";
@@ -26,6 +27,8 @@ export function collectionPriority(limit=20,at=Date.now()) {
   }
   const raw=new Map((d.query(`SELECT sku_id,COUNT(*) comps,MAX(CASE WHEN ${usableCompSql()} THEN sold_at END) newest FROM comps GROUP BY sku_id`).all() as {sku_id:number;comps:number;newest:string|null}[]).map(r=>[r.sku_id,r]));
   return catalogCoverage().flatMap(s=>{
+    const identity=`${s.brand} ${s.model}`;
+    if(!macbookCompIdentity(identity,identity))return [];
     const attempts=d.query('SELECT started_at,finished_at,saved,error FROM comp_collection_attempts WHERE sku_id=? ORDER BY id DESC LIMIT 10').all(s.id) as {started_at:string;finished_at:string|null;saved:number;error:string|null}[];
     let empty=0;for(const a of attempts){if(a.finished_at && a.saved>0 && !a.error)break;empty++;}
     const last=attempts[0],delay=empty?Math.min(7*86400000,3600000*2**(empty-1)):6*3600000;
