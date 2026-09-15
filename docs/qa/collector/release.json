@@ -1,0 +1,22 @@
+{
+  "verifiedAt": "2026-09-15T05:23:55Z",
+  "applicationRevision": "d3d116eb28027e00200efe45d09287014fd48612",
+  "ci": {
+    "id": 34932156679,
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/yzgershon/filtrsoft/actions/runs/34932156679"
+  },
+  "railway": {
+    "deploymentId": "4fe80218-e48a-4f2c-9257-887d5b1dff25",
+    "status": "success"
+  },
+  "dedicatedRuntime": {
+    "path": "C:/Dev/filtrsoft-agent",
+    "revision": "d3d116eb28027e00200efe45d09287014fd48612",
+    "clean": true,
+    "persistentStartupInstalled": false,
+    "started": false,
+    "remainingStep": "Explicit approval pending for hidden logon installation, daily scheduled-task update and start; automatic approval review rejected the command before execution."
+  }
+}

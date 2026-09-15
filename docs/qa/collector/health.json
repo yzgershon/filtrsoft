@@ -1,0 +1,22 @@
+{
+  "ok": true,
+  "canPrice": true,
+  "engine": "0.3.35",
+  "db": "ok",
+  "storage": {
+    "pressure": "low"
+  },
+  "comps": {
+    "total": 31900,
+    "usable": 28313,
+    "skusPriceable": 492,
+    "skusTotal": 563
+  },
+  "skus": 575,
+  "scoring": {
+    "signature": "6861|2026-09-15T05",
+    "pending": 0,
+    "failures": 0,
+    "complete": true
+  }
+}

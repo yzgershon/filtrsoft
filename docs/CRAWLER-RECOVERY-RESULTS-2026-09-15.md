@@ -61,7 +61,7 @@ exclusion and termination of its own child. The exact generated Windows shortcut
 action was also exercised against a fake collector under paths containing spaces
 and an apostrophe: launch succeeded and its child stopped on request.
 
-Pinned Linux verification also passed **346/0/996**, including typecheck, with network disabled. Deployment/runtime switch is next; append actual receipts below. Shared checkout source edits are preserved.
+Pinned Linux verification also passed **346/0/996**, including typecheck, with network disabled. Final deployment receipts follow below. Shared checkout source edits are preserved.
 
 Setup and future gaming-PC capabilities: `DESKTOP-COLLECTOR.md`.
 
@@ -77,10 +77,20 @@ is active, while useful supply and exact sold evidence remain constraints.
 Native CI `34931811775` caught a supervisor shutdown race not seen on Windows or
 containerized ARM Linux: its parent exited before reaping its killed child.
 The correction waits for the child close event before releasing ownership and
-exiting. Targeted Windows/Linux collector tests pass; native CI is being rerun
-on the correction. This is a real lifecycle fix, not a relaxed assertion.
+exiting. Targeted Windows/Linux collector tests pass. Final native amd64 CI
+`34932156679` completed successfully on `d3d116eb28027e00200efe45d09287014fd48612`,
+including full tests, typecheck, frontend build, network-disabled Docker tests
+and the production image build. This is a real lifecycle fix, not a relaxed assertion.
 
-The permanent runtime is prepared at `C:/Dev/filtrsoft-agent`. Automatic approval
+The final application revision is on main. Railway deployment
+`4fe80218-e48a-4f2c-9257-887d5b1dff25` succeeded; status was rechecked at
+05:23 UTC. The 05:18 UTC production receipt confirms the eight new captures,
+healthy database, low storage pressure and zero pending/failed scores. The
+collector remains offline pending installation approval. Receipts are stored
+in `docs/qa/collector/health.json`, `production.json` and `release.json`.
+
+The permanent runtime is prepared and clean at `C:/Dev/filtrsoft-agent`, detached
+at `d3d116e` and reusing existing dependencies. Automatic approval
 review blocked its hidden logon installation, scheduled-task update and start,
 citing missing exact authorization for persistent startup changes. The command
 did not run. One direct approval question is pending; no alternate installation

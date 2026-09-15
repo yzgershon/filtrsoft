@@ -1,0 +1,158 @@
+{
+  "status.json": "unavailable",
+  "supervisor.json": "unavailable",
+  "production": {
+    "at": "2026-09-15T05:18:33.924Z",
+    "arrivals": [
+      {
+        "source": "craigslist",
+        "total": 6089,
+        "newestCapture": "2026-09-15T04:25:32.875Z",
+        "newestSeen": "2026-09-15T04:25:32.875Z",
+        "captured24h": 160,
+        "captured7d": 806
+      },
+      {
+        "source": "facebook",
+        "total": 529,
+        "newestCapture": "2026-09-15T04:50:33.812Z",
+        "newestSeen": "2026-09-15T04:50:33.812Z",
+        "captured24h": 3,
+        "captured7d": 62
+      },
+      {
+        "source": "mercari",
+        "total": 112,
+        "newestCapture": "2026-09-15T05:03:11.922Z",
+        "newestSeen": "2026-09-15T05:03:11.922Z",
+        "captured24h": 3,
+        "captured7d": 3
+      },
+      {
+        "source": "offerup",
+        "total": 482,
+        "newestCapture": "2026-09-15T04:53:21.760Z",
+        "newestSeen": "2026-09-15T04:54:50.911Z",
+        "captured24h": 2,
+        "captured7d": 17
+      }
+    ],
+    "recentCalls": [
+      {
+        "source": "craigslist",
+        "call": "FAIR",
+        "count": 5
+      },
+      {
+        "source": "craigslist",
+        "call": "INSUFFICIENT_DATA",
+        "count": 114
+      },
+      {
+        "source": "craigslist",
+        "call": "OUT_OF_SCOPE",
+        "count": 659
+      },
+      {
+        "source": "craigslist",
+        "call": "PASS",
+        "count": 16
+      },
+      {
+        "source": "craigslist",
+        "call": "RISK",
+        "count": 5
+      },
+      {
+        "source": "craigslist",
+        "call": "VERIFY",
+        "count": 3
+      },
+      {
+        "source": "facebook",
+        "call": "INSUFFICIENT_DATA",
+        "count": 27
+      },
+      {
+        "source": "facebook",
+        "call": "OUT_OF_SCOPE",
+        "count": 30
+      },
+      {
+        "source": "facebook",
+        "call": "PASS",
+        "count": 4
+      },
+      {
+        "source": "facebook",
+        "call": "RISK",
+        "count": 1
+      },
+      {
+        "source": "mercari",
+        "call": "INSUFFICIENT_DATA",
+        "count": 1
+      },
+      {
+        "source": "mercari",
+        "call": "PASS",
+        "count": 2
+      },
+      {
+        "source": "offerup",
+        "call": "INSUFFICIENT_DATA",
+        "count": 7
+      },
+      {
+        "source": "offerup",
+        "call": "OUT_OF_SCOPE",
+        "count": 10
+      }
+    ],
+    "latestServerCrawls": [
+      {
+        "started_at": "2026-09-15T05:10:33.142Z",
+        "discovered": 1392,
+        "analysed": 0,
+        "failed": 0
+      },
+      {
+        "started_at": "2026-09-15T05:07:33.137Z",
+        "discovered": 1392,
+        "analysed": 0,
+        "failed": 0
+      },
+      {
+        "started_at": "2026-09-15T05:04:33.137Z",
+        "discovered": 1392,
+        "analysed": 0,
+        "failed": 0
+      },
+      {
+        "started_at": "2026-09-15T05:01:33.135Z",
+        "discovered": 1392,
+        "analysed": 0,
+        "failed": 0
+      },
+      {
+        "started_at": "2026-09-15T04:58:32.539Z",
+        "discovered": 1392,
+        "analysed": 0,
+        "failed": 0
+      }
+    ],
+    "serverCrawlEnabled": true,
+    "collection": {
+      "everyMinutes": 45,
+      "agentOnline": false,
+      "lastAgentPollAt": "2026-09-15T01:42:01.717Z",
+      "collectors": [
+        {
+          "seenAt": "2026-09-15T01:42:01.717Z",
+          "jobId": null,
+          "revision": "legacy"
+        }
+      ]
+    }
+  }
+}

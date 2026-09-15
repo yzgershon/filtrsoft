@@ -3,7 +3,7 @@
 **Master plan AND current state. Update before you stop working.** A stale line
 here is worse than a missing one, because a fresh session will believe it.
 
-**Last updated 2026-09-13.** Read section 0 first and in order; it is the record
+**Last updated 2026-09-15.** Read section 0 first and in order; it is the record
 of every session since the rename and it supersedes anything below it that
 disagrees. Sections 1 onward are older material kept for the reasoning, not for
 current numbers.
@@ -89,7 +89,15 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
-### September 15, collection recovery in progress
+### September 15, collection recovery deployed; persistent startup approval pending
+
+**Final application revision `d3d116eb28027e00200efe45d09287014fd48612` is on main and live.** Railway deployment `4fe80218-e48a-4f2c-9257-887d5b1dff25` succeeded. Native amd64 CI `34932156679` completed successfully, including tests, typecheck, frontend build, network-disabled Docker tests and production image build. This fixes the child-reaping race discovered by the previous CI run. Windows and pinned Linux verification passed **346 tests, 0 failures, 996 assertions**. Dedicated runtime `C:/Dev/filtrsoft-agent` is clean at detached `d3d116e` with existing dependencies reused. Release and aggregate receipts: `docs/qa/collector/`.
+
+At 05:18 UTC, production confirmed all **eight new recovery captures** (Facebook 3, OfferUp 2, Mercari 3), 160 Craigslist captures/24h, healthy DB, low storage pressure and zero pending/failed scores. Engine remains **0.3.35**; no valuation or comp guard was loosened. The eight captures are not eight BUY recommendations. Exact sold evidence remains absent for some new listings.
+
+**Remaining operational step:** the hidden logon launcher installation, existing daily-task update and collector start were rejected by automatic approval review before execution. One direct question asking permission for these persistent startup changes is pending. Do not bypass that rejection or treat the release as proof the desktop collector is online: its status remains offline, and the existing launchers have not been changed. After explicit approval, install/start from the dedicated runtime and verify its actual revision, polling receipt and remote presence. See `docs/DESKTOP-COLLECTOR.md` and `docs/CRAWLER-RECOVERY-RESULTS-2026-09-15.md`. Shared checkout's pre-existing `web/src/detail.tsx` and `web/src/types.ts` changes remain untouched.
+
+The chronological checkpoints below describe intermediate states; the final receipt above supersedes their pending-release claims.
 
 Production 221e7a3 is live (Railway status success). Authenticated aggregate diagnostics at 05:14 UTC confirm 160 Craigslist captures/24h and the eight new desktop captures (Facebook 3, OfferUp 2, Mercari 3). Last-week live Craigslist cohort: 3 VERIFY, 5 FAIR, 16 PASS, 5 RISK, 114 insufficient-data, 659 out of scope, no BUY. Native CI 34931811775 exposed a supervisor shutdown race: it exited before reaping its child. Fixed by retaining ownership until child close; targeted Windows/Linux collector tests pass. Shipping that correction next. Startup approval remains pending; do not install or start via an alternate route.
 
