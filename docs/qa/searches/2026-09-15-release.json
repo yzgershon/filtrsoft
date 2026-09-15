@@ -1,0 +1,102 @@
+{
+  "applicationRevision": "43c4fa7441340abdfb27dd8d00f6ec4fbc854679",
+  "engine": "0.3.36",
+  "ci": {
+    "id": 34994132254,
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "railway": {
+    "deploymentId": "a2d73ebd-6e35-4348-be3f-7d30c215a4de",
+    "githubDeploymentId": 6463345988,
+    "status": "success",
+    "verification": "Railway Details UI: Deployment successful, exact GitHub commit 43c4fa7441340abdfb27dd8d00f6ec4fbc854679"
+  },
+  "checks": {
+    "windows": {
+      "passed": 366,
+      "failed": 0,
+      "assertions": 1198
+    },
+    "linux": {
+      "passed": 366,
+      "failed": 0,
+      "assertions": 1198,
+      "networkDisabled": true
+    },
+    "typecheck": true,
+    "productionBuild": true,
+    "nativeCiProductionDockerBuild": true,
+    "liveSearchReceipt": "2026-09-15-samples.json"
+  },
+  "collector": {
+    "nodeId": "3d4eccad-5df9-47fe-8830-b555bb7a508f",
+    "revision": "43c4fa744134",
+    "seenAt": "2026-09-15T16:25:44.314Z",
+    "online": true,
+    "lastError": null,
+    "pending": {},
+    "supervisorPid": 31200,
+    "collectorPid": 9460,
+    "stopFlag": false,
+    "pauseFlag": false
+  },
+  "preUpdateIngestionBackup": {
+    "path": "C:/Dev/filtrsoft-runner-state/backups/pre-search-release/filtrsoft-2026-09-15T16-19-33-710Z-b2deac76-68b2-48c8-b70c-30c755bf063c.db",
+    "sha256": "256e82f9f7bf2cf4b1602cd6dbfaf933783acea68bc0f369d456a73547946391",
+    "restoreVerified": true,
+    "foreignKeyViolations": 0,
+    "counts": {
+      "comps": 31992,
+      "skus": 561,
+      "listings": 4949,
+      "verdicts": 16756,
+      "judgments": 79,
+      "outcomes": 4
+    }
+  },
+  "productionHealthAt1621UTC": {
+    "ok": true,
+    "db": "ok",
+    "comps": 31992,
+    "skus": 577,
+    "scoringPending": 0,
+    "scoringFailures": 0,
+    "note": "This health read alone does not prove which deployment is serving. Await the exact Railway completion receipt."
+  },
+  "limits": [
+    "Desktop migration and actual GPU photo-model evaluation remain deferred.",
+    "Updated collector is online; no entire scheduled collection cycle on this revision was observed yet.",
+    "Production backup remains safely refused for insufficient volume free space. No billing or volume change, no durable production backup established."
+  ],
+  "verifiedAt": "2026-09-15T16:25:52.0753588Z",
+  "liveHealth": {
+    "ok": true,
+    "canPrice": true,
+    "engine": "0.3.36",
+    "db": "ok",
+    "storage": {
+      "pressure": "low"
+    },
+    "comps": {
+      "total": 31992,
+      "usable": 28394,
+      "skusPriceable": 444,
+      "skusTotal": 565
+    },
+    "skus": 577,
+    "scoring": {
+      "signature": "6955|2026-09-15T16",
+      "pending": 0,
+      "failures": 0,
+      "complete": true
+    }
+  },
+  "storage": {
+    "totalBytes": 4685873152,
+    "freeBytes": 97583104,
+    "pressure": "low",
+    "databaseBytes": 4447391744,
+    "walBytes": 4363112
+  }
+}
