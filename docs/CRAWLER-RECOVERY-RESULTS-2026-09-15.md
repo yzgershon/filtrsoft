@@ -64,3 +64,24 @@ and an apostrophe: launch succeeded and its child stopped on request.
 Pinned Linux verification also passed **346/0/996**, including typecheck, with network disabled. Deployment/runtime switch is next; append actual receipts below. Shared checkout source edits are preserved.
 
 Setup and future gaming-PC capabilities: `DESKTOP-COLLECTOR.md`.
+
+## Production receipt and release correction
+
+Application commit `221e7a3` reached main and Railway reported success for
+`7e2d7ec6-fd5e-412f-b294-3df7a7dc340a`. At 05:14 UTC, authenticated collector
+aggregates confirmed 160 Craigslist captures in 24h plus the eight new desktop
+captures. The last-week live Craigslist cohort held 3 VERIFY, 5 FAIR, 16 PASS,
+5 RISK, 114 insufficient-data and 659 out of scope; no BUY. Craigslist collection
+is active, while useful supply and exact sold evidence remain constraints.
+
+Native CI `34931811775` caught a supervisor shutdown race not seen on Windows or
+containerized ARM Linux: its parent exited before reaping its killed child.
+The correction waits for the child close event before releasing ownership and
+exiting. Targeted Windows/Linux collector tests pass; native CI is being rerun
+on the correction. This is a real lifecycle fix, not a relaxed assertion.
+
+The permanent runtime is prepared at `C:/Dev/filtrsoft-agent`. Automatic approval
+review blocked its hidden logon installation, scheduled-task update and start,
+citing missing exact authorization for persistent startup changes. The command
+did not run. One direct approval question is pending; no alternate installation
+route was used.

@@ -35,14 +35,24 @@ function launch() {
   child.stdout.on('data',d=>log(String(d)));child.stderr.on('data',d=>log(String(d)));
   child.once('error',error=>log(`launch failed: ${error.message}\n`));
   child.once('close',(code,signal)=>{
-    child=null;restarts++;const delay=Date.now()-started>5*60_000?10_000:Math.min(5*60_000,10_000*2**Math.min(restarts-1,5));
+    child=null;
+    if(stopping)return finishShutdown();
+    restarts++;const delay=Date.now()-started>5*60_000?10_000:Math.min(5*60_000,10_000*2**Math.min(restarts-1,5));
     log(`[${new Date().toISOString()}] collector exited ${code??signal}; retry in ${delay/1000}s\n`);
     status({lastExitCode:code,lastExitSignal:signal,nextStartAt:new Date(Date.now()+delay).toISOString()});
-    if(stopping)return shutdown();timer=setTimeout(launch,delay);
+    timer=setTimeout(launch,delay);
   });
   status();
 }
-function shutdown(){terminate();release();process.exit(0);}
+function finishShutdown(){release();process.exit(0);}
+function shutdown(){
+  if(stopping)return;
+  terminate();
+  // SIGKILL delivery is asynchronous on Linux. Exiting here used to orphan
+  // the child before waitpid/reaping; native CI caught its PID still present.
+  // Keep ownership until the child's close event confirms termination.
+  if(!child)finishShutdown();
+}
 process.once('exit',()=>{terminate();release();});
 process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);
 setInterval(()=>{if(existsSync(stopPath))shutdown();else status();},2000);
