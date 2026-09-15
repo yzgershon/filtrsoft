@@ -89,11 +89,11 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
-### September 15, Google button visual fix prepared
+### September 15, Google button visual fix live
 
 Yish confirmed Google sign-in works and supplied a screenshot of the white rectangle behind its dark pill button. The `.gbtn iframe` now explicitly uses `color-scheme: light`, matching Google's embedded document. This prevents the browser from painting an opaque canvas when the surrounding app uses a dark scheme; Google's SDK still controls its button theme, shape, accessibility and sign-in. Background transparency alone cannot fix a browser-painted iframe canvas. Explanation: `https://drafts.csswg.org/css-color-adjust-1/#color-scheme-effect`.
 
-Production build passed and contains the scoped rule. Disposable Node preview at `127.0.0.1:3196` serves only built assets and read-only public provider fixtures, with no database or account submission. The SDK's local fallback is not proof of the live cross-origin frame; production verification is required after deployment. No backend/auth logic, credential or OAuth configuration changes. Release pending at this checkpoint.
+**`6bfbbc3` is on main and live.** At **20:20:45 UTC**, the public stylesheet `assets/index-LTRDxhkn.css` returned 200 and matched the local production build byte-for-byte. Real production GIS frames were visually verified without the white rectangle on sign-up at a **390px viewport** (317px frame) and sign-in at **1280px** (380px frame); both computed `color-scheme:light`, and neither form overflowed horizontally. Google's outline/light button was checked separately in a disposable local presentation fixture using the built palette; this is not a physical-phone or production light-mode login claim. CI **35018876540** passed the suite, typecheck, production build, Docker verification with network disabled and final Docker build at **20:22:09 UTC**. No backend/auth logic, credential or OAuth configuration changed. Temporary preview server and tabs stopped; documentation receipt is local to carry with the next source push.
 
 ### September 15, Google sign-in enabled and verified on production
 
