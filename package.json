@@ -42,6 +42,7 @@
     "agent": "bun run src/scripts/agent.ts",
     "mc:detail": "bun run src/scripts/mc-detail.ts",
     "vision": "bun run src/scripts/vision.ts",
+    "agent:status": "bun run src/scripts/agent-status.ts",
     "agent:install": "bun run src/scripts/agent-install.ts",
     "pause": "bun run src/scripts/pause.ts",
     "seed:parts": "bun run src/scripts/seed-parts.ts",

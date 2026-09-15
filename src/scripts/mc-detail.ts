@@ -1,3 +1,4 @@
+import {resolveProductType} from "../signals/product-type.ts";
 /**
  * bun run mc:detail [--limit 40] [--headless] [--dry]
  *
@@ -59,7 +60,7 @@ const limit = Number(arg("limit")) || 40;
  * engine nothing.
  */
 type Row = { id: number; url: string; title: string };
-const work = db().query(`
+const candidates = db().query(`
   SELECT l.id, l.url, l.title
     FROM listings l
     LEFT JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
@@ -70,11 +71,12 @@ const work = db().query(`
    ORDER BY
      CASE v.call WHEN 'BUY' THEN 0 WHEN 'VERIFY' THEN 1 WHEN 'INSUFFICIENT_DATA' THEN 2 ELSE 3 END,
      l.id DESC
-   LIMIT $lim
-`).all({ $lim: limit }) as Row[];
+`).all() as Row[];
+
+const work=candidates.filter(r=>resolveProductType(r.title).kind === "tech").slice(0,limit);
 
 if (!work.length) {
-  console.log("every live Mercari listing already has a description");
+  console.log("no eligible Mercari descriptions awaiting refresh");
   process.exit(0);
 }
 console.log(`mercari: reading ${work.length} listing page(s)\n`);
@@ -94,7 +96,7 @@ for await (const ev of runMarketWorker("mercari", {
   headless: has("headless"),
 })) {
   if (ev.type === "log") { console.log(`  ${ev.msg}`); continue; }
-  if (ev.type === "error") { console.error(`\x1b[31m  ${ev.msg}\x1b[0m`); continue; }
+  if (ev.type === "error") { failed++; console.error(`\x1b[31m  ${ev.msg}\x1b[0m`); continue; }
   if (ev.type !== "photos") continue;
 
   const row = work.find((r) => r.id === ev.id);
@@ -167,7 +169,9 @@ console.log(
   `${bounced ? ` · ${bounced} bounced` : ""}${blocked ? ` · \x1b[33m${blocked} blocked\x1b[0m` : ""}` +
   `${failed ? ` · ${failed} failed` : ""}`,
 );
-if (described) console.log("Re-score with `bun run verdict`, then ship with `bun run push --source mercari`.");
+if (described) console.log("Updated evidence will be re-scored after `bun run push --source mercari`.");
 if (blocked) {
   console.log("\x1b[33mRe-run WITHOUT --headless: Mercari challenges headless Chrome every time.\x1b[0m");
 }
+
+if(failed || blocked) process.exitCode=1;

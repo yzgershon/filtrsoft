@@ -67,7 +67,7 @@ const due=dueProbes;
  * source (144 listings vs 107 and 10) and the one Yish found a sold listing in.
  */
 const SOURCES = (ONLY ? [ONLY] : ["facebook", "offerup", "mercari"]) as Marketplace[];
-let checked = 0, gone = 0, unsure = 0, failedWrites = 0;
+let checked = 0, gone = 0, unsure = 0, failedWrites = 0, workerErrors = 0;
 
 for (const source of SOURCES) {
   const rows = due(source, LIMIT);
@@ -86,7 +86,7 @@ for (const source of SOURCES) {
     queries: [],
   })) {
     if (ev.type === "log") { console.log(`  ${(ev as { msg: string }).msg}`); continue; }
-    if (ev.type === "error") { console.error(`  worker: ${(ev as { msg: string }).msg}`); continue; }
+    if (ev.type === "error") { workerErrors++; console.error(`  worker: ${(ev as { msg: string }).msg}`); continue; }
     if ((ev as { type: string }).type !== "probe") continue;
 
     const p = ev as unknown as { id: number; url: string; finalUrl: string; text: string; error?: string };
@@ -128,3 +128,5 @@ for (const source of SOURCES) {
 console.log(`
 [1mprobe[0m  ${checked} checked · ${gone} delisted · ${unsure} left alone${failedWrites ? ` · [31m${failedWrites} writes failed[0m` : ""}`);
 if (unsure) console.log("  \x1b[90m'left alone' means the page proved nothing — a login wall, a timeout, or an empty body.\x1b[0m");
+
+if(workerErrors || failedWrites || (checked>0 && unsure===checked)) process.exitCode=1;

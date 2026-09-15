@@ -32,17 +32,20 @@ const url = searchUrl({
 
 // ---- pass 1: collect the cards ---------------------------------------
 const cards: FbCard[] = [];
-const raws: string[] = [];
+let rawCount = 0, workerErrors = 0;
+const startedAt=now();
 
 for await (const ev of runWorker("crawl", {
   searchUrl: url, scrolls: Number(arg("scrolls")) || 4, headless: has("headless"), detailUrls: [],
 })) {
   if (ev.type === "log") console.log(`  ${ev.msg}`);
-  else if (ev.type === "graphql") raws.push(ev.body);
+  else if (ev.type === "graphql") rawCount++;
   else if (ev.type === "cards") {
     for (const c of ev.cards) { const p = parseCard(c); if (p) cards.push(p); }
-  } else if (ev.type === "error") { console.error(`\x1b[31m  ${ev.msg}\x1b[0m`); process.exit(1); }
+  } else if (ev.type === "error") { console.error(`\x1b[31m  ${ev.msg}\x1b[0m`); workerErrors++; }
 }
+
+if(workerErrors) process.exit(1);
 
 const known = new Set(
   (db().query("SELECT source_id FROM listings WHERE source='facebook'").all() as Array<{ source_id: string }>)
@@ -102,8 +105,8 @@ for await (const ev of runWorker("crawl", {
   searchUrl: url, scrolls: 0, headless: has("headless"), detailUrls: fresh.map((c) => c.url),
 })) {
   if (ev.type === "log") continue;
-  if (ev.type === "graphql") { raws.push(ev.body); continue; }
-  if (ev.type === "error") { console.error(`\x1b[31m  ${ev.msg}\x1b[0m`); continue; }
+  if (ev.type === "graphql") { rawCount++; continue; }
+  if (ev.type === "error") { console.error(`\x1b[31m  ${ev.msg}\x1b[0m`); workerErrors++; continue; }
   if (ev.type !== "detail") continue;
 
   try {
@@ -124,6 +127,9 @@ for await (const ev of runWorker("crawl", {
 db().query(
   `INSERT INTO crawls (started_at, discovered, analysed, vision_run, failed, created_at)
    VALUES ($s,$d,$a,$v,$f,$n)`,
-).run({ $s: now(), $d: cards.length, $a: analysed, $v: visionRun, $f: fresh.length - analysed, $n: now() });
+).run({ $s: startedAt, $d: cards.length, $a: analysed, $v: visionRun, $f: fresh.length - analysed, $n: now() });
 
-console.log(`\ndone · ${analysed} analysed · ${visionRun} with photos read · ${raws.length} graphql payloads seen`);
+console.log(`\ndone · ${analysed} analysed · ${visionRun} with photos read · ${rawCount} graphql payloads seen`);
+
+// Partial facts survive, but a failed detail pass must not turn the crawl button green.
+if(workerErrors || analysed < fresh.length) process.exitCode=1;

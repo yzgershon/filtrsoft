@@ -60,7 +60,7 @@ import { compsHealth, visionHealth,pipelineFunnel } from "./pipeline-health.ts";
 import { visionLoopEnabled, crawlPaceMode } from "./scheduler.ts";
 import { lastVisionPass } from "../crawler/vision-pass.ts";
 import {
-  handleStartCrawl, handleLatestJob, handleNextJob, handleJobUpdate, crawlPinConfigured,
+  handleStartCrawl, handleLatestJob, handleNextJob, handleJobUpdate, handleAgentDiagnostics, crawlPinConfigured,
   autoCrawlStatus,
 } from "./jobs.ts";
 import { VISION_MODEL, PROMPT_VERSION, visionConfigured } from "../vision/index.ts";
@@ -228,6 +228,7 @@ const PUBLIC_PREFIXES = [
  */
 const AGENT_PATHS = [
   /^\/v1\/jobs\/next$/,
+  /^\/v1\/jobs\/diagnostics$/,
   /^\/v1\/jobs\/\d+$/,
   /**
    * ⚠ `/v1/push` EXACTLY — the listing ingest, NOT the `/v1/push/*` web-push
@@ -667,6 +668,7 @@ app.get("/v1/auth/me", handleMe);
 app.post("/v1/jobs", handleStartCrawl);
 app.get("/v1/jobs/latest", handleLatestJob);
 app.get("/v1/jobs/next", handleNextJob);
+app.get("/v1/jobs/diagnostics", handleAgentDiagnostics);
 app.post("/v1/jobs/:id", handleJobUpdate);
 
 app.get("/v1/billing/status", handleBillingStatus);

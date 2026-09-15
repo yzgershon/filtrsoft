@@ -529,6 +529,14 @@ CREATE TABLE IF NOT EXISTS crawl_jobs (
 );
 CREATE INDEX IF NOT EXISTS idx_crawl_jobs_status ON crawl_jobs(status, id);
 
+-- Kept separate from presence so older collectors' three-column writes remain
+-- compatible during rollout. Runtime version drift caused the September 15 gap.
+CREATE TABLE IF NOT EXISTS agent_versions (
+  agent_id TEXT PRIMARY KEY,
+  revision TEXT NOT NULL,
+  seen_at TEXT NOT NULL
+);
+
 -- Personal removal is recoverable and must survive crawls/re-scoring.
 CREATE TABLE IF NOT EXISTS listing_dismissals (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

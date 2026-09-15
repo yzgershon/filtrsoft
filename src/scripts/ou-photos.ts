@@ -1,3 +1,4 @@
+import {resolveProductType} from "../signals/product-type.ts";
 import { syncPhotoUrls } from "../vision/merge.ts";
 /**
  * bun run ou:photos [--limit 40] [--all] [--headless] [--dry]
@@ -48,6 +49,7 @@ const candidates = (db().query(`
   WHERE l.source = 'offerup' AND l.delisted_at IS NULL
   ORDER BY l.id DESC
 `).all() as Row[]).filter((r) => {
+  if (resolveProductType(r.title).kind !== "tech") return false;
   if (has("all")) return true;
   const urls = r.urls ? r.urls.split("|") : [];
   if (!urls.length) return true;
@@ -73,7 +75,7 @@ for await (const ev of runMarketWorker("offerup", {
   headless: has("headless"),
 })) {
   if (ev.type === "log") { console.log(`  ${ev.msg}`); continue; }
-  if (ev.type === "error") { console.error(`\x1b[31m  ${ev.msg}\x1b[0m`); continue; }
+  if (ev.type === "error") { failed++; console.error(`\x1b[31m  ${ev.msg}\x1b[0m`); continue; }
   if (ev.type !== "photos") continue;
 
   const row = work.find((r) => r.id === ev.id)!;
@@ -152,5 +154,7 @@ console.log(
   `${empty ? ` · ${empty} had none` : ""}${gone ? ` · ${gone} bounced` : ""}${failed ? ` · ${failed} failed` : ""}`,
 );
 if (fixed && !has("dry")) {
-  console.log("Re-score with `bun run verdict`, then ship with `bun run push --source offerup`.");
+  console.log("Updated evidence will be re-scored after `bun run push --source offerup`.");
 }
+
+if(failed) process.exitCode=1;

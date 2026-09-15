@@ -20,6 +20,7 @@
  * DUMB WORKER: emits raw text lines, all parsing lives in TypeScript.
  */
 import { openContext, emit, log, pause } from "./launch.mjs";
+import {rememberCards} from './card-snapshots.mjs';
 
 const [, , command, optsJson] = process.argv;
 const opts = JSON.parse(optsJson ?? "{}");
@@ -94,7 +95,7 @@ try {
        */
       await page.waitForFunction(
         () => /\$\s?\d/.test(document.body.innerText || ""),
-        { timeout: 12_000 },
+        undefined, { timeout: 12_000 },
       ).catch(() => {});
       await pause(2000, 3200);
       const text = await page.evaluate(() => (document.body.innerText || "").slice(0, 2500));
@@ -174,57 +175,8 @@ try {
     await pause(1500, 2800);
   }
 
-  for (const query of opts.queries ?? []) {
-    log(`${command}: ${query}`);
-    await page.goto(source.url(query, opts), { waitUntil: "domcontentloaded", timeout: 60_000 });
-    await pause(4500, 7000);
-
-    const body = await page.evaluate(() => (document.body.innerText || "").slice(0, 400));
-    if (/are you a human|access denied|unusual traffic|verify you are|checking your browser|press & hold/i.test(body)) {
-      emit({ type: "error", msg: `bot challenge on "${query}"` });
-      continue;
-    }
-
-    // Results lazy-load on both sites.
-    for (let i = 0; i < (opts.scrolls ?? 3); i++) {
-      await page.mouse.wheel(0, 1600);
-      await pause(1200, 2200);
-    }
-
-    /**
-     * Emit LINES and LINKS together. Prices and titles are in the text; the
-     * item id is only in the href, and without an id there is no stable
-     * `source_id`, so a re-crawl would insert duplicates instead of updating.
-     */
-    /**
-     * ⚠ A BOT CHALLENGE IS NOT AN EMPTY RESULT, AND CONFLATING THEM COST NINE
-     * DAYS.
-     *
-     * Mercari sits behind Cloudflare. Headless Chrome gets the interstitial —
-     * `<title>Just a moment...</title>`, "Performing security verification",
-     * a Ray ID — which contains two anchors and no items. The scraper read that
-     * as "the search returned nothing", every query, and the run exited 0. So
-     * `mercari: ok` was reported to the crawl button while the source had
-     * produced **zero listings since 2026-08-26**, the day it was written.
-     *
-     * Name it. A source that is being blocked and a source with nothing new
-     * look identical in the data and need completely different responses.
-     */
-    const blocked = await page.evaluate(() => {
-      const t = document.title || "";
-      const b = (document.body.innerText || "").slice(0, 600);
-      if (/just a moment|attention required|access denied|verify you are human/i.test(t)) return t.trim();
-      if (/security verification|checking your browser|unusual traffic/i.test(b)) return t.trim() || "challenge page";
-      return null;
-    });
-    if (blocked) {
-      emit({ type: "error", msg: `${command} served a bot challenge ("${blocked}") for "${query}" — the profile needs a headed run to clear it` });
-      emit({ type: "cards", source: command, query, lines: [], links: [], blocked: true });
-      await pause(3000, 5500);
-      continue;
-    }
-
-    const { lines, links } = await page.evaluate(() => {
+  async function readSearchCards() {
+    return await page.evaluate(() => {
       const main = document.querySelector("main");
       const text = main && (main.innerText || "").length > 200
         ? main.innerText
@@ -262,6 +214,70 @@ try {
         .filter((l) => /\/(item|p)\//.test(l.href) && l.text.length > 4);
       return { lines: text.split("\n").map((s) => s.trim()).filter(Boolean), hrefs };
     }).then((r) => ({ lines: r.lines, links: r.hrefs }));
+  }
+
+  for (const query of opts.queries ?? []) {
+    log(`${command}: ${query}`);
+    await page.goto(source.url(query, opts), { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await pause(4500, 7000);
+
+    const body = await page.evaluate(() => (document.body.innerText || "").slice(0, 400));
+    if (/are you a human|access denied|unusual traffic|verify you are|checking your browser|press & hold/i.test(body)) {
+      emit({ type: "error", msg: `bot challenge on "${query}"` });
+      continue;
+    }
+
+    // Mercari virtualizes the grid: after scrolling, the newest cards leave
+    // the DOM. September 15 read 27 unrelated cards while the initial viewport
+    // contained two GPUs. Preserve each viewport, not just the final one.
+    const observed = new Map();
+    let lines = [];
+    const capture = async () => {
+      const snapshot = await readSearchCards(); lines = snapshot.lines;
+      rememberCards(observed,snapshot.links);
+    };
+    await capture();
+    for (let i = 0; i < (opts.scrolls ?? 3); i++) {
+      await page.mouse.wheel(0, 1600);
+      await pause(1200, 2200);
+      await capture();
+    }
+    const links = [...observed.values()];
+
+    /**
+     * Emit LINES and LINKS together. Prices and titles are in the text; the
+     * item id is only in the href, and without an id there is no stable
+     * `source_id`, so a re-crawl would insert duplicates instead of updating.
+     */
+    /**
+     * ⚠ A BOT CHALLENGE IS NOT AN EMPTY RESULT, AND CONFLATING THEM COST NINE
+     * DAYS.
+     *
+     * Mercari sits behind Cloudflare. Headless Chrome gets the interstitial —
+     * `<title>Just a moment...</title>`, "Performing security verification",
+     * a Ray ID — which contains two anchors and no items. The scraper read that
+     * as "the search returned nothing", every query, and the run exited 0. So
+     * `mercari: ok` was reported to the crawl button while the source had
+     * produced **zero listings since 2026-08-26**, the day it was written.
+     *
+     * Name it. A source that is being blocked and a source with nothing new
+     * look identical in the data and need completely different responses.
+     */
+    const blocked = await page.evaluate(() => {
+      const t = document.title || "";
+      const b = (document.body.innerText || "").slice(0, 600);
+      if (/just a moment|attention required|access denied|verify you are human/i.test(t)) return t.trim();
+      if (/security verification|checking your browser|unusual traffic/i.test(b)) return t.trim() || "challenge page";
+      return null;
+    });
+    if (blocked) {
+      emit({ type: "error", msg: `${command} served a bot challenge ("${blocked}") for "${query}" — this visit is blocked; a manual session check may be needed` });
+      emit({ type: "cards", source: command, query, lines: [], links: [], blocked: true });
+      await pause(3000, 5500);
+      continue;
+    }
+
+
 
     emit({ type: "cards", source: command, query, lines, links });
     await pause(3000, 5500);

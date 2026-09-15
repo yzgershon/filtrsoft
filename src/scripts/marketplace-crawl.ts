@@ -51,7 +51,7 @@ const seen = new Set(
     .map((r) => r.source_id),
 );
 
-let found = 0, analysed = 0, skipped = 0;
+let found = 0, analysed = 0, skipped = 0, failures = 0;
 /**
  * ⚠ TRACKED SEPARATELY FROM `found`, AND THE DISTINCTION IS THE POINT.
  *
@@ -68,7 +68,7 @@ for await (const ev of runMarketWorker(source, {
   queries, headless: has("headless"), scrolls: 3,
 })) {
   if (ev.type === "log") console.log(`  ${ev.msg}`);
-  else if (ev.type === "error") console.error(`\x1b[31m  ${ev.msg}\x1b[0m`);
+  else if (ev.type === "error") {failures++; console.error(`\x1b[31m  ${ev.msg}\x1b[0m`);}
   else if (ev.type === "cards") {
     const cards = parseCards(source, ev.links);
     found += cards.length;
@@ -98,6 +98,7 @@ for await (const ev of runMarketWorker(source, {
           console.log(`    ${C[r.verdict.call]}${r.verdict.call}\x1b[0m $${c.priceCents ? (c.priceCents / 100).toFixed(0) : "—"} ${c.title.slice(0, 52)}`);
         }
       } catch (e) {
+        failures++;
         console.error(`    \x1b[31mfailed: ${(e as Error).message.slice(0, 70)}\x1b[0m`);
       }
     }
@@ -142,3 +143,6 @@ if (queriesRun > 0 && linksSeen === 0) {
   );
   process.exit(3);
 }
+
+// Launch failure produces no cards event; partial query errors also stay visible.
+if(failures || queriesRun !== queries.length || blockedQueries) process.exitCode=1;

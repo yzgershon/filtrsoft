@@ -1,3 +1,4 @@
+import {workerEvents} from "../agent/worker.ts";
 /**
  * Facebook Marketplace source.
  *
@@ -215,33 +216,5 @@ export async function* runWorker(
   command: "login" | "crawl",
   opts: Record<string, unknown>,
 ): AsyncGenerator<WorkerEvent> {
-  const proc = Bun.spawn(
-    ["node", WORKER, command, JSON.stringify({ profileDir: PROFILE_DIR, chromePath: CHROME_PATH, ...opts })],
-    { stdout: "pipe", stderr: "pipe", stdin: "inherit" },
-  );
-
-  const reader = proc.stdout.getReader();
-  const dec = new TextDecoder();
-  let buf = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    const lines = buf.split("\n");
-    buf = lines.pop() ?? "";
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try { yield JSON.parse(line) as WorkerEvent; }
-      // A malformed line is a worker bug, not a reason to abandon a browser
-      // session that took a real login to establish.
-      catch { yield { type: "log", msg: `unparseable worker output: ${line.slice(0, 120)}` }; }
-    }
-  }
-
-  const code = await proc.exited;
-  if (code !== 0) {
-    const err = await new Response(proc.stderr).text();
-    yield { type: "error", msg: `worker exited ${code}${err ? `: ${err.slice(0, 300)}` : ""}` };
-  }
+  yield* workerEvents<WorkerEvent>([WORKER, command, JSON.stringify({ profileDir: PROFILE_DIR, chromePath: CHROME_PATH, ...opts })], {interactive:command === "login", timeoutMs:(command === "login")?0:undefined});
 }

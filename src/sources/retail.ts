@@ -1,3 +1,4 @@
+import {workerEvents} from "../agent/worker.ts";
 /**
  * Retail prices — the ceiling nobody else checks.
  *
@@ -885,28 +886,5 @@ export async function* runRetailWorker(
   command: RetailSource,
   opts: Record<string, unknown>,
 ): AsyncGenerator<RetailEvent> {
-  const proc = Bun.spawn(
-    ["node", WORKER, command, JSON.stringify({ chromePath: CHROME_PATH, ...opts })],
-    { stdout: "pipe", stderr: "pipe", stdin: "inherit" },
-  );
-  const reader = proc.stdout.getReader();
-  const dec = new TextDecoder();
-  let buf = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    const parts = buf.split("\n");
-    buf = parts.pop() ?? "";
-    for (const line of parts) {
-      if (!line.trim()) continue;
-      try { yield JSON.parse(line) as RetailEvent; }
-      catch { yield { type: "log", msg: `unparseable: ${line.slice(0, 120)}` }; }
-    }
-  }
-  const code = await proc.exited;
-  if (code !== 0) {
-    const err = await new Response(proc.stderr).text();
-    yield { type: "error", msg: `worker exited ${code}${err ? `: ${err.slice(0, 200)}` : ""}` };
-  }
+  yield* workerEvents<RetailEvent>([WORKER, command, JSON.stringify({ chromePath: CHROME_PATH, ...opts })], {interactive:false, timeoutMs:(false)?0:undefined});
 }

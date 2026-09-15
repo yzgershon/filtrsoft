@@ -206,6 +206,9 @@ const agentOnline=()=>{const at=agentSeenAt();return at!==null && Date.now()-Dat
 function agentId(c:Context):string {return (c.req.header('x-filtrsoft-agent')??'legacy').slice(0,100);}
 function touchAgent(c:Context,jobId:number|null=null) {
   db().run("INSERT INTO agent_presence VALUES(?,?,?) ON CONFLICT(agent_id) DO UPDATE SET seen_at=excluded.seen_at,job_id=excluded.job_id",[agentId(c),now(),jobId]);
+  const revision=(c.req.header('x-filtrsoft-agent-version')??'legacy').slice(0,64);
+  db().run(`INSERT INTO agent_versions VALUES(?,?,?) ON CONFLICT(agent_id) DO UPDATE SET
+    revision=CASE WHEN excluded.revision='legacy' THEN agent_versions.revision ELSE excluded.revision END,seen_at=excluded.seen_at`,[agentId(c),revision,now()]);
 }
 
 function agentAuthorised(c: Context): boolean {
@@ -320,7 +323,26 @@ export function autoCrawlStatus() {
     everyMinutes: AUTO_CRAWL_MIN,
     agentOnline: agentOnline(),
     lastAgentPollAt: agentSeenAt(),
+    collectors: db().query(`SELECT p.seen_at AS seenAt,p.job_id AS jobId,COALESCE(v.revision,'legacy') AS revision
+      FROM agent_presence p LEFT JOIN agent_versions v ON v.agent_id=p.agent_id
+      WHERE p.seen_at >= ? ORDER BY p.seen_at DESC LIMIT 10`).all(new Date(Date.now()-86400000).toISOString()),
   };
+}
+
+/** Narrow collector diagnostics: aggregates only, no user accounts, browsing
+ * history, listing bodies or credentials. Does not mark an agent online or claim work. */
+export function handleAgentDiagnostics(c:Context) {
+  if(!agentAuthorised(c))return c.json({error:'unauthorised'},401);
+  const day=new Date(Date.now()-86400000).toISOString(),week=new Date(Date.now()-7*86400000).toISOString();
+  const arrivals=db().query(`SELECT source,COUNT(*) total,MAX(captured_at) newestCapture,MAX(last_seen) newestSeen,
+    SUM(CASE WHEN captured_at>=? THEN 1 ELSE 0 END) captured24h,
+    SUM(CASE WHEN captured_at>=? THEN 1 ELSE 0 END) captured7d FROM listings GROUP BY source`).all(day,week);
+  const recentCalls=db().query(`SELECT l.source,COALESCE(v.call,'UNSCORED') call,COUNT(*) count
+    FROM listings l LEFT JOIN verdicts v ON v.id=(SELECT MAX(id) FROM verdicts WHERE listing_id=l.id)
+    WHERE l.captured_at>=? AND l.delisted_at IS NULL GROUP BY l.source,v.call`).all(week);
+  const latestServerCrawls=db().query('SELECT started_at,discovered,analysed,failed FROM crawls ORDER BY id DESC LIMIT 5').all();
+  return c.json({at:now(),arrivals,recentCalls,latestServerCrawls,
+    serverCrawlEnabled:(process.env.FILTRSOFT_CRAWL??'on').toLowerCase()!=='off',collection:autoCrawlStatus()});
 }
 
 /**
