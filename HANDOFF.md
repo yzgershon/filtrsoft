@@ -89,6 +89,10 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
+### September 15, missing fresh deals diagnosis
+
+Yish reports no recent good listings. Read-only checks found **no fresh Facebook/OfferUp/Mercari captures locally in 24h**, recent daily runs timing out/interrupted, and both laptop launchers still using **C:/Dev/filtrsoft at e5a7023 / engine 0.3.33**, while production runs 0.3.35. The laptop pause flag is currently absent; no active crawler was found. The scheduled job's last result is 0xC000013A; startup log records a September 14 21:41 EDT launch but it is no longer running. Public production health at September 15 ~04:24 UTC: DB healthy, low storage pressure, 31,900 total / 28,313 usable comps, **0 pending / 0 failed scores**. This is evidence of a collection/release gap, not proof every engine verdict is correct. Production Craigslist arrival/verdict distribution still needs an authenticated read; local Craigslist is a stale separate copy. Preserve main's detail.tsx/types.ts edits. No crawl, runner change, engine change or deployment performed. Full evidence and next action: `docs/CRAWL-DIAGNOSIS-2026-09-15.md`.
+
 ### Current release: September 14 UTC, account sync and public website live
 
 **Pushed and verified:** final application commit **d922b11fc02b8fbc178aa110f77284abb01ac077** follows implementation **ddb5c5b** on main. Railway deployment **6429540507** succeeded **2026-09-14T02:50:03Z**. Native amd64 CI **34800487989** completed successfully **02:51:15Z**, including all tests, typecheck, frontend build, Docker verification and production image build. The **02:51:06Z** public receipt matched all six JS/CSS assets and both WebP images by SHA-256, confirmed anonymous isolation and public registration, and found engine **0.3.35**, **31,900 total / 28,431 usable comps**, healthy DB, low storage pressure and **zero pending / zero failed scores**. Receipt: `docs/qa/account-sync/production.json`.
