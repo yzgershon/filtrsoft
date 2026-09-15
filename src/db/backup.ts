@@ -1,5 +1,6 @@
 import {Database} from "bun:sqlite";
-import {randomUUID,createHash} from "node:crypto";
+import {randomUUID} from "node:crypto";
+import {fileSha256} from './file-hash.ts';
 import {mkdirSync,readFileSync,writeFileSync,renameSync,copyFileSync,existsSync,unlinkSync,linkSync,readdirSync} from "node:fs";
 import {join,resolve,dirname} from "node:path";
 
@@ -11,7 +12,7 @@ export function inspectBackup(path:string) {
     const tables=new Set((d.query("SELECT name FROM sqlite_master WHERE type='table'").all() as {name:string}[]).map(t=>t.name));
     const counts:Record<string,number>={};
     for(const table of ['comps','skus','listings','verdicts','judgments','outcomes'])if(tables.has(table))counts[table]=(d.query(`SELECT COUNT(*) n FROM ${table}`).get() as {n:number}).n;
-    return {sha256:createHash('sha256').update(readFileSync(path)).digest('hex'),counts,foreignKeyViolations:d.query('PRAGMA foreign_key_check').all().length};
+    return {sha256:fileSha256(path),counts,foreignKeyViolations:d.query('PRAGMA foreign_key_check').all().length};
   } finally {d.close();}
 }
 export function verifyBackup(path:string) {
