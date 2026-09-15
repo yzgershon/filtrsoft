@@ -12,7 +12,7 @@ const node=arg('node')??process.env.FILTRSOFT_NODE??execFileSync('where.exe',['n
 for(const path of [process.execPath,node,envFile,database])if(!existsSync(path))throw new Error(`Required existing file missing: ${path}`);
 mkdirSync(state,{recursive:true});
 const configPath=join(state,'config.json'),start=join(state,'start.cjs');
-writeFileSync(configPath,JSON.stringify({root,state,bun:process.execPath,node,envFile,database,visionLimit:0},null,2));
+writeFileSync(configPath,JSON.stringify({root,state,bun:process.execPath,node,envFile,database,label:arg('label'),compsEnabled:!process.argv.includes('--no-comps'),visionLimit:0},null,2));
 writeFileSync(start,`const fs=require('node:fs'),path=require('node:path'),{spawn}=require('node:child_process');
 const configPath=path.join(__dirname,'config.json'),config=JSON.parse(fs.readFileSync(configPath,'utf8'));
 const stop=path.join(config.state,'stop');if(fs.existsSync(stop))fs.unlinkSync(stop);

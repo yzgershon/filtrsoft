@@ -30,9 +30,8 @@
  * A paused agent that kept polling would drain the queue and throw the jobs
  * away, and `/v1/jobs/next` hands a job out exactly once.
  *
- * The visible consequence: **the app will show the agent as OFFLINE while
- * paused.** That is honest — it is not going to do any work — but it is worth
- * knowing before it looks like a bug.
+ * Updated collectors still report a paused node to Settings without refreshing
+ * dispatch presence or claiming jobs. Older collectors appear offline.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
@@ -131,7 +130,7 @@ if (import.meta.main) {
     const since = pausedFor();
     if (since) console.log(`  Paused ${since} ago.`);
     console.log("");
-    console.log("  \x1b[90mThe app will show the agent as offline while paused. That is expected.\x1b[0m");
+    console.log("  \x1b[90mSettings shows this computer as paused. It will not claim collection jobs.\x1b[0m");
   } else {
     console.log("  \x1b[42m\x1b[30m  CRAWLS ARE RUNNING  \x1b[0m");
     console.log("");

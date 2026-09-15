@@ -31,7 +31,9 @@ function launch() {
   if(stopping||existsSync(stopPath))return shutdown();
   log(`[${new Date().toISOString()}] starting current collector\n`);
   const started=Date.now();
-  child=spawn(config.bun,[`--env-file=${config.envFile}`,'run','src/scripts/agent.ts'],{cwd:config.root,shell:false,windowsHide:true,detached:process.platform!=='win32',stdio:['ignore','pipe','pipe'],env:{...process.env,FILTRSOFT_DB:config.database,FILTRSOFT_AGENT_STATE:state,FILTRSOFT_NODE:config.node,FILTRSOFT_AGENT_VISION_LIMIT:String(config.visionLimit??0),FILTRSOFT_VISION:config.visionLimit?'1':'0',PATH:[config.node.replace(/[\\/][^\\/]+$/,''),config.bun.replace(/[\\/][^\\/]+$/,''),process.env.PATH??''].join(process.platform==='win32'?';':':')}});
+  // The installer enables bounded free comp maintenance explicitly in config.
+  process.env.FILTRSOFT_AGENT_COMPS=config.compsEnabled?'1':'0';
+  child=spawn(config.bun,[`--env-file=${config.envFile}`,'run','src/scripts/agent.ts'],{cwd:config.root,shell:false,windowsHide:true,detached:process.platform!=='win32',stdio:['ignore','pipe','pipe'],env:{...process.env,...(config.label?{FILTRSOFT_AGENT_LABEL:config.label}:{}),FILTRSOFT_DB:config.database,FILTRSOFT_AGENT_STATE:state,FILTRSOFT_NODE:config.node,FILTRSOFT_AGENT_VISION_LIMIT:String(config.visionLimit??0),FILTRSOFT_VISION:config.visionLimit?'1':'0',PATH:[config.node.replace(/[\\/][^\\/]+$/,''),config.bun.replace(/[\\/][^\\/]+$/,''),process.env.PATH??''].join(process.platform==='win32'?';':':')}});
   child.stdout.on('data',d=>log(String(d)));child.stderr.on('data',d=>log(String(d)));
   child.once('error',error=>log(`launch failed: ${error.message}\n`));
   child.once('close',(code,signal)=>{

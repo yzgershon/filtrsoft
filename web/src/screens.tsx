@@ -32,6 +32,7 @@ import { Gcard } from "./feed.tsx";
 import { requestJSON, requestMessage } from "./api-client.ts";
 import { RequestError } from "./request-state.tsx";
 import { CrawlPanel } from "./crawl.tsx";
+import {CollectionHealth} from './collection-health.tsx';
 
 export function Watchlist({ onOpen, onWatchChange, onBrowse }: {
   onOpen: (id: number) => void;
@@ -932,6 +933,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
 
       {/* ── PRIVACY ────────────────────────────────────────────────────── */}
       <details className="settings-tools" id="plan" tabIndex={-1}><summary>Plan</summary><Billing /></details>
+      <CollectionHealth/>
       <details className="settings-tools" id="tools" tabIndex={-1}><summary>Crawler tools</summary><CrawlPanel /></details>
       <div className="sgroup" id="privacy" tabIndex={-1}>
         <div className="shead"><Shield size={14} /> Privacy</div>

@@ -1,0 +1,27 @@
+.collection-heading,.collection-source>header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.collection-heading h2 { margin:0; }
+.collection-heading p,.collection-machine p,.collection-source p { color:var(--ink-2); font-size:13px; line-height:1.6; margin:6px 0; }
+.collection-heading .btn2 { min-height:44px; flex-shrink:0; }
+.collection-machines { margin:20px 0; display:grid; gap:10px; }
+.collection-machine { border:1px solid var(--line); border-radius:12px; padding:14px; background:var(--surface-2); }
+.collection-machine>div { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; }
+.collection-machine b { overflow-wrap:anywhere; font-size:14px; }
+.collection-state { display:inline-flex; align-items:center; gap:6px; font-size:12px; line-height:1.5; color:var(--ink-2); }
+.collection-state::before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; flex:none; }
+.collection-state.healthy { color:var(--buy); }
+.collection-state.working { color:var(--brand); }
+.collection-state.attention,.collection-source .collection-issue { color:var(--risk); }
+.collection-sources { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.collection-source { min-width:0; border:1px solid var(--line); border-radius:12px; padding:16px; }
+.collection-source>header { align-items:flex-start; flex-direction:column; gap:6px; }
+.collection-source h3 { font-size:15px; margin:0; }
+.collection-source dl { display:grid; gap:14px; margin:20px 0 0; }
+.collection-source dt { font-size:12px; color:var(--ink-3); }
+.collection-source dd { font-size:14px; line-height:1.5; margin:4px 0 0; color:var(--ink); font-variant-numeric:tabular-nums; }
+.collection-health button { transition:background 160ms ease; }
+.collection-routing { border-top:1px solid var(--line); margin:16px 0 24px; }
+.collection-routing summary { min-height:48px; padding:14px 0; cursor:pointer; font-size:14px; color:var(--ink); }
+.collection-routing form { padding-bottom:16px; }
+.collection-routing .btn2 { margin-top:12px; min-height:44px; }
+@media(max-width:800px) { .collection-sources { grid-template-columns:1fr; } .collection-source dl { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(prefers-reduced-motion:reduce) { .collection-health button { transition:none; } }

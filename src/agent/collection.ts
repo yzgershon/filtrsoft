@@ -13,16 +13,16 @@ export function collectionPlan(sources:Source[],cursor:number,queries=2,limit=12
   const plan:CollectionStage[]=[];
   for(let round=0;round<queries;round++) for(const source of sources) {
     const query=QUERIES[(cursor+round)%QUERIES.length];
-    plan.push({source,kind:'crawl',name:`${source}/search-${query.replaceAll(' ','-')}`,args:['run',script[source],'--query',query,'--limit',String(limit)],timeoutMs:4*60_000});
+    plan.push({source,kind:'crawl',name:`${source}/search-${query.replaceAll(' ','-')}`,args:['run',script[source],'--query',query,'--limit',String(limit),...(source==='facebook'?['--cards-only']:[])],timeoutMs:4*60_000});
   }
   for(const source of sources) {
-    if(source!=='facebook')plan.push({source,kind:'enrich',name:`${source}/details`,args:['run',source==='offerup'?'ou:photos':'mc:detail','--limit',String(limit)],timeoutMs:4*60_000});
-    plan.push({source,kind:'probe',name:`${source}/probe`,args:['run','probe','--source',source,'--limit','12'],timeoutMs:4*60_000});
+    plan.push({source,kind:'enrich',name:`${source}/details`,args:['run',source==='facebook'?'fb:detail':source==='offerup'?'ou:photos':'mc:detail','--limit',String(Math.min(limit,4))],timeoutMs:4*60_000});
+    plan.push({source,kind:'probe',name:`${source}/probe`,args:['run','probe','--source',source,'--limit','6'],timeoutMs:4*60_000});
   }
   return plan;
 }
 
-export async function collect(sources:Source[],opts:{cursor:number;queries?:number;limit?:number;paused:()=>boolean;run:(stage:CollectionStage)=>Promise<CommandResult>;stage:(stage:CollectionStage,status:'running'|'done'|'failed',error?:string)=>Promise<void>}) {
+export async function collect(sources:Source[],opts:{cursor:number;queries?:number;limit?:number;cooldown?:(source:Source)=>string|null;paused:()=>boolean;run:(stage:CollectionStage)=>Promise<CommandResult>;stage:(stage:CollectionStage,status:'running'|'done'|'failed',error?:string)=>Promise<void>}) {
   const errors:Record<string,string[]> = Object.fromEntries(sources.map(s=>[s,[]]));
   const blocked=new Set<Source>();
   let stopped=false;
@@ -41,6 +41,7 @@ export async function collect(sources:Source[],opts:{cursor:number;queries?:numb
   for(const step of collectionPlan(sources,opts.cursor,opts.queries,opts.limit)) {
     if(opts.paused()){stopped=true;break;}
     if(blocked.has(step.source))continue;
+    const retryAt=opts.cooldown?.(step.source);if(retryAt){blocked.add(step.source);errors[step.source].push(`Waiting before retry until ${retryAt}`);continue;}
     const ok=await execute(step);
     // Commit useful partial results immediately, even if the browser timed out.
     // Sync never opens a browser, including when pause interrupted this stage.

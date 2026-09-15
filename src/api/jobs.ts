@@ -39,6 +39,7 @@ import { timingSafeEqual } from "node:crypto";
 import { db, now } from "../db/index.ts";
 import { currentUser } from "./auth.ts";
 import { z } from "zod";
+import {eligibleHost} from '../agent/host-policy.ts';
 
 const PIN = () => (process.env.FILTRSOFT_CRAWL_PIN ?? "").trim();
 export const crawlPinConfigured = () => PIN().length >= 4;
@@ -75,8 +76,9 @@ export function sweepStaleJobs(at = Date.now()) {
   );
   d.run(
     `UPDATE crawl_jobs SET status='failed', finished_at=?, error='the agent stopped reporting'
-      WHERE status='running' AND COALESCE(heartbeat_at, started_at, created_at) < ?`,
-    [new Date(at).toISOString(), new Date(at-RUNNING_TIMEOUT_MIN*60_000).toISOString()],
+      WHERE status='running' AND ((node_id IS NULL AND COALESCE(heartbeat_at, started_at, created_at) < ?)
+        OR (node_id IS NOT NULL AND COALESCE(heartbeat_at, started_at, created_at) < ?))`,
+    [new Date(at).toISOString(), new Date(at-RUNNING_TIMEOUT_MIN*60_000).toISOString(),new Date(at-3*60_000).toISOString()],
   );
 }
 
@@ -204,14 +206,14 @@ export function agentSeenAt():string|null {
 }
 const agentOnline=()=>{const at=agentSeenAt();return at!==null && Date.now()-Date.parse(at)<90_000;};
 function agentId(c:Context):string {return (c.req.header('x-filtrsoft-agent')??'legacy').slice(0,100);}
-function touchAgent(c:Context,jobId:number|null=null) {
+export function touchAgent(c:Context,jobId:number|null=null) {
   db().run("INSERT INTO agent_presence VALUES(?,?,?) ON CONFLICT(agent_id) DO UPDATE SET seen_at=excluded.seen_at,job_id=excluded.job_id",[agentId(c),now(),jobId]);
   const revision=(c.req.header('x-filtrsoft-agent-version')??'legacy').slice(0,64);
   db().run(`INSERT INTO agent_versions VALUES(?,?,?) ON CONFLICT(agent_id) DO UPDATE SET
     revision=CASE WHEN excluded.revision='legacy' THEN agent_versions.revision ELSE excluded.revision END,seen_at=excluded.seen_at`,[agentId(c),revision,now()]);
 }
 
-function agentAuthorised(c: Context): boolean {
+export function agentAuthorised(c: Context): boolean {
   const want = (process.env.FILTRSOFT_PUSH_TOKEN ?? "").trim();
   if (!want) return false;
   const got = (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
@@ -224,6 +226,9 @@ export function handleNextJob(c: Context) {
   if (!agentAuthorised(c)) return c.json({ error: "unauthorised" }, 401);
   touchAgent(c);
   sweepStaleJobs();
+  const requestedNode=c.req.header('x-filtrsoft-node')??null;
+  const node=requestedNode&&db().query('SELECT node_id FROM collector_nodes WHERE node_id=?').get(requestedNode)?requestedNode:null;
+  if(!eligibleHost(db(),node))return c.json({job:null,waitingForPrimary:true});
 
   /**
    * ⚠ CLAIM AND READ IN ONE TRANSACTION. Two agents (his desktop and a laptop,
@@ -236,8 +241,8 @@ export function handleNextJob(c: Context) {
     const row = db().query(
       "SELECT * FROM crawl_jobs WHERE status='queued' ORDER BY id ASC LIMIT 1").get() as any;
     if (!row) return;
-    db().run("UPDATE crawl_jobs SET status='running', started_at=?,heartbeat_at=?,agent_id=? WHERE id=? AND status='queued'",
-      [now(),now(),agentId(c), row.id]);
+    db().run("UPDATE crawl_jobs SET status='running', started_at=?,heartbeat_at=?,agent_id=?,node_id=? WHERE id=? AND status='queued'",
+      [now(),now(),agentId(c),node,row.id]);
     claimed = db().query("SELECT * FROM crawl_jobs WHERE id=?").get(row.id);
   })();
 
@@ -331,8 +336,9 @@ export function autoCrawlStatus() {
 
 /** Narrow collector diagnostics: aggregates only, no user accounts, browsing
  * history, listing bodies or credentials. Does not mark an agent online or claim work. */
-export function handleAgentDiagnostics(c:Context) {
+export async function handleAgentDiagnostics(c:Context) {
   if(!agentAuthorised(c))return c.json({error:'unauthorised'},401);
+  const {collectionHealth}=await import('./collection-health.ts');
   const day=new Date(Date.now()-86400000).toISOString(),week=new Date(Date.now()-7*86400000).toISOString();
   const arrivals=db().query(`SELECT source,COUNT(*) total,MAX(captured_at) newestCapture,MAX(last_seen) newestSeen,
     SUM(CASE WHEN captured_at>=? THEN 1 ELSE 0 END) captured24h,
@@ -342,7 +348,7 @@ export function handleAgentDiagnostics(c:Context) {
     WHERE l.captured_at>=? AND l.delisted_at IS NULL GROUP BY l.source,v.call`).all(week);
   const latestServerCrawls=db().query('SELECT started_at,discovered,analysed,failed FROM crawls ORDER BY id DESC LIMIT 5').all();
   return c.json({at:now(),arrivals,recentCalls,latestServerCrawls,
-    serverCrawlEnabled:(process.env.FILTRSOFT_CRAWL??'on').toLowerCase()!=='off',collection:autoCrawlStatus()});
+    serverCrawlEnabled:(process.env.FILTRSOFT_CRAWL??'on').toLowerCase()!=='off',collection:autoCrawlStatus(),health:collectionHealth()});
 }
 
 /**
@@ -380,9 +386,12 @@ export function autoQueueCrawl(log: (m: string) => void = () => {}): boolean {
    * the interval is counted from the wrong end.
    */
   const last = db().query(
-    `SELECT COALESCE(finished_at, created_at) t FROM crawl_jobs ORDER BY id DESC LIMIT 1`,
-  ).get() as { t: string } | null;
-  if (last && Date.now() - Date.parse(last.t) < AUTO_CRAWL_MIN * 60_000) return false;
+    `SELECT COALESCE(finished_at, created_at) t,error,node_id FROM crawl_jobs ORDER BY id DESC LIMIT 1`,
+  ).get() as { t: string;error:string|null;node_id:string|null } | null;
+  // A dead host did not complete a cycle. Applying the normal 45-minute rest
+  // here would make a five-minute primary/fallback setting ineffective.
+  const lostHost=last?.node_id!=null&&last.error==='the agent stopped reporting';
+  if (last && !lostHost && Date.now() - Date.parse(last.t) < AUTO_CRAWL_MIN * 60_000) return false;
 
   db().run(
     `INSERT INTO crawl_jobs (status, sources, requested_by, created_at) VALUES ('queued',?,NULL,?)`,

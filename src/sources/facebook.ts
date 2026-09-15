@@ -76,6 +76,13 @@ export interface FbCard {
   thumb: string | null;
 }
 
+/** Search evidence is incomplete. Never invent a description or seller date. */
+export function cardToListing(card:FbCard):RawListing {
+  return {source:'facebook',sourceId:card.sourceId,url:card.url,title:card.title,description:'',
+    askingPriceCents:card.askingPriceCents,location:card.location,postedAt:null,updatedAt:null,
+    photoUrls:card.thumb?[card.thumb]:[],attributes:{},raw:{captureKind:'search-card'}};
+}
+
 /**
  * A card's innerText arrives as stacked lines, roughly: price, title, location.
  * "Roughly" is why this reads by SHAPE rather than by index — Facebook inserts

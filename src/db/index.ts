@@ -207,7 +207,7 @@ const SKU_COLUMNS: Array<[string, string]> = [
 ];
 
 function migrate(d: Database) {
-  addColumns(d,"crawl_jobs",[["heartbeat_at","TEXT"],["agent_id","TEXT"]]);
+  addColumns(d,"crawl_jobs",[["heartbeat_at","TEXT"],["agent_id","TEXT"],["node_id","TEXT"]]);
   d.exec(`CREATE TABLE IF NOT EXISTS agent_presence(agent_id TEXT PRIMARY KEY,seen_at TEXT NOT NULL,job_id INTEGER);
     CREATE TABLE IF NOT EXISTS crawl_job_stages(job_id INTEGER,stage TEXT,status TEXT,started_at TEXT,finished_at TEXT,error TEXT,PRIMARY KEY(job_id,stage));`);
   addColumns(d,"comps",[["updated_at","TEXT"]]);

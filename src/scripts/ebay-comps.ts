@@ -49,12 +49,13 @@ const catBy = new Map(targets.map((t) => [t.query, (t as { category?: string }).
 let totalRows = 0, totalSaved = 0;
 const attempts=new Map(targets.map(t=>[t.query,startCollection(t.id,t.query)]));
 const completed=new Set<string>();
+let workerFailed=false;
 
 for await (const ev of runEbayWorker("sold", {
   queries: targets.map((t) => t.query), headless: has("headless"),
 })) {
   if (ev.type === "log") console.log(`  ${ev.msg}`);
-  else if (ev.type === "error") console.error(`\x1b[31m  ${ev.msg}\x1b[0m`);
+  else if (ev.type === "error") {workerFailed=true;console.error(`\x1b[31m  ${ev.msg}\x1b[0m`);}
   else if (ev.type === "sold") {
     const parsed = ev.rows.map((r) => parseSoldRow(r)).filter((c): c is NonNullable<typeof c> => c !== null);
 
@@ -97,3 +98,4 @@ const skus = db().query("SELECT COUNT(*) n FROM skus").get() as any;
 
 console.log(`\n${totalRows} rows seen · ${totalSaved} new comps stored`);
 console.log(`ebay comps in archive: ${stats.n} · SKUs with any comps: ${covered.n}/${skus.n}`);
+if(workerFailed||completed.size<targets.length)process.exitCode=1;

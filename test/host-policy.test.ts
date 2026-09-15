@@ -1,0 +1,23 @@
+import {test} from 'bun:test';
+import {isolated} from './isolated.ts';
+test('primary preference, offline grace and atomic fallback keep one job owner',()=>isolated(`
+  process.env.FILTRSOFT_PUSH_TOKEN='fixture';
+  import {app} from '@/src/api/index.ts';import {db,now} from '@/src/db/index.ts';import {eligibleHost} from '@/src/agent/host-policy.ts';import {autoQueueCrawl} from '@/src/api/jobs.ts';
+  const d=db(),primary='00000000-0000-4000-8000-000000000001',backup='00000000-0000-4000-8000-000000000002';
+  for(const id of [primary,backup])d.run('INSERT INTO collector_nodes VALUES(?,?,?,?,?)',[id,id,'test',now(),JSON.stringify({status:'online'})]);
+  d.run('INSERT INTO collector_policy VALUES(1,?,5)',[primary]);assert.equal(eligibleHost(d,backup),false);assert.equal(eligibleHost(d,primary),true);
+  assert.equal(eligibleHost(d,backup,Date.now()+300001),true);
+  d.run("INSERT INTO crawl_jobs(status,sources,created_at) VALUES('queued','[\\"facebook\\"]',?)",[now()]);
+  const headers=(node,agent)=>({authorization:'Bearer fixture','x-filtrsoft-node':node,'x-filtrsoft-agent':agent});
+  const next=async(node,agent)=>(await (await app.request('/v1/jobs/next',{headers:headers(node,agent)})).json());
+  assert.equal((await next(backup,'backup-run')).job,null);
+  const first=await next(primary,'primary-run');assert.ok(first.job);assert.equal((await next(primary,'duplicate-run')).job,null);
+  d.run("UPDATE crawl_jobs SET heartbeat_at='2000-01-01' WHERE id=?",[first.job.id]);d.run("UPDATE collector_nodes SET seen_at='2000-01-01' WHERE node_id=?",[primary]);
+  await next(backup,'backup-run');assert.equal(d.query('SELECT status FROM crawl_jobs WHERE id=?').get(first.job.id).status,'failed');
+  assert.equal(autoQueueCrawl(),true);const recovered=await next(backup,'backup-run');assert.ok(recovered.job);assert.notEqual(recovered.job.id,first.job.id);
+  assert.equal((await next(backup,'another-run')).job,null);
+  const stale=await app.request('/v1/collector/heartbeat',{method:'POST',headers:{...headers(primary,'primary-run'),'content-type':'application/json'},body:JSON.stringify({nodeId:primary,label:'Primary',revision:'test',status:'working',jobId:first.job.id,pending:{}})});
+  assert.equal((await stale.json()).ownsJob,false);
+  d.run('UPDATE collector_nodes SET telemetry=? WHERE node_id=?',[JSON.stringify({status:'paused'}),primary]);
+  assert.equal(eligibleHost(d,backup),true);
+`));

@@ -60,3 +60,5 @@ node_modules/
 # Regenerate visual workspace/concept checks locally; keep their assertions.
 /docs/qa/workspace/*.png
 /docs/qa/afterbuild/*.png
+/docs/qa/collector/*.png
+/docs/qa/collector/*.txt

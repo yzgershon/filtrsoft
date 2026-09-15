@@ -1,0 +1,209 @@
+{
+  "status.json": {
+    "pid": 26088,
+    "host": "Yishai_XPS",
+    "platform": "win32",
+    "arch": "arm64",
+    "updatedAt": "2026-09-15T14:52:06.188Z",
+    "status": "online",
+    "revision": "d3d116eb2802",
+    "api": "https://filtrsoft.com",
+    "database": "C:\\Dev\\filtrsoft\\filtrsoft.db",
+    "lastPollAt": "2026-09-15T14:52:06.187Z",
+    "lastError": "Error: Was there a typo in the url or port?",
+    "progress": "waiting",
+    "jobId": null,
+    "ageSeconds": 4
+  },
+  "supervisor.json": {
+    "pid": 15060,
+    "childPid": 26088,
+    "restarts": 0,
+    "updatedAt": "2026-09-15T14:52:09.955Z",
+    "ageSeconds": 1
+  },
+  "production": {
+    "at": "2026-09-15T14:52:10.872Z",
+    "arrivals": [
+      {
+        "source": "craigslist",
+        "total": 6142,
+        "newestCapture": "2026-09-15T14:20:18.532Z",
+        "newestSeen": "2026-09-15T14:20:18.532Z",
+        "captured24h": 148,
+        "captured7d": 826
+      },
+      {
+        "source": "facebook",
+        "total": 553,
+        "newestCapture": "2026-09-15T13:59:38.909Z",
+        "newestSeen": "2026-09-15T14:01:28.366Z",
+        "captured24h": 27,
+        "captured7d": 42
+      },
+      {
+        "source": "mercari",
+        "total": 129,
+        "newestCapture": "2026-09-15T14:00:10.868Z",
+        "newestSeen": "2026-09-15T14:05:57.858Z",
+        "captured24h": 20,
+        "captured7d": 20
+      },
+      {
+        "source": "offerup",
+        "total": 499,
+        "newestCapture": "2026-09-15T13:59:54.245Z",
+        "newestSeen": "2026-09-15T14:03:39.520Z",
+        "captured24h": 19,
+        "captured7d": 19
+      }
+    ],
+    "recentCalls": [
+      {
+        "source": "craigslist",
+        "call": "FAIR",
+        "count": 7
+      },
+      {
+        "source": "craigslist",
+        "call": "INSUFFICIENT_DATA",
+        "count": 111
+      },
+      {
+        "source": "craigslist",
+        "call": "OUT_OF_SCOPE",
+        "count": 674
+      },
+      {
+        "source": "craigslist",
+        "call": "PASS",
+        "count": 22
+      },
+      {
+        "source": "craigslist",
+        "call": "RISK",
+        "count": 5
+      },
+      {
+        "source": "craigslist",
+        "call": "VERIFY",
+        "count": 3
+      },
+      {
+        "source": "facebook",
+        "call": "FAIR",
+        "count": 2
+      },
+      {
+        "source": "facebook",
+        "call": "INSUFFICIENT_DATA",
+        "count": 25
+      },
+      {
+        "source": "facebook",
+        "call": "OUT_OF_SCOPE",
+        "count": 13
+      },
+      {
+        "source": "facebook",
+        "call": "PASS",
+        "count": 1
+      },
+      {
+        "source": "facebook",
+        "call": "RISK",
+        "count": 1
+      },
+      {
+        "source": "mercari",
+        "call": "INSUFFICIENT_DATA",
+        "count": 15
+      },
+      {
+        "source": "mercari",
+        "call": "OUT_OF_SCOPE",
+        "count": 2
+      },
+      {
+        "source": "mercari",
+        "call": "PASS",
+        "count": 3
+      },
+      {
+        "source": "offerup",
+        "call": "FAIR",
+        "count": 1
+      },
+      {
+        "source": "offerup",
+        "call": "INSUFFICIENT_DATA",
+        "count": 15
+      },
+      {
+        "source": "offerup",
+        "call": "OUT_OF_SCOPE",
+        "count": 1
+      },
+      {
+        "source": "offerup",
+        "call": "PASS",
+        "count": 1
+      },
+      {
+        "source": "offerup",
+        "call": "VERIFY",
+        "count": 1
+      }
+    ],
+    "latestServerCrawls": [
+      {
+        "started_at": "2026-09-15T14:50:18.272Z",
+        "discovered": 1347,
+        "analysed": 0,
+        "failed": 0
+      },
+      {
+        "started_at": "2026-09-15T14:47:18.270Z",
+        "discovered": 1347,
+        "analysed": 0,
+        "failed": 0
+      },
+      {
+        "started_at": "2026-09-15T14:44:18.270Z",
+        "discovered": 1347,
+        "analysed": 0,
+        "failed": 0
+      },
+      {
+        "started_at": "2026-09-15T14:41:18.270Z",
+        "discovered": 1347,
+        "analysed": 0,
+        "failed": 0
+      },
+      {
+        "started_at": "2026-09-15T14:38:18.269Z",
+        "discovered": 1347,
+        "analysed": 0,
+        "failed": 0
+      }
+    ],
+    "serverCrawlEnabled": true,
+    "collection": {
+      "everyMinutes": 45,
+      "agentOnline": true,
+      "lastAgentPollAt": "2026-09-15T14:52:06.263Z",
+      "collectors": [
+        {
+          "seenAt": "2026-09-15T14:52:06.263Z",
+          "jobId": null,
+          "revision": "d3d116eb2802"
+        },
+        {
+          "seenAt": "2026-09-15T01:42:01.717Z",
+          "jobId": null,
+          "revision": "legacy"
+        }
+      ]
+    }
+  }
+}

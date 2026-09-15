@@ -132,6 +132,8 @@ try {
       } catch { /* an unreadable body is not worth failing a crawl over */ }
     });
 
+    let cardCount=0;
+    if(!opts.detailsOnly) {
     log(`opening ${opts.searchUrl}`);
     await page.goto(opts.searchUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
     await pause(1500, 3000);
@@ -168,13 +170,16 @@ try {
       return out;
     });
     emit({ type: "cards", cards });
+    cardCount=cards.length;
     log(`${cards.length} cards`);
+    }
 
     for (const url of opts.detailUrls ?? []) {
       try {
         await pause(1500, 3500);
         await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
         await pause(1200, 2400);
+        if((await page.locator(LOGIN_SEL).count())>0)throw new Error('Sign-in needs attention');
 
         // "See more" hides most of the description, and the description is
         // where the value-determining specs live.
@@ -274,7 +279,7 @@ try {
       }
     }
 
-    emit({ type: "done", stats: { cards: cards.length, raw: rawCount } });
+    emit({ type: "done", stats: { cards: cardCount, raw: rawCount } });
   } else {
     emit({ type: "error", msg: `unknown command ${command}` });
   }

@@ -9,7 +9,7 @@
  * rate-limit error. A crawl that takes ten minutes and keeps the account beats
  * one that takes ten seconds and does not.
  */
-import { runWorker, searchUrl, parseCard, detailToListing, type FbCard } from "../sources/facebook.ts";
+import { runWorker, searchUrl, parseCard, detailToListing, cardToListing, type FbCard } from "../sources/facebook.ts";
 import { resolveProductType } from "../signals/product-type.ts";
 import { checkFetched } from "../engine/index.ts";
 import { db, now } from "../db/index.ts";
@@ -93,6 +93,16 @@ if (rejected.length) {
 console.log(`\x1b[1m${fresh.length} to open\x1b[0m\n`);
 
 if (!fresh.length) process.exit(0);
+
+// Persist discoveries before any per-listing visits. The managed collector
+// uploads this batch immediately; a slow detail page cannot hide newer cards.
+if(has('cards-only')) {
+  let failed=0;
+  for(const card of fresh)try{await checkFetched(cardToListing(card),{persist:true,vision:false});}catch{failed++;}
+  db().run('INSERT INTO crawls(started_at,discovered,analysed,vision_run,failed,created_at) VALUES(?,?,?,?,?,?)',[startedAt,cards.length,fresh.length-failed,0,failed,now()]);
+  console.log(`${fresh.length-failed} new search cards saved; full descriptions await enrichment`);
+  process.exit(failed?1:0);
+}
 
 // ---- pass 2: open each listing, run the engine -----------------------
 // A SECOND browser session, on purpose. Pass 1 establishes what is worth

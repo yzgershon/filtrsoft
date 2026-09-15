@@ -34,6 +34,7 @@
 import { discover, drain, queueDepth } from "../crawler/queue.ts";
 import { visionPass } from "../crawler/vision-pass.ts";
 import { autoQueueCrawl } from "./jobs.ts";
+import {startServerBackups} from './server-backup.ts';
 import { sweep } from "../tracker/index.ts";
 import { prunePhotos } from "../photos/index.ts";
 import { pruneThumbs, backfillThumbs } from "../photos/thumb.ts";
@@ -327,6 +328,7 @@ function recordTick(
 }
 
 export function startCrawlLoop() {
+  startServerBackups();
   if (!ENABLED) { console.log("crawl loop: disabled (FILTRSOFT_CRAWL=off)"); return; }
 
   /**

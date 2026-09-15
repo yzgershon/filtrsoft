@@ -1,4 +1,6 @@
 import {accountSync} from './account-sync.ts';
+import {handleCompSync} from './comp-sync.ts';
+import {handleCollectionHealth,handleCollectorHeartbeat,handleCollectionPolicy} from './collection-health.ts';
 import { dismissedIds, setDismissed, listDismissed } from "./dismissals.ts";
 import {recordSellerClick,followUp,dismissFollowUp} from './follow-ups.ts';
 import {handleInspection,saveInspection,handlePriceHistory} from './listing-workspace.ts';
@@ -227,6 +229,8 @@ const PUBLIC_PREFIXES = [
  * anyone who asks. `/v1/jobs/:id` is a number, so the pattern says so.
  */
 const AGENT_PATHS = [
+  /^\/v1\/collector\/heartbeat$/,
+  /^\/v1\/collector\/comps$/,
   /^\/v1\/jobs\/next$/,
   /^\/v1\/jobs\/diagnostics$/,
   /^\/v1\/jobs\/\d+$/,
@@ -669,6 +673,10 @@ app.post("/v1/jobs", handleStartCrawl);
 app.get("/v1/jobs/latest", handleLatestJob);
 app.get("/v1/jobs/next", handleNextJob);
 app.get("/v1/jobs/diagnostics", handleAgentDiagnostics);
+app.get('/v1/collection/health',handleCollectionHealth);
+app.put('/v1/collection/policy',handleCollectionPolicy);
+app.post('/v1/collector/heartbeat',handleCollectorHeartbeat);
+app.post('/v1/collector/comps',handleCompSync);
 app.post("/v1/jobs/:id", handleJobUpdate);
 
 app.get("/v1/billing/status", handleBillingStatus);

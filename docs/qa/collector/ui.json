@@ -1,0 +1,99 @@
+{
+  "at": "2026-09-15T14:55:17.740Z",
+  "checks": [
+    {
+      "width": 390,
+      "theme": "dark",
+      "overflow": false,
+      "targets": [
+        {
+          "tag": "BUTTON",
+          "height": 44
+        },
+        {
+          "tag": "SELECT",
+          "height": 47
+        },
+        {
+          "tag": "INPUT",
+          "height": 48.796875
+        },
+        {
+          "tag": "BUTTON",
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "overflow": false,
+      "targets": [
+        {
+          "tag": "BUTTON",
+          "height": 44
+        },
+        {
+          "tag": "SELECT",
+          "height": 47
+        },
+        {
+          "tag": "INPUT",
+          "height": 48.796875
+        },
+        {
+          "tag": "BUTTON",
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 1280,
+      "theme": "dark",
+      "overflow": false,
+      "targets": [
+        {
+          "tag": "BUTTON",
+          "height": 44
+        },
+        {
+          "tag": "SELECT",
+          "height": 47
+        },
+        {
+          "tag": "INPUT",
+          "height": 48.796875
+        },
+        {
+          "tag": "BUTTON",
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 1280,
+      "theme": "light",
+      "overflow": false,
+      "targets": [
+        {
+          "tag": "BUTTON",
+          "height": 44
+        },
+        {
+          "tag": "SELECT",
+          "height": 47
+        },
+        {
+          "tag": "INPUT",
+          "height": 48.796875
+        },
+        {
+          "tag": "BUTTON",
+          "height": 44
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "fixture": true
+}

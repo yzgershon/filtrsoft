@@ -529,6 +529,15 @@ CREATE TABLE IF NOT EXISTS crawl_jobs (
 );
 CREATE INDEX IF NOT EXISTS idx_crawl_jobs_status ON crawl_jobs(status, id);
 
+CREATE TABLE IF NOT EXISTS collector_nodes (
+  node_id TEXT PRIMARY KEY, label TEXT NOT NULL, revision TEXT NOT NULL,
+  seen_at TEXT NOT NULL, telemetry TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS collector_policy (
+  id INTEGER PRIMARY KEY CHECK(id=1),preferred_node TEXT REFERENCES collector_nodes(node_id),
+  fallback_minutes INTEGER NOT NULL DEFAULT 5 CHECK(fallback_minutes BETWEEN 3 AND 60)
+);
+
 -- Kept separate from presence so older collectors' three-column writes remain
 -- compatible during rollout. Runtime version drift caused the September 15 gap.
 CREATE TABLE IF NOT EXISTS agent_versions (
