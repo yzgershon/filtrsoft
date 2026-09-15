@@ -1,0 +1,178 @@
+{
+  "verifiedAt": "2026-09-15T16:13:42.783Z",
+  "method": "Live search cards, existing off-screen Node workers, same parser and three-scroll budget on OfferUp/Mercari. Final discovery policy applied to captured titles. No database opened, seller details visited, vision or uploads. Eligible means retained for analysis, not a deal or confirmed specification.",
+  "samples": [
+    {
+      "name": "mercari-before",
+      "at": "2026-09-15T16:06:30.961Z",
+      "source": "mercari",
+      "query": "graphics card",
+      "baseline": true,
+      "ms": 16839,
+      "links": 92,
+      "parsed": 91,
+      "eligible": 9,
+      "unknownRetainedForDetails": 0,
+      "rejected": 82,
+      "errors": 0,
+      "blocked": false,
+      "rejectedExamples": [
+        "Vintage 2000 McDonald's Ty Teenie Beanie Baby - \"The End\" Bear (Sealed)",
+        "Alex and Ani Armenian Cross Bracelet",
+        "Toy Story Loungefly 25th Anniversary Lanyard and Card Holder",
+        "Dutch Bros 1992 Blue Sticker",
+        "Teenage Mutant Ninja Turtles Backpack Lunch Bag"
+      ]
+    },
+    {
+      "name": "mercari-after",
+      "at": "2026-09-15T16:04:53.019Z",
+      "source": "mercari",
+      "query": "graphics card",
+      "baseline": false,
+      "ms": 15212,
+      "links": 92,
+      "parsed": 92,
+      "eligible": 90,
+      "unknownRetainedForDetails": 2,
+      "rejected": 2,
+      "errors": 0,
+      "blocked": false,
+      "rejectedExamples": [
+        "EVGA SuperNOVA 1000 G+ 1000W Gold Fully Modular PSU 120-GP-1000-X1 Box Cables",
+        "Dell H9361 DMS-59 to Dual DVI Female Y Splitter Cable Dual Monitor Adapter"
+      ]
+    },
+    {
+      "name": "offerup-before",
+      "at": "2026-09-15T16:07:21.793Z",
+      "source": "offerup",
+      "query": "graphics card",
+      "baseline": true,
+      "ms": 15528,
+      "links": 70,
+      "parsed": 69,
+      "eligible": 54,
+      "unknownRetainedForDetails": 0,
+      "rejected": 15,
+      "errors": 0,
+      "blocked": false,
+      "rejectedExamples": [
+        "2 VINTAGE QUEEN AND ACES TALL DRINKING GLASSES",
+        "AMD Radeon pro w5500",
+        "ASUS Tuf gaming",
+        "One brand new",
+        "Gigabyte 4090 Rtx"
+      ]
+    },
+    {
+      "name": "offerup-after",
+      "at": "2026-09-15T16:05:45.452Z",
+      "source": "offerup",
+      "query": "graphics card",
+      "baseline": false,
+      "ms": 16587,
+      "links": 75,
+      "parsed": 75,
+      "eligible": 74,
+      "unknownRetainedForDetails": 12,
+      "rejected": 1,
+      "errors": 0,
+      "blocked": false,
+      "rejectedExamples": [
+        "DVI CABLES,DVI TO HDMI CABLES"
+      ]
+    },
+    {
+      "name": "facebook-after",
+      "at": "2026-09-15T16:08:04.589Z",
+      "source": "facebook",
+      "query": "nvidia geforce",
+      "baseline": false,
+      "ms": 10722,
+      "links": 38,
+      "parsed": 38,
+      "eligible": 33,
+      "unknownRetainedForDetails": 0,
+      "rejected": 5,
+      "errors": 0,
+      "blocked": false,
+      "rejectedExamples": [
+        "$200",
+        "Corsair Vengeance LPX DDR4 FOR PARTS",
+        "$2,000",
+        "$800",
+        "Full setup"
+      ]
+    },
+    {
+      "name": "craigslist-before",
+      "at": "2026-09-15T16:04:03.485Z",
+      "source": "craigslist",
+      "query": "graphics card",
+      "category": "vgm",
+      "baseline": true,
+      "ms": 224,
+      "links": 190,
+      "parsed": 190,
+      "eligible": 13,
+      "unknownRetainedForDetails": 0,
+      "rejected": 177,
+      "errors": 0,
+      "blocked": false,
+      "rejectedExamples": [
+        "Antique Video Game Cartridges",
+        "Atari 2600 Jr Video Game System",
+        "Xbox with headphones",
+        "Uncharted 3",
+        "Gaming Chair Headrest + Back Support with Snap Straps - $ea-set"
+      ]
+    },
+    {
+      "name": "craigslist-after",
+      "at": "2026-09-15T16:10:54.564Z",
+      "source": "craigslist",
+      "query": "graphics card",
+      "category": "vgm",
+      "baseline": false,
+      "ms": 191,
+      "links": 21,
+      "parsed": 21,
+      "eligible": 8,
+      "unknownRetainedForDetails": 0,
+      "rejected": 13,
+      "errors": 0,
+      "blocked": false,
+      "rejectedExamples": [
+        "Xbox one,console,wireless controller,27\" 75hz monitor,power supply,hdmi cabl",
+        "Vintage Microsoft SideWinder Computer Controller Plug & Play Game Pad",
+        "**MODDED** PS Vita 2000 LCD [LOADED GAMES!!]",
+        "original OEM Meta Oculus Quest CARRYING CASE",
+        "Xbox Series X"
+      ]
+    },
+    {
+      "name": "craigslist-parts",
+      "at": "2026-09-15T16:10:54.844Z",
+      "source": "craigslist",
+      "query": "graphics card",
+      "category": "syp",
+      "baseline": false,
+      "ms": 207,
+      "links": 319,
+      "parsed": 319,
+      "eligible": 186,
+      "unknownRetainedForDetails": 61,
+      "rejected": 133,
+      "errors": 0,
+      "blocked": false,
+      "rejectedExamples": [
+        "Dell WD19TBS Thunderbolt Dock + 180W Power Adapter",
+        "TP-Link Cable Modem + TP-Link Wireless Router",
+        "Do you need a printer or Laptop, Desktop Computer or just a Monitor?",
+        "Lian Li Hydroshift LCD 360 Liquid Cooler",
+        "DeepCool LT520 CPU Cooler"
+      ]
+    }
+  ]
+}

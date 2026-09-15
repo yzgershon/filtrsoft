@@ -125,8 +125,12 @@ export async function fetchListing(url: string): Promise<RawListing> {
  * because the JS search UI does paginate; if that is ever wired up, this is
  * where it goes.
  */
-export async function fetchSearchUrls(cat: string, offset = 0): Promise<string[]> {
-  const url = `https://www.craigslist.org/search/area/boston?cat=${cat}${offset ? `&s=${offset}` : ""}`;
+export function craigslistSearchUrl(cat:string,offset=0,query?:string) {
+  const p=new URLSearchParams({cat});if(offset)p.set('s',String(offset));if(query)p.set('query',query);
+  return `https://www.craigslist.org/search/area/boston?${p}`;
+}
+export async function fetchSearchUrls(cat: string, offset = 0,query?:string): Promise<string[]> {
+  const url = craigslistSearchUrl(cat,offset,query);
   const res = await fetch(url, { signal:AbortSignal.timeout(20_000), headers: { "User-Agent": UA } });
   if (!res.ok) throw new Error(`craigslist search ${res.status}`);
   const html = await res.text();
@@ -154,12 +158,14 @@ export interface SearchResult {
  * 341 listing pages to notice that two of them dropped $50 would be absurd.
  */
 /** See fetchSearchUrls: `offset` is accepted and IGNORED by this endpoint. */
-export async function fetchSearchResults(cat: string, offset = 0): Promise<SearchResult[]> {
-  const url = `https://www.craigslist.org/search/area/boston?cat=${cat}${offset ? `&s=${offset}` : ""}`;
+export async function fetchSearchResults(cat: string, offset = 0,query?:string): Promise<SearchResult[]> {
+  const url = craigslistSearchUrl(cat,offset,query);
   const res = await fetch(url, { signal:AbortSignal.timeout(20_000), headers: { "User-Agent": UA } });
   if (!res.ok) throw new Error(`craigslist search ${res.status}`);
   const html = await res.text();
-
+  return parseSearchResults(html);
+}
+export function parseSearchResults(html:string):SearchResult[] {
   const out: SearchResult[] = [];
   for (const m of html.matchAll(
     /<li class="cl-static-search-result"[^>]*>([\s\S]*?)<\/li>/g,

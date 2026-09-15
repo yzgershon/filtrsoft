@@ -1,18 +1,20 @@
 import type {CommandResult} from './process.ts';
+import {collectionQuery,CORE_QUERIES} from '../crawler/search-policy.ts';
 
 export const SOURCES=['facebook','offerup','mercari'] as const;
 export type Source=typeof SOURCES[number];
-export const QUERIES=['graphics card','gaming pc','gaming laptop','macbook','iphone'];
+export const QUERIES=CORE_QUERIES;
 export const isSource=(value:string):value is Source=>SOURCES.includes(value as Source);
 export interface CollectionStage {name:string;source:Source;args:string[];timeoutMs:number;kind:'crawl'|'enrich'|'probe'|'sync'}
 const script:Record<Source,string>={facebook:'fb:crawl',offerup:'ou:crawl',mercari:'mc:crawl'};
 
 /** Interleave sources so a broken Facebook launch cannot starve OfferUp. Each
  * cycle advances the cursor even after failure, avoiding a permanent first-query loop. */
-export function collectionPlan(sources:Source[],cursor:number,queries=2,limit=12):CollectionStage[] {
+export function collectionPlan(sources:Source[],cursor:number,queries=3,limit=12):CollectionStage[] {
+  if(!Number.isSafeInteger(cursor)||cursor<0||!Number.isInteger(queries)||queries<1||queries>4)throw new Error('Invalid search plan');
   const plan:CollectionStage[]=[];
   for(let round=0;round<queries;round++) for(const source of sources) {
-    const query=QUERIES[(cursor+round)%QUERIES.length];
+    const query=collectionQuery(source,cursor,round);
     plan.push({source,kind:'crawl',name:`${source}/search-${query.replaceAll(' ','-')}`,args:['run',script[source],'--query',query,'--limit',String(limit),...(source==='facebook'?['--cards-only']:[])],timeoutMs:4*60_000});
   }
   for(const source of sources) {

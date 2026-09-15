@@ -10,7 +10,7 @@
  * one that takes ten seconds and does not.
  */
 import { runWorker, searchUrl, parseCard, detailToListing, cardToListing, type FbCard } from "../sources/facebook.ts";
-import { resolveProductType } from "../signals/product-type.ts";
+import {discoveryDecision} from '../crawler/search-policy.ts';
 import { checkFetched } from "../engine/index.ts";
 import { db, now } from "../db/index.ts";
 
@@ -73,14 +73,15 @@ const rejected: Array<{ title: string; reason: string }> = [];
  * ("RTX 3080 FE" has no product noun and still resolves to tech).
  */
 const inScope = unseen.filter((c) => {
-  const p = resolveProductType(c.title);
-  if (p.kind !== "tech") {
+  const p = discoveryDecision(c.title);
+  if (!p.keep) {
     rejected.push({ title: c.title, reason: p.reason });
     return false;
   }
   return true;
 });
 const fresh = inScope.slice(0, limit);
+console.log(JSON.stringify({type:'search-quality',source:'facebook',query:arg('query')??'electronics',parsed:cards.length,known:cards.length-unseen.length,eligible:inScope.length,rejected:unseen.length-inScope.length,selected:fresh.length}));
 
 console.log(`\n${cards.length} cards · ${cards.length - unseen.length} already known`);
 if (rejected.length) {
@@ -93,6 +94,7 @@ if (rejected.length) {
 console.log(`\x1b[1m${fresh.length} to open\x1b[0m\n`);
 
 if (!fresh.length) process.exit(0);
+if(has('dry')){for(const card of fresh)console.log(`candidate: ${card.title}`);process.exit(0);}
 
 // Persist discoveries before any per-listing visits. The managed collector
 // uploads this batch immediately; a slow detail page cannot hide newer cards.

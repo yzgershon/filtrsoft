@@ -12,7 +12,7 @@
  */
 import { runMarketWorker, parseCards, cardToListing, MARKETPLACES, BASIS, type Marketplace } from "../sources/marketplace.ts";
 import { checkFetched } from "../engine/index.ts";
-import { resolveProductType } from "../signals/product-type.ts";
+import {CORE_QUERIES,marketplaceSearchUrl,discoveryDecision,hasHardwareCategory} from '../crawler/search-policy.ts';
 import { db } from "../db/index.ts";
 
 const arg = (k: string) => {
@@ -29,7 +29,8 @@ if (!MARKETPLACES.includes(source)) {
 
 /**
  * Default queries are the categories Yish trades, not "electronics".
- * These sites have no useful category browse — search is the only way in.
+ * Search terms are paired with verified category filters so unrelated newest
+ * listings do not consume the card window before real devices appear.
  *
  * ⚠ `ps5` AND `xbox series` WERE REMOVED ON 2026-09-04. Yish: *"get rid of all
  * the consoles on the app they are hard to resell. I dont want ANY consoles on
@@ -38,9 +39,7 @@ if (!MARKETPLACES.includes(source)) {
  * listings guaranteed to be thrown away — the Mercari run that finally worked
  * came back dominated by Xbox 360 games for exactly this reason.
  */
-const DEFAULT_QUERIES = [
-  "graphics card", "gaming pc", "macbook", "iphone", "laptop",
-];
+const DEFAULT_QUERIES = CORE_QUERIES;
 const queries = arg("query") ? [arg("query")!] : DEFAULT_QUERIES;
 const limit = Number(arg("limit")) || 25;
 
@@ -65,7 +64,7 @@ let linksSeen = 0, queriesRun = 0, blockedQueries = 0;
 const tally: Record<string, number> = {};
 
 for await (const ev of runMarketWorker(source, {
-  queries, headless: has("headless"), scrolls: 3,
+  searches:queries.map(query=>({query,url:marketplaceSearchUrl(source,query)})), headless: has("headless"), scrolls: 3,
 })) {
   if (ev.type === "log") console.log(`  ${ev.msg}`);
   else if (ev.type === "error") {failures++; console.error(`\x1b[31m  ${ev.msg}\x1b[0m`);}
@@ -80,8 +79,9 @@ for await (const ev of runMarketWorker(source, {
     const fresh = cards.filter((c) => !seen.has(c.sourceId));
     // Grammar gate BEFORE the engine, same as the Craigslist crawler: a search
     // for "graphics card" returns brackets, waterblocks and RGB strips.
-    const inScope = fresh.filter((c) => resolveProductType(c.title).kind === "tech");
+    const inScope = fresh.filter((c) => discoveryDecision(c.title,hasHardwareCategory(source,ev.query)).keep);
     skipped += fresh.length - inScope.length;
+    console.log(JSON.stringify({type:'search-quality',source,query:ev.query,links:ev.links.length,parsed:cards.length,known:cards.length-fresh.length,eligible:inScope.length,rejected:fresh.length-inScope.length,selected:Math.min(limit,inScope.length)}));
 
     for (const c of inScope.slice(0, limit)) {
       seen.add(c.sourceId);
@@ -90,7 +90,7 @@ for await (const ev of runMarketWorker(source, {
         continue;
       }
       try {
-        const r = await checkFetched(cardToListing(c), { persist: true });
+        const r = await checkFetched(cardToListing(c), { persist: true,vision:false });
         tally[r.verdict.call] = (tally[r.verdict.call] ?? 0) + 1;
         analysed++;
         const C: Record<string, string> = { BUY: "\x1b[32m", VERIFY: "\x1b[35m", FAIR: "\x1b[36m" };

@@ -33,15 +33,15 @@ test('command timeout cannot become success and stderr stays bounded',async()=>{
 test('search rotation covers every category and never runs a full source before another gets a turn',()=>{
   const first=collectionPlan([...SOURCES],0).filter(s=>s.kind==='crawl');
   expect(first.slice(0,3).map(s=>s.source)).toEqual([...SOURCES]);
-  const seen=new Set([0,2,4].flatMap(cursor=>collectionPlan(['facebook'],cursor).filter(s=>s.kind==='crawl').map(s=>s.args[3])));
+  const seen=new Set([0,2,4].flatMap(cursor=>collectionPlan(['offerup'],cursor,2).filter(s=>s.kind==='crawl').map(s=>s.args[3])));
   expect(seen).toEqual(new Set(QUERIES));
 });
 test('failed crawl checkpoints partial facts, skips more visits to that source, and serves others',async()=>{
   const ran:string[]=[];
   const summary=await collect([...SOURCES],{cursor:0,paused:()=>false,stage:async()=>{},run:async s=>{
     ran.push(s.name);return {ok:!(s.source==='facebook'&&s.kind==='crawl'),tail:'challenge',timedOut:false,cancelled:false};}});
-  const failed=ran.indexOf('facebook/search-graphics-card');
-  expect(ran[failed+1]).toBe('facebook/search-graphics-card-sync');
+  const failed=ran.indexOf('facebook/search-nvidia-geforce');
+  expect(ran[failed+1]).toBe('facebook/search-nvidia-geforce-sync');
   expect(ran).not.toContain('facebook/search-gaming-pc');expect(ran).toContain('mercari/details');
   expect(summary.facebook).toContain('challenge');expect(summary.offerup).toBe('ok');
 });
@@ -49,7 +49,7 @@ test('pause stops new browser stages while checkpointing the interrupted one',as
   let paused=false;const ran:string[]=[];
   const summary=await collect(['facebook','offerup'],{cursor:0,paused:()=>paused,stage:async()=>{},run:async s=>{
     ran.push(s.name);if(s.kind==='crawl')paused=true;return {ok:true,tail:'',timedOut:false,cancelled:false};}});
-  expect(ran.at(-1)).toBe('facebook/search-graphics-card-sync');expect(ran).not.toContain('offerup/search-graphics-card');
+  expect(ran.at(-1)).toBe('facebook/search-nvidia-geforce-sync');expect(ran).not.toContain('offerup/search-graphics-card');
   expect(summary.offerup).toContain('paused');
 });
 test('collector diagnostics require machine auth, do not claim jobs, and keep version after heartbeat',()=>isolated(`

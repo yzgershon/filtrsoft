@@ -33,6 +33,7 @@ import { db, now } from "../db/index.ts";
 import { fetchSearchResults } from "../sources/craigslist.ts";
 import { CATEGORIES } from "./index.ts";
 import { checkListing } from "../engine/index.ts";
+import {craigslistQuery,discoveryDecision,hasHardwareCategory} from './search-policy.ts';
 
 export interface DiscoverStats {
   seen: number;
@@ -40,6 +41,7 @@ export interface DiscoverStats {
   queued: number;
   prioritised: number;
   failedPages: number;
+  skipped: number;
   ms: number;
 }
 
@@ -96,7 +98,7 @@ export async function discover(opts: {
   const t0 = Date.now();
   const cats = opts.categories ?? CATEGORIES.map((c) => c.cat);
   const log = opts.onProgress ?? (() => {});
-  const st: DiscoverStats = { seen: 0, fresh: 0, queued: 0, prioritised: 0, failedPages: 0, ms: 0 };
+  const st: DiscoverStats = { seen: 0, fresh: 0, queued: 0, prioritised: 0, failedPages: 0, skipped:0, ms: 0 };
 
   const known = new Set(
     (db().query("SELECT source_id FROM listings").all() as Array<{ source_id: string }>)
@@ -111,11 +113,12 @@ export async function discover(opts: {
 
   for (const cat of cats) {
     try {
-      const found = await fetchSearchResults(cat, 0);
+      const found = await fetchSearchResults(cat, 0,craigslistQuery(cat));
       st.seen += found.length;
       for (const r of found) {
         if (known.has(r.sourceId)) continue;
         st.fresh++;
+        if(!discoveryDecision(r.title,hasHardwareCategory('craigslist',cat)).keep){st.skipped++;continue;}
         /**
          * EVERY word of a saved search must appear, the same rule the alert
          * matcher uses. "rtx 4090" prioritising on "rtx" alone would put every

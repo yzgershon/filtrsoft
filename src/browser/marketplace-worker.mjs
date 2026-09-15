@@ -216,9 +216,10 @@ try {
     }).then((r) => ({ lines: r.lines, links: r.hrefs }));
   }
 
-  for (const query of opts.queries ?? []) {
+  const searches=opts.searches??(opts.queries??[]).map(query=>({query,url:source.url(query,opts)}));
+  for (const {query,url} of searches) {
     log(`${command}: ${query}`);
-    await page.goto(source.url(query, opts), { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
     await pause(4500, 7000);
 
     const body = await page.evaluate(() => (document.body.innerText || "").slice(0, 400));
@@ -283,7 +284,7 @@ try {
     await pause(3000, 5500);
   }
 
-  emit({ type: "done", stats: { queries: (opts.queries ?? []).length } });
+  emit({ type: "done", stats: { queries: searches.length } });
 } catch (e) {
   emit({ type: "error", msg: String(e && e.message ? e.message : e) });
 } finally {

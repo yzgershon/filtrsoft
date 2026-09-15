@@ -13,20 +13,15 @@
  * Because the feed reads stored verdicts, serving it is instant no matter how
  * slow analysis is. Analysis is a background job; the feed is a database query.
  */
-import { fetchSearchUrls } from "../sources/craigslist.ts";
+import { fetchSearchResults } from "../sources/craigslist.ts";
+import {CRAIGSLIST_SEARCHES,craigslistQuery,discoveryDecision,hasHardwareCategory} from './search-policy.ts';
 import { checkListing } from "../engine/index.ts";
 import { resolveProductType } from "../signals/product-type.ts";
 import { db, now } from "../db/index.ts";
 import { budgetAvailable, spentTodayUsd, DAILY_BUDGET_USD } from "../api/guard.ts";
 
 /** Craigslist categories inside our scope. Cameras are deliberately absent. */
-export const CATEGORIES = [
-  { cat: "sya", label: "computers" },
-  { cat: "syp", label: "computer parts" },
-  { cat: "moa", label: "cell phones" },
-  { cat: "ela", label: "electronics" },
-  { cat: "vgm", label: "video gaming" },
-];
+export const CATEGORIES = CRAIGSLIST_SEARCHES;
 
 export interface CrawlStats {
   discovered: number;
@@ -114,9 +109,10 @@ export async function crawl(opts: {
   for (const cat of cats) {
     for (let p = 0; p < pages; p++) {
       try {
-        const found = await fetchSearchUrls(cat, p * 120);
-        urls.push(...found);
-        log(`  ${cat} p${p + 1}: ${found.length} listings`);
+        const found = await fetchSearchResults(cat,p*120,craigslistQuery(cat));
+        const selected=found.filter(r=>discoveryDecision(r.title,hasHardwareCategory('craigslist',cat)).keep);
+        urls.push(...selected.map(r=>r.url));
+        log(`  ${cat} p${p + 1}: ${found.length} cards, ${selected.length} tech candidates`);
       } catch (e) {
         log(`  ${cat} p${p + 1}: FAILED ${(e as Error).message}`);
       }

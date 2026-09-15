@@ -12,6 +12,6 @@ test('a challenged source backs off across cycles while its durable uploads and 
   import {sourceCooldown,recordSourceAttempt} from '@/src/agent/backoff.ts';import {collect} from '@/src/agent/collection.ts';
   recordSourceAttempt('facebook',false,'marketplace challenge');assert.ok(sourceCooldown('facebook'));
   const ran=[];await collect(['facebook','offerup'],{cursor:0,paused:()=>false,cooldown:s=>sourceCooldown(s)?.retryAt??null,stage:async()=>{},run:async s=>{ran.push(s.name);return {ok:true,tail:'',timedOut:false,cancelled:false};}});
-  assert.ok(ran.includes('facebook/recover-sync'));assert.ok(!ran.includes('facebook/search-graphics-card'));assert.ok(ran.includes('offerup/search-graphics-card'));
+  assert.ok(ran.includes('facebook/recover-sync'));assert.ok(!ran.includes('facebook/search-nvidia-geforce'));assert.ok(ran.includes('offerup/search-graphics-card'));
   recordSourceAttempt('facebook',true);assert.equal(sourceCooldown('facebook'),null);
 `));

@@ -20,4 +20,12 @@ export function writeRunnerState(state:Record<string,unknown>) {
   renameSync(temp,path);
 }
 export function readCursor() {try{const n=Number(readFileSync(join(STATE_DIR,'cursor'),'utf8'));return Number.isSafeInteger(n)&&n>=0?n:0;}catch{return 0;}}
-export function advanceCursor(queries:number) {const cursor=readCursor();mkdirSync(STATE_DIR,{recursive:true});writeFileSync(join(STATE_DIR,'cursor'),String((cursor+queries)%5));return cursor;}
+export function advanceCursor(queries:number) {
+  if(!Number.isSafeInteger(queries)||queries<1)throw new Error('Invalid cursor step');
+  const cursor=readCursor(),next=cursor+queries;
+  if(!Number.isSafeInteger(next))throw new Error('Search cursor overflow');
+  mkdirSync(STATE_DIR,{recursive:true});const path=join(STATE_DIR,'cursor'),temp=path+'.tmp';
+  // Modulo five silently starved every new query beyond the original list and
+  // reset maker/parts rotation. Each search family handles its own modulo.
+  writeFileSync(temp,String(next));renameSync(temp,path);return cursor;
+}

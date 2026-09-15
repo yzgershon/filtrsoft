@@ -101,11 +101,12 @@ export function parseCards(
     /**
      * The title is the longest line that is NOT the price and not a badge.
      * Both sites put the price on its own line and decorate cards with short
-     * labels ("Shipping", "Free", "Local pickup", condition chips), none of
-     * which are ever as long as a real product name.
+     * labels ("Shipping", "Free", "Local pickup", condition chips).
+     * A real name can be only "GTX960". Exclude locations and badges by their
+     * shape rather than imposing a length floor that discarded those cards.
      */
     const title = lines
-      .filter((s) => s !== priceLine && s.length > 8 && !PRICE.test(s) &&
+      .filter((s) => s !== priceLine && s.length >= 2 && !PRICE.test(s) && !/,\s?[A-Z]{2}$/.test(s) &&
         !/^(shipping|free|local pickup|new|used|like new|good|fair|sponsored|save)$/i.test(s))
       .sort((a, b) => b.length - a.length)[0];
     if (!title) continue;
@@ -349,7 +350,7 @@ export function cardToListing(c: MarketCard): RawListing {
 
 export type MarketEvent =
   | { type: "log"; msg: string }
-  | { type: "cards"; source: Marketplace; query: string; lines: string[]; links: Array<{ href: string; text: string; photo?: string }> }
+  | { type: "cards"; source: Marketplace; query: string; lines: string[]; links: Array<{ href: string; text: string; photo?: string }>; blocked?: boolean }
   | { type: "photos"; id: number; url: string; finalUrl: string; title: string; urls: string[]; text?: string; error?: string }
   | { type: "probe"; id: number; url: string; finalUrl: string; text: string; title?: string; error?: string }
   | { type: "error"; msg: string }
