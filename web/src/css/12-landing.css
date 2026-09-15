@@ -342,6 +342,12 @@
 /* Google renders its own button into this box; it needs a real width to lay
    out against, and centring it keeps it aligned with the form below. */
 .gbtn { min-height: 44px; display: grid; place-items: center; width: 100%; }
+/* GIS paints its own light/dark button inside a light-scheme document. When
+   this iframe inherits our dark scheme, Chromium gives its transparent canvas
+   an opaque white rectangle (observed on both live auth forms, Sept 15).
+   Match the embedded document's scheme; leave Google's button and focus ring
+   intact instead of cropping the frame or replacing its sign-in control. */
+.gbtn iframe { color-scheme: light; }
 .gbtn > div { margin: 0 auto; }
 .applebtn {
   width: 100%; min-height: 44px; border-radius: 999px;

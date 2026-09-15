@@ -89,6 +89,12 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
+### September 15, Google button visual fix prepared
+
+Yish confirmed Google sign-in works and supplied a screenshot of the white rectangle behind its dark pill button. The `.gbtn iframe` now explicitly uses `color-scheme: light`, matching Google's embedded document. This prevents the browser from painting an opaque canvas when the surrounding app uses a dark scheme; Google's SDK still controls its button theme, shape, accessibility and sign-in. Background transparency alone cannot fix a browser-painted iframe canvas. Explanation: `https://drafts.csswg.org/css-color-adjust-1/#color-scheme-effect`.
+
+Production build passed and contains the scoped rule. Disposable Node preview at `127.0.0.1:3196` serves only built assets and read-only public provider fixtures, with no database or account submission. The SDK's local fallback is not proof of the live cross-origin frame; production verification is required after deployment. No backend/auth logic, credential or OAuth configuration changes. Release pending at this checkpoint.
+
 ### September 15, Google sign-in enabled and verified on production
 
 Yish reported that neither Get started nor Sign in showed Google, and pointed to the open Chrome Google Auth tab. The pre-change public `/v1/auth/me` confirmed `google:false`, `googleClientId:null`, registration open. Existing `web/src/landing.tsx` already renders Google's official button in both modes when configured; the backend verifies issuer, audience, signature and expiry. The missing configuration required no application-code change.
