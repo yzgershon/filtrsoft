@@ -89,7 +89,13 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
-### September 15, collection recovery deployed; persistent startup approval pending
+### September 15, automatic startup installed and collector online
+
+Yish approved permanent automatic collection in his follow-up. The previously rejected installation was rerun with that approval and succeeded: hidden logon shortcut installed, existing daily task updated, and the collector started from `C:/Dev/filtrsoft-agent` at `d3d116e`. Backups: `C:/Dev/filtrsoft-runner-state/legacy-startup-20260915095051.cmd` and `legacy-task-20260915095051.xml`. Production confirmed revision `d3d116eb2802` online at **13:51 UTC**, with no local error. A real daily-task invocation returned **0** and preserved the same supervisor/collector PIDs (15060/26088), confirming duplicate exclusion. This is on **Yishai_XPS**, not the future gaming PC. No approval remains pending for this installed setup; the older blocked checkpoint below is historical. No reboot or multi-day reliability test has been completed. Next-work recommendation: `docs/AUTOMATIC-COLLECTION-ROADMAP.md`.
+
+At **13:53 UTC**, the server automatically assigned **job #10**, which the installed collector claimed. The **13:54 UTC** receipt shows its Facebook search stage running with a fresh production heartbeat. Receipt: `docs/qa/collector/startup.json`. This verifies automatic dispatch and execution beginning; the complete multi-source cycle was still in progress at this checkpoint.
+
+### September 15, collection release checkpoint before startup approval
 
 **Final application revision `d3d116eb28027e00200efe45d09287014fd48612` is on main and live.** Railway deployment `4fe80218-e48a-4f2c-9257-887d5b1dff25` succeeded. Native amd64 CI `34932156679` completed successfully, including tests, typecheck, frontend build, network-disabled Docker tests and production image build. This fixes the child-reaping race discovered by the previous CI run. Windows and pinned Linux verification passed **346 tests, 0 failures, 996 assertions**. Dedicated runtime `C:/Dev/filtrsoft-agent` is clean at detached `d3d116e` with existing dependencies reused. Release and aggregate receipts: `docs/qa/collector/`.
 

@@ -95,3 +95,23 @@ review blocked its hidden logon installation, scheduled-task update and start,
 citing missing exact authorization for persistent startup changes. The command
 did not run. One direct approval question is pending; no alternate installation
 route was used.
+
+## September 15, approved permanent startup
+
+Yish subsequently approved permanent automatic collection. The exact previously
+blocked installation and start command succeeded on `Yishai_XPS` at 13:50 UTC.
+The hidden logon shortcut and existing daily task both target the dedicated
+`d3d116e` runtime through `C:/Dev/filtrsoft-runner-state/start.cjs`. Previous
+startup/task definitions were backed up with timestamp `20260915095051`.
+
+At 13:51 UTC, local and production status agreed: revision `d3d116eb2802`, online,
+no local error, supervisor PID 15060 and collector PID 26088. Triggering the real
+daily task completed with result 0 and left those same two processes in place.
+The installation blocker is resolved. No restart of Windows, long-duration test
+or gaming-PC installation has been performed. Follow-up recommendations are in
+`AUTOMATIC-COLLECTION-ROADMAP.md`; these proposed features are not claimed shipped.
+
+At 13:53 UTC the collector claimed automatically queued job #10. The 13:54 UTC
+receipt shows `facebook/search-graphics-card` working and a fresh production
+heartbeat. Automatic dispatch and work beginning are verified; the complete
+multi-source cycle is still in progress. Receipt: `docs/qa/collector/startup.json`.

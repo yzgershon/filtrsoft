@@ -10,4 +10,4 @@ Yish authorized fixing the missing-fresh-listings pipeline and optimizing unatte
 
 No new paid vision calls during recovery. No unrelated processes will be killed. Do not copy browser sessions to the server or between machines.
 
-Current stage: implementation, before runtime switch. Diagnosis: `CRAWL-DIAGNOSIS-2026-09-15.md`.
+Current stage: deployed at `d3d116e`; Yish approved persistent startup and the current laptop's launcher/task are installed and online. Ongoing evidence: `CRAWLER-RECOVERY-RESULTS-2026-09-15.md`. Recommended next work: `AUTOMATIC-COLLECTION-ROADMAP.md`. Diagnosis: `CRAWL-DIAGNOSIS-2026-09-15.md`.
