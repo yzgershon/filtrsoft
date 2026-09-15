@@ -1,0 +1,19 @@
+{
+  "at": "2026-09-15T20:58:57.9387105Z",
+  "before": {
+    "pid": 5156,
+    "childPid": 20332,
+    "restarts": 0,
+    "updatedAt": "2026-09-15T20:58:52.632Z"
+  },
+  "after": {
+    "pid": 5156,
+    "childPid": 20332,
+    "restarts": 0,
+    "updatedAt": "2026-09-15T20:58:56.643Z"
+  },
+  "duplicateExcluded": true,
+  "taskLastRunTime": "2026-09-15T16:58:53-04:00",
+  "taskLastResult": 0,
+  "nextRunTime": "2026-09-16T10:00:00-04:00"
+}

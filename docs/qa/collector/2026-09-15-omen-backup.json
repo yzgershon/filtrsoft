@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "createdAt": "2026-09-15T21:10:59.347Z",
+  "sha256": "e68c82be7741a1d8850a332f5c0f88ca113c2d9cee387d093db91faaf68103d3",
+  "counts": {
+    "comps": 31913,
+    "skus": 563,
+    "listings": 220,
+    "verdicts": 228,
+    "judgments": 0,
+    "outcomes": 0
+  },
+  "foreignKeyViolations": 0,
+  "restoreVerified": true
+}
