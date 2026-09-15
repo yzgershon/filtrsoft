@@ -1,0 +1,616 @@
+{
+  "at": "2026-09-15T22:05:28.282Z",
+  "runtime": {
+    "root": "C:\\Dev\\filtrsoft-agent",
+    "state": "C:\\Dev\\filtrsoft-runner-state",
+    "bun": "C:\\Users\\yzger\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Oven-sh.Bun_Microsoft.Winget.Source_8wekyb3d8bbwe\\bun-windows-x64\\bun.exe",
+    "node": "C:/Program Files/nodejs/node.exe",
+    "envFile": "C:\\Dev\\filtrsoft-data\\collector.env",
+    "database": "C:\\Dev\\filtrsoft-data\\ingestion.db",
+    "label": "Gaming desktop",
+    "compsEnabled": true,
+    "visionLimit": 0
+  },
+  "status": {
+    "pid": 13984,
+    "host": "YishPC",
+    "platform": "win32",
+    "arch": "x64",
+    "updatedAt": "2026-09-15T22:05:13.789Z",
+    "status": "online",
+    "revision": "43c4fa744134",
+    "api": "https://filtrsoft.com",
+    "database": "C:\\Dev\\filtrsoft-data\\ingestion.db",
+    "lastPollAt": "2026-09-15T22:05:13.788Z",
+    "lastError": null,
+    "progress": "waiting",
+    "jobId": null
+  },
+  "supervisor": {
+    "pid": 2416,
+    "childPid": 13984,
+    "restarts": 0,
+    "updatedAt": "2026-09-15T22:05:28.105Z"
+  },
+  "nodeId": "bc3313ad-0a65-4020-922c-e9a30505da21",
+  "local": {
+    "listings": [
+      {
+        "source": "facebook",
+        "count": 112
+      },
+      {
+        "source": "mercari",
+        "count": 108
+      },
+      {
+        "source": "offerup",
+        "count": 108
+      }
+    ],
+    "comps": {
+      "count": 31913
+    },
+    "integrity": [
+      {
+        "quick_check": "ok"
+      }
+    ],
+    "foreignKeyViolations": 0,
+    "syncIdentity": {
+      "client_id": "7c09031a-1f31-4057-a6ba-b89c33755c26"
+    },
+    "queuedListingChanges": [],
+    "compTransfers": [
+      {
+        "status": "applied",
+        "count": 13
+      }
+    ],
+    "jobReports": [
+      {
+        "status": "acknowledged",
+        "count": 220
+      }
+    ],
+    "terminalJobReports": [
+      {
+        "job": 15,
+        "created_at": "2026-09-15T21:09:35.373Z",
+        "status": "acknowledged",
+        "result": "done",
+        "sources": "{\"facebook\":\"ok\",\"offerup\":\"ok\",\"mercari\":\"ok\"}"
+      },
+      {
+        "job": 16,
+        "created_at": "2026-09-15T22:00:26.719Z",
+        "status": "acknowledged",
+        "result": "done",
+        "sources": "{\"facebook\":\"ok\",\"offerup\":\"ok\",\"mercari\":\"ok\"}"
+      }
+    ]
+  },
+  "managedSearches": [
+    {
+      "type": "search-quality",
+      "source": "facebook",
+      "query": "nvidia geforce",
+      "parsed": 37,
+      "known": 0,
+      "eligible": 24,
+      "rejected": 13,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "offerup",
+      "query": "graphics card",
+      "links": 73,
+      "parsed": 73,
+      "known": 0,
+      "eligible": 72,
+      "rejected": 1,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "mercari",
+      "query": "graphics card",
+      "links": 92,
+      "parsed": 92,
+      "known": 0,
+      "eligible": 90,
+      "rejected": 2,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "facebook",
+      "query": "gaming pc",
+      "parsed": 37,
+      "known": 0,
+      "eligible": 25,
+      "rejected": 12,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "offerup",
+      "query": "gaming pc",
+      "links": 117,
+      "parsed": 115,
+      "known": 5,
+      "eligible": 108,
+      "rejected": 2,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "mercari",
+      "query": "gaming pc",
+      "links": 92,
+      "parsed": 90,
+      "known": 3,
+      "eligible": 71,
+      "rejected": 16,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "facebook",
+      "query": "ddr5 ram",
+      "parsed": 40,
+      "known": 5,
+      "eligible": 32,
+      "rejected": 3,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "offerup",
+      "query": "ddr5 ram",
+      "links": 73,
+      "parsed": 73,
+      "known": 0,
+      "eligible": 73,
+      "rejected": 0,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "mercari",
+      "query": "ddr5 ram",
+      "links": 92,
+      "parsed": 92,
+      "known": 0,
+      "eligible": 92,
+      "rejected": 0,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "facebook",
+      "query": "gaming laptop",
+      "parsed": 40,
+      "known": 3,
+      "eligible": 26,
+      "rejected": 11,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "offerup",
+      "query": "gaming laptop",
+      "links": 80,
+      "parsed": 78,
+      "known": 5,
+      "eligible": 69,
+      "rejected": 4,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "mercari",
+      "query": "gaming laptop",
+      "links": 92,
+      "parsed": 91,
+      "known": 1,
+      "eligible": 35,
+      "rejected": 55,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "facebook",
+      "query": "macbook",
+      "parsed": 40,
+      "known": 0,
+      "eligible": 25,
+      "rejected": 15,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "offerup",
+      "query": "macbook",
+      "links": 73,
+      "parsed": 72,
+      "known": 1,
+      "eligible": 67,
+      "rejected": 4,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "mercari",
+      "query": "macbook",
+      "links": 92,
+      "parsed": 92,
+      "known": 1,
+      "eligible": 64,
+      "rejected": 27,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "facebook",
+      "query": "ryzen processor",
+      "parsed": 42,
+      "known": 4,
+      "eligible": 17,
+      "rejected": 21,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "offerup",
+      "query": "ryzen processor",
+      "links": 80,
+      "parsed": 80,
+      "known": 6,
+      "eligible": 73,
+      "rejected": 1,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "mercari",
+      "query": "ryzen processor",
+      "links": 92,
+      "parsed": 91,
+      "known": 0,
+      "eligible": 85,
+      "rejected": 6,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "facebook",
+      "query": "iphone",
+      "parsed": 45,
+      "known": 0,
+      "eligible": 28,
+      "rejected": 17,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "offerup",
+      "query": "iphone",
+      "links": 77,
+      "parsed": 77,
+      "known": 0,
+      "eligible": 63,
+      "rejected": 14,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "mercari",
+      "query": "iphone",
+      "links": 92,
+      "parsed": 92,
+      "known": 0,
+      "eligible": 30,
+      "rejected": 62,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "facebook",
+      "query": "amd radeon",
+      "parsed": 42,
+      "known": 5,
+      "eligible": 27,
+      "rejected": 10,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "offerup",
+      "query": "graphics card",
+      "links": 73,
+      "parsed": 73,
+      "known": 12,
+      "eligible": 60,
+      "rejected": 1,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "mercari",
+      "query": "graphics card",
+      "links": 92,
+      "parsed": 92,
+      "known": 12,
+      "eligible": 78,
+      "rejected": 2,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "facebook",
+      "query": "nvme ssd",
+      "parsed": 45,
+      "known": 5,
+      "eligible": 20,
+      "rejected": 20,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "offerup",
+      "query": "nvme ssd",
+      "links": 80,
+      "parsed": 80,
+      "known": 9,
+      "eligible": 71,
+      "rejected": 0,
+      "selected": 12
+    },
+    {
+      "type": "search-quality",
+      "source": "mercari",
+      "query": "nvme ssd",
+      "links": 92,
+      "parsed": 92,
+      "known": 1,
+      "eligible": 80,
+      "rejected": 11,
+      "selected": 12
+    }
+  ],
+  "managedAcknowledgements": {
+    "facebook": 138,
+    "offerup": 135,
+    "mercari": 128
+  },
+  "manualInitialFacebookAcknowledgements": 4,
+  "completedJobs": [
+    "job #15: {\"facebook\":\"ok\",\"offerup\":\"ok\",\"mercari\":\"ok\"}",
+    "job #16: {\"facebook\":\"ok\",\"offerup\":\"ok\",\"mercari\":\"ok\"}"
+  ],
+  "maintenance": {
+    "backup": {
+      "status": "done",
+      "attemptedAt": "2026-09-15T20:53:31.688Z",
+      "finishedAt": "2026-09-15T20:53:32.833Z",
+      "nextAt": "2026-09-16T20:53:32.833Z",
+      "note": "Completed and verified"
+    },
+    "comps": {
+      "status": "done",
+      "attemptedAt": "2026-09-15T20:53:32.838Z",
+      "finishedAt": "2026-09-15T20:53:56.230Z",
+      "nextAt": "2026-09-16T00:53:56.230Z",
+      "note": "Completed and verified"
+    }
+  },
+  "production": {
+    "at": "2026-09-15T22:05:26.010Z",
+    "arrivals": [
+      {
+        "source": "craigslist",
+        "total": 6161,
+        "newestCapture": "2026-09-15T21:57:52.055Z",
+        "newestSeen": "2026-09-15T21:57:52.055Z",
+        "captured24h": 117,
+        "captured7d": 802
+      },
+      {
+        "source": "facebook",
+        "total": 698,
+        "newestCapture": "2026-09-15T21:56:56.606Z",
+        "newestSeen": "2026-09-15T21:58:38.725Z",
+        "captured24h": 172,
+        "captured7d": 187
+      },
+      {
+        "source": "mercari",
+        "total": 257,
+        "newestCapture": "2026-09-15T21:57:25.686Z",
+        "newestSeen": "2026-09-15T22:00:26.033Z",
+        "captured24h": 148,
+        "captured7d": 148
+      },
+      {
+        "source": "offerup",
+        "total": 571,
+        "newestCapture": "2026-09-15T21:57:09.394Z",
+        "newestSeen": "2026-09-15T21:59:30.832Z",
+        "captured24h": 91,
+        "captured7d": 91
+      }
+    ],
+    "collection": {
+      "everyMinutes": 45,
+      "agentOnline": true,
+      "lastAgentPollAt": "2026-09-15T22:05:11.515Z",
+      "collectors": [
+        {
+          "seenAt": "2026-09-15T22:05:11.515Z",
+          "jobId": null,
+          "revision": "43c4fa744134"
+        },
+        {
+          "seenAt": "2026-09-15T21:26:35.524Z",
+          "jobId": null,
+          "revision": "43c4fa744134"
+        },
+        {
+          "seenAt": "2026-09-15T21:10:18.367Z",
+          "jobId": null,
+          "revision": "43c4fa744134"
+        },
+        {
+          "seenAt": "2026-09-15T20:59:54.366Z",
+          "jobId": 14,
+          "revision": "43c4fa744134"
+        },
+        {
+          "seenAt": "2026-09-15T16:36:20.014Z",
+          "jobId": 13,
+          "revision": "43c4fa744134"
+        },
+        {
+          "seenAt": "2026-09-15T16:19:16.468Z",
+          "jobId": null,
+          "revision": "789213d3bbc3"
+        },
+        {
+          "seenAt": "2026-09-15T16:03:31.605Z",
+          "jobId": null,
+          "revision": "789213d3bbc3"
+        },
+        {
+          "seenAt": "2026-09-15T15:13:11.375Z",
+          "jobId": null,
+          "revision": "a47716afee6c"
+        },
+        {
+          "seenAt": "2026-09-15T14:58:57.822Z",
+          "jobId": 11,
+          "revision": "d3d116eb2802"
+        },
+        {
+          "seenAt": "2026-09-15T01:42:01.717Z",
+          "jobId": null,
+          "revision": "legacy"
+        }
+      ]
+    },
+    "health": {
+      "at": "2026-09-15T22:05:26.010Z",
+      "nodes": [
+        {
+          "id": "bc3313ad-0a65-4020-922c-e9a30505da21",
+          "label": "Gaming desktop",
+          "revision": "43c4fa744134",
+          "seenAt": "2026-09-15T22:05:11.489Z",
+          "online": true,
+          "nodeId": "bc3313ad-0a65-4020-922c-e9a30505da21",
+          "status": "online",
+          "jobId": null,
+          "pending": {},
+          "maintenance": {
+            "backup": {
+              "status": "done",
+              "attemptedAt": "2026-09-15T20:53:31.688Z",
+              "finishedAt": "2026-09-15T20:53:32.833Z",
+              "nextAt": "2026-09-16T20:53:32.833Z",
+              "note": "Completed and verified"
+            },
+            "comps": {
+              "status": "done",
+              "attemptedAt": "2026-09-15T20:53:32.838Z",
+              "finishedAt": "2026-09-15T20:53:56.230Z",
+              "nextAt": "2026-09-16T00:53:56.230Z",
+              "note": "Completed and verified"
+            }
+          }
+        },
+        {
+          "id": "3d4eccad-5df9-47fe-8830-b555bb7a508f",
+          "label": "Yishai XPS",
+          "revision": "43c4fa744134",
+          "seenAt": "2026-09-15T16:36:19.976Z",
+          "online": false,
+          "nodeId": "3d4eccad-5df9-47fe-8830-b555bb7a508f",
+          "status": "working",
+          "jobId": 13,
+          "pending": {},
+          "maintenance": {
+            "backup": {
+              "status": "done",
+              "attemptedAt": "2026-09-15T15:03:38.306Z",
+              "finishedAt": "2026-09-15T15:03:40.453Z",
+              "nextAt": "2026-09-16T15:03:40.453Z",
+              "note": "Completed and verified"
+            },
+            "comps": {
+              "status": "done",
+              "attemptedAt": "2026-09-15T15:03:40.461Z",
+              "finishedAt": "2026-09-15T15:04:07.059Z",
+              "nextAt": "2026-09-15T19:04:07.059Z",
+              "note": "Completed and verified"
+            }
+          }
+        }
+      ],
+      "sources": [
+        {
+          "source": "facebook",
+          "status": "healthy",
+          "lastSearchAt": "2026-09-15T21:56:54.412Z",
+          "lastSuccessAt": "2026-09-15T21:56:54.412Z",
+          "newestCaptureAt": "2026-09-15T21:56:56.606Z",
+          "lastUploadAt": "2026-09-15T21:58:37.014Z",
+          "issue": null,
+          "activeStage": null
+        },
+        {
+          "source": "offerup",
+          "status": "healthy",
+          "lastSearchAt": "2026-09-15T21:57:10.808Z",
+          "lastSuccessAt": "2026-09-15T21:57:10.808Z",
+          "newestCaptureAt": "2026-09-15T21:57:09.394Z",
+          "lastUploadAt": "2026-09-15T21:59:29.122Z",
+          "issue": null,
+          "activeStage": null
+        },
+        {
+          "source": "mercari",
+          "status": "healthy",
+          "lastSearchAt": "2026-09-15T21:57:26.969Z",
+          "lastSuccessAt": "2026-09-15T21:57:26.969Z",
+          "newestCaptureAt": "2026-09-15T21:57:25.686Z",
+          "lastUploadAt": "2026-09-15T22:00:24.451Z",
+          "issue": null,
+          "activeStage": null
+        }
+      ],
+      "policy": {
+        "preferredNode": null,
+        "fallbackMinutes": 5
+      },
+      "server": {
+        "source": "craigslist",
+        "enabled": true,
+        "backup": {
+          "status": "failed",
+          "attemptedAt": "2026-09-15T21:24:49.179Z",
+          "finishedAt": "2026-09-15T21:24:49.179Z",
+          "nextAt": "2026-09-15T22:24:49.179Z",
+          "note": "Not enough verified free space for a safe backup"
+        },
+        "storage": {
+          "totalBytes": 4685873152,
+          "freeBytes": 97583104,
+          "pressure": "low",
+          "databaseBytes": 4447391744,
+          "walBytes": 4363112
+        }
+      }
+    }
+  }
+}

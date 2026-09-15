@@ -89,6 +89,14 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
+### September 15, first unattended follow-up passed at 22:05 UTC
+
+Scheduled follow-up **1 of at most 3** verified **one of the two requested further unattended cycles** after baseline job 15. Natural job **16** completed at **22:00:26.719 UTC**, with its terminal report acknowledged and **Facebook, OfferUp and Mercari all `ok`**. No crawl was forced and no runtime recovery was needed. Compared with the post-recovery baseline, this cycle added **108 local listings (36 per source)** and received **138 server acknowledgements for listing changes (46 per source, including enrichment/probe revisions)**. These are new local captures and acknowledged changes, not a claim of 108 globally new production listings.
+
+At **22:05:28 UTC**, the database contained **328 listings: Facebook 112, OfferUp 108, Mercari 108**; **31,913 comps**, **13 applied comp transfers**, **220 acknowledged job reports**, **zero queued listing changes or pending reports**, integrity `ok` and zero foreign-key violations. Production confirmed all three sources healthy with no issue/active stage, and Gaming desktop online and idle. Supervisor **2416**, worker **13984**, restart count **0** since the deliberate stop/start test; node and sync identities unchanged. Stop/pause flags absent; runtime remains clean at **43c4fa744134**. Receipt: `docs/qa/collector/2026-09-15-omen-unattended-1.json`.
+
+The heartbeat remains active for the second further natural cycle, with the next check at **23:05 UTC / 7:05 PM Eastern**. Stop early once that second further cycle is verified, or after the third scheduled check. Primary policy remains **Any available computer**, five-minute fallback grace; owner access and the unavailable laptop's physical fallback remain pending. GPU work, private sign-ins, production configuration and deployed code were untouched.
+
 ### September 15, unattended continuation and setup fixes
 
 Yish said he would be away for a few hours and asked for as much independent work as possible. **The installed collector remains clean at `43c4fa744134`; no active runtime source was edited.** At **21:27:15 UTC**, authenticated production diagnostics confirmed Gaming desktop online, all three sources healthy, **220 local listings, 31,913 comps, 13 applied comp transfers, all 143 reports acknowledged, and zero queued listing changes**. No additional complete cycle had occurred since job 15 at 21:09:35 UTC; its next natural cycle is expected after the existing 45-minute gap. Receipt: `docs/qa/collector/2026-09-15-omen-after-recovery.json`.
