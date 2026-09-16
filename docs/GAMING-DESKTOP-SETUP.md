@@ -53,19 +53,21 @@ when absent: daily 10 AM, current interactive user, `StartWhenAvailable`,
 principal and settings while its action is updated. Its old XML and any previous
 shortcut/legacy launcher are backed up in runner state.
 
-The currently pinned OMEN runtime at **43c4fa744134** predates that fix: it only
+The original OMEN runtime at **43c4fa744134** predates that fix: it only
 updates an existing task, and the first installation exited 1 when none existed.
 For that revision, create the per-user task using `install-preview.json`, then
-rerun the installer. This workaround is already completed on the OMEN. Start the
+rerun the installer. This workaround was completed on the OMEN, which is now
+updated to reviewed revision **a91943a1c898** with the installer/doctor fixes and
+tested SQLite write-contention protection. The existing task was retained. Start the
 collector with `Start-ScheduledTask -TaskName 'Filtrsoft Daily Crawl'` so it runs
 independently of the terminal or Codex command session. Verify the task returns 0
 and a fresh `supervisor.json`/`status.json` appears; invoking a shortcut alone is
 not evidence that its child survived the session.
 
 The doctor checks path presence. It does not validate the upload token or account
-sign-in. The setup-branch fix honors `--state` and the configured Node path;
-on the currently pinned runtime, load `FILTRSOFT_AGENT_STATE` from the private
-environment file so doctor checks the intended installation. Check authenticated
+sign-in. The installed fix honors `--state` and the configured Node path; always
+load `FILTRSOFT_AGENT_STATE` from the private environment file or supply `--state`
+so doctor checks the intended installation. Check authenticated
 diagnostics, actual marketplace results, and server acknowledgements separately.
 The older eBay login command can mistake a generic greeting for a signed-in
 session. The setup-branch fix requires positive account-header evidence and treats

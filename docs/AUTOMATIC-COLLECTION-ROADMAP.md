@@ -55,8 +55,9 @@ task were already installed and duplicate-tested in the preceding release.
 The HP OMEN now collects automatically with fresh ingestion data and local
 marketplace profiles. Actual discovery, acknowledged uploads, verified ingestion
 backups and both child/supervisor recovery are measured in HANDOFF. Primary
-selection still awaits the owner-configuration check, and the laptop is unavailable
-for physical fallback testing. Keep the laptop registration; do not call the
+selection still awaits owner configuration. The laptop is now physically available,
+but Yish reports its scheduled task is missing; startup diagnostics and actual
+reconnection are pending. Keep the laptop registration; do not call the
 two-computer migration finished until those remaining checks pass. Environment
 files, databases and browser sessions stay outside the private GitHub repository.
 
