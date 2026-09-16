@@ -1,0 +1,215 @@
+{
+  "measuredAt": "2026-09-16T01:32:11.950Z",
+  "runtime": "43c4fa744134",
+  "nodeId": "bc3313ad-0a65-4020-922c-e9a30505da21",
+  "supervisor": {
+    "pid": 2416,
+    "childPid": 13984,
+    "restarts": 0,
+    "updatedAt": "2026-09-16T01:32:11.039Z"
+  },
+  "local": {
+    "listings": [
+      {
+        "source": "facebook",
+        "count": 229
+      },
+      {
+        "source": "mercari",
+        "count": 251
+      },
+      {
+        "source": "offerup",
+        "count": 216
+      }
+    ],
+    "comps": {
+      "count": 31939
+    },
+    "integrity": [
+      {
+        "quick_check": "ok"
+      }
+    ],
+    "foreignKeyViolations": 0,
+    "syncIdentity": {
+      "client_id": "7c09031a-1f31-4057-a6ba-b89c33755c26"
+    },
+    "queuedListingChanges": [],
+    "compTransfers": [
+      {
+        "status": "applied",
+        "count": 39
+      }
+    ],
+    "jobReports": [
+      {
+        "status": "acknowledged",
+        "count": 512
+      }
+    ],
+    "terminalJobReports": [
+      {
+        "job": 15,
+        "created_at": "2026-09-15T21:09:35.373Z",
+        "status": "acknowledged",
+        "result": "done",
+        "sources": "{\"facebook\":\"ok\",\"offerup\":\"ok\",\"mercari\":\"ok\"}"
+      },
+      {
+        "job": 16,
+        "created_at": "2026-09-15T22:00:26.719Z",
+        "status": "acknowledged",
+        "result": "done",
+        "sources": "{\"facebook\":\"ok\",\"offerup\":\"ok\",\"mercari\":\"ok\"}"
+      },
+      {
+        "job": 17,
+        "created_at": "2026-09-15T22:51:30.487Z",
+        "status": "acknowledged",
+        "result": "done",
+        "sources": "{\"facebook\":\"ok\",\"offerup\":\"ok\",\"mercari\":\"ok\"}"
+      },
+      {
+        "job": 18,
+        "created_at": "2026-09-15T23:42:28.870Z",
+        "status": "acknowledged",
+        "result": "done",
+        "sources": "{\"facebook\":\"ok\",\"offerup\":\"ok\",\"mercari\":\"ok\"}"
+      },
+      {
+        "job": 19,
+        "created_at": "2026-09-16T00:32:15.142Z",
+        "status": "acknowledged",
+        "result": "failed",
+        "sources": "{\"facebook\":\"ok\",\"offerup\":\"offerup/search-graphics-card: atabase is locked\\u001b[0m\\n    \\u001b[31mfailed: database is locked\\u001b[0m\\n    \\u001b[31mfailed: database is locked\\u001b[0m\\n    \\u001b[31mfailed: database is locked\\u001b[0m\\n    \\u001b[31mfailed: database is locked\\u001b[0m\\n    \\u001b[31mfailed: database is locked\\u001b[0m\\n    \\u001b[31mfailed: database is locked\\u001b[0m\\n\\n73 cards seen · 0 analysed · 1 out of scope\\nerror: script \\\"ou:crawl\\\" exited with code 1\",\"mercari\":\"ok\"}"
+      },
+      {
+        "job": 20,
+        "created_at": "2026-09-16T01:25:19.717Z",
+        "status": "acknowledged",
+        "result": "done",
+        "sources": "{\"facebook\":\"ok\",\"offerup\":\"ok\",\"mercari\":\"ok\"}"
+      }
+    ]
+  },
+  "job20AcknowledgedListingChanges": {
+    "mercari": 45,
+    "offerup": 46,
+    "facebook": 33
+  },
+  "productionHealth": {
+    "at": "2026-09-16T01:32:09.418Z",
+    "nodes": [
+      {
+        "id": "bc3313ad-0a65-4020-922c-e9a30505da21",
+        "label": "Gaming desktop",
+        "revision": "43c4fa744134",
+        "seenAt": "2026-09-16T01:32:05.483Z",
+        "online": true,
+        "nodeId": "bc3313ad-0a65-4020-922c-e9a30505da21",
+        "status": "online",
+        "jobId": null,
+        "pending": {},
+        "maintenance": {
+          "backup": {
+            "status": "done",
+            "attemptedAt": "2026-09-15T20:53:31.688Z",
+            "finishedAt": "2026-09-15T20:53:32.833Z",
+            "nextAt": "2026-09-16T20:53:32.833Z",
+            "note": "Completed and verified"
+          },
+          "comps": {
+            "status": "done",
+            "attemptedAt": "2026-09-16T00:54:08.465Z",
+            "finishedAt": "2026-09-16T00:54:31.902Z",
+            "nextAt": "2026-09-16T04:54:31.902Z",
+            "note": "Completed and verified"
+          }
+        }
+      },
+      {
+        "id": "3d4eccad-5df9-47fe-8830-b555bb7a508f",
+        "label": "Yishai XPS",
+        "revision": "43c4fa744134",
+        "seenAt": "2026-09-15T16:36:19.976Z",
+        "online": false,
+        "nodeId": "3d4eccad-5df9-47fe-8830-b555bb7a508f",
+        "status": "working",
+        "jobId": 13,
+        "pending": {},
+        "maintenance": {
+          "backup": {
+            "status": "done",
+            "attemptedAt": "2026-09-15T15:03:38.306Z",
+            "finishedAt": "2026-09-15T15:03:40.453Z",
+            "nextAt": "2026-09-16T15:03:40.453Z",
+            "note": "Completed and verified"
+          },
+          "comps": {
+            "status": "done",
+            "attemptedAt": "2026-09-15T15:03:40.461Z",
+            "finishedAt": "2026-09-15T15:04:07.059Z",
+            "nextAt": "2026-09-15T19:04:07.059Z",
+            "note": "Completed and verified"
+          }
+        }
+      }
+    ],
+    "sources": [
+      {
+        "source": "facebook",
+        "status": "healthy",
+        "lastSearchAt": "2026-09-16T01:21:28.926Z",
+        "lastSuccessAt": "2026-09-16T01:21:28.926Z",
+        "newestCaptureAt": "2026-09-16T01:21:31.377Z",
+        "lastUploadAt": "2026-09-16T01:23:26.360Z",
+        "issue": null,
+        "activeStage": null
+      },
+      {
+        "source": "offerup",
+        "status": "healthy",
+        "lastSearchAt": "2026-09-16T01:21:45.964Z",
+        "lastSuccessAt": "2026-09-16T01:21:45.964Z",
+        "newestCaptureAt": "2026-09-16T01:21:44.629Z",
+        "lastUploadAt": "2026-09-16T01:24:18.790Z",
+        "issue": null,
+        "activeStage": null
+      },
+      {
+        "source": "mercari",
+        "status": "healthy",
+        "lastSearchAt": "2026-09-16T01:22:04.549Z",
+        "lastSuccessAt": "2026-09-16T01:22:04.549Z",
+        "newestCaptureAt": "2026-09-16T01:22:01.740Z",
+        "lastUploadAt": "2026-09-16T01:25:17.198Z",
+        "issue": null,
+        "activeStage": null
+      }
+    ],
+    "policy": {
+      "preferredNode": null,
+      "fallbackMinutes": 5
+    },
+    "server": {
+      "source": "craigslist",
+      "enabled": true,
+      "backup": {
+        "status": "failed",
+        "attemptedAt": "2026-09-16T01:24:49.191Z",
+        "finishedAt": "2026-09-16T01:24:49.191Z",
+        "nextAt": "2026-09-16T02:24:49.191Z",
+        "note": "Not enough verified free space for a safe backup"
+      },
+      "storage": {
+        "totalBytes": 4685873152,
+        "freeBytes": 97583104,
+        "pressure": "low",
+        "databaseBytes": 4447391744,
+        "walBytes": 4363112
+      }
+    }
+  },
+  "note": "Job 20 recovered without login or code changes. Later contention fixture reproduces a possible race, not a proven cause of the historical generic error."
+}
