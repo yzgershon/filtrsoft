@@ -330,7 +330,7 @@ export function startCrawlLoop() {
   setTimeout(()=>void deliver(),30000).unref?.();
   // Scoring uploaded PC evidence must continue even when server discovery is off.
   const scoring=()=>{try{scorePending(50);}catch(e){console.error('scoring failed',String(e));}
-    finally{setTimeout(scoring,5000).unref?.();}};
+    finally{setTimeout(scoring,1000).unref?.();}};
   setTimeout(scoring,5000).unref?.();
   if (!ENABLED) { console.log("crawl loop: disabled (FILTRSOFT_CRAWL=off)"); return; }
 

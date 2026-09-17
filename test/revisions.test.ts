@@ -63,6 +63,18 @@ test('scoring prioritizes new seller facts and live recommendations ahead of his
   scorePending(1,score);assert.equal(order.at(-1),ids[0]);assert.equal(scoringStatus().complete,true);
 `));
 
+test('scoring yields after its time budget without losing pending work',()=>isolated(`
+  import {db} from '@/src/db/index.ts';
+  import {upsertListingFacts} from '@/src/db/listings.ts';
+  import {scorePending,scoringStatus} from '@/src/db/scoring.ts';
+  const d=db();
+  for(let i=0;i<3;i++)upsertListingFacts(d,{source:'audit',sourceId:String(i),url:'https://example.invalid/'+i,title:'Unknown tech',description:'',askingPriceCents:10000,location:null,postedAt:null,photoCount:0});
+  const score=()=>({call:'INSUFFICIENT_DATA'});
+  assert.equal(scorePending(50,score,0).checked,1);assert.equal(scoringStatus().pending,2);
+  assert.equal(scorePending(50,score,0).checked,1);assert.equal(scoringStatus().pending,1);
+  assert.equal(scorePending(50,score,0).checked,1);assert.equal(scoringStatus().complete,true);
+`));
+
 test('retail selects newest availability before price and only fresh exact corroboration',()=>isolated(`
   import {db} from '@/src/db/index.ts';
   import {latestRetail} from '@/src/sources/retail.ts';

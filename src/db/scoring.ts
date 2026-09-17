@@ -10,7 +10,8 @@ import {clearMeasuredMultiplierCache} from "../valuation/condition.ts";
  * corrected recommendations after deployment. Read new evidence and live
  * BUY/VERIFY first, then other feed rows, without dropping the historical work.
  */
-export function scorePending(limit=400,score:(id:number)=>VerdictPayload=id=>checkStored(id).verdict) {
+export function scorePending(limit=400,score:(id:number)=>VerdictPayload=id=>checkStored(id).verdict,maxMs=250) {
+  const started=performance.now();
   const d=db(),signature=pricingSignature(d),at=now(),target=`${ENGINE_VERSION}|${signature}`;
   const rows=d.query(`SELECT l.id,q.requested_at FROM listings l
     LEFT JOIN scoring_state s ON s.listing_id=l.id
@@ -28,6 +29,10 @@ export function scorePending(limit=400,score:(id:number)=>VerdictPayload=id=>che
   let checked=0,changed=0,failed=0;
   clearMeasuredMultiplierCache();
   for(const row of rows) {
+    // Bun serves HTTP on this same thread. A count-only limit allowed expensive
+    // comp matching to block requests for an entire 50-row pass. Finish the
+    // current transaction, then yield; even a zero budget makes one-row progress.
+    if(checked+failed>0 && performance.now()-started>=maxMs)break;
     try {
       // Each listing is a short transaction: facts cannot change between the
       // computation and its acknowledgement in another local process.
