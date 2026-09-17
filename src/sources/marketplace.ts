@@ -427,7 +427,7 @@ export function probeVerdict(p: { text: string; finalUrl: string; url?:string; t
   const lines=text.split('\n');let start=-1,previous='',matches=0;
   if(p.heading)for(let i=0;i<lines.length;i++) {
     const line=lines[i]!.trim();
-    if(line===p.heading.trim() && previous!=='>'){start=i;matches++;}
+    if(line===p.heading.trim() && !/^[>›]$/.test(previous)){start=i;matches++;}
     if(line)previous=line;
   }
   // Updated workers provide the actual h1 panel and its own enabled controls.
