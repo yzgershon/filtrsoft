@@ -19,6 +19,14 @@ test('worker drains a full stderr pipe and retains final UTF-8 JSON without newl
   const events=[];for await(const event of workerEvents(['--eval',code],{executable:process.execPath,timeoutMs:3000}))events.push(event);
   expect(events).toEqual([{type:'done',stats:{text:'café'}}]);
 });
+test('worker preserves seller Unicode line separators inside NDJSON strings',async()=>{
+  const text='MacBook Pro\u2028\n• 2.6GHz quad-core Intel Core i7\u2029\n• 8GB DDR3 RAM';
+  const event={type:'photos',id:183,text};
+  const wire=JSON.stringify(event)+'\n'+JSON.stringify({type:'done'})+'\n';
+  const code=`const bytes=Buffer.from(${JSON.stringify(wire)});for(let i=0;i<bytes.length;i+=7)process.stdout.write(bytes.subarray(i,i+7));`;
+  const events=[];for await(const e of workerEvents(['--eval',code],{executable:process.execPath,timeoutMs:3000}))events.push(e);
+  expect(events).toEqual([event,{type:'done'}]);
+});
 test('clean worker exit without completion is a failure and hangs are bounded',async()=>{
   const collect=async(code:string,timeoutMs=3000)=>{const events=[];for await(const e of workerEvents(['--eval',code],{executable:process.execPath,timeoutMs}))events.push(e);return events;};
   expect((await collect("process.stdout.write(JSON.stringify({type:'cards',cards:[]}))")).at(-1)?.type).toBe('error');

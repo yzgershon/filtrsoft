@@ -151,6 +151,10 @@ export function fullestVariant(matches: string[], base: RegExp): string {
 export function extractAttributes(text: string): Record<string, string | number> {
   const a: Record<string, string | number> = {};
   const t = factualText(text).toLowerCase();
+  const screen=t.match(/\b(\d{1,2}(?:\.\d)?)\s*(?:-\s*inch\b|inches\b|inch\b|["“”″])/);
+  if(screen)a.screen_inches=Number(screen[1]);
+  const gpuCores=t.match(/\b(\d{1,2})\s*(?:-?\s*cores?|c)\s*gpu\b|\b(\d{1,2})-gpu\b/);
+  if(gpuCores)a.gpu_cores=Number(gpuCores[1]??gpuCores[2]);
 
   // RAM and VRAM first, so their GB figures can't be mistaken for storage.
   // Before this, "RTX 3050 8GB" read as 8GB of storage and "32GB 512GB" read

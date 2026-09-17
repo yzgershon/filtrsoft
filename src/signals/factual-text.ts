@@ -21,10 +21,11 @@ export function textFacts(text:string):{facts:TextFact[];conflicts:string[]} {
     storage:/\b\d{1,4}\s*(?:gb|tb)\s*(?:ssd|hdd|nvme|storage)\b/gi,
     kitLayout:/\b\d+\s*[x×]\s*\d+\s*gb\b/gi,
     ecc:/\b(?:non[- ]ecc|ecc|registered|unbuffered|rdimm|udimm|sodimm)\b/gi,
+    phoneModel:/\biphone\s*\d{1,2}(?:\s*(?:pro\s*max|pro|plus|mini))?\b/gi,
   };
   for(const [field,re] of Object.entries(patterns))for(const m of clean.matchAll(re))facts.push({field,value:m[0].trim().toLowerCase().replace(/\s+/g,' '),quote:m[0].trim(),source:'seller-text'});
   const conflicts:string[]=[];
-  for(const field of ['cpu','gpu']){
+  for(const field of ['cpu','gpu','phoneModel']){
     const values=[...new Set(facts.filter(f=>f.field===field).map(f=>f.value.replaceAll(' ','')))];
     // Base and suffixed variants are different products. A seller may have
     // shortened a title, but that is not proof that conflicting names agree.

@@ -201,7 +201,7 @@ export function valueSku(
     // A Legion 5 is a family spanning very different CPUs and GPUs. Known
     // configuration dimensions must agree; unnamed dimensions are not proof.
     raw=raw.filter(r=>{const got=extractAttributes(r.raw_title);
-      return ['cpu','gpu','ram_gb'].every(k=>wanted[k]==null || got[k]!=null && normalize(wanted[k])===normalize(got[k]));});
+      return ['cpu','gpu','ram_gb','screen_inches','gpu_cores'].every(k=>wanted[k]==null || got[k]!=null && normalize(wanted[k])===normalize(got[k]));});
   }
 
   if(opts?.buildConfiguration) {

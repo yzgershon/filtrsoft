@@ -1,8 +1,20 @@
 import {spawn} from 'node:child_process';
-import {createInterface} from 'node:readline';
+import {StringDecoder} from 'node:string_decoder';
+import type {Readable} from 'node:stream';
 import {killChildTree} from './process.ts';
 
 type Event={type:string;[key:string]:unknown};
+/** Only LF frames NDJSON. Bun's readline also splits U+2028/U+2029, which
+ * JSON.stringify legitimately leaves inside seller descriptions. Decode
+ * across byte chunks so non-ASCII text and final unterminated events survive. */
+async function* jsonLines(input:Readable):AsyncGenerator<string> {
+  const decoder=new StringDecoder('utf8');let pending='';
+  for await(const chunk of input){
+    pending+=decoder.write(chunk);let end:number;
+    while((end=pending.indexOf('\n'))!==-1){yield pending.slice(0,end);pending=pending.slice(end+1);}
+  }
+  pending+=decoder.end();if(pending)yield pending;
+}
 /** Node owns Playwright; Bun only consumes its NDJSON. A worker that exits
  * without its terminal event did not complete, even if it returned exit 0. */
 export async function* workerEvents<T extends Event>(args:string[],opts:{timeoutMs?:number;executable?:string;requireDone?:boolean;interactive?:boolean}={}):AsyncGenerator<T> {
@@ -12,9 +24,8 @@ export async function* workerEvents<T extends Event>(args:string[],opts:{timeout
   const closed=new Promise<number|null>(resolve=>{child.once('error',e=>{failure=e.message;resolve(null);});child.once('close',resolve);});
   const timer=opts.timeoutMs===0?null:setTimeout(()=>{timedOut=true;killChildTree(child);},opts.timeoutMs??12*60_000);
   const onExit=()=>killChildTree(child);process.once('exit',onExit);
-  const lines=createInterface({input:child.stdout!,crlfDelay:Infinity});
   try {
-    for await (const line of lines) {
+    for await (const line of jsonLines(child.stdout!)) {
       if(!line.trim())continue;
       let event:Event;
       try {event=JSON.parse(line);if(!event||typeof event.type!=='string')throw new Error('invalid event');}
@@ -28,6 +39,6 @@ export async function* workerEvents<T extends Event>(args:string[],opts:{timeout
       yield {type:'error',msg:`${reason}${stderr?`: ${stderr.slice(-500)}`:''}`} as unknown as T;
     }
   } finally {
-    if(timer)clearTimeout(timer);lines.close();killChildTree(child);await closed;process.removeListener('exit',onExit);
+    if(timer)clearTimeout(timer);killChildTree(child);await closed;process.removeListener('exit',onExit);
   }
 }
