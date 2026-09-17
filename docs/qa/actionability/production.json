@@ -1,6 +1,6 @@
 {
-  "at": "2026-09-17T17:43:04.816Z",
-  "commit": "da715880e4e2d37da56389e80ffffc26cdbbe402",
+  "at": "2026-09-17T18:17:19.800Z",
+  "commit": "363a26949c8e14dc7a7defefa74e2f35986ae061",
   "assets": [
     {
       "name": "compare-DqchBj8r.js",
@@ -53,6 +53,7 @@
   "health": {
     "ok": true,
     "canPrice": true,
+    "pricingStatus": "measured",
     "engine": "0.3.37",
     "db": "ok",
     "storage": {
@@ -62,14 +63,15 @@
       "total": 32252,
       "usable": 28478,
       "skusPriceable": 433,
-      "skusTotal": 591
+      "skusTotal": 602,
+      "coverageCurrent": true
     },
-    "skus": 603,
+    "skus": 614,
     "scoring": {
-      "signature": "7241|2026-09-17T17",
-      "pending": 9046,
+      "signature": "7252|2026-09-17T18",
+      "pending": 0,
       "failures": 0,
-      "complete": false
+      "complete": true
     }
   },
   "ok": true

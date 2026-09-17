@@ -351,8 +351,8 @@ export function cardToListing(c: MarketCard): RawListing {
 export type MarketEvent =
   | { type: "log"; msg: string }
   | { type: "cards"; source: Marketplace; query: string; lines: string[]; links: Array<{ href: string; text: string; photo?: string }>; blocked?: boolean }
-  | { type: "photos"; id: number; url: string; finalUrl: string; title: string; heading?:string; actions?:string[]; priceText?:string; urls: string[]; text?: string; error?: string }
-  | { type: "probe"; id: number; url: string; finalUrl: string; text: string; title?: string; heading?:string; actions?:string[]; error?: string }
+  | { type: "photos"; id: number; url: string; finalUrl: string; title: string; heading?:string; itemText?:string; actions?:string[]; priceText?:string; urls: string[]; text?: string; error?: string }
+  | { type: "probe"; id: number; url: string; finalUrl: string; text: string; title?: string; heading?:string; itemText?:string; actions?:string[]; error?: string }
   | { type: "error"; msg: string }
   | { type: "done"; stats: Record<string, unknown> };
 
@@ -408,7 +408,7 @@ const GONE_TEXT = [
 const NO_OPINION_HEAD = /^[\s\S]{0,200}?\b(log in to (continue|see)|sign up to (continue|see)|you must log in|please log in|confirm you'?re (a )?human|security check|unusual activity|access denied)\b/i;
 const NO_OPINION_URL = /\/(login|signin|sign-in|checkpoint|challenge)\b/i;
 
-export function probeVerdict(p: { text: string; finalUrl: string; url?:string; title?:string; heading?:string; actions?:string[]; error?: string }): ProbeVerdict {
+export function probeVerdict(p: { text: string; finalUrl: string; url?:string; title?:string; heading?:string; itemText?:string; actions?:string[]; error?: string }): ProbeVerdict {
   if (p.error) return null;
   const text = (p.text ?? "").trim();
   // An empty body is a page that did not render, not a deleted listing.
@@ -419,10 +419,23 @@ export function probeVerdict(p: { text: string; finalUrl: string; url?:string; t
   // Do not read another item's price, sold badge or recommendations as this
   // item's availability. Legacy fixtures without requested URLs still work.
   if(p.url && !sameMarketplaceItem(p.url,p.finalUrl))return null;
-  // Mercari repeats the title in breadcrumbs BEFORE its recommendations.
-  // Start at an exact heading line, never the first substring occurrence.
-  const lines=text.split('\n'),start=p.heading?lines.findIndex(l=>l.trim()===p.heading!.trim()):-1;
-  const itemText=start>=0?lines.slice(start).join('\n'):text;
+  // September 17's live Mercari read had the exact title on its own breadcrumb
+  // line, preceded by ">", then recommendations before the real h1. Matching
+  // that first copy hid the $529 item price and returned unknown availability.
+  // Skip the breadcrumb copy without accepting prices or sold badges from
+  // the recommendation carousel as evidence about the requested item.
+  const lines=text.split('\n');let start=-1,previous='',matches=0;
+  if(p.heading)for(let i=0;i<lines.length;i++) {
+    const line=lines[i]!.trim();
+    if(line===p.heading.trim() && previous!=='>'){start=i;matches++;}
+    if(line)previous=line;
+  }
+  // Updated workers provide the actual h1 panel and its own enabled controls.
+  // Legacy captures with multiple identical recommendation titles stay unknown.
+  const scoped=p.itemText?.trim();
+  if(!scoped && matches>1)return null;
+  if(scoped && p.heading && !scoped.startsWith(p.heading.trim()))return null;
+  const itemText=scoped || (start>=0?lines.slice(start).join('\n'):text);
   const ownText=itemText.split(/\n(?:Similar items|Related searches|You may also like|Recommended for you)\b/i)[0]!;
   if(/(?:^|\n)\s*(?:sold|sold out|this item (?:has been|is) sold|this listing has sold)\s*(?:\n|$)/i.test(ownText))
     return {gone:true,reason:'marked sold on item page'};

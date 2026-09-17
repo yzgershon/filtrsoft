@@ -1,5 +1,62 @@
 # Listing evidence, availability and delivery repair
 
+## Completed desktop cycle and Mercari follow-up
+
+OMEN job **43** completed at **18:32:55 UTC**, all three sources reporting ok,
+with production scoring at zero pending / zero failures afterward. The directly
+verified unavailable recommendations are Facebook **#4129, #5868, #4124, #4125**
+and OfferUp **#7089, #7124**. OfferUp #7093 was confirmed available; #5569 remains
+unconfirmed. New Mercari seller text moved #8154 to **RISK** with a NON_WORKING
+blocker quoting "Does not power on". This is actual production evidence, not
+only synthetic regression output.
+
+The same read exposed one remaining collection defect: Mercari repeats the exact
+item title on a breadcrumb line before its h1. The old text boundary missed the
+real item price and controls, returning unknown availability and retaining $599
+despite the source's $529 ItemPrice. The follow-up emits the actual h1 panel and
+enabled controls, keeps recommendations separate, and declines ambiguous old
+captures. Its regression failed before the correction and passes after it.
+Real-page extraction confirmed the correct panel and $529.00 price; no source
+facts were manually injected into production. **384 tests, zero failures, 1,258
+assertions**, typecheck and Node syntax pass. The OMEN still needs this final
+follow-up update before a new capture can correct its stored price.
+
+## Final server release and desktop verification
+
+Main commit **363a269**, engine **0.3.37**, is live on Railway deployment
+**6509118135** (18:09:43 UTC). GitHub CI **35256928941** passed; the final
+Windows suite passed **383 tests / zero failures / 1,251 assertions**. The
+18:17:19 UTC public receipt matched the HTML entry and all six JS/CSS assets
+to the tested build, with private feed and push-status routes returning 401
+without a session. Measured warm production health took 469ms and an ordinary
+API read took 305ms.
+
+Production re-scoring reached **zero pending / zero failures** at 18:16 UTC.
+The signed-in feed then reported **2 BUY, 17 VERIFY, 30 FAIR, 168 PASS, 134 RISK,
+2,519 INSUFFICIENT_DATA**. One BUY is Yish's existing manual override. Ongoing
+collection and withdrawn unsupported valuations make these unsuitable for a
+controlled before/after claim. The can't-tell backlog has not been shown to fall.
+
+The updated OMEN (`b8730555bb8a`, original node identity preserved) started
+automatic collection job **43** at 18:20:50 UTC. Search/upload stages advance;
+the laptop remains paused. New incoming facts create fresh scoring requests
+after the completed release pass. A completed new-runtime detail cycle still
+needs to be observed. Its retained maintenance schedule has the next comp
+attempt at 20:43 UTC; the new hourly interval applies after that attempt.
+
+The first Facebook stages subsequently completed and synchronized. Production
+marks **#4129, #5868, #4124 and #4125** unavailable, with check times from
+18:23:45 to 18:24:17 UTC. These four former VERIFY listings left the live feed
+recoverably. The rolling-day count with seller descriptions rose **198 -> 210**
+while discoveries rose **1,013 -> 1,044**, and scoring again reached zero pending
+and zero failures. This verifies incoming evidence and availability effects;
+it does not yet establish completion of OfferUp or Mercari.
+
+Yish explicitly deferred phone registration until he has the device. His signed-in
+account has no registered push device, no standing alert and nine paused legacy
+searches. Physical phone delivery therefore remains unverified. The separate
+production storage and verified-backup problem also remains open.
+
 ## What production showed
 
 At 13:54-14:01 UTC, Yish's signed-in feed had 2,159 can't-tells, 6 Buy it,

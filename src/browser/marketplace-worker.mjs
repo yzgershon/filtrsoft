@@ -25,6 +25,22 @@ import {rememberCards} from './card-snapshots.mjs';
 const [, , command, optsJson] = process.argv;
 const opts = JSON.parse(optsJson ?? "{}");
 
+// Keep the raw item panel separate from breadcrumbs and recommendation cards.
+// Mercari repeats ItemName in both; text matching alone cannot locate the h1.
+// No price, condition or availability decisions belong in this Node worker.
+function readItemEvidence({mainOnly=false,scopeItem=false}={}) {
+  const heading=document.querySelector('main h1,[role="main"] h1');
+  const title=heading?.innerText?.trim()??'';
+  let panel=heading;
+  while(title && panel?.parentElement && panel.parentElement!==document.body
+    && panel.parentElement.innerText?.trim().startsWith(title))panel=panel.parentElement;
+  return {text:((mainOnly?document.querySelector('main'):null)||document.body).innerText.slice(0,30000),
+    heading:title,itemText:scopeItem?(panel?.innerText?.slice(0,30000)??''):'',
+    priceText:(scopeItem?panel:document)?.querySelector('[data-testid="ItemPrice"]')?.innerText??'',
+    actions:[...((scopeItem?panel:document)?.querySelectorAll('button,[role="button"]')??[])].filter(e=>!e.disabled&&e.getAttribute('aria-disabled')!=='true')
+      .map(e=>e.innerText||e.getAttribute('aria-label')||'')};
+}
+
 const SOURCES = {
   offerup: {
     url: (q, o) =>
@@ -98,8 +114,7 @@ try {
         undefined, { timeout: 12_000 },
       ).catch(() => {});
       await pause(2000, 3200);
-      const evidence = await page.evaluate(() => ({text:(document.body.innerText || '').slice(0,30000),
-        heading:document.querySelector('main h1,[role="main"] h1')?.innerText??'',actions:[...document.querySelectorAll('button,[role="button"]')].map(e=>e.innerText||e.getAttribute('aria-label')||'')}));
+      const evidence = await page.evaluate(readItemEvidence,{scopeItem:command==='mercari'});
       /**
        * `document.title` is the reliable one on a SPA. Facebook names the tab
        * after the listing while it exists and falls back to a generic title
@@ -168,10 +183,7 @@ try {
        */
       // Recommendations can put the seller's Description below character 4000.
       // Preserve bounded raw text; TypeScript owns all item/condition parsing.
-      const evidence = await page.evaluate(() => ({text:((document.querySelector('main')||document.body).innerText||'').slice(0,30000),
-        heading:document.querySelector('main h1,[role="main"] h1')?.innerText??'',
-        priceText:document.querySelector('[data-testid="ItemPrice"]')?.innerText??'',
-        actions:[...document.querySelectorAll('button,[role="button"]')].map(e=>e.innerText||e.getAttribute('aria-label')||'')}));
+      const evidence = await page.evaluate(readItemEvidence,{mainOnly:true,scopeItem:command==='mercari'});
       emit({ type: "photos", id: item.id, url: item.url, finalUrl: page.url(), title, urls, ...evidence });
     } catch (e) {
       emit({ type: "photos", id: item.id, url: item.url, finalUrl: "", title: "", urls: [], error: String(e && e.message ? e.message : e) });
