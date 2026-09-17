@@ -4,6 +4,24 @@ This is an update to the installed collector, not a new installation. The laptop
 must remain paused. The server must already be serving engine **0.3.37** before
 this runtime starts sending the new availability/enrichment sync fields.
 
+## Follow-up after the first successful update
+
+The OMEN on `b8730555bb8a` completed job 43 at 18:32:55 UTC, with all sources
+reporting ok and production scoring caught up. Six previously recommended
+Facebook/OfferUp listings were confirmed gone. Fresh Mercari seller text also
+correctly changed #8154 to RISK.
+
+That run exposed a remaining Mercari breadcrumb bug: its exact title appears
+before the real item heading, causing unknown availability and withholding the
+current ItemPrice. The final follow-up on main captures the actual h1 panel
+separately from recommendations and passes 384 tests. Merge that follow-up into
+the existing runtime using the preservation steps below. Recheck exact item
+`m87685110404` from current source evidence, including its dedicated ItemPrice,
+availability and broken-condition disclosure, then verify the upload. The source
+showed $529 during the laptop's 18:34 UTC read; do not hardcode that historical
+price or revive a listing based on this note. The production price remained $599
+until a successful new read. Preserve all local state and keep the laptop paused.
+
 ## Inspect and preserve
 
 Read `HANDOFF.md`, this document and the installed runner's `config.json` first.

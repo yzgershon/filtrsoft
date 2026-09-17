@@ -62,6 +62,21 @@ test('explicit Radeon variants retain their identity while legacy Radeon numbers
   expect(extractAttributes('Graphics card Radeon Pro W6800').gpu).toBeUndefined();
 });
 
+test('Mercari breadcrumb titles do not hide the actual item availability and price',()=>{
+  const url='https://www.mercari.com/us/item/m87685110404/';
+  const heading='Sapphire Pulse AMD Radeon RX 7900xtx Graphics Card';
+  const page={url,finalUrl:url,heading,actions:['Make offer','Add to cart','Buy now'],title:heading,
+    text:`Mercari\n\n>\n\nComputer GPUs\n\n>\n\n${heading}\n\nSimilar items\nOther card\nSOLD\n$200\n\n${heading}\nUsed - Poor\n$529.00\n$649.00\nMake offer\nDetails\nCondition\nPoor`};
+  expect(probeVerdict(page)?.gone).toBe(false);
+  expect(probeVerdict({...page,text:page.text.replace('Used - Poor','Sold')})?.gone).toBe(true);
+  expect(probeVerdict({...page,text:`Mercari\n>\n${heading}\nSimilar items\nOther card\n$200`,actions:[]})).toBeNull();
+  const duplicate={...page,text:page.text.replace('Other card',heading)};
+  expect(probeVerdict(duplicate)).toBeNull();
+  expect(probeVerdict({...duplicate,itemText:`${heading}\n$529.00\nMake offer\nDetails\nCondition\nPoor`})?.gone).toBe(false);
+  expect(probeVerdict({...duplicate,itemText:`${heading}\n$529.00\nSold`})?.gone).toBe(true);
+  expect(probeVerdict({...duplicate,itemText:`Another card\n$200\nBuy now`})).toBeNull();
+});
+
 test('server repair work preserves provenance and never overwrites unsent collector evidence',()=>isolated(`
   import {db} from '@/src/db/index.ts';import {upsertListingFacts} from '@/src/db/listings.ts';
   import {repairTargets,acceptRepairTargets,repairTargetSchema} from '@/src/agent/targets.ts';
@@ -138,4 +153,14 @@ test('untested and parts GPUs cannot reach BUY even with attractive exact sold c
   assert.equal(untested.verdict.call,'VERIFY');assert.equal(untested.verdict.decidingUnknown,'working condition');
   const parts=await checkFetched({...listing,description:'Purchased from liqudation. Untested sold as is for parts.'},{persist:false,vision:false});
   assert.equal(parts.verdict.call,'RISK');assert.ok(parts.verdict.blockers.some(s=>s.includes('for parts')));
+`));
+
+test('operable laptops with disclosed display damage cannot borrow an undamaged bargain verdict',()=>isolated(`
+  import {conditionDisclosure} from '@/src/signals/condition.ts';import {checkFetched} from '@/src/engine/index.ts';
+  for(const description of ['Used , fully operable - there is a crack on the screen .','Cracked display','Screen has a small crack','Shattered LCD'])assert.ok(conditionDisclosure(description).displayDamage,description);
+  for(const description of ['No cracks on the screen.','Screen has no cracks.','Not a cracked screen.','Cracked screen protector only.','A crack on the screen protector.','Cracked screen was replaced.','Replaced the cracked display.','Warranty covers cracked screens.'])assert.equal(conditionDisclosure(description).displayDamage,null,description);
+  assert.equal(conditionDisclosure('Broken screen protector only.').broken,null);
+  globalThis.fetch=async()=>{throw new Error('No network');};
+  const result=await checkFetched({source:'offerup',sourceId:'damage',url:'https://offerup.com/item/detail/damage',title:'HP ENVY x360 16 inch 2.8k OLED Touch AMD Ryzen 16GB RAM',description:'Used , fully operable - there is a crack on the screen .',askingPriceCents:10000,location:null,postedAt:null,updatedAt:null,photoUrls:[],attributes:{},raw:{}},{persist:false,vision:false});
+  assert.equal(result.verdict.call,'RISK');assert.ok(result.verdict.blockers.some(s=>s.includes('crack on the screen')));
 `));

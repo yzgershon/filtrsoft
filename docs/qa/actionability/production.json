@@ -1,0 +1,78 @@
+{
+  "at": "2026-09-17T18:17:19.800Z",
+  "commit": "363a26949c8e14dc7a7defefa74e2f35986ae061",
+  "assets": [
+    {
+      "name": "compare-DqchBj8r.js",
+      "status": 200,
+      "sha256": "6da04e9ba8a0759f7d0e3c11825eff6f1ddf75d16d64b6c370c631f125f6c24c",
+      "matches": true
+    },
+    {
+      "name": "index-BflC9x_v.js",
+      "status": 200,
+      "sha256": "3a8ae80c04a9d75395877a3d4cb17db02c433f481f8a96c363dd17396b6f9d8f",
+      "matches": true
+    },
+    {
+      "name": "index-LTRDxhkn.css",
+      "status": 200,
+      "sha256": "d007a9753bbdabb3c45d6a1fc51cf0a31e302ec60412e4bff184d3590c467795",
+      "matches": true
+    },
+    {
+      "name": "listing-workspace-CYPa2Td8.js",
+      "status": 200,
+      "sha256": "6348df2b36d87cbc876cb82030f38724a90b41198663295cadbcbd3e4ae7a24d",
+      "matches": true
+    },
+    {
+      "name": "market-CuZ5LJtT.js",
+      "status": 200,
+      "sha256": "4ca877feaa1152dd1037cf7c8bf5b20938528fac2f8d9e9122f4350bff8ee04e",
+      "matches": true
+    },
+    {
+      "name": "purchase-editor-Da1lgq5M.js",
+      "status": 200,
+      "sha256": "e025b1697f00b9f280f521bd63e8ca887e16358a6a613ea4cf8300d4f8c837ef",
+      "matches": true
+    }
+  ],
+  "entryMatches": true,
+  "routes": [
+    {
+      "path": "/v1/feed",
+      "status": 401
+    },
+    {
+      "path": "/v1/push/status",
+      "status": 401
+    }
+  ],
+  "health": {
+    "ok": true,
+    "canPrice": true,
+    "pricingStatus": "measured",
+    "engine": "0.3.37",
+    "db": "ok",
+    "storage": {
+      "pressure": "low"
+    },
+    "comps": {
+      "total": 32252,
+      "usable": 28478,
+      "skusPriceable": 433,
+      "skusTotal": 602,
+      "coverageCurrent": true
+    },
+    "skus": 614,
+    "scoring": {
+      "signature": "7252|2026-09-17T18",
+      "pending": 0,
+      "failures": 0,
+      "complete": true
+    }
+  },
+  "ok": true
+}

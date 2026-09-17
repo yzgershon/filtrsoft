@@ -372,6 +372,8 @@ export function analyze(l: RawListing, opts?: { clusterSize?: number; visionText
   const condition=conditionDisclosure(text);
   if(condition.broken)signals.push({code:'NON_WORKING',severity:'blocker',polarity:'negative',
     evidence:`Seller condition disclosure: "${condition.broken}". Working-unit sold prices do not establish this item's value.`});
+  if(condition.displayDamage)signals.push({code:'DAMAGED_DISPLAY',severity:'blocker',polarity:'negative',
+    evidence:`Seller reports display damage: "${condition.displayDamage}". Undamaged-screen sold prices do not include repair costs.`});
   if(condition.untested)signals.push({code:'UNTESTED',severity:'high',polarity:'negative',
     evidence:`Seller says: "${condition.untested}". Functionality has not been demonstrated.`});
 

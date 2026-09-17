@@ -63,3 +63,36 @@ test('health counts actual usable coverage and collection prioritizes unmet dema
   const stale=await app.request('/v1/health');assert.equal(stale.status,200);
   const status=await stale.json();assert.equal(status.canPrice,false);assert.equal(status.comps.total,4);assert.equal(status.comps.skusPriceable,0);
 `));
+
+test('catalog health yields to other work, shares refreshes and invalidates corrected evidence',()=>isolated(`
+  import {db,insertComp} from '@/src/db/index.ts';
+  import {catalogCoverageAsync} from '@/src/valuation/coverage.ts';
+  import {compsHealthAsync} from '@/src/api/pipeline-health.ts';
+  import {pricingSignature} from '@/src/db/revisions.ts';
+  const d=db(),at=new Date(Date.now()-86400000).toISOString();
+  for(const model of ['RTX 4090','RTX 3080'])d.run("INSERT INTO skus(category,brand,model,attributes,created_at) VALUES('gpu','Nvidia',?,'{}',?)",[model,at]);
+  for(let i=0;i<3;i++)insertComp({source:'ebay',source_item_id:String(i),raw_title:'Nvidia RTX 4090',sold_price_cents:100000,sold_at:at,condition_norm:'used',sku_id:1,raw:{soldAt:at}});
+  let yielded=false;const timer=setTimeout(()=>{yielded=true;},0);
+  const first=catalogCoverageAsync(0),concurrent=catalogCoverageAsync(0);
+  const [a,b]=await Promise.all([first,concurrent]);assert.equal(yielded,true);assert.equal(a,b);assert.equal(a.rows[0].status,'ok');
+  const oldSignature=a.signature;d.run("UPDATE comps SET sold_at='2020-01-01T00:00:00Z'");
+  const c=await catalogCoverageAsync(0);assert.notEqual(c.signature,oldSignature);assert.equal(c.signature,pricingSignature(d));assert.equal(c.rows[0].status,'no_comps');
+  d.run('UPDATE comps SET sold_at=?',[at]);const refresh=catalogCoverageAsync(0);
+  d.run('UPDATE comps SET sold_price_cents=sold_price_cents+1');
+  assert.equal((await compsHealthAsync()).coverageCurrent,false);await refresh;
+  assert.equal((await compsHealthAsync()).coverageCurrent,true);
+  clearTimeout(timer);
+`));
+
+test('a cold health audit reports unknown readiness promptly instead of blocking liveness',()=>isolated(`
+  import {db} from '@/src/db/index.ts';
+  import {catalogCoverageAsync} from '@/src/valuation/coverage.ts';
+  import {app} from '@/src/api/index.ts';
+  const d=db(),at=new Date().toISOString();
+  for(let i=0;i<200;i++)d.run("INSERT INTO skus(category,brand,model,attributes,created_at) VALUES('gpu','Fixture',?,'{}',?)",['GPU '+i,at]);
+  const background=catalogCoverageAsync(0);
+  const pending=await (await app.request('/v1/health')).json();
+  assert.equal(pending.db,'ok');assert.equal(pending.ok,true);assert.equal(pending.canPrice,null);assert.equal(pending.pricingStatus,'refreshing');
+  await background;const measured=await (await app.request('/v1/health')).json();
+  assert.equal(measured.canPrice,false);assert.equal(measured.pricingStatus,'measured');assert.equal(measured.comps.skusPriceable,0);
+`));

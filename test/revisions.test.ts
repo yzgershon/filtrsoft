@@ -45,6 +45,36 @@ test('scoring resumes after interruption, retries failures and never declares th
   d.run("UPDATE pricing_revision SET revision=revision+1");
   assert.equal(scoringStatus().pending,4);assert.equal(scorePending(1,score).checked,1);assert.equal(scoringStatus().pending,3);
 `));
+test('scoring prioritizes new seller facts and live recommendations ahead of historical rows',()=>isolated(`
+  import {db} from '@/src/db/index.ts';
+  import {upsertListingFacts} from '@/src/db/listings.ts';
+  import {storeVerdict} from '@/src/db/verdicts.ts';
+  import {scorePending,scoringStatus} from '@/src/db/scoring.ts';
+  const d=db(),ids=[];
+  for(let i=0;i<6;i++)ids.push(upsertListingFacts(d,{source:'audit',sourceId:String(i),url:'https://example.invalid/'+i,title:'Unknown tech',description:'',askingPriceCents:10000,location:null,postedAt:null,photoCount:0}).id);
+  for(const [i,call] of ['BUY','OUT_OF_SCOPE','PASS','BUY','VERIFY','PASS'].entries())storeVerdict(ids[i],'old',{call});
+  d.run('UPDATE listings SET delisted_at=? WHERE id=?',[new Date().toISOString(),ids[0]]);
+  d.run("INSERT INTO listing_rechecks VALUES(?,'new_seller_condition',?)",[ids[5],new Date().toISOString()]);
+  const order=[],score=id=>{order.push(id);return {call:'INSUFFICIENT_DATA'};};
+  assert.equal(scorePending(1,score).checked,1);assert.deepEqual(order,[ids[5]]);
+  scorePending(2,score);assert.deepEqual(order,[ids[5],ids[3],ids[4]]);
+  scorePending(2,score);assert.deepEqual(order,[ids[5],ids[3],ids[4],ids[2],ids[1]]);
+  assert.equal(scoringStatus().pending,1);
+  scorePending(1,score);assert.equal(order.at(-1),ids[0]);assert.equal(scoringStatus().complete,true);
+`));
+
+test('scoring yields after its time budget without losing pending work',()=>isolated(`
+  import {db} from '@/src/db/index.ts';
+  import {upsertListingFacts} from '@/src/db/listings.ts';
+  import {scorePending,scoringStatus} from '@/src/db/scoring.ts';
+  const d=db();
+  for(let i=0;i<3;i++)upsertListingFacts(d,{source:'audit',sourceId:String(i),url:'https://example.invalid/'+i,title:'Unknown tech',description:'',askingPriceCents:10000,location:null,postedAt:null,photoCount:0});
+  const score=()=>({call:'INSUFFICIENT_DATA'});
+  assert.equal(scorePending(50,score,0).checked,1);assert.equal(scoringStatus().pending,2);
+  assert.equal(scorePending(50,score,0).checked,1);assert.equal(scoringStatus().pending,1);
+  assert.equal(scorePending(50,score,0).checked,1);assert.equal(scoringStatus().complete,true);
+`));
+
 test('retail selects newest availability before price and only fresh exact corroboration',()=>isolated(`
   import {db} from '@/src/db/index.ts';
   import {latestRetail} from '@/src/sources/retail.ts';

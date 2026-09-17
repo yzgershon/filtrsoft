@@ -60,7 +60,7 @@ import {
   loadAccountOverrides, applyOverride, handleSetOverride, handleClearOverride,
 } from "./overrides.ts";
 import { archiveStatus } from "../db/archive.ts";
-import { compsHealth, visionHealth,pipelineFunnel } from "./pipeline-health.ts";
+import { compsHealth,compsHealthAsync, visionHealth,pipelineFunnel } from "./pipeline-health.ts";
 import { visionLoopEnabled, crawlPaceMode } from "./scheduler.ts";
 import { lastVisionPass } from "../crawler/vision-pass.ts";
 import {
@@ -319,22 +319,27 @@ function badUrl(url: string | undefined): string | null {
  * Still HTTP 200: the container IS up and should not be restart-looped over
  * this. `canPrice` is the field to alert on.
  */
-app.get("/v1/health", (c) => {
+app.get("/v1/health", async (c) => {
   const storage=storageStatus(DB_PATH);
   let stats: Record<string, unknown> = { db: "unavailable" };
-  let canPrice = false;
+  let canPrice:boolean|null = null;
   let coverage:ReturnType<typeof compsHealth>|null=null;
   try {
     const comps = (db().query("SELECT COUNT(*) n FROM comps").get() as { n: number }).n;
     const skus = (db().query("SELECT COUNT(*) n FROM skus").get() as { n: number }).n;
-    coverage=compsHealth();
+    // A full cold catalog audit can exceed Bun's HTTP idle deadline. Begin the
+    // shared, yielding refresh, but report unknown readiness until it finishes
+    // instead of letting a liveness probe monopolize or time out the server.
+    let deadline:ReturnType<typeof setTimeout>|undefined;
+    try{coverage=await Promise.race([compsHealthAsync(),new Promise<null>(resolve=>{deadline=setTimeout(()=>resolve(null),50);})]);}
+    finally{clearTimeout(deadline);}
     // Raw rows can all be stale, quarantined or mismatched. Readiness follows
     // the same suitable-evidence contract as valuation, not table occupancy.
-    canPrice = coverage.skusPriceable > 0;
+    canPrice = coverage ? coverage.skusPriceable > 0 : null;
     stats = {
       db: "ok", comps, skus,
       ...(canPrice ? {} : {
-        warning: "no catalog SKU has enough suitable sold evidence to price. " +
+        warning: canPrice===null ? 'Pricing coverage is refreshing.' : "no catalog SKU has enough suitable sold evidence to price. " +
           "Run `bun run archive`, commit data/archive.json.gz, redeploy.",
       }),
     };
@@ -344,13 +349,14 @@ app.get("/v1/health", (c) => {
   // A public liveness read must not enumerate a private workspace's agent,
   // notification address, spend or activity. Same-origin signed-in requests
   // retain the diagnostic detail. Thumbnail requests carry that same cookie.
-  if(!currentUser(c))return c.json({ok:canPrice&&storage.pressure!=='critical',canPrice,engine:ENGINE_VERSION,db:stats.db,storage:{pressure:storage.pressure},
-    comps:coverage?{total:coverage.total,usable:coverage.usable,skusPriceable:coverage.skusPriceable,skusTotal:coverage.skusTotal}:null,
+  if(!currentUser(c))return c.json({ok:stats.db==='ok'&&canPrice!==false&&storage.pressure!=='critical',canPrice,pricingStatus:coverage?'measured':'refreshing',engine:ENGINE_VERSION,db:stats.db,storage:{pressure:storage.pressure},
+    comps:coverage?{total:coverage.total,usable:coverage.usable,skusPriceable:coverage.skusPriceable,skusTotal:coverage.skusTotal,coverageCurrent:coverage.coverageCurrent}:null,
     skus:stats.skus,scoring:(()=>{try{return scoringStatus();}catch{return {complete:false,error:'unavailable'};}})()});
   return c.json({
-    ok: canPrice&&storage.pressure!=='critical',
+    ok: stats.db==='ok'&&canPrice!==false&&storage.pressure!=='critical',
     storage,
     canPrice,
+    pricingStatus:coverage?'measured':'refreshing',
     engine: ENGINE_VERSION,
     ...stats,
     /**

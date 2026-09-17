@@ -1,5 +1,6 @@
 import {usableCompSql,soldEvidenceSql} from "../db/comp-evidence.ts";
-import {catalogCoverage} from "../valuation/coverage.ts";
+import {catalogCoverage,catalogCoverageAsync,type CatalogCoverage} from "../valuation/coverage.ts";
+import {pricingSignature} from '../db/revisions.ts';
 /**
  * Is the pipeline actually working? Two questions health could not answer.
  *
@@ -44,6 +45,7 @@ export interface CompsHealth {
   /** Roughly how long before the CURRENT stock ages out of the 90-day window. */
   daysOfRunway: number | null;
   warning: string | null;
+  coverageCurrent?: boolean;
 }
 
 /** Must match `valueSku`'s window, or this reports on a population nothing uses. */
@@ -52,7 +54,7 @@ export const COMP_WINDOW_DAYS = 90;
 /** Read at call time: the scheduler owns the default, and env can override it. */
 const VISION_PER_RUN = () => Number(process.env.FILTRSOFT_CRAWL_VISION ?? 10);
 
-export function compsHealth(): CompsHealth {
+export function compsHealth(coverage:CatalogCoverage[]=catalogCoverage()): CompsHealth {
   const d = db();
   const one = <T>(sql: string, ...a: unknown[]) => d.query(sql).get(...(a as [])) as T;
 
@@ -61,7 +63,7 @@ export function compsHealth(): CompsHealth {
     `SELECT COUNT(*) n FROM comps
       WHERE ${usableCompSql()}`).n;
   const newest = one<{ m: string | null }>(`SELECT MAX(sold_at) m FROM comps WHERE ${soldEvidenceSql()}`).m;
-  const coverage=catalogCoverage(),skusTotal=coverage.length;
+  const skusTotal=coverage.length;
   const recentLinkedSkus = one<{ n: number }>(
     `SELECT COUNT(DISTINCT sku_id) n FROM comps
       WHERE ${usableCompSql()}`).n;
@@ -99,6 +101,11 @@ export function compsHealth(): CompsHealth {
   }
 
   return { total, usable, recentLinkedSkus,quarantined,coverageByCategory,collection24h,insufficientReasons,newestSoldAt: newest, ageDays, skusTotal, skusPriceable, daysOfRunway, warning };
+}
+
+export async function compsHealthAsync():Promise<CompsHealth> {
+  const snapshot=await catalogCoverageAsync();
+  return {...compsHealth(snapshot.rows),coverageCurrent:snapshot.signature===pricingSignature(db())};
 }
 
 export interface VisionHealth {
