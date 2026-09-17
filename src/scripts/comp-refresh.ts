@@ -9,6 +9,6 @@ const d=db(),start=(d.query('SELECT COALESCE(MAX(id),0) id FROM comps').get() as
 // newly saved rows. A later invocation queues them before any further visits.
 captureNewComps(d,target,start);await flushComps(d,target,`Bearer ${token}`);
 let ok=false;
-try {const result=await runCommand(process.execPath,['run','ebay:comps','--skus','1'],{timeoutMs:180000});console.log(result.tail);ok=result.ok;}
+try {const result=await runCommand(process.execPath,['run','ebay:comps','--skus','3'],{timeoutMs:300000});console.log(result.tail);ok=result.ok;}
 finally {captureNewComps(d,target,start);console.log(`Acknowledged ${await flushComps(d,target,`Bearer ${token}`)} comp transfers`);}
 if(!ok)process.exitCode=1;

@@ -258,7 +258,7 @@ try {
            */
           const main = document.querySelector('[role="main"]') || document.body;
           const lines = (main.innerText || "").split("\n").map((l) => l.trim()).filter(Boolean);
-          const h1 = document.querySelector("h1");
+          const h1 = main.querySelector("h1");
           const title = (h1 && h1.innerText.trim()) || "";
 
           const start = title ? lines.findIndex((l) => l === title) : 0;
@@ -270,10 +270,11 @@ try {
           const ci = content.findIndex((l) => /^condition$/i.test(l));
           const condition = ci >= 0 ? content[ci + 1] ?? null : null;
 
-          return { title: title || content[0] || "", bodyLines: content.slice(0, 120), condition };
+          return { title: title || content[0] || "", heading:title, bodyLines: content.slice(0, 250), condition,
+            actions:[...main.querySelectorAll('button,[role="button"]')].map(e=>e.innerText||e.getAttribute('aria-label')||'') };
         });
 
-        emit({ type: "detail", url, ...detail, photos: [...photos] });
+        emit({ type: "detail", url, finalUrl:page.url(), ...detail, photos: [...photos] });
       } catch (e) {
         emit({ type: "error", msg: `${url}: ${String(e.message).slice(0, 120)}` });
       }

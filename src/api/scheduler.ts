@@ -35,7 +35,7 @@ import { discover, drain, queueDepth } from "../crawler/queue.ts";
 import { visionPass } from "../crawler/vision-pass.ts";
 import { autoQueueCrawl } from "./jobs.ts";
 import {startServerBackups} from './server-backup.ts';
-import { sweep } from "../tracker/index.ts";
+import { sweep,sweepRecommendations } from "../tracker/index.ts";
 import { prunePhotos } from "../photos/index.ts";
 import { pruneThumbs, backfillThumbs } from "../photos/thumb.ts";
 import { runAlerts } from "./alerts.ts";
@@ -230,12 +230,8 @@ async function runOnce(reason: string) {
      * this very tick. On its own timer they would carry up to a full interval
      * of extra delay, on the one feature whose entire value is latency.
      */
-    try {
-      const n = await runAlerts();
-      if (n) console.log(`alerts: sent ${n} notification(s)`);
-    } catch (e) {
-      console.error("alerts failed:", (e as Error).message);
-    }
+    // Delivery has its own timer below so a slow/disabled Craigslist crawl
+    // cannot strand recommendations uploaded by the desktop.
 
     /**
      * Vision runs LAST and only in steady mode. The text verdict has already
@@ -329,6 +325,13 @@ function recordTick(
 
 export function startCrawlLoop() {
   startServerBackups();
+  const deliver=async()=>{try{const n=await runAlerts();if(n)console.log(`alerts: sent ${n}`);}
+    catch(e){console.error('alerts failed',String(e));}finally{setTimeout(()=>void deliver(),30000).unref?.();}};
+  setTimeout(()=>void deliver(),30000).unref?.();
+  // Scoring uploaded PC evidence must continue even when server discovery is off.
+  const scoring=()=>{try{scorePending(50);}catch(e){console.error('scoring failed',String(e));}
+    finally{setTimeout(scoring,5000).unref?.();}};
+  setTimeout(scoring,5000).unref?.();
   if (!ENABLED) { console.log("crawl loop: disabled (FILTRSOFT_CRAWL=off)"); return; }
 
   /**
@@ -361,7 +364,7 @@ export function startCrawlLoop() {
   enrichment(async()=>{if(VISION_ON && pace().mode==='steady') await visionPass(VISION_PER_RUN,m=>console.log(`vision: ${m}`));},INTERVAL_MS);
   enrichment(async()=>{await backfillThumbs(25);},INTERVAL_MS);
   // Small scoring chunks yield to HTTP and discovery between transactions.
-  enrichment(async()=>{scorePending(50);},5000);
+  enrichment(async()=>{if(SWEEP_ON){const result=await sweepRecommendations();if(result.checked||result.unknown)console.log('recommendation availability',JSON.stringify(result));}},30*60000);
 
   if (SWEEP_ON) startSweepLoop();
 }

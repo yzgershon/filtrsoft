@@ -98,7 +98,8 @@ try {
         undefined, { timeout: 12_000 },
       ).catch(() => {});
       await pause(2000, 3200);
-      const text = await page.evaluate(() => (document.body.innerText || "").slice(0, 2500));
+      const evidence = await page.evaluate(() => ({text:(document.body.innerText || '').slice(0,30000),
+        heading:document.querySelector('main h1,[role="main"] h1')?.innerText??'',actions:[...document.querySelectorAll('button,[role="button"]')].map(e=>e.innerText||e.getAttribute('aria-label')||'')}));
       /**
        * `document.title` is the reliable one on a SPA. Facebook names the tab
        * after the listing while it exists and falls back to a generic title
@@ -106,7 +107,7 @@ try {
        * dead item page still carries the sidebar's prices and category list.
        */
       const title = await page.title().catch(() => "");
-      emit({ type: "probe", id: probe.id, url: probe.url, finalUrl: page.url(), text, title });
+      emit({ type: "probe", id: probe.id, url: probe.url, finalUrl: page.url(), ...evidence, title });
     } catch (e) {
       // A timeout is NOT evidence the listing is gone — it is evidence the
       // network or the site had a bad moment. Reported as an error so the
@@ -165,10 +166,13 @@ try {
        * happening for the photos. The parsing is `parseOfferUpDetail` in
        * TypeScript, where a layout change is a fixture fix.
        */
-      const text = await page.evaluate(
-        () => ((document.querySelector("main") || document.body).innerText || "").slice(0, 4000),
-      ).catch(() => "");
-      emit({ type: "photos", id: item.id, url: item.url, finalUrl: page.url(), title, urls, text });
+      // Recommendations can put the seller's Description below character 4000.
+      // Preserve bounded raw text; TypeScript owns all item/condition parsing.
+      const evidence = await page.evaluate(() => ({text:((document.querySelector('main')||document.body).innerText||'').slice(0,30000),
+        heading:document.querySelector('main h1,[role="main"] h1')?.innerText??'',
+        priceText:document.querySelector('[data-testid="ItemPrice"]')?.innerText??'',
+        actions:[...document.querySelectorAll('button,[role="button"]')].map(e=>e.innerText||e.getAttribute('aria-label')||'')}));
+      emit({ type: "photos", id: item.id, url: item.url, finalUrl: page.url(), title, urls, ...evidence });
     } catch (e) {
       emit({ type: "photos", id: item.id, url: item.url, finalUrl: "", title: "", urls: [], error: String(e && e.message ? e.message : e) });
     }

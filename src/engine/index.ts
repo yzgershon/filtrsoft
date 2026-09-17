@@ -107,6 +107,7 @@ export function runPipeline(
 
   const economics=opts.econ??getEconomics();
   const verdict = buildVerdict({
+    source: listing.source,
     title: listing.title,
     description: listing.description,
     askingPriceCents: listing.askingPriceCents,
@@ -466,4 +467,4 @@ export function checkStored(
 // 0.3.33: preserve item/quantity/price pairs in placeholder inventory ads.
 // Never compare the headline $1 with a median assembled from different items.
 // 0.3.36: ambiguous MacBook families cannot pool Intel and Apple Silicon sales.
-export const ENGINE_VERSION = "0.3.36";
+export const ENGINE_VERSION = "0.3.37";

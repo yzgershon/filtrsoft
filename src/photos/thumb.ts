@@ -1,4 +1,5 @@
 import {fetchBytes} from "../net/bounded.ts";
+import {isPhotoUrl} from '../sources/photo-url.ts';
 /**
  * One small, self-hosted thumbnail per listing.
  *
@@ -74,6 +75,7 @@ export interface Thumb {
  * platform's full timeout and turn one slow image into a failed push.
  */
 export async function fetchThumb(url: string, timeoutMs = 15_000): Promise<Thumb | null> {
+  if(!isPhotoUrl(url))return null;
   let buf: Buffer;
   try {
     buf = await fetchBytes(url, {

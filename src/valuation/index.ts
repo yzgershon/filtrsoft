@@ -1,5 +1,6 @@
 import {extractAttributes} from "../catalog/match.ts";
 import {macbookCompIdentity} from '../catalog/macbook.ts';
+import {compMatchesQuery} from '../sources/ebay.ts';
 import { usableCompSql } from "../db/comp-evidence.ts";
 /**
  * Valuation and channel economics.
@@ -186,9 +187,21 @@ export function valueSku(
 
   const identity = db().query("SELECT brand,model,category FROM skus WHERE id=?").get(skuId) as {brand:string;model:string;category:string} | null;
   if (identity) {
+    // Imports and older crawls predate today's ingestion guards. Never trust
+    // their SKU foreign key alone (live Legion comps included a NIMO laptop).
+    raw=raw.filter(r=>compMatchesQuery(r.raw_title,`${identity.brand} ${identity.model}`,catalogCategory(identity.category,identity.model)).ok);
     raw=raw.filter(r=>macbookCompIdentity(r.raw_title,`${identity.brand} ${identity.model}`));
     const category = catalogCategory(identity.category, identity.model);
     if (EXACT_PARTS.has(category)) raw = raw.filter(r => exactPartIdentity(r.raw_title, `${identity.brand} ${identity.model}`, category));
+  }
+
+  if((opts?.category??identity?.category)==='laptop' && opts?.attributes) {
+    const wanted=opts.attributes;
+    const normalize=(x:string|number)=>String(x).toLowerCase().replace(/[^a-z0-9]/g,'');
+    // A Legion 5 is a family spanning very different CPUs and GPUs. Known
+    // configuration dimensions must agree; unnamed dimensions are not proof.
+    raw=raw.filter(r=>{const got=extractAttributes(r.raw_title);
+      return ['cpu','gpu','ram_gb'].every(k=>wanted[k]==null || got[k]!=null && normalize(wanted[k])===normalize(got[k]));});
   }
 
   if(opts?.buildConfiguration) {

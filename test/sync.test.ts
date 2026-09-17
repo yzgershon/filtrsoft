@@ -3,7 +3,7 @@ import { isolated } from "./isolated.ts";
 const setup=`
 import {db} from '@/src/db/index.ts';
 import {upsertListingFacts} from '@/src/db/listings.ts';
-import {captureChanges,pendingBatch,acknowledge,contentHash} from '@/src/sync/outbox.ts';
+import {captureChanges,pendingBatch,acknowledge,contentHash,snapshotSchema} from '@/src/sync/outbox.ts';
 import {receiveChanges} from '@/src/sync/receive.ts';
 const d=db(),target='https://example.invalid';
 const base={source:'facebook',sourceId:'one',url:'https://facebook.com/marketplace/item/one',title:'GPU',description:'Detailed model evidence',askingPriceCents:50000,location:null,postedAt:null,photoCount:0,raw:{attributes:{condition:'used'}}};
@@ -66,6 +66,29 @@ test('invalid sync envelope or reused revision rolls back the whole batch',()=>i
   const l={...batch.changes[0].listing,title:'Different title'};
   assert.throws(()=>receiveChanges({...batch,changes:[{...batch.changes[0],listing:l,hash:contentHash(l)}]}));
   assert.equal(d.query('SELECT title FROM listings WHERE id=?').get(id).title,'GPU');
+`));
+
+test('detail and availability clocks converge without overwriting a newer card price',()=>isolated(setup+`
+  captureChanges(d,target,'facebook');const original=pendingBatch(d,target,'facebook');
+  upsertListingFacts(d,{...base,description:'Original description',updatedAt:'2026-09-01T00:00:00.000Z',askingPriceCents:40000},'2026-09-05T00:00:00.000Z');
+  const newer=snapshotSchema.parse({...original.changes[0].listing,description:'Untested sold as is for parts.',detailAt:'2026-09-04T00:00:00.000Z',photos:[{url:'https://cdn.invalid/detail.jpg',phash:null}],
+    availability:{observedAt:'2026-09-06T00:00:00.000Z',outcome:'unknown',nextAt:'2026-09-06T01:00:00.000Z',failures:2},
+    enrichment:{attemptedAt:'2026-09-06T00:00:00.000Z',nextAt:'2026-09-06T01:00:00.000Z',outcome:'failed',failures:2}});
+  const batch={...original,changes:[{sequence:10,hash:contentHash(newer),listing:newer}]};
+  assert.equal(receiveChanges(batch).acks[0].status,'applied');
+  const row=d.query('SELECT * FROM listings WHERE id=?').get(id);
+  assert.equal(row.description,newer.description);assert.equal(row.asking_price_cents,40000);assert.equal(row.last_seen,'2026-09-05T00:00:00.000Z');assert.equal(row.photo_count,1);
+  assert.equal(d.query('SELECT outcome FROM listing_availability WHERE listing_id=?').get(id).outcome,'unknown');
+  assert.equal(d.query('SELECT failures FROM listing_enrichment WHERE listing_id=?').get(id).failures,2);
+  const old={...newer,description:'Old clean text',detailAt:at,availability:{...newer.availability,observedAt:at,outcome:'alive'}};
+  receiveChanges({...batch,changes:[{sequence:11,hash:contentHash(old),listing:old}]});
+  assert.equal(d.query('SELECT description FROM listings WHERE id=?').get(id).description,newer.description);
+  assert.equal(d.query('SELECT outcome FROM listing_availability WHERE listing_id=?').get(id).outcome,'unknown');
+  assert.equal(receiveChanges(batch).acks[0].status,'duplicate');
+  const newCardOldDetail={...old,observedAt:'2026-09-07T00:00:00.000Z',askingPriceCents:39000};
+  receiveChanges({...batch,changes:[{sequence:12,hash:contentHash(newCardOldDetail),listing:newCardOldDetail}]});
+  const preserved=d.query('SELECT * FROM listings WHERE id=?').get(id);
+  assert.equal(preserved.description,newer.description);assert.equal(preserved.updated_at,newer.detailAt);assert.equal(preserved.asking_price_cents,39000);
 `));
 test('a newer retirement observation survives stale descriptive facts',()=>isolated(setup+`
   captureChanges(d,target,'facebook');const batch=pendingBatch(d,target,'facebook');

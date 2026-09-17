@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { Database } from "bun:sqlite";
 import { z } from "zod";
 import { rawObject } from "../db/facts.ts";
+import {ensureEnrichment} from '../db/enrichment.ts';
 
 const timestamp = z.iso.datetime();
 const remoteUrl = z.url().refine(s => new URL(s).protocol === "https:");
@@ -16,6 +17,8 @@ export const snapshotSchema = z.object({
   photos: z.array(z.object({url: remoteUrl, phash: z.string().regex(/^[a-f0-9]{16}$/i).nullable()})).max(40),
   vision: z.object({model:z.string().max(200),promptVersion:z.string().max(200),
     fingerprint:z.string().regex(/^[a-f0-9]{32}$/),payload:z.string().max(200_000),createdAt:timestamp}).nullable(),
+  availability:z.object({observedAt:timestamp,outcome:z.enum(['alive','gone','unknown']),nextAt:timestamp,failures:z.number().int().nonnegative()}).nullable().optional(),
+  enrichment:z.object({attemptedAt:timestamp,nextAt:timestamp,failures:z.number().int().nonnegative(),outcome:z.enum(['read','empty','failed','gone'])}).nullable().optional(),
 });
 export type Snapshot = z.infer<typeof snapshotSchema>;
 export const batchSchema = z.object({version:z.literal(2),clientId:z.uuid(),changes:z.array(z.object({
@@ -40,6 +43,7 @@ export function ensureSync(d:Database) {
  */
 export function captureChanges(d:Database,target:string,source:string) {
   ensureSync(d);
+  ensureEnrichment(d);
   return d.transaction(()=>{
     d.run("INSERT OR IGNORE INTO sync_identity VALUES(1,?)",[randomUUID()]);
     const rows=d.query("SELECT * FROM listings WHERE source=? ORDER BY id").all(source) as any[];
@@ -47,11 +51,14 @@ export function captureChanges(d:Database,target:string,source:string) {
     for(const l of rows) {
       const photos=d.query("SELECT url,phash FROM listing_photos WHERE listing_id=? ORDER BY position").all(l.id);
       const v=d.query("SELECT model,prompt_version,photo_fingerprint,payload,created_at FROM vision_results WHERE listing_id=? ORDER BY id DESC LIMIT 1").get(l.id) as any;
+      const availability=d.query('SELECT observed_at observedAt,outcome FROM listing_availability WHERE listing_id=?').get(l.id) as any;
+      const enrichment=d.query('SELECT attempted_at attemptedAt,next_attempt_at nextAt,failures,outcome FROM listing_enrichment WHERE listing_id=?').get(l.id) as any;
       const snapshot:Snapshot=snapshotSchema.parse({source:l.source,sourceId:l.source_id,url:l.url,title:l.title,
         description:l.description??"",askingPriceCents:l.asking_price_cents,location:l.location,postedAt:l.posted_at,
         sellerRef:l.seller_ref,observedAt:l.last_seen??l.captured_at,capturedAt:l.captured_at,detailAt:l.updated_at,
         retiredAt:l.delisted_at,retireReason:l.delist_reason,raw:rawObject(l.raw_json),photos,
-        vision:v?.photo_fingerprint&&v?.prompt_version?{model:v.model,promptVersion:v.prompt_version,fingerprint:v.photo_fingerprint,payload:v.payload,createdAt:v.created_at}:null});
+        vision:v?.photo_fingerprint&&v?.prompt_version?{model:v.model,promptVersion:v.prompt_version,fingerprint:v.photo_fingerprint,payload:v.payload,createdAt:v.created_at}:null,
+        availability:availability?{...availability,nextAt:l.next_probe_at,failures:l.probe_failures}:null,enrichment});
       const hash=contentHash(snapshot);
       const previous=d.query("SELECT hash FROM sync_local_state WHERE target=? AND listing_id=?").get(target,l.id) as {hash:string}|null;
       if(previous?.hash===hash) continue;

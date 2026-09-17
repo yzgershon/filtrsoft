@@ -1,4 +1,5 @@
 import type { RawListing } from "../types.ts";
+import {isPhotoUrl} from '../sources/photo-url.ts';
 
 export function rawObject(raw: unknown): Record<string, unknown> {
   try { if (typeof raw === "string") raw = JSON.parse(raw); } catch { return {}; }
@@ -17,5 +18,5 @@ export function storedAttributes(raw: unknown): Record<string, string> {
 
 export function normalizedListing(l: RawListing): RawListing {
   const attributes = {...storedAttributes(l.raw), ...l.attributes};
-  return {...l, attributes, raw:{...rawObject(l.raw),attributes}};
+  return {...l, photoUrls:l.photoUrls.filter(isPhotoUrl), attributes, raw:{...rawObject(l.raw),attributes}};
 }

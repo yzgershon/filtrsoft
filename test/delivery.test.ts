@@ -75,3 +75,15 @@ test("job expiration handles same-day, midnight and exact TTL boundaries chronol
     assert.deepEqual(d.query('SELECT status FROM crawl_jobs ORDER BY id').all().map(r=>r.status),['expired','queued','failed','running']);
   }d.close();
 `));
+
+test('alerts require fresh seller evidence and refuse unknown or sold availability',()=>isolated(fixture+`
+  import {recordProbe} from '@/src/db/probes.ts';
+  const id=listing('BUY');d.run("UPDATE listings SET source='mercari' WHERE id=?",[id]);
+  let attempts=0;webpush.sendNotification=async()=>{attempts++;return {};};
+  assert.equal(await runAlerts(),0);
+  d.run('UPDATE listings SET description=?,updated_at=? WHERE id=?',['Tested RTX 4090 in working condition',at,id]);
+  recordProbe(id,'unknown');assert.equal(await runAlerts(),0);
+  recordProbe(id,'gone');assert.equal(await runAlerts(),0);
+  recordProbe(id,'alive',Date.now()-7*3600000);assert.equal(await runAlerts(),0);
+  recordProbe(id,'alive');assert.equal(await runAlerts(),1);assert.equal(attempts,1);
+`));

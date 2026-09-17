@@ -2,16 +2,18 @@ import { db, now } from "../db/index.ts";
 import { upsertListingFacts } from "../db/listings.ts";
 import { syncPhotoUrls, fingerprintOf } from "../vision/merge.ts";
 import { batchSchema, contentHash, ensureSync, type SyncAck } from "./outbox.ts";
+import {ensureEnrichment} from '../db/enrichment.ts';
 
 /** Acknowledgement means facts and a scoring request are durable. Derivation and
  * thumbnails run in background queues; slow images cannot hide accepted writes.
  */
 export function receiveChanges(input:unknown):{acks:SyncAck[]} {
   const batch=batchSchema.parse(input),d=db();ensureSync(d);
+  ensureEnrichment(d);
   // Validate the whole envelope before any writes, including replay identity.
   for(const c of batch.changes) {
     if(contentHash(c.listing)!==c.hash) throw new Error("change hash mismatch");
-    if([c.listing.observedAt,c.listing.detailAt,c.listing.retiredAt,c.listing.vision?.createdAt].some(t=>t&&Date.parse(t)>Date.now()+300_000)) throw new Error("observation timestamp is in the future");
+    if([c.listing.observedAt,c.listing.detailAt,c.listing.retiredAt,c.listing.vision?.createdAt,c.listing.availability?.observedAt,c.listing.enrichment?.attemptedAt].some(t=>t&&Date.parse(t)>Date.now()+300_000)) throw new Error("observation timestamp is in the future");
     if(c.listing.vision) JSON.parse(c.listing.vision.payload);
   }
   return d.transaction(()=>{
@@ -23,14 +25,16 @@ export function receiveChanges(input:unknown):{acks:SyncAck[]} {
         acks.push({sequence:c.sequence,hash:c.hash,status:"duplicate"});continue;
       }
       const l=c.listing;
-      const existing=d.query("SELECT id,last_seen,captured_at,description FROM listings WHERE source=? AND source_id=?").get(l.source,l.sourceId) as {id:number;last_seen:string|null;captured_at:string;description:string}|null;
+      const existing=d.query("SELECT id,last_seen,captured_at,description,updated_at FROM listings WHERE source=? AND source_id=?").get(l.source,l.sourceId) as {id:number;last_seen:string|null;captured_at:string;description:string;updated_at:string|null}|null;
       const version=existing?d.query("SELECT sequence FROM sync_versions WHERE client_id=? AND listing_id=?").get(batch.clientId,existing.id) as {sequence:number}|null:null;
       const oldVersion=version && version.sequence>=c.sequence;
       const stale=oldVersion || (existing && l.observedAt<(existing.last_seen??existing.captured_at));
       let status:SyncAck["status"]="stale";
       if(!stale) {
-        const partial=!l.description;
-        const stored=upsertListingFacts(d,{...l,updatedAt:l.detailAt,photoCount:l.photos.length,partial},l.observedAt);
+        const olderDetail=Boolean(existing?.updated_at && (!l.detailAt || l.detailAt<existing.updated_at));
+        const partial=!l.description || olderDetail;
+        const stored=upsertListingFacts(d,{...l,description:olderDetail?'':l.description,raw:olderDetail?undefined:l.raw,
+          updatedAt:olderDetail?null:l.detailAt,photoCount:l.photos.length,partial},l.observedAt);
         d.run("UPDATE listings SET captured_at=MIN(captured_at,?) WHERE id=?",[l.capturedAt,stored.id]);
         // A search-card thumbnail is not an authoritative replacement gallery.
         const replacePhotos=!partial || !existing?.description;
@@ -57,6 +61,30 @@ export function receiveChanges(input:unknown):{acks:SyncAck[]} {
         d.run("UPDATE listings SET delisted_at=?,delist_reason=? WHERE id=? AND (delisted_at IS NULL OR delisted_at<=?)",[l.retiredAt,l.retireReason??"gone",existing.id,l.retiredAt]);
         status="applied";
         d.run("INSERT INTO sync_versions VALUES(?,?,?) ON CONFLICT(client_id,listing_id) DO UPDATE SET sequence=excluded.sequence",[batch.clientId,existing.id,c.sequence]);
+      }
+      // A newer search card can advance last_seen while an independent detail
+      // read is uploading. Preserve that card's price but accept newer prose.
+      if(stale && !oldVersion && existing && l.description && l.detailAt && l.detailAt>(existing.updated_at??'')) {
+        d.run('UPDATE listings SET description=?,updated_at=? WHERE id=?',[l.description,l.detailAt,existing.id]);
+        if(l.photos.length){
+          syncPhotoUrls(existing.id,l.photos.map(p=>p.url));
+          d.run('UPDATE listings SET photo_count=? WHERE id=?',[l.photos.length,existing.id]);
+          for(const p of l.photos)if(p.phash)d.run('UPDATE listing_photos SET phash=? WHERE listing_id=? AND url=?',[p.phash,existing.id,p.url]);
+        }
+        d.run("INSERT INTO listing_rechecks VALUES(?,'detail',?) ON CONFLICT(listing_id) DO UPDATE SET reason=excluded.reason,requested_at=excluded.requested_at",[existing.id,now()]);
+        d.run("INSERT INTO sync_versions VALUES(?,?,?) ON CONFLICT(client_id,listing_id) DO UPDATE SET sequence=excluded.sequence",[batch.clientId,existing.id,c.sequence]);
+        status='applied';
+      }
+      // Probe/retry observations have separate clocks from descriptive facts.
+      // A timeout must travel too, without pretending the listing was seen alive.
+      const stored=d.query('SELECT id FROM listings WHERE source=? AND source_id=?').get(l.source,l.sourceId) as {id:number}|null;
+      if(stored && !oldVersion){
+        const a=l.availability,e=l.enrichment;
+        if(a){
+          const applied=d.run(`INSERT INTO listing_availability VALUES(?,?,?) ON CONFLICT(listing_id) DO UPDATE SET observed_at=excluded.observed_at,outcome=excluded.outcome WHERE excluded.observed_at>listing_availability.observed_at`,[stored.id,a.observedAt,a.outcome]).changes;
+          if(applied)d.run('UPDATE listings SET last_probed_at=?,next_probe_at=?,probe_failures=? WHERE id=?',[a.observedAt,a.nextAt,a.failures,stored.id]);
+        }
+        if(e)d.run(`INSERT INTO listing_enrichment VALUES(?,?,?,?,?) ON CONFLICT(listing_id) DO UPDATE SET attempted_at=excluded.attempted_at,next_attempt_at=excluded.next_attempt_at,failures=excluded.failures,outcome=excluded.outcome WHERE excluded.attempted_at>listing_enrichment.attempted_at`,[stored.id,e.attemptedAt,e.nextAt,e.failures,e.outcome]);
       }
       d.run("INSERT INTO sync_receipts VALUES(?,?,?,?)",[batch.clientId,c.sequence,c.hash,status]);
       acks.push({sequence:c.sequence,hash:c.hash,status});

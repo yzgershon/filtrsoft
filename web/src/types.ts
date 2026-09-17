@@ -37,6 +37,7 @@ export interface Verdict {
 export interface Signal { code: string; severity: string; polarity: string; evidence: string }
 /** What the engine decided the listing IS, shown so a wrong match is visible. */
 export interface Meta {
+  availability?:import('../../src/db/availability.ts').Availability;
   specifications?: import('../../src/engine/specifications.ts').Specifications;
   dismissed?: boolean;
   category?: string; daysOnMarket?: number | null; description?: string;
@@ -44,6 +45,7 @@ export interface Meta {
   match?: { model: string | null; brand: string | null; confidence: string; method: string };
 }
 export interface FeedItem {
+  availability?:import('../../src/db/availability.ts').Availability;
   priceIsPlaceholder?: boolean;
   id: number; title: string; url: string; source: string;
   askingPriceCents: number | null; location: string | null; postedAt: string | null;

@@ -207,7 +207,7 @@ export function searchUrl(o: FbSearchOptions): string {
 export type WorkerEvent =
   | { type: "log"; msg: string }
   | { type: "cards"; cards: Array<{ href: string; text: string; img: string | null }> }
-  | { type: "detail"; url: string; title: string; bodyLines: string[]; photos: string[] }
+  | { type: "detail"; url: string; finalUrl?:string; heading?:string; actions?:string[]; condition?:string|null; title: string; bodyLines: string[]; photos: string[] }
   | { type: "graphql"; body: string }
   | { type: "error"; msg: string }
   | { type: "done"; stats: Record<string, unknown> };

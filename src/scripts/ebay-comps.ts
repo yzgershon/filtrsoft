@@ -37,7 +37,7 @@ const targets = named
   ? [{ id: null as number | null, label: single, query: single }]
   : skusNeedingComps(Number(arg("skus")) || 8).map((s) => ({
       id: s.id, label: `${s.brand} ${s.model} (${s.comps} comps)`,
-      query: queryForSku(s), category: s.category,
+      query: s.demandQuery ?? queryForSku(s), category: s.category,
     }));
 
 console.log(`pulling sold comps for ${targets.length} target(s):`);

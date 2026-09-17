@@ -12,7 +12,7 @@ test('laptop dual-port copy cannot activate a GPU board-tier comp filter',()=>is
   const d=db(),at=new Date(Date.now()-86400000).toISOString();
   d.run("INSERT INTO skus(category,brand,model,attributes,created_at) VALUES('laptop','Dell','Latitude 7420','{}',?)",[at]);
   const id=d.query('SELECT id FROM skus').get().id;
-  for(let i=0;i<4;i++)d.run("INSERT INTO comps(source,source_item_id,raw_title,sold_price_cents,captured_at,sold_at,sku_id,raw_json,condition_norm) VALUES('ebay',?,'Dell Latitude 7420 i7 32GB RAM 512GB SSD',50000,?,?,?,json_object('soldAt',?),'used')",[String(i),at,at,id,at]);
+  for(let i=0;i<4;i++)d.run("INSERT INTO comps(source,source_item_id,raw_title,sold_price_cents,captured_at,sold_at,sku_id,raw_json,condition_norm) VALUES('ebay',?,'Dell Latitude 7420 i7-1185G7 32GB RAM 512GB SSD',50000,?,?,?,json_object('soldAt',?),'used')",[String(i),at,at,id,at]);
   const r=await checkFetched({source:'audit',sourceId:'one',url:'https://example.invalid',title:'Dell Latitude 7420',description:'Dual USB ports. i7-1185G7 32GB RAM 512GB SSD',askingPriceCents:60000,location:null,postedAt:null,updatedAt:null,photoUrls:[],attributes:{},raw:{}},{persist:false,vision:false,econ:{label:'audit',min_absolute_profit_cents:10000,effective_hourly_floor_cents:8000,transaction_minutes:15,relist_minutes:20,prefers_channel:'facebook'}});
   assert.equal(r.verdict.valuation.compCount,4);
 `));

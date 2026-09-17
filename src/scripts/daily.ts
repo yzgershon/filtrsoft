@@ -10,7 +10,7 @@ if(process.argv.includes('--dry')){console.log(JSON.stringify(collectionPlan([..
 let release:()=>void;
 try{release=claimRunner();}catch(error){console.log(`daily: another collector owns this machine; ${String(error)}`);process.exit(0);}
 try {
-  const summary=await collect([...SOURCES],{cursor:advanceCursor(2),limit:process.argv.includes('--fast')?6:12,paused:isPaused,
+  const summary=await collect([...SOURCES],{cursor:advanceCursor(2),limit:6,paused:isPaused,
     run:step=>runCommand(process.execPath,step.args,{timeoutMs:step.timeoutMs,cancelled:step.kind==='sync'?undefined:isPaused,onOutput:text=>process.stdout.write(text)}),
     stage:async(step,status,error)=>{console.log(`[${new Date().toISOString()}] ${step.name}: ${status}${error?` ${error}`:''}`);}});
   console.log(JSON.stringify(summary,null,2));

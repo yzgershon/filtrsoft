@@ -200,6 +200,14 @@ export function parseModel(title: string, category: string | null): DerivedSku |
   if (NOT_A_UNIT.test(title)) return null;
   if (category === "gpu") return parseGpu(title);
   if (category !== "laptop" && category !== "prebuilt") return null;
+  if(category==='laptop') {
+    // Preserve the explicitly named silicon tier, including Max. Existing
+    // family aliases used to map M1 Max onto the plain M1 catalog bucket.
+    const line=title.match(/\bmacbook\s+(air|pro)\b/i),chips=[...title.matchAll(/\bm([1-9]\d?)(?:\s+(pro|max|ultra))?\b/gi)];
+    if(line&&chips.length===1){const chip=chips[0];const family=`MacBook ${line[1].toLowerCase()==='air'?'Air':'Pro'}`;
+      const tier=chip[2]?` ${chip[2][0].toUpperCase()}${chip[2].slice(1).toLowerCase()}`:'';
+      return {brand:'Apple',line:family,model:`${family} M${chip[1]}${tier}`,category:'laptop'};}
+  }
   const apple = parseAppleDesktop(title);
   if (apple) return apple;
 

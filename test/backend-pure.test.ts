@@ -227,13 +227,13 @@ describe("offerup detail text", () => {
    * signal layer read free text, so structured data has to be written back as
    * "key: value" lines to reach them at all.
    */
-  test("the stored description carries the specs, minus the condition chip", () => {
+  test("the stored description carries specs and seller condition", () => {
     const out = offerUpDescription(parseOfferUpDetail(PAGE));
     expect(out).toContain("works well lightly used no issues");
     expect(out).toContain("model: macbook air");
-    // `condition` is already a first-class signal; repeating it as prose would
-    // give the text layer a second, weaker copy to disagree with.
-    expect(out).not.toContain("condition:");
+    // The enrichment scripts store this text. Previously the condition chip
+    // was dropped without persisting it anywhere else.
+    expect(out).toContain("condition: Used (normal wear)");
   });
 
   test("a page with no description yields nothing rather than guessing", () => {

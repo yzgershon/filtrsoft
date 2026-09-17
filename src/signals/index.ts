@@ -1,4 +1,5 @@
 import { exclusivePayment } from "./payment.ts";
+import {conditionDisclosure} from './condition.ts';
 /**
  * The cheap-signals layer.
  *
@@ -9,7 +10,7 @@ import { exclusivePayment } from "./payment.ts";
  *
  * See RISK-MODEL.md section 3.
  */
-import { isPortableOmen, isAppleWholeUnit, isUnsupportedPrinter, resolveCategory } from "./product-type.ts";
+import { isPortableOmen, isExplicitDesktop, isAppleWholeUnit, isUnsupportedPrinter, resolveCategory } from "./product-type.ts";
 import type { RawListing, Signal, SignalReport, Category } from "../types.ts";
 import { EXACT_PARTS } from "../catalog/identity.ts";
 import { findContradictions } from "../reference/compatibility.ts";
@@ -79,9 +80,9 @@ const VALUE_FIELDS: Partial<Record<Category, Array<[string, RegExp]>>> = {
    * seller told us is worse than pricing it with a wide band, which is what the
    * comp spread already expresses.
    */
-  laptop:   [["cpu", /\bi[3579]\b|\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d|m[1-9]\b|celeron|core ultra|snapdragon|mediatek|exynos)/i],
-             ["ram", /\b\d{1,3}\s?gb\b/i]],
-  gpu:      [["model", /\b(rtx|gtx|rx|tesla|quadro)\s?[a-z]?\d{3,4}/i]],
+  laptop:   [["cpu", /\bi[3579]\b|\br[3579]\s+\d{4}[a-z0-9]*\b|\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d|m[1-9]\b|celeron|core ultra|snapdragon|mediatek|exynos)/i],
+             ["ram", /\b\d{1,3}\s?gb\b|\b\d{1,3}\s+gigs?\s+(?:of\s+)?ram\b/i]],
+  gpu:      [["model", /\b(rtx|gtx|rx|tesla|quadro|radeon)\s?[a-z]?\d{3,4}/i]],
   /**
    * ⚠ "INTEL UHD GRAPHICS 630" IS A STATED GPU AND THIS REGEX USED TO SAY IT
    * WAS NOT.
@@ -99,9 +100,9 @@ const VALUE_FIELDS: Partial<Record<Category, Array<[string, RegExp]>>> = {
    * no card in it. Every one of those is the seller — or the photo — answering
    * the question that was asked.
    */
-  prebuilt: [["gpu", /\b(rtx|gtx|rx)\s?\d{3,4}|\b(integrated|igpu|onboard|iris|uhd graphics|hd graphics|intel graphics|radeon graphics|radeon vega|vega \d|arc a\d{3})\b|\bno (dedicated |discrete |separate )?(gpu|graphics|video) ?(card)?\b/i],
+  prebuilt: [["gpu", /\b(rtx|gtx|rx|radeon)\s?\d{3,4}|\b(integrated|igpu|onboard|iris|uhd graphics|hd graphics|intel graphics|radeon graphics|radeon vega|vega \d|arc a\d{3})\b|\bno (dedicated |discrete |separate )?(gpu|graphics|video) ?(card)?\b/i],
              // Same reasoning as laptop above: a bare i7 is a stated CPU.
-             ["cpu", /\bi[3579]\b|\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d|m[1-9]\b|core ultra|xeon|threadripper)/i]],
+             ["cpu", /\bi[3579]\b|\br[3579]\s+\d{4}[a-z0-9]*\b|\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d|m[1-9]\b|core ultra|xeon|threadripper|athlon|pentium|celeron)/i]],
   console:  [["storage", /\b(\d{3,4}\s?gb|\d{1,2}\s?tb)\b/i]],
   tablet:   [["storage", /\b(?:\d{1,4}\s?(?:gb|tb)|\d{2,4}\s?g)\b/i]],
 };
@@ -316,6 +317,7 @@ export function detectCategory(title: string, description = ""): Category {
   if (isUnsupportedPrinter(title)) return "unknown";
   const part = resolveCategory(title);
   if (part && (EXACT_PARTS.has(part) || isPortableOmen(title))) return part as Category;
+  if(part==='prebuilt'&&isExplicitDesktop(title))return 'prebuilt';
   // Whole-device and GPU evidence outranks embedded component specs. Keep the
   // compact high-precision patterns first, but do not let the broad component
   // regex fire until the grammatical resolver has had a chance to see the
@@ -367,6 +369,11 @@ export function analyze(l: RawListing, opts?: { clusterSize?: number; visionText
   const t = text.toLowerCase();
   const signals: Signal[] = [];
   const category = detectCategory(l.title, l.description ?? "");
+  const condition=conditionDisclosure(text);
+  if(condition.broken)signals.push({code:'NON_WORKING',severity:'blocker',polarity:'negative',
+    evidence:`Seller condition disclosure: "${condition.broken}". Working-unit sold prices do not establish this item's value.`});
+  if(condition.untested)signals.push({code:'UNTESTED',severity:'high',polarity:'negative',
+    evidence:`Seller says: "${condition.untested}". Functionality has not been demonstrated.`});
 
   // ---------------------------------------------------------- age (3c)
   let daysOnMarket: number | null = null;

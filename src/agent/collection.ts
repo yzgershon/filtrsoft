@@ -10,7 +10,7 @@ const script:Record<Source,string>={facebook:'fb:crawl',offerup:'ou:crawl',merca
 
 /** Interleave sources so a broken Facebook launch cannot starve OfferUp. Each
  * cycle advances the cursor even after failure, avoiding a permanent first-query loop. */
-export function collectionPlan(sources:Source[],cursor:number,queries=3,limit=12):CollectionStage[] {
+export function collectionPlan(sources:Source[],cursor:number,queries=3,limit=6):CollectionStage[] {
   if(!Number.isSafeInteger(cursor)||cursor<0||!Number.isInteger(queries)||queries<1||queries>4)throw new Error('Invalid search plan');
   const plan:CollectionStage[]=[];
   for(let round=0;round<queries;round++) for(const source of sources) {
@@ -18,7 +18,9 @@ export function collectionPlan(sources:Source[],cursor:number,queries=3,limit=12
     plan.push({source,kind:'crawl',name:`${source}/search-${query.replaceAll(' ','-')}`,args:['run',script[source],'--query',query,'--limit',String(limit),...(source==='facebook'?['--cards-only']:[])],timeoutMs:4*60_000});
   }
   for(const source of sources) {
-    plan.push({source,kind:'enrich',name:`${source}/details`,args:['run',source==='facebook'?'fb:detail':source==='offerup'?'ou:photos':'mc:detail','--limit',String(Math.min(limit,4))],timeoutMs:4*60_000});
+    // At most 18 new cards versus 20 detail reads lets the description backlog
+    // shrink while preserving core and parts searches. Previously: 36 / 4.
+    plan.push({source,kind:'enrich',name:`${source}/details`,args:['run',source==='facebook'?'fb:detail':source==='offerup'?'ou:photos':'mc:detail','--limit','20'],timeoutMs:8*60_000});
     plan.push({source,kind:'probe',name:`${source}/probe`,args:['run','probe','--source',source,'--limit','6'],timeoutMs:4*60_000});
   }
   return plan;

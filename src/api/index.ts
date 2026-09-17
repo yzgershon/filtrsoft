@@ -39,7 +39,7 @@ import { handleDeletionChallenge, handleDeletionNotice, deletionEndpoint, deleti
 import {
   handleVapid, handleSubscribe, handleListSearches, handleCreateSearch,
   handleDeleteSearch, handleUpdateSearch, handleTestPush, pushConfigured, ensureAlertTables, pushStatus,
-  alertStatus,
+  alertStatus,handlePushStatus,
   handleUpdateStanding,
 } from "./alerts.ts";
 import {
@@ -52,6 +52,8 @@ import {
 import { getEconomics } from "../valuation/index.ts";
 import { db, DB_PATH } from "../db/index.ts";
 import {storageStatus} from '../db/storage.ts';
+import {availabilityMap,availabilityView} from '../db/availability.ts';
+import {isPhotoUrl} from '../sources/photo-url.ts';
 import { isoAgo } from "../db/time.ts";
 import { getThumb, thumbStats, pruneThumbs, THUMBS_OFF } from "../photos/thumb.ts";
 import {
@@ -577,6 +579,7 @@ app.post("/v1/ebay/deletion", handleDeletionNotice);
  * identity here, so none of this needs an account.
  */
 app.get("/v1/push/vapid", handleVapid);
+app.get('/v1/push/status',handlePushStatus);
 app.post("/v1/push/subscribe", handleSubscribe);
 app.post("/v1/push/test", handleTestPush);
 app.get("/v1/searches", handleListSearches);
@@ -785,11 +788,11 @@ export function tracker(r: {
  * The remote url stays the fallback, so a listing we have not cached yet still
  * shows its photo rather than nothing.
  */
-const thumbUrl = (r: { id: number; has_thumb?: number; thumb?: string | null }) =>
-  r.has_thumb ? `/v1/thumb/${r.id}` : r.thumb ?? null;
+const thumbUrl = (r: { id: number; has_thumb?: number; thumb?: string | null;thumb_candidates?:string }) =>
+  r.has_thumb ? `/v1/thumb/${r.id}` : r.thumb && isPhotoUrl(r.thumb) ? r.thumb : photoFallbacks(r)[0]??null;
 
 const photoFallbacks=(r:{thumb_candidates?:string}):string[]=>{
-  try{return JSON.parse(r.thumb_candidates??'[]');}catch{return [];}
+  try{return JSON.parse(r.thumb_candidates??'[]').filter((url:unknown)=>typeof url==='string'&&isPhotoUrl(url));}catch{return [];}
 };
 
 /**
@@ -954,6 +957,7 @@ app.get("/v1/feed", (c) => {
    * the listings we priced and rejected.
    */
   const RANK: Record<string, number> = { BUY: 0, VERIFY: 1, RISK: 2, FAIR: 3, PASS: 4, INSUFFICIENT_DATA: 5 };
+  const availability=availabilityMap();
   const ranked = rows.filter(r => !removed.has(r.id)).map((r) => {
     const v = r.payload ? JSON.parse(r.payload) : null;
     const net = v?.netProfitCents ?? 0;
@@ -998,7 +1002,7 @@ app.get("/v1/feed", (c) => {
       netProfitCents: v?.netProfitCents ?? null,
       flagCount: (v?.blockers?.length ?? 0),
       ...tracker(r),
-      score,
+      availability:availabilityView(availability.get(r.id),Boolean(r.delisted_at)),score,
     };
   })
     /**
@@ -1260,7 +1264,7 @@ app.get("/v1/checks/:id", (c) => {
   const id = Number(c.req.param("id"));
   const row = db()
     .query(
-      `SELECT l.id, l.title, l.url, l.asking_price_cents, l.location, l.posted_at, l.source,
+      `SELECT l.id, l.title, l.url, l.asking_price_cents, l.location, l.posted_at, l.source, l.delisted_at,
               v.call, v.confidence, v.payload
        FROM listings l
        LEFT JOIN verdicts v ON v.listing_id = l.id
@@ -1315,12 +1319,12 @@ app.get("/v1/checks/:id", (c) => {
     checkId: row.id,
     listing: {
       title: proof?.facts.title??row.title, url: row.url, askingPriceCents: proof?proof.facts.askingPriceCents:row.asking_price_cents,
-      location: proof?.facts.location??row.location, postedAt: proof?.facts.postedAt??row.posted_at, source: row.source, photoUrls: proof?.facts.photoUrls??photos,
+      location: proof?.facts.location??row.location, postedAt: proof?.facts.postedAt??row.posted_at, source: row.source, photoUrls: (proof?.facts.photoUrls??photos).filter(isPhotoUrl),
     },
     verdict,
     signals,
     comps,
-    meta: {...meta, dismissed: dismissedIds(currentUser(c)!.id).has(id), specifications: verdict?.inventory ? {fields:[],photoStatus:proof?.visionEvidence?"recorded":"not_read",notes:["This listing contains multiple items. Use each offer’s exact seller wording below."],attributes:[]} : specifications(proof)},
+    meta: {...meta, availability:availabilityView(availabilityMap().get(id),Boolean(row.delisted_at)), dismissed: dismissedIds(currentUser(c)!.id).has(id), specifications: verdict?.inventory ? {fields:[],photoStatus:proof?.visionEvidence?"recorded":"not_read",notes:["This listing contains multiple items. Use each offer’s exact seller wording below."],attributes:[]} : specifications(proof)},
   });
 });
 

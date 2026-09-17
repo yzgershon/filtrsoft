@@ -26,6 +26,7 @@ import {dismissedIds} from "./dismissals.ts";
 import type { Context } from "hono";
 import webpush from "web-push";
 import { db, now } from "../db/index.ts";
+import {ensureEnrichment} from '../db/enrichment.ts';
 import { currentUser } from "./auth.ts";
 import { installSavedSearches, searchInput, searchView, matchesCriteria } from "./search-criteria.ts";
 import { loadAccountOverrides } from "./overrides.ts";
@@ -300,6 +301,17 @@ interface SearchRow {
 /** Does this listing satisfy the search? All stated criteria must hold. */
 export const matches = matchesCriteria;
 
+/** Delivery is about a current opportunity, not a historical stored call.
+ * Search sightings alone cannot revalidate browser-backed seller conditions. */
+export function freshAlertEvidence(r:{source:string;description?:string;updated_at?:string|null;last_seen?:string|null;captured_at?:string;availability_at?:string|null;availability?:string|null},at=Date.now()) {
+  if(!['facebook','offerup','mercari','craigslist'].includes(r.source))return true;
+  const recent=(v?:string|null,hours=6)=>Boolean(v && Number.isFinite(Date.parse(v)) && Date.parse(v)<=at+300000 && Date.parse(v)>=at-hours*3600000);
+  if(r.availability==='gone')return false;
+  if(!recent(r.last_seen??r.captured_at,24))return false;
+  if(r.source==='craigslist')return recent(r.availability==='alive'?r.availability_at:r.updated_at);
+  return Boolean(r.description?.trim()) && recent(r.updated_at) && (r.availability==='alive'?recent(r.availability_at):r.availability!=='unknown');
+}
+
 /**
  * Match newly-analysed listings against every saved search and notify.
  *
@@ -310,6 +322,7 @@ export const matches = matchesCriteria;
 export async function runAlerts(): Promise<number> {
   if (!configure()) return 0;
   ensureAlertTables();
+  ensureEnrichment();
 
   const searches = db().query(`
     SELECT s.*, p.endpoint, p.p256dh, p.auth,p.user_id
@@ -329,9 +342,10 @@ export async function runAlerts(): Promise<number> {
      * listings a week old — and notifications get switched off immediately.
      */
     const rows = db().query(`
-      SELECT l.id, l.title, l.source, l.asking_price_cents price, v.call, v.payload
+      SELECT l.id, l.title, l.source,l.description,l.updated_at,l.last_seen,l.captured_at,a.observed_at availability_at,a.outcome availability, l.asking_price_cents price, v.call, v.payload
       FROM listings l
       JOIN verdicts v ON v.id = (SELECT MAX(id) FROM verdicts WHERE listing_id = l.id)
+      LEFT JOIN listing_availability a ON a.listing_id=l.id
       WHERE l.delisted_at IS NULL
         AND l.captured_at > ?
         AND v.call NOT IN ('OUT_OF_SCOPE')
@@ -343,7 +357,7 @@ export async function runAlerts(): Promise<number> {
 
     // Match first, then bound delivery work. A newer nonmatch must not hide an
     // older BUY forever. Personal risk labels also apply before this limit.
-    const eligible=rows.filter(r=>!removed.has(r.id)).map(r=>({...r,call:overrides.get(r.id)?.call??r.call,reviewed:overrides.has(r.id)})).filter(r=>{
+    const eligible=rows.filter(r=>!removed.has(r.id)&&freshAlertEvidence(r)).map(r=>({...r,call:overrides.get(r.id)?.call??r.call,reviewed:overrides.has(r.id)})).filter(r=>{
       let net=null;try{net=r.payload?JSON.parse(r.payload).netProfitCents??null:null;}catch{return false;}
       return matches(s,{title:r.title,source:r.source,price:r.price,call:r.call,net,reviewed:r.reviewed});
     }).slice(0,40);
@@ -354,10 +368,11 @@ export async function runAlerts(): Promise<number> {
         WHERE s.id=? AND s.user_id=p.user_id AND (s.standing=1 OR (s.criteria_version=2 AND s.notify_since IS NOT NULL))`).get(s.id) as SearchRow|null;
       if (!latest || latest.sub_id !== s.sub_id || latest.user_id !== s.user_id) continue;
       if(latest.user_id && dismissedIds(latest.user_id).has(candidate.id))continue;
-      const r=db().query(`SELECT l.id,l.title,l.source,l.captured_at,l.asking_price_cents price,v.call,v.payload FROM listings l
+      const r=db().query(`SELECT l.id,l.title,l.source,l.captured_at,l.description,l.updated_at,l.last_seen,a.observed_at availability_at,a.outcome availability,l.asking_price_cents price,v.call,v.payload FROM listings l
         JOIN verdicts v ON v.id=(SELECT MAX(id) FROM verdicts WHERE listing_id=l.id)
+        LEFT JOIN listing_availability a ON a.listing_id=l.id
         WHERE l.id=? AND l.delisted_at IS NULL`).get(candidate.id) as any;
-      if(!r || r.captured_at <= (latest.standing ? latest.created_at : latest.notify_since!))continue;
+      if(!r || !freshAlertEvidence(r) || r.captured_at <= (latest.standing ? latest.created_at : latest.notify_since!))continue;
       const personal = latest.user_id ? loadAccountOverrides(latest.user_id) : new Map();
       r.call=personal.get(r.id)?.call??r.call;
       let net=null;try{net=r.payload?JSON.parse(r.payload).netProfitCents??null:null;}catch{continue;}
@@ -450,6 +465,20 @@ export function handleVapid(c: Context) {
    */
   const st = pushStatus();
   return c.json({ publicKey: st.usable ? vapidPublicKey() : null, configured: st.usable, error: st.error });
+}
+
+/** Account-scoped diagnostics never expose push endpoints or encryption keys. */
+export function handlePushStatus(c:Context) {
+  const user=currentUser(c);if(!user)return c.json({error:'sign in required'},401);
+  ensureAlertTables();
+  const subscriptions=db().query('SELECT id,created_at createdAt,last_ok lastAcceptedAt FROM push_subs WHERE user_id=?').all(user.id);
+  const searches=db().query(`SELECT COUNT(*) total,SUM(CASE WHEN standing=1 THEN 1 ELSE 0 END) standing,
+    SUM(CASE WHEN standing=0 AND (criteria_version<2 OR notify_since IS NULL OR sub_id IS NULL) THEN 1 ELSE 0 END) paused
+    FROM saved_searches WHERE user_id=?`).get(user.id);
+  const deliveries=db().query(`SELECT a.status,COUNT(*) count,MAX(a.updated_at) lastAttemptAt FROM alert_deliveries a
+    JOIN saved_searches s ON s.id=a.search_id WHERE s.user_id=? GROUP BY a.status`).all(user.id);
+  return c.json({configured:pushConfigured(),subscriptions,searches,deliveries,
+    receiptMeaning:'Accepted by the push service; a phone displaying it still requires device verification.'});
 }
 
 export async function handleSubscribe(c: Context) {
