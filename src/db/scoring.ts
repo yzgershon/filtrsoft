@@ -6,6 +6,9 @@ import {clearMeasuredMultiplierCache} from "../valuation/condition.ts";
 
 /** Per-listing checkpoints are the resumable cursor: success advances only that
  * row; failures back off without blocking later IDs or declaring the run done.
+ * September 17 production verification found 9,000+ historical rows ahead of
+ * corrected recommendations after deployment. Read new evidence and live
+ * BUY/VERIFY first, then other feed rows, without dropping the historical work.
  */
 export function scorePending(limit=400,score:(id:number)=>VerdictPayload=id=>checkStored(id).verdict) {
   const d=db(),signature=pricingSignature(d),at=now(),target=`${ENGINE_VERSION}|${signature}`;
@@ -15,7 +18,13 @@ export function scorePending(limit=400,score:(id:number)=>VerdictPayload=id=>che
     LEFT JOIN verdicts v ON v.id=(SELECT MAX(id) FROM verdicts WHERE listing_id=l.id)
     WHERE (s.signature IS NOT ? OR s.engine IS NOT ? OR v.engine_version IS NOT ? OR q.listing_id IS NOT NULL)
       AND (s.attempt_signature IS NOT ? OR s.retry_at IS NULL OR s.retry_at<=?)
-    ORDER BY s.last_attempt ASC,l.id LIMIT ?`).all(signature,ENGINE_VERSION,ENGINE_VERSION,target,at,Math.max(1,limit)) as {id:number;requested_at:string|null}[];
+    ORDER BY CASE
+      WHEN l.delisted_at IS NOT NULL THEN 4
+      WHEN q.listing_id IS NOT NULL OR v.id IS NULL THEN 0
+      WHEN v.call IN ('BUY','VERIFY') THEN 1
+      WHEN v.call!='OUT_OF_SCOPE' THEN 2
+      ELSE 3 END,
+      s.last_attempt ASC,l.id LIMIT ?`).all(signature,ENGINE_VERSION,ENGINE_VERSION,target,at,Math.max(1,limit)) as {id:number;requested_at:string|null}[];
   let checked=0,changed=0,failed=0;
   clearMeasuredMultiplierCache();
   for(const row of rows) {

@@ -46,6 +46,21 @@ Those observations distinguish insufficient input from a stopped scoring queue.
 
 ## Evidence and limits
 
+Release `da71588` reached production at 17:41:38 UTC (Railway deployment
+6508647200). GitHub CI 35254202916 passed, and the 17:43 UTC public receipt
+verified engine 0.3.37 and all six built JS/CSS assets byte-for-byte. Signed-in
+production UI verification confirmed the availability labels and notification
+controls. Re-scoring was still processing the historical backlog, without errors.
+The follow-up queue fix prioritizes new evidence and live recommendations before
+historical rows; it does not alter the evidence rules or engine version.
+
+The account-scoped push endpoint revealed no device or standing alert for Yish's
+signed-in account and nine paused legacy searches. The site-wide subscription
+count from the initial audit was not proof of his account's registration. Yish
+will register his phone later and has sent the OMEN update instructions to Codex
+there. New desktop collector operation and physical-phone delivery remain to be
+observed. Do not treat the server deployment as a desktop software update.
+
 The live RX 7900 XTX (#8154) was Buy it despite its stored untested disclosure.
 Its later source page also said for parts and showed a changed ask. The repaired
 engine handles both disclosures; the new source text/price still requires an
