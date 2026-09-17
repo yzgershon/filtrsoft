@@ -131,7 +131,7 @@ export function runPipeline(
   }
   const domain=opts.bounded!==false?closedDomain(listing.description):null;
   const outsideDomain=domain?extractAttributes(`${listing.title}\n${listing.description.replace(domain.quote,'')}\n${Object.values(listing.attributes).join('\n')}\n${vText}`):{};
-  if(domain&&verdict.call==='INSUFFICIENT_DATA'&&extraction.complete!==false&&outsideDomain[domain.field]==null){
+  if(domain&&verdict.call==='INSUFFICIENT_DATA'&&extraction.complete===true&&extraction.truncated!==true&&outsideDomain[domain.field]==null){
     const cases=domain.values.map(value=>{
       const label=domain.field==='ram_gb'?'RAM':'Storage';
       const candidate={...listing,description:listing.description.replace(domain.quote,`${label}: ${value}GB.`)};
@@ -501,4 +501,4 @@ export function checkStored(
 // 0.3.33: preserve item/quantity/price pairs in placeholder inventory ads.
 // Never compare the headline $1 with a median assembled from different items.
 // 0.3.36: ambiguous MacBook families cannot pool Intel and Apple Silicon sales.
-export const ENGINE_VERSION = "0.3.40";
+export const ENGINE_VERSION = "0.3.41";
