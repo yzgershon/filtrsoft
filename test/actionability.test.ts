@@ -55,6 +55,17 @@ test('sold badges and positive actions belong to the exact requested item',()=>{
   expect(probeVerdict({...page,text:'Home > RTX 4090\nSimilar items\nOther GPU SOLD\nRTX 4090\n$1500\nMake offer'})?.gone).toBe(false);
 });
 
+test('OfferUp chevron breadcrumbs do not count as a second item panel',()=>{
+  const heading='MSI RTX 5090 Liquid Suprim and ROG Strix X870e mother board';
+  const url='https://offerup.com/item/detail/c05b46e1-e7c6-3780-869d-6d5c23aba7d3';
+  const page={url,finalUrl:url,heading,title:`${heading} for Sale in Melrose, MA - OfferUp`,actions:['Ask','Make offer'],
+    text:`Home\n›\nComputers & Accessories\n›\n${heading}\nTake action\n$3,100\n${heading}\nSold by\nZack\nAsk\nMake offer\nDescription\nSelling a new still sealed MSI 5090 LC suprim GPU and ROG Strix X870e MB.\nSimilar items\nSOLD`};
+  expect(probeVerdict(page)?.gone).toBe(false);
+  expect(probeVerdict({...page,text:page.text.replace('Sold by','Sold\nSold by')})?.gone).toBe(true);
+  expect(probeVerdict({...page,text:page.text.replace('Take action',heading)})).toBeNull();
+  expect(probeVerdict({...page,actions:[]})).toBeNull();
+});
+
 test('explicit Radeon variants retain their identity while legacy Radeon numbers stay unknown',()=>{
   expect(extractAttributes('Alienware R10 Radeon 6800XT 16GB, Ryzen 9 5900X, 32GB DDR4 RAM').gpu).toBe('rx 6800 xt');
   expect(extractAttributes('Graphics card Radeon 7900 XTX').gpu).toBe('rx 7900 xtx');
