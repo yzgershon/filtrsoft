@@ -553,3 +553,10 @@ CREATE TABLE IF NOT EXISTS listing_dismissals (
   created_at TEXT NOT NULL,
   PRIMARY KEY(user_id,listing_id)
 );
+-- Seller-page attempts and positive availability evidence have independent
+-- clocks. Install at database startup so ordinary feed reads stay read-only.
+CREATE TABLE IF NOT EXISTS listing_enrichment(
+  listing_id INTEGER PRIMARY KEY REFERENCES listings(id), attempted_at TEXT NOT NULL,
+  next_attempt_at TEXT NOT NULL, failures INTEGER NOT NULL DEFAULT 0, outcome TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS collector_priorities(listing_id INTEGER PRIMARY KEY,call TEXT NOT NULL,expires_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS listing_availability(listing_id INTEGER PRIMARY KEY,observed_at TEXT NOT NULL,outcome TEXT NOT NULL);

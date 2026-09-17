@@ -16,7 +16,7 @@ const fixture=`
   const request=(owner,path,method='GET',body=undefined)=>app.request(path,{method,headers:{cookie:'filtrsoft_session=fixture-'+owner,'content-type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})});
   let serial=0;
   const listing=(call='BUY',title='Nvidia RTX 4090',source='craigslist',price=40000)=>{
-    const id=upsertListingFacts(d,{source,sourceId:String(++serial),url:'https://example.invalid/'+serial,title,description:'',askingPriceCents:price,location:null,postedAt:null,photoCount:0}).id;
+    const id=upsertListingFacts(d,{source,sourceId:String(++serial),url:'https://example.invalid/'+serial,title,description:'',askingPriceCents:price,location:null,postedAt:null,updatedAt:at,photoCount:0}).id;
     storeVerdict(id,'fixture',{call,netProfitCents:20000,channels:[{channel:'facebook',available:true,netCents:60000}]});return id;
   };
   const subscribe=async()=>{const r=await request(1,'/v1/push/subscribe','POST',{endpoint:'https://push.example.invalid/a',keys:{p256dh:'fixture',auth:'fixture'}});return (await r.json()).subId;};
@@ -43,6 +43,15 @@ test('matching preserves source, quality, category, price and explicit call cons
   const row={title:'Nvidia RTX 4090',price:40000,net:10000,call:'BUY',source:'craigslist',reviewed:false};
   assert.equal(matchesCriteria(s,row),true);
   for(const change of [{source:'facebook'},{reviewed:true},{price:null},{price:50001},{net:null},{call:'FAIR'},{title:'RTX 4090 laptop'}])assert.equal(matchesCriteria(s,{...row,...change}),false,JSON.stringify(change));
+`));
+
+test('delivery diagnostics belong to the signed-in account and expose no endpoint secrets',()=>isolated(fixture+`
+  await subscribe();
+  assert.equal((await app.request('/v1/push/status')).status,401);
+  const mine=await (await request(1,'/v1/push/status')).json();assert.equal(mine.subscriptions.length,1);
+  assert.equal((await (await request(2,'/v1/push/status')).json()).subscriptions.length,0);
+  assert.equal(JSON.stringify(mine).includes('https://push.example.invalid'),false);
+  assert.equal(JSON.stringify(mine).includes('p256dh'),false);
 `));
 
 test('notification watermarks skip backlog, move only for changed matching rules, and disable cleanly',()=>isolated(fixture+`

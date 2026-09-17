@@ -7,6 +7,7 @@ import {backupIfDue,maintenanceTask} from '../agent/maintenance.ts';
 import {db,DB_PATH} from '../db/index.ts';
 import {queueJobReport,flushJobReports} from '../agent/reports.ts';
 import {collect,isSource} from '../agent/collection.ts';
+import {acceptRepairTargets} from '../agent/targets.ts';
 import {claimRunner,advanceCursor,runnerVersion,writeRunnerState} from '../agent/state.ts';
 import {runCommand} from '../agent/process.ts';
 import {isPaused} from './pause.ts';
@@ -17,7 +18,7 @@ if(!TOKEN){console.error('FILTRSOFT_PUSH_TOKEN is not configured; no work claime
 try {claimRunner();}catch(error){console.log(`collector already owned: ${String(error)}`);process.exit(0);}
 const revision=runnerVersion(),agent=randomUUID();
 const nodeId=nodeIdentity();
-const auth={authorization:`Bearer ${TOKEN}`,'x-filtrsoft-agent':agent,'x-filtrsoft-agent-version':revision,'x-filtrsoft-node':nodeId};
+const auth={authorization:`Bearer ${TOKEN}`,'x-filtrsoft-agent':agent,'x-filtrsoft-agent-version':revision,'x-filtrsoft-node':nodeId,'x-filtrsoft-work-version':'1'};
 let ownsLease=true,lastLeaseConfirmed=Date.now(),workWaiting=false;
 const interrupted=()=>isPaused()||!ownsLease||jobId!==null&&Date.now()-lastLeaseConfirmed>120_000;
 let lastPollAt:string|null=null,lastError:string|null=null,progress='starting',jobId:number|null=null;
@@ -29,12 +30,13 @@ async function heartbeat(status:string) {
   }catch{}
 }
 async function report(id:number,body:Record<string,unknown>){queueJobReport(db(),API,agent,id,body);await flushJobReports(db(),API,auth.authorization);}
-async function doJob(job:{id:number;sources:string[]}) {
+async function doJob(job:{id:number;sources:string[];repairTargets?:unknown}) {
   jobId=job.id;ownsLease=true;lastLeaseConfirmed=Date.now();progress='starting';state('working');
   await heartbeat('working');
   const heartbeatTimer=setInterval(()=>{state('working');void heartbeat('working');void report(job.id,{progress}).catch(error=>{lastError=String(error).slice(0,300);});},30_000);
   try {
     const sources=job.sources.filter(isSource);
+    if(job.repairTargets)console.log(`Received ${acceptRepairTargets(job.repairTargets)} production listings to refresh`);
     const summary=await collect(sources,{cursor:advanceCursor(2),paused:interrupted,cooldown:s=>sourceCooldown(s)?.retryAt??null,
       run:step=>runCommand(process.execPath,step.args,{timeoutMs:step.timeoutMs,cancelled:step.kind==='sync'?undefined:interrupted,onOutput:text=>process.stdout.write(text)}),
       stage:async(step,status,error)=>{progress=step.name;state('working');
@@ -76,7 +78,7 @@ while(true) {
     else {
       const timer=setInterval(()=>void heartbeat('online'),15000);
       try{await backupIfDue();
-        if(!workWaiting&&!isPaused()&&process.env.FILTRSOFT_AGENT_COMPS==='1')await maintenanceTask('comps',['run','comps:refresh'],{intervalMs:4*3600_000,timeoutMs:240_000,cancelled:()=>isPaused()||workWaiting});
+        if(!workWaiting&&!isPaused()&&process.env.FILTRSOFT_AGENT_COMPS==='1')await maintenanceTask('comps',['run','comps:refresh'],{intervalMs:3600_000,timeoutMs:360_000,cancelled:()=>isPaused()||workWaiting});
       }finally{clearInterval(timer);}
     }
   } catch(error){lastError=String(error).slice(0,500);console.error(`[${new Date().toISOString()}] ${lastError}`);state('offline');}

@@ -21,7 +21,7 @@ import { join } from "node:path";
 import { insertComp, db, now } from "../db/index.ts";
 import { normalizeCondition, type Condition } from "../valuation/condition.ts";
 import { resolveProductType, resolveCategory, isMultiUnit } from "../signals/product-type.ts";
-import { variantPattern } from "../signals/variants.ts";
+import { productVariants } from "../signals/variants.ts";
 import { catalogCategory, exactPartIdentity } from "../catalog/identity.ts";
 
 const WORKER = join(import.meta.dir, "../browser/ebay-worker.mjs");
@@ -296,7 +296,7 @@ export function compMatchesQuery(
       .join("[\\s\\-_.]*");
     // A model number is a PREFIX of its own variants, so a bare substring test
     // silently merges products that do not share a price.
-    if (!new RegExp(`${pattern}${UNIT_SUFFIX}?(?![a-z0-9])`, "i").test(title)) {
+    if (!new RegExp(`(?<![a-z0-9])${pattern}${UNIT_SUFFIX}?(?![a-z0-9])`, "i").test(title)) {
       const loose = new RegExp(pattern, "i").test(title);
       return {
         ok: false,
@@ -305,6 +305,15 @@ export function compMatchesQuery(
           : `title does not contain "${w}"`,
       };
     }
+  }
+
+  // Numeric coincidence is not product identity: "Legion 5" once accepted
+  // a NIMO 15.6-inch laptop. Whole-device maker/family words must agree too.
+  if(['laptop','phone','tablet'].includes(skuCategory??'')) {
+    const words=query.toLowerCase().split(/[^a-z0-9]+/).filter(w=>/^[a-z]{2,}$/.test(w)
+      && !['used','unlocked','laptop','notebook','computer','gaming','tablet','phone','gb','tb','ram','ssd','inch'].includes(w));
+    const titleWords=new Set(title.toLowerCase().split(/[^a-z0-9]+/));
+    if(words.some(w=>!titleWords.has(w)))return {ok:false,why:'device maker or model family differs'};
   }
 
   /**
@@ -322,9 +331,7 @@ export function compMatchesQuery(
    * `iPhone 15` as a comp for `iPhone 15 Pro Max` — a several-hundred-dollar
    * difference, in the direction that inflates a valuation.
    */
-  const VARIANT = variantPattern(skuCategory);
-  const setOf = (s: string) =>
-    new Set((s.toLowerCase().match(VARIANT) ?? []).map((v) => v.toLowerCase()));
+  const setOf = (s: string) =>productVariants(s,skuCategory);
   const qv = setOf(query);
   const tv = setOf(title);
 
@@ -385,6 +392,9 @@ export function compMatchesQuery(
   const kind = resolveProductType(title).kind;
   if (kind === "accessory" || kind === "furniture") {
     return { ok: false, why: `${kind}, not the device itself` };
+  }
+  if(['laptop','phone','tablet','prebuilt'].includes(skuCategory??'') && /\b(?:motherboard|main\s?board|logic\s?board|dc[- ]in|power jack|replacement (?:battery|screen|keyboard)|lcd (?:panel|screen|assembly))\b/i.test(title)) {
+    return {ok:false,why:'replacement component, not a complete device'};
   }
 
   /**

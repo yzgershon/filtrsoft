@@ -1,4 +1,5 @@
 import {workerEvents} from "../agent/worker.ts";
+import {sameMarketplaceItem} from './item-url.ts';
 /**
  * OfferUp and Mercari — parsing and basis.
  *
@@ -309,7 +310,6 @@ export function parseOfferUpDetail(text: string): OfferUpDetail {
  */
 export function offerUpDescription(d: OfferUpDetail): string {
   const specs = Object.entries(d.details)
-    .filter(([k]) => !/^(condition)$/.test(k))
     .map(([k, v]) => `${k}: ${v}`);
   return [d.description, ...specs].filter(Boolean).join("\n").trim();
 }
@@ -351,8 +351,8 @@ export function cardToListing(c: MarketCard): RawListing {
 export type MarketEvent =
   | { type: "log"; msg: string }
   | { type: "cards"; source: Marketplace; query: string; lines: string[]; links: Array<{ href: string; text: string; photo?: string }>; blocked?: boolean }
-  | { type: "photos"; id: number; url: string; finalUrl: string; title: string; urls: string[]; text?: string; error?: string }
-  | { type: "probe"; id: number; url: string; finalUrl: string; text: string; title?: string; error?: string }
+  | { type: "photos"; id: number; url: string; finalUrl: string; title: string; heading?:string; actions?:string[]; priceText?:string; urls: string[]; text?: string; error?: string }
+  | { type: "probe"; id: number; url: string; finalUrl: string; text: string; title?: string; heading?:string; actions?:string[]; error?: string }
   | { type: "error"; msg: string }
   | { type: "done"; stats: Record<string, unknown> };
 
@@ -408,16 +408,27 @@ const GONE_TEXT = [
 const NO_OPINION_HEAD = /^[\s\S]{0,200}?\b(log in to (continue|see)|sign up to (continue|see)|you must log in|please log in|confirm you'?re (a )?human|security check|unusual activity|access denied)\b/i;
 const NO_OPINION_URL = /\/(login|signin|sign-in|checkpoint|challenge)\b/i;
 
-export function probeVerdict(p: { text: string; finalUrl: string; error?: string }): ProbeVerdict {
+export function probeVerdict(p: { text: string; finalUrl: string; url?:string; title?:string; heading?:string; actions?:string[]; error?: string }): ProbeVerdict {
   if (p.error) return null;
   const text = (p.text ?? "").trim();
   // An empty body is a page that did not render, not a deleted listing.
-  if (text.length < 40) return null;
+  if (text.length < 10) return null;
   if (NO_OPINION_URL.test(p.finalUrl)) return null;
-  if (NO_OPINION_HEAD.test(text)) return null;
+  if (NO_OPINION_HEAD.test(text) || /just a moment|security verification|verify you are human/i.test(`${p.title??''}\n${text.slice(0,300)}`)) return null;
+
+  // Do not read another item's price, sold badge or recommendations as this
+  // item's availability. Legacy fixtures without requested URLs still work.
+  if(p.url && !sameMarketplaceItem(p.url,p.finalUrl))return null;
+  // Mercari repeats the title in breadcrumbs BEFORE its recommendations.
+  // Start at an exact heading line, never the first substring occurrence.
+  const lines=text.split('\n'),start=p.heading?lines.findIndex(l=>l.trim()===p.heading!.trim()):-1;
+  const itemText=start>=0?lines.slice(start).join('\n'):text;
+  const ownText=itemText.split(/\n(?:Similar items|Related searches|You may also like|Recommended for you)\b/i)[0]!;
+  if(/(?:^|\n)\s*(?:sold|sold out|this item (?:has been|is) sold|this listing has sold)\s*(?:\n|$)/i.test(ownText))
+    return {gone:true,reason:'marked sold on item page'};
 
   for (const r of GONE_TEXT) {
-    const m = text.match(r);
+    const m = ownText.match(r);
     if (m) return { gone: true, reason: m[0].slice(0, 60).toLowerCase() };
   }
   /**
@@ -445,7 +456,8 @@ export function probeVerdict(p: { text: string; finalUrl: string; error?: string
    * know — the caller then leaves the row alone rather than acting on a page it
    * never actually read.
    */
-  const looksLikeAListing = /\$\s?\d/.test(text) || /\bfor sale in\b/i.test(text);
+  if(p.url && (!p.heading?.trim() || !p.actions?.some(a=>/^(?:buy now|add to cart|make offer|make an offer|ask|message(?: seller)?|send message)$/i.test(a.trim()))))return null;
+  const looksLikeAListing = /\$\s?\d/.test(ownText) || /\bfor sale in\b/i.test(p.title??ownText);
   if (!looksLikeAListing) return null;
 
   return { gone: false, reason: "still up" };
@@ -564,7 +576,7 @@ export function parseMercariDetail(text: string): MercariDetail {
  */
 export function mercariDescription(d: MercariDetail): string {
   const specs = Object.entries(d.details)
-    .filter(([k]) => k !== "posted" && k !== "condition")
+    .filter(([k]) => k !== "posted")
     .map(([k, v]) => `${k}: ${v}`);
   return [d.description, ...specs].filter(Boolean).join("\n").trim();
 }

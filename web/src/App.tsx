@@ -19,7 +19,7 @@ import { BrandMark, Wordmark } from "./brand.tsx";
 import type { Comp, Hist, Listing, Meta, Signal, Verdict } from "./types.ts";
 import {
   LABEL, Toaster, pushHist, readHist, readWatch, writeWatch,
-  readSettings, writeSettings, shareOrCopy, toast,
+  readSettings, writeSettings, shareOrCopy, toast, reconcilePushSubscription,
   openFilters, onFilterCount, rememberSpot, feedRows, deviceRef, scrollToTop,
   onFreshness, freshnessLine, type Freshness,
   DealBanner, publishDealAlert, pushNotes, readNotes, onNotes, unseenNotes,
@@ -280,6 +280,16 @@ export default function App() {
   useEffect(()=>{
     if(auth.state!=='in'||!auth.user)return;
     return beginAccountSync(auth.user.id,deviceRef());
+  },[auth.state,auth.user?.id]);
+  useEffect(()=>{
+    if(auth.state!=='in'||!auth.user)return;
+    // Restoring an existing endpoint needs no permission prompt. Waiting for
+    // Saved > Searches left phones silently detached after account migration.
+    const restore=()=>{void reconcilePushSubscription().catch(()=>{});};
+    restore();addEventListener('online',restore);
+    const visible=()=>{if(document.visibilityState==='visible')restore();};
+    document.addEventListener('visibilitychange',visible);
+    return()=>{removeEventListener('online',restore);document.removeEventListener('visibilitychange',visible);};
   },[auth.state,auth.user?.id]);
   const [ask, setAsk] = useState<Hist | null>(null);
   useEffect(()=>{

@@ -40,6 +40,7 @@ import { db, now } from "../db/index.ts";
 import { currentUser } from "./auth.ts";
 import { z } from "zod";
 import {eligibleHost} from '../agent/host-policy.ts';
+import {repairTargets} from '../agent/targets.ts';
 
 const PIN = () => (process.env.FILTRSOFT_CRAWL_PIN ?? "").trim();
 export const crawlPinConfigured = () => PIN().length >= 4;
@@ -246,7 +247,9 @@ export function handleNextJob(c: Context) {
     claimed = db().query("SELECT * FROM crawl_jobs WHERE id=?").get(row.id);
   })();
 
-  return c.json({ job: claimed ? publicJob(claimed) : null });
+  const job=claimed?publicJob(claimed):null;
+  return c.json({job:job && c.req.header('x-filtrsoft-work-version')==='1'
+    ? {...job,repairTargets:repairTargets(job.sources)}:job});
 }
 
 /** Progress and completion, both from the agent. */

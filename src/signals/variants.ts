@@ -41,3 +41,9 @@ export function variantPattern(category?: string | null): RegExp {
       return /\b(ti|super|xt|xtx)\b/gi;
   }
 }
+
+/** Windows Pro describes the installed OS, never a MacBook/Legion Pro tier. */
+export function productVariants(text:string,category?:string|null):Set<string> {
+  const identity=category==='laptop'?text.replace(/\b(?:windows|win)\s*(?:7|8(?:\.1)?|10|11)\s*pro(?:fessional)?\b/gi,''):text;
+  return new Set((identity.toLowerCase().match(variantPattern(category))??[]).map(v=>v.toLowerCase()));
+}

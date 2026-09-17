@@ -111,7 +111,7 @@ const NEVER_OUR_MARKET =
  * Simulator" resolves to no head noun at all.
  */
 const CONSOLES =
-  /\b(xbox|playstation|\bps[2345]\b|nintendo|game ?cube|gamecube|\bwii\b|wii ?u|switch (oled|lite|console)|nintendo switch|steam ?deck|sega|dreamcast|atari|game ?boy|nintendo ?ds|\b3ds\b|\bpsp\b|ps vita)\b/i;
+  /\b(xbox|playstation|\bps[2345]\b|nintendo|game ?cube|gamecube|\bwii\b|wii ?u|switch (oled|lite|console)|nintendo switch|steam ?deck|legion go|rog ally|handheld gaming (pc|console)|sega|dreamcast|atari|game ?boy|nintendo ?ds|\b3ds\b|\bpsp\b|ps vita)\b/i;
 
 /**
  * Bulk and multi-item listings. "24 Computers, Printers, Monitors left starting
@@ -236,6 +236,7 @@ function riskCleared(gate: RiskGate): string {
 }
 
 export function buildVerdict(input: {
+  source?: string;
   title: string;
   description: string;
   askingPriceCents: number | null;
@@ -701,6 +702,15 @@ export function buildVerdict(input: {
       decidingUnknown:'sold builds with matching CPU, GPU, RAM and storage'};
   }
 
+  // Search cards omit seller defects. The live September 17 audit found an
+  // untested GPU promoted before its description was read. Exact model prices
+  // alone cannot establish whether this particular item is an opportunity.
+  if(['facebook','offerup','mercari'].includes(input.source??'') && !input.description?.trim()) {
+    return {...base,call:'INSUFFICIENT_DATA',confidence:'low',headline:'Seller description has not been read yet.',
+      reasoning:'The search card identifies the product, but the seller description may disclose damage, missing parts or sale conditions. Collection will read it before recommending this listing.',
+      decidingUnknown:'seller description'};
+  }
+
   // --- 5. Money, relative to the user ----------------------------------
   /**
    * A parts-derived value is already a LOCAL price; a SKU-derived one is an eBay
@@ -824,6 +834,11 @@ export function buildVerdict(input: {
   }
 
   if (net >= required) {
+    const untested=signals.signals.find(s=>s.code==='UNTESTED');
+    if(untested)return {...money,call:'VERIFY',confidence:'medium',
+      headline:'Untested. Confirm it works before treating this as a deal.',
+      reasoning:untested.evidence+' The estimated resale assumes a working unit.',
+      decidingUnknown:'working condition',questions:['Can you demonstrate this exact item working under load?',...questions]};
     /**
      * THE RULE THE PRODUCT RESTS ON. `RISK-MODEL.md`:
      *

@@ -28,6 +28,26 @@ import { CATEGORIES } from "../crawler/index.ts";
 import { distance } from "../photos/index.ts";
 import { db, now } from "../db/index.ts";
 import { observePrice } from "../db/price.ts";
+import {dueProbes} from '../db/probes.ts';
+
+/** A daily inventory sweep is too slow for recommendations. Recheck this small
+ * cohort independently; timeouts remain unknown and never remove a listing. */
+export async function sweepRecommendations(limit=20) {
+  const d=db();let checked=0,gone=0,unknown=0;
+  const wanted=new Set((d.query(`SELECT l.id FROM listings l JOIN verdicts v ON v.id=(SELECT MAX(id) FROM verdicts WHERE listing_id=l.id)
+    WHERE l.source='craigslist' AND l.delisted_at IS NULL AND v.call IN ('BUY','VERIFY')`).all() as {id:number}[]).map(r=>r.id));
+  for(const l of dueProbes('craigslist',1000).filter(l=>wanted.has(l.id)).slice(0,limit)) {
+    try {
+      const r=await probeListing(l.url),at=now();
+      d.transaction(()=>{
+        recordProbe(l.id,r.alive?'alive':'gone');
+        if(r.alive)observePrice(d,l.id,null,at);
+        else d.run('UPDATE listings SET delisted_at=?,delist_reason=? WHERE id=?',[at,r.reason??'gone',l.id]);
+      })();checked++;if(!r.alive)gone++;
+    }catch{recordProbe(l.id,'unknown');unknown++;}
+  }
+  return {checked,gone,unknown};
+}
 
 export interface SweepStats {
   liveBefore: number;

@@ -1,0 +1,156 @@
+{
+  "at": "2026-09-17T17:37:39.5154639Z",
+  "scope": "Separate untouched copies of one consistent laptop-ingestion snapshot. Same date, no applied verdicts, no new collection. Not production.",
+  "oldEngine": "0.3.36",
+  "newEngine": "0.3.37",
+  "checked": 5212,
+  "failed": 0,
+  "before": [
+    {
+      "Name": "BUY",
+      "Count": 7
+    },
+    {
+      "Name": "FAIR",
+      "Count": 47
+    },
+    {
+      "Name": "INSUFFICIENT_DATA",
+      "Count": 1691
+    },
+    {
+      "Name": "OUT_OF_SCOPE",
+      "Count": 3091
+    },
+    {
+      "Name": "PASS",
+      "Count": 272
+    },
+    {
+      "Name": "RISK",
+      "Count": 77
+    },
+    {
+      "Name": "VERIFY",
+      "Count": 27
+    }
+  ],
+  "after": [
+    {
+      "Name": "BUY",
+      "Count": 4
+    },
+    {
+      "Name": "FAIR",
+      "Count": 33
+    },
+    {
+      "Name": "INSUFFICIENT_DATA",
+      "Count": 1751
+    },
+    {
+      "Name": "OUT_OF_SCOPE",
+      "Count": 3102
+    },
+    {
+      "Name": "PASS",
+      "Count": 188
+    },
+    {
+      "Name": "RISK",
+      "Count": 110
+    },
+    {
+      "Name": "VERIFY",
+      "Count": 24
+    }
+  ],
+  "transitions": [
+    {
+      "Name": "PASS -> INSUFFICIENT_DATA",
+      "Count": 90
+    },
+    {
+      "Name": "INSUFFICIENT_DATA -> RISK",
+      "Count": 43
+    },
+    {
+      "Name": "RISK -> INSUFFICIENT_DATA",
+      "Count": 15
+    },
+    {
+      "Name": "FAIR -> INSUFFICIENT_DATA",
+      "Count": 13
+    },
+    {
+      "Name": "INSUFFICIENT_DATA -> OUT_OF_SCOPE",
+      "Count": 11
+    },
+    {
+      "Name": "INSUFFICIENT_DATA -> PASS",
+      "Count": 10
+    },
+    {
+      "Name": "VERIFY -> INSUFFICIENT_DATA",
+      "Count": 9
+    },
+    {
+      "Name": "INSUFFICIENT_DATA -> VERIFY",
+      "Count": 5
+    },
+    {
+      "Name": "PASS -> FAIR",
+      "Count": 5
+    },
+    {
+      "Name": "BUY -> INSUFFICIENT_DATA",
+      "Count": 3
+    },
+    {
+      "Name": "FAIR -> VERIFY",
+      "Count": 3
+    },
+    {
+      "Name": "FAIR -> PASS",
+      "Count": 2
+    },
+    {
+      "Name": "FAIR -> RISK",
+      "Count": 2
+    },
+    {
+      "Name": "VERIFY -> RISK",
+      "Count": 2
+    },
+    {
+      "Name": "INSUFFICIENT_DATA -> FAIR",
+      "Count": 1
+    },
+    {
+      "Name": "PASS -> RISK",
+      "Count": 1
+    }
+  ],
+  "newUnknowns": [
+    {
+      "Name": "seller description",
+      "Count": 92
+    },
+    {
+      "Name": "recent sold comps",
+      "Count": 34
+    },
+    {
+      "Name": "sold builds with matching CPU, GPU, RAM and storage",
+      "Count": 2
+    },
+    {
+      "Name": "exact model",
+      "Count": 1
+    },
+    {
+      "Name": "sold prices for the remaining components (not the specs, which are known)",
+      "Count": 1
+    }
+  ]
+}

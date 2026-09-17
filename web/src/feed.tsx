@@ -15,6 +15,7 @@ import { NAVIGATE, pushRoute } from "./history.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Alert, Again, Bell, Check, Cut, Ghost, Save, Sliders, Scan, Info, Cut as SortIcon } from "./icons.tsx";
 import type { Call, FeedItem } from "./types.ts";
+import {availabilityLabel} from './availability.ts';
 import {
   type Filters, type Quality,
   NO_FILTERS, CATEGORIES, SOURCES, SORTS, sourceLabel,
@@ -130,6 +131,7 @@ export function Gcard({ i, saved, onSave, onOpen }: {
               */}
             {[sourceLabel(i.source), i.location].filter(Boolean).join(" · ")}
           </span>
+          {['BUY','VERIFY'].includes(i.call)&&<span className="gloc" title={i.availability?.checkedAt?`Source checked ${new Date(i.availability.checkedAt).toLocaleString()}`:undefined}>{availabilityLabel(i.availability)}</span>}
         </span>
       </button>
       <span className="vh" id={descId}>{desc}</span>
@@ -495,7 +497,7 @@ export function Feed({ onOpen, onWatchChange, freshness }: {
   ];
 
   const GROUPS: Array<{ label: string; note: string; tone: string; calls: Call[] }> = [
-    { label: "Verified deals", note: "ready to act on", tone: "buy", calls: ["BUY"] },
+    { label: "Buy it", note: "check availability before you go", tone: "buy", calls: ["BUY"] },
     { label: "Worth a closer look", note: "need verification", tone: "verify", calls: ["VERIFY"] },
     { label: "Approach with caution", note: "flagged risky", tone: "risk", calls: ["RISK"] },
     { label: "The rest of the market", note: "priced listings", tone: "mute", calls: ["FAIR", "PASS"] },
@@ -641,6 +643,7 @@ export function Feed({ onOpen, onWatchChange, freshness }: {
                   {hero.netProfitCents && hero.netProfitCents > 0
                     ? <span className="num hnet">+{money(hero.netProfitCents)} net</span> : null}
                   <span className="dloc">{[hero.location, ago(hero.postedAt)].filter(Boolean).join(" · ")}</span>
+                  {['BUY','VERIFY'].includes(hero.call)&&<span className="dloc">{availabilityLabel(hero.availability)}</span>}
                 </span>
                 {hero.headline ? <span className="hwhy">{hero.headline}</span> : null}
                 </span>

@@ -12,7 +12,8 @@ import { parseModel, findOrCreateSku } from "./derive.ts";
 import { db, now } from "../db/index.ts";
 import { catalogCategory, EXACT_PARTS, exactPartIdentity } from "./identity.ts";
 import { DEAD_PATTERNS } from "../reference/catalog.ts";
-import { variantPattern } from "../signals/variants.ts";
+import { productVariants } from "../signals/variants.ts";
+import {macbookCompIdentity} from './macbook.ts';
 
 export interface Match {
   skuId: number | null;
@@ -157,13 +158,13 @@ export function extractAttributes(text: string): Record<string, string | number>
   // so match the LABEL first before falling back to proximity heuristics.
   const ramLabelled = t.match(/\bram\s*[:=]\s*(\d{1,3})(?:\.\d)?\s?gb\b/);
   const ram = ramLabelled
-    ?? t.match(/\b(\d{1,3})\s?gb\b(?=[^.]{0,18}\b(?:ram|ddr[45]|memory)\b)/)
+    ?? t.match(/\b(\d{1,3})\s?(?:gb|gigs?)\s*(?:of\s*)?(?:ram|ddr[345]|memory)\b/)
     ?? t.match(/\b(\d{1,3})\s?gb\s*(?:of\s*)?(?:ddr[45]\s*)?ram\b/);
   if (ram) a.ram_gb = Number(ram[1]);
 
   // "(12 GB)" trailing a card name is VRAM, not system memory.
   const vramMatch =
-    t.match(/\b(?:rtx|gtx|rx)\s?\d{3,4}\s?(?:ti|super|xt)?\s*\(?\s*(\d{1,2})\s?gb\b/)
+    t.match(/\b(?:rtx|gtx|rx)\s?\d{3,4}\s?(?:ti\s*super|super|ti|xtx|xt)?\s*\(?\s*(\d{1,2})\s?gb\b(?!\s*(?:ram|ddr[345]|memory)\b)/)
     ?? t.match(/\bvram\s*[:=]\s*(\d{1,2})\s?gb\b/);
   if (vramMatch) a.vram_gb = Number(vramMatch[1]);
 
@@ -224,6 +225,7 @@ export function extractAttributes(text: string): Record<string, string | number>
     [
       ...[...t.matchAll(/\b(i[3579][- ]\d{4,5}[a-z0-9]*|ryzen \d \d{4}[a-z0-9]*|m[1-9](?:\s(?:pro|max|ultra))?)\b/g)]
         .map((m) => m[1].trim()),
+      ...[...t.matchAll(/\br([3579])\s+(\d{4}[a-z0-9]*)\b/g)].map(m=>`ryzen ${m[1]} ${m[2]}`),
       /**
        * ⚠ APPENDED, NOT PREPENDED. `fullestVariant` keeps the fullest spelling
        * of whatever the FIRST match names, so an explicitly written
@@ -237,7 +239,11 @@ export function extractAttributes(text: string): Record<string, string | number>
   if (cpu) a.cpu = cpu;
 
   const gpu = fullestVariant(
-    [...t.matchAll(/\b((?:rtx|gtx|rx)\s?\d{3,4}\s*(?:ti\s*super|super|ti|xtx|xt)?)\b/g)]
+    // The audited Alienware seller wrote "Radeon 6800 XT", omitting RX.
+    // Normalize only the explicit modern Radeon numbering; never infer a
+    // model from a bare number, a Radeon Pro, or a laptop's shared-memory size.
+    [...t.replace(/\bradeon\s+([67]\d{3})\s*(xtx|xt)?\b/g,'rx $1 $2')
+      .matchAll(/\b((?:rtx|gtx|rx)\s?\d{3,4}\s*(?:ti\s*super|super|ti|xtx|xt)?)\b/g)]
       .map((m) => m[1].replace(/(rtx|gtx|rx)\s*(\d+)/, "$1 $2")
         .replace(/(\d)\s*(ti|super|xtx|xt)/, "$1 $2").replace(/ti\s*super/, "ti super").replace(/\s+/g, " ").trim()),
     GPU_BASE,
@@ -301,6 +307,7 @@ export function matchSku(title: string, description = "", categoryHint?: string)
 
   // Canonical identities pass the same guards, including before an alias exists.
   aliasRows = aliasRows.map(r => ({ ...r, category: catalogCategory(r.category, r.model), alias: r.alias || norm(`${r.brand} ${r.model}`) }));
+  aliasRows=aliasRows.filter(r=>macbookCompIdentity(title,`${r.brand} ${r.model}`));
   if (categoryHint && EXACT_PARTS.has(categoryHint)) aliasRows = aliasRows.filter(r => r.category === categoryHint);
 
   // A whole machine is not the sum of a component SKU. Filter parts out.
@@ -315,8 +322,9 @@ export function matchSku(title: string, description = "", categoryHint?: string)
       aliasRows = aliasRows.filter((r) => norm(r.brand) === normalizedBrand);
     }
 
-    const same = aliasRows.filter((r) => r.category === categoryHint);
-    aliasRows = same.length ? same : aliasRows.filter((r) => WHOLE.has(r.category));
+    // No same-brand desktop SKU is not permission to borrow a laptop price.
+    // Live #5299 Legion T5 took Legion 5 laptop comps through this fallback.
+    aliasRows = aliasRows.filter((r) => r.category === categoryHint);
   }
 
   /**
@@ -361,8 +369,7 @@ export function matchSku(title: string, description = "", categoryHint?: string)
    * One direction only: a variant in the TITLE that the MODEL lacks. The
    * reverse is already impossible, since the alias would not have matched.
    */
-  const variantsIn = (s: string, cat?: string | null) =>
-    new Set((s.toLowerCase().match(variantPattern(cat)) ?? []).map((v) => v.toLowerCase()));
+  const variantsIn = productVariants;
 
   const clean = hits.filter((h) => {
     if (EXACT_PARTS.has(h.category) && norm(`${h.brand} ${h.model}`) !== n

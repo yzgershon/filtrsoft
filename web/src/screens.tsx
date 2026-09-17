@@ -3,6 +3,7 @@ import { RemovedListings } from './removed-listings.tsx';
 import type {Purchase} from './purchase-editor.tsx';
 const PurchaseEditor=lazy(()=>import('./purchase-editor.tsx').then(m=>({default:m.PurchaseEditor})));
 import { SavedSearches } from "./saved-searches.tsx";
+import {PushDeliveryStatus} from './push-status.tsx';
 import { NAVIGATE, pushRoute, replaceRoute } from "./history.ts";
 /**
  * Saved, Alerts, Settings, You, the nav bars and the outcome prompt.
@@ -728,6 +729,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
       <div className="sgroup">
         <div className="shead"><Bell size={14} /> Alerts</div>
         <div className="scard">
+          <PushDeliveryStatus/>
           {/**
             * ⚠ THERE IS NO "ALERT ME ON BUY" SWITCH, ONLY A MASTER AND A
             * SECOND TIER. Measured 2026-09-01: BUY lands 0.7 times a day. A
@@ -736,11 +738,11 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
             * product off by accident.
             */}
           <Toggle label="Deal banner"
-            hint="Drop a banner from the top when a Buy it lands while the app is open. About five a week."
+            hint="Show a banner when a new Buy it arrives while the app is open."
             on={s.alerts} onChange={(v) => save({ alerts: v })} />
           {s.alerts && (
             <Toggle label="Include Verify first"
-              hint="Adds listings that need one question answered. Roughly two a day instead of one every other day."
+              hint="Include new Verify first listings in these in-app banners."
               on={s.alertVerify} onChange={(v) => save({ alertVerify: v })} />
           )}
           {/**
@@ -796,7 +798,7 @@ export function SettingsScreen({ s, save, savedCount, onClearSaved }: {
         <div className="shead"><Grid size={14} /> Feed</div>
         <div className="scard">
           <Toggle label="Hide listings that are gone"
-            hint="The daily sweep marks a listing dead when the seller pulls it."
+            hint="Hide listings confirmed unavailable by a source check. A failed check stays unconfirmed."
             on={s.hideGone} onChange={(v) => save({ hideGone: v })} />
           <Toggle label="Show how long it's been listed"
             hint="A tag on the photo: 20 Min, 4 Hrs, 2 Days. Anything over three days never shows one."

@@ -399,16 +399,26 @@ const COMPONENT_OVERRIDE = /\b(desktop|mobile)\s+processor\b|\bboxed\s+(cpu|proc
  * above, so a laptop containing a CPU is a laptop.
  */
 export const isPortableOmen=(title:string)=>/\b(?:hp\s+)?omen\s+(?:15|16|17)(?:[.-]\d+)?\b/i.test(title);
+export const isExplicitDesktop=(title:string)=>(/\b(?:desktop(?!\s+(?:processor|cpu|memory|ram|power supply|motherboard))|tower)\b/i.test(title)
+  || /\b(?:all[- ]in[- ]one|aio)\b/i.test(title)&&/\b(?:pc|computer|inspiron|optiplex|ideacentre|imac)\b/i.test(title))
+  && !/\b(?:laptop|notebook|mobile workstation|desktop processor|pc case|computer case|tower case|cooler|cooling)\b/i.test(title);
 export function resolveCategory(title: string): string | null {
   // Snapshot #1109 sells an Omen 16 with an HX CPU and charger; the sentence
   // "I got a gaming desktop instead" must not price that laptop as a tower.
   // Keep the dimensional laptop names separate from OMEN 30L/40L/45L towers.
   if (isPortableOmen(title)) return "laptop";
+  if(/\bdesktop\s+(?:memory|ram)\b/i.test(title) && !/\b(?:gaming pc|desktop computer|laptop|notebook)\b/i.test(title))return 'ram';
+  // Legion 5/7 laptop titles often end with RAM/SSD specs and omit "laptop".
+  // T5/T7 towers and Go handhelds must never borrow that portable identity.
+  if(/\blegion\s+(?:(?:slim|pro)\s+)?[579]i?\b/i.test(title) && !/\b(?:desktop|tower|gaming pc)\b/i.test(title))return 'laptop';
   if (COMPONENT_OVERRIDE.test(title)) return "component";
   // "Mid-Tower PC Case" contains the whole-device noun tower, but sells a
   // chassis. A complete "Gaming PC ... in an NZXT case" still sells the PC.
   const chassis=/\b(?:pc|computer|desktop|tower)\s+(?:gaming\s+)?(?:case|chassis)\b/i.exec(title);
   if(chassis && !/\b(?:gaming\s+(?:pc|computer|desktop)|(?:complete|custom|built)\s+(?:pc|computer))\b/i.test(title.slice(0,chassis.index))) return "case";
+  // Inspiron, Precision and XPS span portable and desktop families. Explicit
+  // desktop/AIO wording has to win over the family-name laptop shortcut.
+  if(isExplicitDesktop(title))return 'prebuilt';
 
   const nouns = findNouns(title);
   const present = new Set(nouns.filter((n) => n.kind === "tech").map((n) => n.term));

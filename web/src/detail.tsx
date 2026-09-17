@@ -1,5 +1,6 @@
 import {LoadBoundary} from './load-boundary.tsx';
 import {sellerClick} from './seller-click.ts';
+import {availabilityLabel} from './availability.ts';
 import {SpecificationSheet} from "./specifications.tsx";
 const PriceHistory=lazy(()=>import('./listing-workspace.tsx').then(m=>({default:m.PriceHistory})));
 const InspectionWorkspace=lazy(()=>import('./listing-workspace.tsx').then(m=>({default:m.InspectionWorkspace})));
@@ -593,6 +594,7 @@ export function Report({listing,verdict,signals,comps=[],meta,stage,reading,chec
       <div className="lh"><div className="listing-source"><span>{src}</span><span>{listing.location||'Location not stated'}</span></div>
         <h1>{safeListing?<a href={safeListing} target="_blank" rel="noopener noreferrer" onClick={e=>sellerClick(checkId,e)} onAuxClick={e=>sellerClick(checkId,e)}>{listing.title}<span className="title-external" aria-hidden="true">↗</span></a>:listing.title}</h1>
         <div className="hero-price-row"><strong className={`price ${verdict?.inventory?'inventory-ask':'num'}`}>{verdict?.inventory?'Individual prices':listing.askingPriceCents==null?'Price not stated':money(listing.askingPriceCents)}</strong><span>{ago(listing.postedAt)}</span></div>
+        {checkId&&<div className="listing-source"><span>{availabilityLabel(meta?.availability)}</span>{meta?.availability?.checkedAt&&<time dateTime={meta.availability.checkedAt}>{new Date(meta.availability.checkedAt).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</time>}</div>}
         <div className="detail-research-actions">{onCompare&&<button className="detail-compare" onClick={onCompare}><span aria-hidden="true">⇄</span>Compare hardware</button>}{onMarket&&<button className="detail-compare" onClick={onMarket}>Price history <span aria-hidden="true">↗</span></button>}</div>
       </div>
     </header>
