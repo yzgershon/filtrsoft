@@ -14,6 +14,7 @@ import { runMarketWorker, parseCards, cardToListing, MARKETPLACES, BASIS, type M
 import { checkFetched } from "../engine/index.ts";
 import {CORE_QUERIES,marketplaceSearchUrl,discoveryDecision,hasHardwareCategory} from '../crawler/search-policy.ts';
 import { db } from "../db/index.ts";
+import {recordDiscovery} from '../db/discovery.ts';
 
 const arg = (k: string) => {
   const i = process.argv.indexOf(`--${k}`);
@@ -83,6 +84,7 @@ for await (const ev of runMarketWorker(source, {
     skipped += fresh.length - inScope.length;
     console.log(JSON.stringify({type:'search-quality',source,query:ev.query,links:ev.links.length,parsed:cards.length,known:cards.length-fresh.length,eligible:inScope.length,rejected:fresh.length-inScope.length,selected:Math.min(limit,inScope.length)}));
 
+    const beforeSaved=analysed,beforeFailed=failures;
     for (const c of inScope.slice(0, limit)) {
       seen.add(c.sourceId);
       if (has("dry")) {
@@ -106,6 +108,7 @@ for await (const ev of runMarketWorker(source, {
         console.error(`    \x1b[31mfailed: ${(e as Error).message.slice(0, 70)}${detail}\x1b[0m`);
       }
     }
+    if(!has('dry'))recordDiscovery(source,ev.query,{cards:cards.length,known:cards.length-fresh.length,eligible:inScope.length,selected:Math.min(limit,inScope.length),saved:analysed-beforeSaved,failed:failures-beforeFailed});
   }
 }
 

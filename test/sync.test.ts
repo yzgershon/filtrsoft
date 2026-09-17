@@ -98,3 +98,22 @@ test('a newer retirement observation survives stale descriptive facts',()=>isola
   const row=d.query('SELECT * FROM listings WHERE id=?').get(id);
   assert.equal(row.description,'Newer detail');assert.equal(row.asking_price_cents,40000);assert.equal(row.delist_reason,'gone');
 `));
+
+test('independent photo and recovery clocks survive stale cards, retries and newer prose',()=>isolated(setup+`
+ import {ensurePhotoClock,syncPhotoUrls} from '@/src/vision/merge.ts';
+ captureChanges(d,target,'facebook');const original=pendingBatch(d,target,'facebook');
+ upsertListingFacts(d,{...base,description:'New prose',updatedAt:'2026-09-07T00:00:00.000Z',askingPriceCents:40000},'2026-09-08T00:00:00.000Z');
+ syncPhotoUrls(id,['https://cdn.invalid/old.jpg'],'2026-09-02T00:00:00.000Z');
+ const receipt={fingerprint:'a'.repeat(64),complete:true,unchanged:2,observedAt:'2026-09-06T00:00:00.000Z',durationMs:8000,reason:'complete'};
+ const photoUpdate=snapshotSchema.parse({...original.changes[0].listing,photosAt:'2026-09-09T00:00:00.000Z',photos:[{url:'https://cdn.invalid/new.jpg',phash:null}],recovery:receipt});
+ const batch={...original,changes:[{sequence:8,listing:photoUpdate,hash:contentHash(photoUpdate)}]};
+ assert.equal(receiveChanges(batch).acks[0].status,'applied');
+ assert.equal(d.query('SELECT description FROM listings WHERE id=?').get(id).description,'New prose');
+ assert.equal(d.query('SELECT url FROM listing_photos WHERE listing_id=?').get(id).url,'https://cdn.invalid/new.jpg');
+ assert.equal(JSON.parse(d.query('SELECT payload FROM listing_recovery WHERE listing_id=?').get(id).payload).unchanged,2);
+ assert.equal(receiveChanges(batch).acks[0].status,'duplicate');
+ const older={...photoUpdate,photosAt:at,photos:[],recovery:{...receipt,observedAt:at,complete:false}};
+ receiveChanges({...batch,changes:[{sequence:9,listing:older,hash:contentHash(older)}]});
+ assert.equal(d.query('SELECT COUNT(*) n FROM listing_photos WHERE listing_id=?').get(id).n,1);
+ assert.equal(JSON.parse(d.query('SELECT payload FROM listing_recovery WHERE listing_id=?').get(id).payload).complete,true);
+`));

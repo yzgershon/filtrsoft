@@ -276,9 +276,9 @@ export function parseOfferUpDetail(text: string): OfferUpDetail {
     for (let i = dStart + 1; i < lines.length; i++) {
       const l = lines[i];
       if (/^details$/i.test(l) || OU_DETAIL_END.test(l)) break;
-      if (l) body.push(l);
+      body.push(l);
     }
-    out.description = body.join(" ").trim();
+    out.description = body.join("\n").trim();
   }
 
   /**
@@ -351,7 +351,7 @@ export function cardToListing(c: MarketCard): RawListing {
 export type MarketEvent =
   | { type: "log"; msg: string }
   | { type: "cards"; source: Marketplace; query: string; lines: string[]; links: Array<{ href: string; text: string; photo?: string }>; blocked?: boolean }
-  | { type: "photos"; id: number; url: string; finalUrl: string; title: string; heading?:string; itemText?:string; actions?:string[]; priceText?:string; urls: string[]; text?: string; error?: string }
+  | { type: "photos"; id: number; url: string; finalUrl: string; title: string; heading?:string; itemText?:string; actions?:string[]; priceText?:string; urls: string[]; text?: string; error?: string;extraction?:import('./detail-evidence.ts').ExtractionReceipt;readMs?:number }
   | { type: "probe"; id: number; url: string; finalUrl: string; text: string; title?: string; heading?:string; itemText?:string; actions?:string[]; error?: string }
   | { type: "error"; msg: string }
   | { type: "done"; stats: Record<string, unknown> };
@@ -550,9 +550,9 @@ export function parseMercariDetail(text: string): MercariDetail {
     for (let i = dStart + 1; i < lines.length; i++) {
       const l = lines[i];
       if (MC_DESC_END.test(l)) break;
-      if (l) body.push(l);
+      body.push(l);
     }
-    out.description = body.join(" ").trim();
+    out.description = body.join("\n").trim();
   }
 
   const tStart = lines.findIndex((l) => /^details$/i.test(l));

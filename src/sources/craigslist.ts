@@ -1,4 +1,5 @@
 import type { RawListing } from "../types.ts";
+import {craigslistDescription} from './detail-evidence.ts';
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36";
@@ -46,10 +47,7 @@ export async function fetchListing(url: string): Promise<RawListing> {
     ?? html.match(/\$([\d,]+)/)?.[1];
   const askingPriceCents = priceStr ? Number(priceStr.replace(/,/g, "")) * 100 : null;
 
-  const description = strip(
-    html.match(/<section id="postingbody">([\s\S]*?)<\/section>/)?.[1]
-      ?.replace(/<div class="print-information[\s\S]*?<\/div>/g, "") ?? "",
-  ).replace(/^QR Code Link to This Post\s*/i, "");
+  const description = craigslistDescription(html);
 
   // Craigslist emits two <time> elements: posted, then updated.
   const times = [...html.matchAll(/datetime="([^"]+)"/g)].map((m) => m[1]);
@@ -111,7 +109,7 @@ export async function fetchListing(url: string): Promise<RawListing> {
     updatedAt: times[1] ?? times[0] ?? null,
     photoUrls,
     attributes,
-    raw: { htmlBytes: html.length, times, attributes },
+    raw: { htmlBytes: html.length, times, attributes,extraction:{complete:true,truncated:false,rawCharacters:description.length} },
   };
 }
 

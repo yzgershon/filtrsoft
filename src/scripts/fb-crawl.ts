@@ -13,6 +13,7 @@ import { runWorker, searchUrl, parseCard, detailToListing, cardToListing, type F
 import {discoveryDecision} from '../crawler/search-policy.ts';
 import { checkFetched } from "../engine/index.ts";
 import { db, now } from "../db/index.ts";
+import {recordDiscovery} from '../db/discovery.ts';
 
 const arg = (k: string) => {
   const i = process.argv.indexOf(`--${k}`);
@@ -93,7 +94,8 @@ if (rejected.length) {
 }
 console.log(`\x1b[1m${fresh.length} to open\x1b[0m\n`);
 
-if (!fresh.length) process.exit(0);
+const discovery=(saved:number,failed:number)=>recordDiscovery('facebook',arg('query')??'electronics',{cards:cards.length,known:cards.length-unseen.length,eligible:inScope.length,selected:fresh.length,saved,failed});
+if (!fresh.length) {if(!has('dry'))discovery(0,0);process.exit(0);}
 if(has('dry')){for(const card of fresh)console.log(`candidate: ${card.title}`);process.exit(0);}
 
 // Persist discoveries before any per-listing visits. The managed collector
@@ -103,6 +105,7 @@ if(has('cards-only')) {
   for(const card of fresh)try{await checkFetched(cardToListing(card),{persist:true,vision:false});}catch{failed++;}
   db().run('INSERT INTO crawls(started_at,discovered,analysed,vision_run,failed,created_at) VALUES(?,?,?,?,?,?)',[startedAt,cards.length,fresh.length-failed,0,failed,now()]);
   console.log(`${fresh.length-failed} new search cards saved; full descriptions await enrichment`);
+  discovery(fresh.length-failed,failed);
   process.exit(failed?1:0);
 }
 

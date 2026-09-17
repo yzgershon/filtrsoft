@@ -610,6 +610,8 @@ export function Report({listing,verdict,signals,comps=[],meta,stage,reading,chec
             {verdict.overriddenFrom&&<p className="engine-original">Engine: {LABEL[verdict.overriddenFrom]}</p>}<h2>{verdict.headline}</h2><p>{verdict.reasoning}</p>
             {!!meta?.missingValueFields?.length&&<div className="settles"><b>Missing details</b><p>{meta.missingValueFields.join(' · ')}</p></div>}
             {verdict.decidingUnknown&&<div className="settles"><b>Needs confirmation</b><p>{verdict.decidingUnknown}</p></div>}
+            {verdict.boundedDecision&&<div className="settles"><b>Supported alternatives</b><p>{verdict.boundedDecision.domain.join(' or ')} GB. Seller: “{verdict.boundedDecision.quote}”</p><p>{verdict.boundedDecision.limitation}</p><p>{verdict.boundedDecision.configurations.map(c=>`${c.value} GB: ${c.compIds.length} matching sold observations`).join(' · ')}</p></div>}
+            {!!verdict.recovery?.length&&verdict.call==='INSUFFICIENT_DATA'&&<details><summary>Missing evidence</summary><ul>{verdict.recovery.map((b,i)=><li key={`${b.field}-${i}`}><b>{b.field}</b>: {b.reason}</li>)}</ul></details>}
             {disclosed.length>0&&<button className="critical-summary" onClick={()=>choose('inspect')}><Alert size={17}/><span>{disclosed.map(c=>c.label).join(' · ')}</span><span aria-hidden="true">↗</span></button>}
           </section>
           {verdict.valuation.medianCents!=null&&!verdict.inventory&&<section className="detail-card money-card"><Numbers v={verdict} ask={listing.askingPriceCents} channel={channel} onChannelChange={setChannelId}/><CompsAndOffer key={listing.url} v={verdict} comps={[]} ask={listing.askingPriceCents} channel={channel}/></section>}

@@ -34,8 +34,12 @@ function readItemEvidence({mainOnly=false,scopeItem=false}={}) {
   let panel=heading;
   while(title && panel?.parentElement && panel.parentElement!==document.body
     && panel.parentElement.innerText?.trim().startsWith(title))panel=panel.parentElement;
-  return {text:((mainOnly?document.querySelector('main'):null)||document.body).innerText.slice(0,30000),
-    heading:title,itemText:scopeItem?(panel?.innerText?.slice(0,30000)??''):'',
+  const full=((mainOnly?document.querySelector('main'):null)||document.body).innerText;
+  const own=scopeItem?(panel?.innerText??''):full;
+  const remaining=[...(panel??document).querySelectorAll('button,[role="button"]')].some(e=>/^(see|show|read) more$/i.test(e.innerText?.trim())&&e.getBoundingClientRect().height>0);
+  return {text:full.slice(0,80000),
+    heading:title,itemText:scopeItem?own.slice(0,80000):'',
+    extraction:{complete:Boolean(title&&/\nDescription\n/i.test(own)&&!remaining&&own.length<=80000),truncated:own.length>80000,rawCharacters:own.length},
     priceText:(scopeItem?panel:document)?.querySelector('[data-testid="ItemPrice"]')?.innerText??'',
     actions:[...((scopeItem?panel:document)?.querySelectorAll('button,[role="button"]')??[])].filter(e=>!e.disabled&&e.getAttribute('aria-disabled')!=='true')
       .map(e=>e.innerText||e.getAttribute('aria-label')||'')};
@@ -149,11 +153,14 @@ try {
    * which is the same shape as the bug this exists to fix.
    */
   for (const item of opts.photosFor ?? []) {
+    const started=Date.now();
     try {
       await page.goto(item.url, { waitUntil: "domcontentloaded", timeout: 45_000 });
       await pause(2600, 3800);
       await page.mouse.wheel(0, 500);
       await pause(1100, 1700);
+      const more=page.locator('main,[role="main"]').getByText(/^(See|Show|Read) more$/i).first();
+      if(await more.count()) {await more.click({timeout:3000}).catch(()=>{});await pause(400,800);}
 
       const urls = await page.evaluate(() => {
         const out = [];
@@ -184,7 +191,7 @@ try {
       // Recommendations can put the seller's Description below character 4000.
       // Preserve bounded raw text; TypeScript owns all item/condition parsing.
       const evidence = await page.evaluate(readItemEvidence,{mainOnly:true,scopeItem:command==='mercari'});
-      emit({ type: "photos", id: item.id, url: item.url, finalUrl: page.url(), title, urls, ...evidence });
+      emit({ type: "photos", id: item.id, url: item.url, finalUrl: page.url(), title, urls, ...evidence,readMs:Date.now()-started });
     } catch (e) {
       emit({ type: "photos", id: item.id, url: item.url, finalUrl: "", title: "", urls: [], error: String(e && e.message ? e.message : e) });
     }

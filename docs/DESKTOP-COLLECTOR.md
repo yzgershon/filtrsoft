@@ -11,11 +11,15 @@ fine; sleep stops work. Nothing listens for inbound connections to the PC.
   logon shortcut and existing daily task ensure the same supervisor is running.
 - A machine lease excludes a second collector/manual daily crawl. Server job
   claims coordinate separate computers. Site profile leases remain in place.
-- Each cycle rotates two of five searches. Sources take turns; one source's
+- Each cycle rotates three bounded searches per source. Sources take turns; one source's
   challenge stops further visits to it in that job while the others continue.
 - Existing unacknowledged captures sync first; every crawl/detail/probe stage
   checkpoints facts, including partial failures. No date window drops old work.
-- Browser stages have four-minute ceilings and terminate only their own child
+- Search and probe stages have four-minute ceilings; ordinary details have an
+  eight-minute ceiling. Recovery adds two sequential interleaved chunks, with
+  per-source `FILTRSOFT_RECOVERY_<SOURCE>_SECONDS` (default 360, maximum 600) and
+  `_ATTEMPTS` (default 20, maximum 40). Recent read time and failure rates reduce
+  attempts within those budgets. Stages terminate only their own child
   tree. Both output pipes are drained. Missing completion and failed detail
   reads cannot report a successful crawl.
 - Pause stops new work and interrupts a current browser stage. A final upload
@@ -23,7 +27,8 @@ fine; sleep stops work. Nothing listens for inbound connections to the PC.
 - Paid desktop vision defaults off. It requires an explicit per-machine budget;
   the local and Railway databases do not share a spending ledger.
 
-The 45-minute server cadence is measured after job completion. It is not an
+The server cadence is measured after job completion (the OMEN production setting
+is 30 minutes; the code default remains 45). It is not an
 instant or guaranteed notification SLA. A healthy run with zero new listings
 can succeed; a blocked/failed run cannot.
 
@@ -63,7 +68,8 @@ not update source under a live crawler. Preserve the state directory and DB.
 ## Yish's gaming PC
 
 Supplied configuration: HP OMEN MAX 45L, Ryzen 7 9700X, RTX 4070 Ti, 32GB
-DDR5-6000, 1TB NVMe, 1200W PSU, 360mm AIO. Not remotely provisioned yet.
+DDR5-6000, 1TB NVMe, 1200W PSU, 360mm AIO. The existing managed collector is
+installed and primary; consult HANDOFF for the verified runtime revision.
 
 It can host the existing collector while the laptop is asleep, maintain more
 consistent listing/price observations and sold-status checks, and run background

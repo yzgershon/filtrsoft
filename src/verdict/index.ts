@@ -178,6 +178,9 @@ const RETAILER_NAME: Record<string, string> = {
 };
 
 export interface VerdictResult {
+  boundedDecision?:import('./bounded.ts').BoundedDecision;
+  recovery?:import('../agent/recovery.ts').RecoveryBlocker[];
+  textEvidence?:ReturnType<typeof import('../signals/factual-text.ts').textFacts>;
   provenance?:DecisionProvenance;
   inventory?: { sellerContext: string; offers: PricedOffer[] };
   call: Verdict;
@@ -607,10 +610,10 @@ export function buildVerdict(input: {
         ? "Custom build — not enough component comps to price it."
         : match.skuId ? "No recent sold comps for this model." : "Couldn't identify the exact model.",
       reasoning: isBundle
-        ? `Identified ${Object.entries(match.attributes).filter(([k]) => ["cpu","gpu","ram_gb","storage_gb"].includes(k)).map(([k,v]) => `${k} ${v}`).join(", ") || "no components"}, but the archive can't price enough of them yet. A build is worth the sum of its parts and there is no single comp for it.`
+        ? `Identified ${Object.entries(match.attributes).filter(([k]) => ["cpu","gpu","ram_gb","storage_gb"].includes(k)).map(([k,v]) => `${k} ${v}`).join(", ") || "no components"}, but matching whole-machine sales or remaining component evidence are missing. A partial component sum does not establish this machine's resale price.`
         : match.skuId ? "Identified the model but the archive has no recent sales to price it against."
         : "The title didn't resolve to a known model, so there is nothing to look up.",
-      decidingUnknown: match.skuId ? "recent sold comps" : "exact model",
+      decidingUnknown: isBundle ? "matching whole-build sold comps and missing component prices" : match.skuId ? "recent sold comps" : "exact model",
     };
   }
 

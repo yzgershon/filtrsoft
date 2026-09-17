@@ -1,5 +1,8 @@
 import {evidenceHash} from "./provenance.ts";
 import {pricingSignature} from "../db/revisions.ts";
+import {recoveryPlan} from '../agent/recovery.ts';
+import {textFacts} from '../signals/factual-text.ts';
+import {closedDomain,boundedDecision} from '../verdict/bounded.ts';
 /**
  * The engine as a callable service.
  *
@@ -15,7 +18,7 @@ import {pricingSignature} from "../db/revisions.ts";
  */
 import { fetchListing } from "../sources/craigslist.ts";
 import { analyze } from "../signals/index.ts";
-import { matchSku, type Match } from "../catalog/match.ts";
+import { matchSku,extractAttributes, type Match } from "../catalog/match.ts";
 import { buildVerdict, type VerdictResult } from "../verdict/index.ts";
 import { loadCurrentVision, syncPhotoUrls, loadVisionByFingerprint, photoFingerprint, photosUnchanged, visionToText, visionSignals } from "../vision/merge.ts";
 import { analyzePhotos, VISION_MODEL, PROMPT_VERSION, type VisionResult } from "../vision/index.ts";
@@ -75,7 +78,7 @@ export interface CheckOptions {
 export function runPipeline(
   listing: RawListing,
   vision: VisionResult | null,
-  opts: { econ?: UserEconomics; driveMinutes?: number; clusterSize?: number } = {},
+  opts: { econ?: UserEconomics; driveMinutes?: number; clusterSize?: number;bounded?:boolean } = {},
 ): { signals: SignalReport; match: Match; verdict: VerdictResult } {
   const vText = visionToText(vision);
 
@@ -120,12 +123,39 @@ export function runPipeline(
     driveMinutes: opts.driveMinutes,
     econ: economics,
   });
+  const extraction=rawObject(rawObject(listing.raw).extraction);
+  if(extraction.complete===false&&['BUY','VERIFY','FAIR'].includes(verdict.call)){
+    verdict.call='INSUFFICIENT_DATA';verdict.confidence='low';verdict.headline='Seller description is incomplete.';
+    verdict.decidingUnknown='complete seller description';verdict.reasoning='The page was only partially read. Missing text may disclose defects or sale conditions.';
+  }
+  const domain=opts.bounded!==false?closedDomain(listing.description):null;
+  const outsideDomain=domain?extractAttributes(`${listing.title}\n${listing.description.replace(domain.quote,'')}\n${Object.values(listing.attributes).join('\n')}\n${vText}`):{};
+  if(domain&&verdict.call==='INSUFFICIENT_DATA'&&extraction.complete!==false&&outsideDomain[domain.field]==null){
+    const cases=domain.values.map(value=>{
+      const label=domain.field==='ram_gb'?'RAM':'Storage';
+      const candidate={...listing,description:listing.description.replace(domain.quote,`${label}: ${value}GB.`)};
+      return {value,verdict:runPipeline(candidate,vision,{...opts,bounded:false}).verdict};
+    });
+    const bounded=boundedDecision(domain,cases,{category:signals.category,ask:listing.askingPriceCents,econ:economics,drive:opts.driveMinutes??15,
+      conflict:textFacts(`${listing.title}\n${listing.description}`).conflicts.length>0,
+      conditionKnown:/\b(?:fully working|fully functional|works perfectly|tested working)\b/i.test(listing.description)&&!signals.signals.some(s=>['UNTESTED','NON_WORKING','DAMAGED_DISPLAY'].includes(s.code))});
+    if(bounded){
+      verdict.call=bounded.call;verdict.confidence='medium';verdict.boundedDecision=bounded;
+      verdict.headline=bounded.call==='PASS'?'Pass across every explicitly stated configuration.':'Potential value across the stated configurations; verify which one.';
+      verdict.reasoning=`Supported sold range $${(bounded.lowCents/100).toFixed(0)}–$${(bounded.highCents/100).toFixed(0)}. ${bounded.limitation}`;
+      verdict.decidingUnknown=domain.field.replace('_gb','');verdict.netProfitCents=bounded.profitLowCents;
+      const evidence=[...new Map(cases.flatMap(c=>c.verdict.valuation.evidence??[]).map(e=>[e.id,e])).values()];
+      verdict.valuation={...verdict.valuation,status:'ok',confidence:'medium',compCount:evidence.length,evidence,lowCents:bounded.lowCents,highCents:bounded.highCents,medianCents:null};
+    }
+  }
 
   const {raw,...facts}=listing;
   verdict.provenance={version:1,engineVersion:ENGINE_VERSION,dataRevision:pricingSignature(db()),factsHash:evidenceHash({facts,vision}),
     facts,signals,match,visionEvidence:vision,visionHash:vision?evidenceHash(vision):null,
     economics:{version:1,hash:evidenceHash({economics,driveMinutes:opts.driveMinutes??15}),values:{...economics},
       driveMinutes:opts.driveMinutes??15,scope:opts.econ || opts.driveMinutes!=null?'personal':'canonical'}};
+  verdict.textEvidence=textFacts(`${listing.title}\n${listing.description}`);
+  verdict.recovery=recoveryPlan({...listing,verdict,call:verdict.call}).blockers;
   return { signals, match, verdict };
 }
 
@@ -267,7 +297,7 @@ export async function checkFetched(listing: RawListing, opts: CheckOptions = {})
     else {
       const prior=db().query("SELECT id,description FROM listings WHERE source=? AND source_id=?").get(listing.source,listing.sourceId) as {id:number;description:string}|null;
       listingId = persistListing(listing);
-      if(listing.description || !prior?.description) syncPhotoUrls(listingId, listing.photoUrls);
+      if(listing.description || !prior?.description) syncPhotoUrls(listingId, listing.photoUrls,listing.description?now():undefined);
       // Pricing the card alone would throw away the details we just preserved.
       if(!listing.description && prior) listing=checkStored(listingId).listing;
     }
@@ -467,4 +497,4 @@ export function checkStored(
 // 0.3.33: preserve item/quantity/price pairs in placeholder inventory ads.
 // Never compare the headline $1 with a median assembled from different items.
 // 0.3.36: ambiguous MacBook families cannot pool Intel and Apple Silicon sales.
-export const ENGINE_VERSION = "0.3.38";
+export const ENGINE_VERSION = "0.3.39";

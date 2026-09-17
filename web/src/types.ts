@@ -16,6 +16,8 @@ export interface Retail {
   quotes: Array<{ source: string; priceCents: number }>;
 }
 export interface Verdict {
+  boundedDecision?:{field:string;domain:number[];quote:string;lowCents:number;highCents:number;profitLowCents:number;profitHighCents:number;limitation:string;configurations:Array<{value:number;compIds:number[]}>};
+  recovery?:Array<{field:string;job:string;reason:string}>;
   inventory?: {
     sellerContext: string;
     offers: Array<{

@@ -119,7 +119,7 @@ export function parseCard(raw: { href: string; text: string; img: string | null 
  * meaning anything.
  */
 export function detailToListing(
-  d: { url: string; title: string; bodyLines: string[]; photos: string[]; condition?: string | null },
+  d: { url: string; title: string; bodyLines: string[]; photos: string[]; condition?: string | null;extraction?:import('./detail-evidence.ts').ExtractionReceipt },
   card?: FbCard,
 ): RawListing {
   const priceLine = d.bodyLines.find((l) => /^\$[\d,]/.test(l) || /^free$/i.test(l));
@@ -161,7 +161,7 @@ export function detailToListing(
      * regex over the description.
      */
     attributes: d.condition ? { condition: d.condition } : {},
-    raw: { listedLine: listedLine ?? null, ageDays, condition: d.condition ?? null },
+    raw: { listedLine: listedLine ?? null, ageDays, condition: d.condition ?? null,extraction:d.extraction },
   };
 }
 
@@ -207,7 +207,7 @@ export function searchUrl(o: FbSearchOptions): string {
 export type WorkerEvent =
   | { type: "log"; msg: string }
   | { type: "cards"; cards: Array<{ href: string; text: string; img: string | null }> }
-  | { type: "detail"; url: string; finalUrl?:string; heading?:string; actions?:string[]; condition?:string|null; title: string; bodyLines: string[]; photos: string[] }
+  | { type: "detail"; url: string; finalUrl?:string; heading?:string; actions?:string[]; condition?:string|null; title: string; bodyLines: string[]; photos: string[];extraction?:import('./detail-evidence.ts').ExtractionReceipt;readMs?:number }
   | { type: "graphql"; body: string }
   | { type: "error"; msg: string }
   | { type: "done"; stats: Record<string, unknown> };
