@@ -9,7 +9,7 @@ const object=(v:any)=>{try{return typeof v==='string'?JSON.parse(v):v??{};}catch
 /** Observation time is not content. Duplicate cards must not reopen work. */
 export function recoveryFingerprint(row:any):string {
   return createHash('sha256').update(JSON.stringify([row.title,row.description??'',row.asking_price_cents??row.askingPriceCents,
-    object(row.raw_json??row.raw).attributes??{},object(row.photos??'[]')])).digest('hex');
+    object(row.raw_json??row.raw).attributes??{},object(row.photos??row.photoUrls??'[]')])).digest('hex');
 }
 /** Shared by server repair targets and collector details. A headline is not a
  * complete account of the missing evidence. Preserve every actionable blocker. */

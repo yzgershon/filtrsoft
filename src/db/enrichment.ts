@@ -35,6 +35,13 @@ export function recordDetailAttempt(id:number,outcome:'read'|'empty'|'failed'|'g
     [id,new Date(at).toISOString(),new Date(at+delay).toISOString(),failures,outcome]);
 }
 
+export function readReceipt(id:number):ReadReceipt|null {
+  const d=db();
+  if(!d.query("SELECT 1 FROM sqlite_master WHERE name='listing_recovery'").get())return null;
+  const row=d.query('SELECT payload FROM listing_recovery WHERE listing_id=?').get(id) as {payload:string}|null;
+  return row?JSON.parse(row.payload):null;
+}
+
 /** Missing descriptions and stale actionable details both need visits. A good
  * thumbnail used to make OfferUp skip seller text forever. Old failed rows now
  * back off, and oldest attempts win within a priority band, preventing starvation. */

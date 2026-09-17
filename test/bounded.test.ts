@@ -18,10 +18,11 @@ test('the engine preserves the seller uncertainty and risk precedence with exact
  const d=db();d.run("INSERT INTO skus(id,category,brand,model,created_at) VALUES(1,'phone','Apple','iPhone 15',?)",[new Date().toISOString()]);
  for(const capacity of [128,256])for(let i=0;i<6;i++)insertComp({sku_id:1,source:'ebay',source_item_id:String(capacity)+'-'+i,raw_title:'Apple iPhone 15 '+capacity+'GB Factory Unlocked',sold_price_cents:50000,shipping_cents:0,sold_at:new Date().toISOString(),condition_norm:'used',url:'https://ebay.com/itm/'+capacity+i,raw:{soldAt:new Date().toISOString()}});
  const description='Fully working. Factory unlocked. Clean IMEI. Paid off. iCloud removed. Storage is either 128GB or 256GB only.';
- const listing={source:'facebook',sourceId:'bounded',url:'https://facebook.com/marketplace/item/bounded',title:'Apple iPhone 15',description,askingPriceCents:10000,location:null,postedAt:null,photoUrls:[],attributes:{condition:'used'}};
+ const listing={source:'facebook',sourceId:'bounded',url:'https://facebook.com/marketplace/item/bounded',title:'Apple iPhone 15',description,askingPriceCents:10000,location:null,postedAt:null,photoUrls:[],attributes:{condition:'used'},raw:{extraction:{complete:true,truncated:false}}};
  const result=runPipeline(listing,null).verdict;
  assert.equal(result.call,'VERIFY');assert.equal(result.boundedDecision.domain.length,2);assert.equal(result.valuation.medianCents,null);
  assert.equal(result.provenance.facts.description,description);assert.equal(result.provenance.match.attributes.storage_gb,undefined);
+ for(const raw of [{},{extraction:{complete:false}},{extraction:{complete:true,truncated:true}}])assert.equal(runPipeline({...listing,raw},null).verdict.call,'INSUFFICIENT_DATA');
  assert.equal(runPipeline({...listing,description:description+' Does not power on, sold for parts.'},null).verdict.call,'RISK');
  d.run("UPDATE comps SET raw_title='Apple iPhone 14 256GB Unlocked' WHERE source_item_id LIKE '256-%'");
  assert.equal(runPipeline(listing,null).verdict.call,'INSUFFICIENT_DATA');

@@ -92,7 +92,13 @@ export function receiveChanges(input:unknown):{acks:SyncAck[]} {
         }
         if(e)d.run(`INSERT INTO listing_enrichment VALUES(?,?,?,?,?) ON CONFLICT(listing_id) DO UPDATE SET attempted_at=excluded.attempted_at,next_attempt_at=excluded.next_attempt_at,failures=excluded.failures,outcome=excluded.outcome WHERE excluded.attempted_at>listing_enrichment.attempted_at`,[stored.id,e.attemptedAt,e.nextAt,e.failures,e.outcome]);
         if(e?.fingerprint)d.run('INSERT INTO listing_recovery_attempts VALUES(?,?,?) ON CONFLICT(listing_id) DO UPDATE SET fingerprint=excluded.fingerprint,attempted_at=excluded.attempted_at WHERE excluded.attempted_at>listing_recovery_attempts.attempted_at',[stored.id,e.fingerprint,e.attemptedAt]);
-        if(l.recovery)d.run(`INSERT INTO listing_recovery VALUES(?,?,?) ON CONFLICT(listing_id) DO UPDATE SET observed_at=excluded.observed_at,payload=excluded.payload WHERE excluded.observed_at>listing_recovery.observed_at`,[stored.id,l.recovery.observedAt,JSON.stringify(l.recovery)]);
+        if(l.recovery){
+          const changed=d.run(`INSERT INTO listing_recovery VALUES(?,?,?) ON CONFLICT(listing_id) DO UPDATE SET observed_at=excluded.observed_at,payload=excluded.payload WHERE excluded.observed_at>listing_recovery.observed_at`,[stored.id,l.recovery.observedAt,JSON.stringify(l.recovery)]).changes;
+          if(changed){
+            d.run("INSERT INTO listing_rechecks VALUES(?,'recovery',?) ON CONFLICT(listing_id) DO UPDATE SET reason=excluded.reason,requested_at=excluded.requested_at",[stored.id,now()]);
+            status='applied';
+          }
+        }
         const v=l.vision;
         const hashes=d.query('SELECT phash FROM listing_photos WHERE listing_id=?').all(stored.id) as {phash:string|null}[];
         if(v&&hashes.length&&hashes.every(p=>p.phash)&&fingerprintOf(hashes.map(p=>p.phash!))===v.fingerprint){
