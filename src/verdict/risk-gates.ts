@@ -1,3 +1,4 @@
+import {confirmedNoDisplayOutputs} from '../vision/ports.ts';
 /**
  * Required risk checks, and the gate that enforces them.
  *
@@ -208,10 +209,13 @@ export function evaluateRisk(
   }
 
   const checks: RiskCheck[] = rules.map((r) => {
+    // A shop offering a payment option does not disclose a debt on this unit.
+    // Remove only that explicit offer; any separate unpaid balance still wins.
+    const claimText=r.code==='FINANCING'?text.replace(/\b(?:financing|payment plans?|monthly payments)\s+(?:available|offered)\b|\b(?:we (?:offer|provide)|offering)\s+(?:financing|payment plans?)\b/gi,''):text;
     // Disclosure beats reassurance: a listing saying "iCloud locked, for parts"
     // must never be read as resolved because it also says "unlocked" elsewhere.
-    if (matchesUnnegated(text, r.bad)) {
-      return { code: r.code, label: r.label, remote: r.remote, state: "failed", evidence: quote(text, r.bad), question: r.question };
+    if (matchesUnnegated(claimText, r.bad)) {
+      return { code: r.code, label: r.label, remote: r.remote, state: "failed", evidence: quote(claimText, r.bad), question: r.question };
     }
     if (r.ok.test(text)) {
       return { code: r.code, label: r.label, remote: r.remote, state: "resolved", evidence: quote(text, r.ok), question: r.question };
@@ -232,7 +236,7 @@ export function evaluateRisk(
       forceUnresolved(checks, "ACTIVATION_LOCK",
         "Every photo shows a boot or logo screen, which proves power and rules out nothing.");
     }
-    if (vision.displayOutputsVisible === false) {
+    if (confirmedNoDisplayOutputs(vision)) {
       setState(checks, "DISPLAY_OUTPUTS", "failed",
         "The I/O bracket in the photos carries no display connectors at all.");
     } else if (vision.displayOutputsVisible === true) {

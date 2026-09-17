@@ -1,5 +1,6 @@
 import {workerEvents} from "../agent/worker.ts";
 import {macbookCompIdentity} from '../catalog/macbook.ts';
+import {extractAttributes} from '../catalog/match.ts';
 /**
  * eBay sold comps — the archive's real source.
  *
@@ -269,6 +270,13 @@ const UNIT_SUFFIX = "(?:mt\\/s|mts|mhz|ghz|gbps|hz|gb|tb|mb)";
 export function compMatchesQuery(
   title: string, query: string, skuCategory?: string | null,
 ): { ok: boolean; why: string } {
+  // eBay's accessibility label can concatenate its badge with the maker.
+  title=title.replace(/^NEW LISTING\s*/i,'');
+  if(skuCategory==='laptop'){
+    const wanted=extractAttributes(query),got=extractAttributes(title);
+    for(const key of ['screen_inches','gpu_cores'])if(wanted[key]!=null && wanted[key]!==got[key])return {ok:false,why:`laptop ${key} is missing or different`};
+  }
+  const identityQuery=skuCategory==='laptop'?query.replace(/\b\d{1,2}(?:\.\d)?-inch\b|\b\d{1,2}-core GPU\b/gi,''):query;
   if(!macbookCompIdentity(title,query))return {ok:false,why:'MacBook hardware generation is missing or different'};
   skuCategory = skuCategory ? catalogCategory(skuCategory, query) : skuCategory;
   if (skuCategory && !exactPartIdentity(title, query, skuCategory)) {
@@ -289,7 +297,7 @@ export function compMatchesQuery(
    * flattening had glued the "4" of "4.0GHz" onto the model number. The
    * separator tolerance has to be INSIDE the pattern, not applied to both sides.
    */
-  for (const w of query.toLowerCase().split(/\s+/).filter((w) => /\d/.test(w))) {
+  for (const w of identityQuery.toLowerCase().split(/\s+/).filter((w) => /\d/.test(w))) {
     const pattern = w
       .split(/[\s\-_.]+/)
       .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
@@ -310,7 +318,7 @@ export function compMatchesQuery(
   // Numeric coincidence is not product identity: "Legion 5" once accepted
   // a NIMO 15.6-inch laptop. Whole-device maker/family words must agree too.
   if(['laptop','phone','tablet'].includes(skuCategory??'')) {
-    const words=query.toLowerCase().split(/[^a-z0-9]+/).filter(w=>/^[a-z]{2,}$/.test(w)
+    const words=identityQuery.toLowerCase().split(/[^a-z0-9]+/).filter(w=>/^[a-z]{2,}$/.test(w)
       && !['used','unlocked','laptop','notebook','computer','gaming','tablet','phone','gb','tb','ram','ssd','inch'].includes(w));
     const titleWords=new Set(title.toLowerCase().split(/[^a-z0-9]+/));
     if(words.some(w=>!titleWords.has(w)))return {ok:false,why:'device maker or model family differs'};

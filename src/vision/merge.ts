@@ -7,6 +7,7 @@
  * simply wasn't wired to the verdict.
  */
 import { createHash } from "node:crypto";
+import {confirmedNoDisplayOutputs} from './ports.ts';
 import { db } from "../db/index.ts";
 import type { VisionResult } from "./index.ts";
 
@@ -118,7 +119,7 @@ export function visionSignals(v: VisionResult | null) {
     });
   }
 
-  if (v.displayOutputsVisible === false) {
+  if (confirmedNoDisplayOutputs(v)) {
     out.push({
       code: "NO_DISPLAY_OUTPUT", severity: "blocker", polarity: "negative",
       evidence: "The I/O bracket in the photos carries no display connectors at all. You cannot plug a monitor into this card.",

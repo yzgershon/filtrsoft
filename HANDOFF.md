@@ -89,7 +89,19 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
-### September 17, evidence recovery implementation in progress
+### September 17, evidence recovery release — final live audit in progress
+
+All five requested workstreams are implemented. Engine 0.3.41 is live from main `e722cc7`; Railway deployment `1d917447-dfe1-4489-81c2-fccc5aa1811e` succeeded, CI `35282590824` passed including containers. OMEN runtime `87f23490ab16` completed bounded verification with the same node. At 22:58:31 UTC production scoring reached **0 pending / 0 failures**, public health 368 ms. Laptop stays persistently paused; desktop primary, 30-minute rest, five-minute fallback grace.
+
+Automatic job 48 ran 22:12:38–22:32:38 UTC: **32 new listings, 116 detail attempts (96 reads, 13 gone, seven failed/incomplete), 134 distinct availability observations (112 alive, 16 gone, six unknown), 166 acknowledged listing snapshots**, all stages `ok`, no pending outbox/reports. These are change acknowledgements, not unique listings. It acquired complete text for **69 existing listings**, about 207/hour versus 96 new listings/hour during that cycle. Additional frozen-cohort verification made 60 visits: **57 complete reads, three failed; all 60 changes acknowledged**. One Mercari failure exposed Bun readline splitting JSON strings at Unicode U+2028/U+2029; the final candidate preserves those characters and has a failing-before/passing-after regression.
+
+The first 250-row production snapshot showed three PASS and three RISK transitions, plus one separately retired Facebook listing. **Those six changes are not the final success count**: manual audit caught financing-offer wording falsely treated as carrier debt, uncertain cached photo visibility falsely treated as absent ports, and pooled laptop screen/GPU-core variants. Engine candidate **0.3.42** corrects those guards, retains conflicting iPhone model names, removes OfferUp accessibility boilerplate, and recognizes the concatenated eBay NEW LISTING badge. The unchanged-facts counterfactual still has 250 insufficient-data results. Baseline scope audit found one chair misclassified as a tablet; preserve the frozen IDs and disclose it, rather than replacing it silently.
+
+OMEN is temporarily maintenance-stopped for this final candidate, with all owned processes confirmed exited. Consistent pre-update backup **690490bce50f3e44c66f9b4d29dee9ea6feefef7539361e2a70ca9a6fa0f78d7**, 2,036 listings / 32,777 comps / zero FK violations, restore verified at 22:59 UTC. Final candidate validation/deployment, runtime merge/resumption and final cohort receipts still pending. See [measured report](docs/EVIDENCE-RECOVERY-2026-09-17.md).
+
+Qwen3.5-9B is installed after Yish's approval but failed factual acceptance; production local-photo writer stays disabled, collector paid-vision limit stays zero. Production durable backup is still space-blocked at roughly 97 MB physical free. No natural useful deal alert has been observed; the earlier physically received test is a separate result.
+
+### September 17, earlier evidence recovery checkpoints (superseded by the current result above)
 
 Final conservative-policy gate: bounded PASS/VERIFY now requires an explicit complete, untruncated source extraction receipt. Legacy captures without a completion marker cannot enter this new policy merely because no truncation flag was recorded. Engine candidate 0.3.41; regression includes missing, incomplete and truncated extraction metadata. This has no measured qualifying real listing yet and must not be presented as realized recovery.
 

@@ -23,7 +23,7 @@ test("text refresh preserves current photo evidence and never calls vision or re
   const raw={source:'craigslist',sourceId:'vision',url:'https://example.invalid/v',title:'RTX 4090 graphics card',description:'A real card',askingPriceCents:60000,location:null,postedAt:null,updatedAt:null,photoUrls:['https://example.invalid/current'],attributes:{},raw:{}};
   const id=upsertListingFacts(d,{...raw,photoCount:1}).id;syncPhotoUrls(id,raw.photoUrls);
   d.run("UPDATE listing_photos SET phash='1234567890123456' WHERE listing_id=?",[id]);
-  const vision={components:{},facts:[],specScreens:[],displayOutputsVisible:false,physicalDamage:[]};
+  const vision={components:{},facts:[],specScreens:[],displayOutputsVisible:false,physicalDamage:[],portCondition:'The full I/O bracket is visible and has no display connectors.'};
   d.run('INSERT INTO vision_results(listing_id,model,prompt_version,photo_fingerprint,payload,created_at) VALUES(?,?,?,?,?,?)',[id,VISION_MODEL,PROMPT_VERSION,photoFingerprint(id),JSON.stringify(vision),at]);
   const fresh=await checkFetched(raw,{persist:true,vision:false});
   assert.equal(fresh.verdict.call,'RISK');assert.equal(checkStored(id).verdict.call,'RISK');assert.equal(calls,0);

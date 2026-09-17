@@ -10,7 +10,7 @@ import {textFacts} from '../signals/factual-text.ts';
 export function exactDemandQuery(s:{brand:string;model:string;category:string},a:Record<string,string|number>) {
   const query=queryForSku(s);if(!['laptop','phone','tablet','prebuilt'].includes(s.category))return query;
   const capacity=(n:string|number)=>Number(n)%1024===0?`${Number(n)/1024}TB`:`${n}GB`;
-  return [query,...(['laptop','prebuilt'].includes(s.category)?[a.cpu,a.gpu,a.ram_gb?`${a.ram_gb}GB RAM`:null]:[]),a.storage_gb?`${capacity(a.storage_gb)}${['laptop','prebuilt'].includes(s.category)?' SSD':''}`:null].filter(Boolean).join(' ');
+  return [query,...(['laptop','prebuilt'].includes(s.category)?[a.cpu,a.gpu,a.ram_gb?`${a.ram_gb}GB RAM`:null]:[]),a.storage_gb?`${capacity(a.storage_gb)}${['laptop','prebuilt'].includes(s.category)?' SSD':''}`:null,...(s.category==='laptop'?[a.screen_inches?`${a.screen_inches}-inch`:null,a.gpu_cores?`${a.gpu_cores}-core GPU`:null]:[])].filter(Boolean).join(' ');
 }
 function installDemand(){db().exec(`CREATE TABLE IF NOT EXISTS comp_identity_demand(listing_id INTEGER PRIMARY KEY,state TEXT NOT NULL,reason TEXT NOT NULL,updated_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS comp_rejections(attempt_id INTEGER NOT NULL,reason TEXT NOT NULL,count INTEGER NOT NULL,PRIMARY KEY(attempt_id,reason));

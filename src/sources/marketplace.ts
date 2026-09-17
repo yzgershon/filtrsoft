@@ -276,6 +276,7 @@ export function parseOfferUpDetail(text: string): OfferUpDetail {
     for (let i = dStart + 1; i < lines.length; i++) {
       const l = lines[i];
       if (/^details$/i.test(l) || OU_DETAIL_END.test(l)) break;
+      if (/^(?:see (?:more|less)|All content is available to screen readers from the outset\.)/i.test(l)) continue;
       body.push(l);
     }
     out.description = body.join("\n").trim();
