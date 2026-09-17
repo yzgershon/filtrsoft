@@ -46,6 +46,23 @@ Those observations distinguish insufficient input from a stopped scoring queue.
 
 ## Evidence and limits
 
+Follow-up verification found the server's cold health check synchronously
+revalued all 561 snapshot SKUs in 11.84 seconds, exceeding Bun's default HTTP idle
+timeout. Coverage now refreshes cooperatively, shares concurrent work and reports
+unknown readiness while refreshing. A real localhost HTTP experiment returned
+the app in 581ms and health in 679ms while catalog work continued for 15.21s.
+Scoring also prioritizes current recommendations and yields between transactions
+after a 250ms budget instead of monopolizing HTTP for a 50-row pass. Tests cover
+queue completion, retry behavior, refresh sharing and mid-refresh corrections.
+
+On production, #8154 changed BUY to VERIFY with an explicit UNTESTED signal and
+#5299 lost its unrelated laptop valuation and now correctly reports 8GB system
+RAM separately from 6GB VRAM. The Craigslist recommendation sweep checked 12
+listings and retired one. At 18:06 UTC the OMEN reported new revision b8730555bb8a,
+same node identity and no pending uploads; a new-revision cycle was not yet
+observed. These observations do not establish an improved overall can't-tell
+count or physical-phone notification delivery.
+
 Release `da71588` reached production at 17:41:38 UTC (Railway deployment
 6508647200). GitHub CI 35254202916 passed, and the 17:43 UTC public receipt
 verified engine 0.3.37 and all six built JS/CSS assets byte-for-byte. Signed-in

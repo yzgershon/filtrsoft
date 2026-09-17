@@ -2,7 +2,6 @@ import {db,now} from "./index.ts";
 import {pricingSignature} from "./revisions.ts";
 import {checkStored,ENGINE_VERSION} from "../engine/index.ts";
 import {storeVerdict,type VerdictPayload} from "./verdicts.ts";
-import {clearMeasuredMultiplierCache} from "../valuation/condition.ts";
 
 /** Per-listing checkpoints are the resumable cursor: success advances only that
  * row; failures back off without blocking later IDs or declaring the run done.
@@ -27,7 +26,8 @@ export function scorePending(limit=400,score:(id:number)=>VerdictPayload=id=>che
       ELSE 3 END,
       s.last_attempt ASC,l.id LIMIT ?`).all(signature,ENGINE_VERSION,ENGINE_VERSION,target,at,Math.max(1,limit)) as {id:number;requested_at:string|null}[];
   let checked=0,changed=0,failed=0;
-  clearMeasuredMultiplierCache();
+  // Condition statistics already invalidate against pricingSignature. Clearing
+  // them on every short pass repeated the same catalog aggregation each second.
   for(const row of rows) {
     // Bun serves HTTP on this same thread. A count-only limit allowed expensive
     // comp matching to block requests for an entire 50-row pass. Finish the
