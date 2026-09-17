@@ -275,8 +275,8 @@ describe("variant suffixes survive a truncated title", () => {
    * The FIRST match decides which product this is; later mentions may only
    * lengthen THAT one.
    */
-  test("two different chips: the first still wins", () => {
-    expect(cpu("upgraded from an i5-9400 to an i7-12700K")).toBe("i5-9400");
+  test("an explicit upgrade names the current chip; a fuller suffix retains the same base", () => {
+    expect(cpu("upgraded from an i5-9400 to an i7-12700K")).toBe("i7-12700k");
     expect(cpu("i7-12700 build, actually an i7-12700KF")).toBe("i7-12700kf");
   });
 

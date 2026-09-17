@@ -5,6 +5,8 @@ import {runMarketWorker,parseMercariDetail,mercariDescription,mercariPhotos,pars
 import {sameMarketplaceItem} from '../sources/item-url.ts';
 import {syncPhotoUrls} from '../vision/merge.ts';
 import {observePrice} from '../db/price.ts';
+import {detailCompleteness} from '../sources/detail-evidence.ts';
+import {rawObject} from '../db/facts.ts';
 
 export async function enrichMarketplace(source:'offerup'|'mercari',opts:{limit:number;dry?:boolean;all?:boolean;headless?:boolean}) {
   const work=dueDetails(source,opts.limit,Date.now(),opts.all);
@@ -26,14 +28,19 @@ export async function enrichMarketplace(source:'offerup'|'mercari',opts:{limit:n
     if(ev.error || !sameMarketplaceItem(row.url,ev.finalUrl) || /just a moment|attention required|security verification|log in to continue/i.test(`${ev.title}\n${ev.text??''}`.slice(0,500))) {
       failed++;continue;
     }
-    const detail=source==='mercari'?parseMercariDetail(ev.text??''):parseOfferUpDetail(ev.text??'');
+    const ownText=ev.itemText||ev.text||'';
+    const detail=source==='mercari'?parseMercariDetail(ownText):parseOfferUpDetail(ownText);
+    const completion=detailCompleteness(ownText,ev.extraction);
     const desc=source==='mercari'?mercariDescription(detail):offerUpDescription(detail);
     const photos=source==='mercari'?mercariPhotos(ev.urls,row.url):bestPhotos(ev.urls);
-    if(!desc && !photos.length){recordDetailAttempt(row.id,'empty');continue;}
+    if(!desc && !photos.length){recordDetailAttempt(row.id,'empty',Date.now(),{...completion,durationMs:ev.readMs});continue;}
     db().transaction(()=>{
       const at=now();
-      if(desc)db().run('UPDATE listings SET description=?,updated_at=? WHERE id=?',[desc,at,row.id]);
-      if(photos.length){syncPhotoUrls(row.id,photos);db().run('UPDATE listings SET photo_count=? WHERE id=?',[photos.length,row.id]);}
+      const changed=Boolean(desc&&desc!==row.description);
+      if(changed)db().run('UPDATE listings SET description=?,updated_at=? WHERE id=?',[desc,at,row.id]);
+      db().run('UPDATE listings SET raw_json=? WHERE id=?',[JSON.stringify({...rawObject(row.raw_json),extraction:ev.extraction}),row.id]);
+      const photosChanged=photos.length?syncPhotoUrls(row.id,photos,at):false;
+      if(photos.length)db().run('UPDATE listings SET photo_count=? WHERE id=?',[photos.length,row.id]);
       if(availability && !availability.gone){
         recordProbe(row.id,'alive');
         // Only the dedicated item price field, never a recommended card or
@@ -41,11 +48,11 @@ export async function enrichMarketplace(source:'offerup'|'mercari',opts:{limit:n
         const price=ev.priceText?.trim().match(/^\$([\d,]+(?:\.\d{2})?)$/);
         observePrice(db(),row.id,price?Math.round(Number(price[1].replaceAll(',',''))*100):null,at);
       }else recordProbe(row.id,'unknown');
-      db().run('DELETE FROM vision_misses WHERE listing_id=?',[row.id]);
-      db().run("INSERT INTO listing_rechecks VALUES(?,'detail',?) ON CONFLICT(listing_id) DO UPDATE SET reason=excluded.reason,requested_at=excluded.requested_at",[row.id,at]);
-      recordDetailAttempt(row.id,detail.description?'read':'empty');
+      if(changed||photosChanged||rawObject(rawObject(row.raw_json).extraction).complete!==ev.extraction?.complete){db().run('DELETE FROM vision_misses WHERE listing_id=?',[row.id]);
+        db().run("INSERT INTO listing_rechecks VALUES(?,'detail',?) ON CONFLICT(listing_id) DO UPDATE SET reason=excluded.reason,requested_at=excluded.requested_at",[row.id,at]);}
+      recordDetailAttempt(row.id,detail.description?'read':'empty',Date.now(),{...completion,durationMs:ev.readMs});
     })();
-    read++;console.log(`#${row.id}: ${desc.length} description characters, ${photos.length} photos`);
+    read++;console.log(`#${row.id}: ${desc.length} description characters, ${photos.length} photos; ${completion.reason}`);
   }
   failed+=pending.size;console.log(`${source}: ${read} read, ${gone} unavailable, ${failed} failed`);
   return {read,gone,failed};

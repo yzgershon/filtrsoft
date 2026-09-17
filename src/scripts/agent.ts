@@ -8,6 +8,7 @@ import {db,DB_PATH} from '../db/index.ts';
 import {queueJobReport,flushJobReports} from '../agent/reports.ts';
 import {collect,isSource} from '../agent/collection.ts';
 import {acceptRepairTargets} from '../agent/targets.ts';
+import {recoveryBudgets} from '../agent/recovery-budget.ts';
 import {claimRunner,advanceCursor,runnerVersion,writeRunnerState} from '../agent/state.ts';
 import {runCommand} from '../agent/process.ts';
 import {isPaused} from './pause.ts';
@@ -37,7 +38,7 @@ async function doJob(job:{id:number;sources:string[];repairTargets?:unknown}) {
   try {
     const sources=job.sources.filter(isSource);
     if(job.repairTargets)console.log(`Received ${acceptRepairTargets(job.repairTargets)} production listings to refresh`);
-    const summary=await collect(sources,{cursor:advanceCursor(2),paused:interrupted,cooldown:s=>sourceCooldown(s)?.retryAt??null,
+    const summary=await collect(sources,{cursor:advanceCursor(2),budgets:recoveryBudgets(),paused:interrupted,cooldown:s=>sourceCooldown(s)?.retryAt??null,
       run:step=>runCommand(process.execPath,step.args,{timeoutMs:step.timeoutMs,cancelled:step.kind==='sync'?undefined:interrupted,onOutput:text=>process.stdout.write(text)}),
       stage:async(step,status,error)=>{progress=step.name;state('working');
         if(step.kind!=='sync'&&status!=='running')recordSourceAttempt(step.source,status==='done',error);

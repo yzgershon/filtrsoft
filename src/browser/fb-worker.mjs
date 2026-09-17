@@ -175,6 +175,7 @@ try {
     }
 
     for (const url of opts.detailUrls ?? []) {
+      const started=Date.now();
       try {
         await pause(1500, 3500);
         await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
@@ -183,7 +184,7 @@ try {
 
         // "See more" hides most of the description, and the description is
         // where the value-determining specs live.
-        const more = page.locator('div[role="button"]:has-text("See more")').first();
+        const more = page.locator('[role="main"]').getByText('See more',{exact:true}).first();
         if (await more.count()) {
           await more.click().catch(() => {});
           await pause(400, 900);
@@ -257,12 +258,12 @@ try {
            * the catalog matcher.
            */
           const main = document.querySelector('[role="main"]') || document.body;
-          const lines = (main.innerText || "").split("\n").map((l) => l.trim()).filter(Boolean);
+          const lines = (main.innerText || "").split("\n").map((l) => l.trim());
           const h1 = main.querySelector("h1");
           const title = (h1 && h1.innerText.trim()) || "";
 
           const start = title ? lines.findIndex((l) => l === title) : 0;
-          const end = lines.findIndex((l) => /^seller information$/i.test(l));
+          const end = lines.findIndex((l,i) => i>start&&/^(seller information|more like this|comments|related listings)$/i.test(l));
           const content = lines.slice(start >= 0 ? start : 0, end > 0 ? end : undefined);
 
           // Facebook's own "Condition" field — a structured value the seller
@@ -270,11 +271,13 @@ try {
           const ci = content.findIndex((l) => /^condition$/i.test(l));
           const condition = ci >= 0 ? content[ci + 1] ?? null : null;
 
-          return { title: title || content[0] || "", heading:title, bodyLines: content.slice(0, 250), condition,
+          const full=content.join('\n'),truncated=full.length>80000;
+          return { title: title || content[0] || "", heading:title, bodyLines: full.slice(0,80000).split('\n'), condition,
+            extraction:{complete:Boolean(title&&end>start&&!content.some(l=>/^see more$/i.test(l))&&!truncated),truncated,rawCharacters:full.length},
             actions:[...main.querySelectorAll('button,[role="button"]')].map(e=>e.innerText||e.getAttribute('aria-label')||'') };
         });
 
-        emit({ type: "detail", url, finalUrl:page.url(), ...detail, photos: [...photos] });
+        emit({ type: "detail", url, finalUrl:page.url(), ...detail, photos: [...photos],readMs:Date.now()-started });
       } catch (e) {
         emit({ type: "error", msg: `${url}: ${String(e.message).slice(0, 120)}` });
       }

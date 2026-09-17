@@ -1,5 +1,6 @@
 import { exclusivePayment } from "./payment.ts";
 import {conditionDisclosure} from './condition.ts';
+import {factualText,textFacts} from './factual-text.ts';
 /**
  * The cheap-signals layer.
  *
@@ -451,10 +452,11 @@ export function analyze(l: RawListing, opts?: { clusterSize?: number; visionText
   for (const [field, re] of VALUE_FIELDS[category] ?? []) {
     if (appleWhole && (field === "gpu" || field === "cpu")) continue;
     if (officeMicro && field === "gpu") continue;
-    if (re.test(text)) continue;
+    if (re.test(factualText(text))) continue;
     if (opts?.visionText && re.test(opts.visionText)) { recoveredFromPhotos.push(field); continue; }
     missingValueFields.push(field);
   }
+  for(const field of textFacts(text).conflicts)missingValueFields.push(`conflicting ${field} evidence`);
   if (missingValueFields.length) {
     signals.push({
       code: "MISSING_VALUE_FIELDS", severity: "high", polarity: "neutral",

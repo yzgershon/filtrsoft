@@ -397,7 +397,7 @@ export async function runAlerts(): Promise<number> {
         : latest.label;
       const result = await send(latest, {
         title: heading,
-        body: `${r.title.slice(0, 70)}, ${r.price ? `$${Math.round(r.price / 100)}` : "no price"}`,
+          body: `${r.title.slice(0, 70)}, ${r.price ? `$${Math.round(r.price / 100)}` : "no price"}${JSON.parse(r.payload??'{}').boundedDecision?' — configuration uncertain; verify stated alternatives':''}`,
         url: `/c/${r.id}`,
       });
       db().transaction(()=>{

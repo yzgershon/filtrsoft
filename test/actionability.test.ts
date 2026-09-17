@@ -140,7 +140,7 @@ test('Legion desktops cannot borrow laptop identity and laptop comps must match 
   assert.equal(v.compCount,3);assert.ok(v.evidence.every(e=>e.raw_title===right));
   const id=upsertListingFacts(d,{source:'audit',sourceId:'legion',url:'https://example.invalid',title:'Lenovo Legion 5 Gaming Laptop',description:right,askingPriceCents:50000,location:null,postedAt:null,photoCount:0}).id;
   storeVerdict(id,'fixture',{call:'INSUFFICIENT_DATA'});
-  assert.equal(collectionPriority(10)[0].demandQuery,'Lenovo Legion 5 ryzen 7 5800h rtx 3060');
+  assert.equal(collectionPriority(10)[0].demandQuery,'Lenovo Legion 5 ryzen 7 5800h rtx 3060 16GB RAM 1TB SSD');
 `));
 
 test('untested and parts GPUs cannot reach BUY even with attractive exact sold comps',()=>isolated(`

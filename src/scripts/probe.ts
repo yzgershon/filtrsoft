@@ -127,6 +127,6 @@ for (const source of SOURCES) {
 
 console.log(`
 [1mprobe[0m  ${checked} checked · ${gone} delisted · ${unsure} left alone${failedWrites ? ` · [31m${failedWrites} writes failed[0m` : ""}`);
-if (unsure) console.log("  \x1b[90m'left alone' means the page proved nothing — a login wall, a timeout, or an empty body.\x1b[0m");
+if (unsure) console.log("  \x1b[90m'left alone' means item availability was not established; this alone does not identify an authentication problem.\x1b[0m");
 
 if(workerErrors || failedWrites || (checked>0 && unsure===checked)) process.exitCode=1;

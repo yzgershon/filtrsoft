@@ -70,7 +70,7 @@ const TECH = [
    */
   "vr headset", "virtual reality headset", "mixed reality headset",
   "vr", "quest", "psvr", "psvr2", "playstation vr", "playstation vr2", "index",
-  "steam deck", "thinkpad", "thinkcentre", "optiplex", "latitude", "elitedesk",
+  "steam deck", "thinkpad", "thinkbook", "thinkcentre", "optiplex", "latitude", "elitedesk",
   /**
    * Product-LINE names. Without these, "Dell Precision 5760 + Charger" has
    * exactly one recognisable noun — "charger" — and a $900 laptop is thrown out
@@ -122,7 +122,7 @@ const ACCESSORY = [
    */
   "waterblock", "water block", "backplate", "back plate", "heatsink",
   "heat sink", "shroud", "thermal paste", "riser cable", "extender",
-  "cooling fan", "case fan", "cooler", "mounting kit", "support bracket",
+  "cooling fan", "case fan", "tower fan", "cooler", "mounting kit", "support bracket",
 ];
 
 const CLASSES: Array<[ProductKind, string[]]> = [
@@ -365,7 +365,7 @@ export function inScope(title: string, description = ""): boolean {
  * CPU as the same object, and whichever is named, the laptop is the product.
  */
 const DEVICE_CATEGORY: Array<[string, string[]]> = [
-  ["laptop", ["laptop", "notebook", "macbook", "chromebook", "thinkpad", "elitebook",
+  ["laptop", ["laptop", "notebook", "macbook", "chromebook", "thinkpad", "thinkbook", "elitebook",
               "probook", "ideapad", "latitude", "precision", "inspiron", "xps",
               "pavilion", "envy", "zenbook", "vivobook", "aspire", "yoga", "surface"]],
   ["prebuilt", ["gaming pc", "desktop computer", "gaming desktop", "pc", "desktop",
@@ -403,6 +403,7 @@ export const isExplicitDesktop=(title:string)=>(/\b(?:desktop(?!\s+(?:processor|
   || /\b(?:all[- ]in[- ]one|aio)\b/i.test(title)&&/\b(?:pc|computer|inspiron|optiplex|ideacentre|imac)\b/i.test(title))
   && !/\b(?:laptop|notebook|mobile workstation|desktop processor|pc case|computer case|tower case|cooler|cooling)\b/i.test(title);
 export function resolveCategory(title: string): string | null {
+  if(/\b(?:laptop|notebook|desktop)\s+(?:memory|ram)\b/i.test(title)&&/\b(?:ddr[345]|pc[34][ -]|\d+\s*gb|sodimm)\b/i.test(title)&&!/\b(?:complete|gaming)\s+(?:pc|laptop|computer)\b/i.test(title))return 'ram';
   // Snapshot #1109 sells an Omen 16 with an HX CPU and charger; the sentence
   // "I got a gaming desktop instead" must not price that laptop as a tower.
   // Keep the dimensional laptop names separate from OMEN 30L/40L/45L towers.

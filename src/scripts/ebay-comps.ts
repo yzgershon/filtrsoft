@@ -62,9 +62,10 @@ for await (const ev of runEbayWorker("sold", {
     // Reject before storing. Comps are kept FOREVER, so a wrong-product row
     // poisons every future valuation of this SKU rather than one run.
     const dropped: string[] = [];
+    const rejections:Record<string,number>={};
     const comps = parsed.filter((c) => {
       const m = compMatchesQuery(c.title, ev.query, catBy.get(ev.query) ?? null);
-      if (!m.ok) dropped.push(`$${(c.soldPriceCents / 100).toFixed(0)} ${c.title.slice(0, 46)} — ${m.why}`);
+      if (!m.ok){dropped.push(`$${(c.soldPriceCents / 100).toFixed(0)} ${c.title.slice(0, 46)} — ${m.why}`);rejections[m.why]=(rejections[m.why]??0)+1;}
       return m.ok;
     });
     for(const row of ev.rows) if(!parseSoldRow(row)) db().run(
@@ -72,7 +73,8 @@ for await (const ev of runEbayWorker("sold", {
       [ev.query,new Date().toISOString(),"No unambiguous sold price and valid sale date",JSON.stringify(row)]);
     const saved = saveComps(comps, ev.query, bySku.get(ev.query) ?? null);
     const attempt=attempts.get(ev.query);
-    if(attempt!=null)finishCollection(attempt,{fetched:ev.rows.length,parsed:parsed.length,accepted:comps.length,saved});
+    rejections['No unambiguous sold price and valid sale date']=ev.rows.length-parsed.length;
+    if(attempt!=null)finishCollection(attempt,{fetched:ev.rows.length,parsed:parsed.length,accepted:comps.length,saved,rejections});
     completed.add(ev.query);
     if (dropped.length) {
       console.log(`  [90m${dropped.length} rejected as not this product:[0m`);

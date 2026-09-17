@@ -40,6 +40,7 @@ export interface CompsHealth {
   recentLinkedSkus: number;
   quarantined: number;
   coverageByCategory: Record<string,{ok:number;sparse:number;no_comps:number}>;
+  collectionScope:'server-local-attempts';
   collection24h: {attempts:number;completed:number;fetched:number;parsed:number;accepted:number;saved:number;errors:number};
   insufficientReasons: Array<{reason:string;count:number}>;
   /** Roughly how long before the CURRENT stock ages out of the 90-day window. */
@@ -100,7 +101,7 @@ export function compsHealth(coverage:CatalogCoverage[]=catalogCoverage()): Comps
     warning = `only ${skusPriceable} of ${skusTotal} models can be priced; the remainder lack at least three suitable used-condition comps inside ${COMP_WINDOW_DAYS} days.`;
   }
 
-  return { total, usable, recentLinkedSkus,quarantined,coverageByCategory,collection24h,insufficientReasons,newestSoldAt: newest, ageDays, skusTotal, skusPriceable, daysOfRunway, warning };
+  return { total, usable, recentLinkedSkus,quarantined,coverageByCategory,collectionScope:'server-local-attempts',collection24h,insufficientReasons,newestSoldAt: newest, ageDays, skusTotal, skusPriceable, daysOfRunway, warning };
 }
 
 export async function compsHealthAsync():Promise<CompsHealth> {

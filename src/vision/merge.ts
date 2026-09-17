@@ -45,14 +45,21 @@ export function loadCurrentVision(listingId: number, model: string, promptVersio
 /** Update URL metadata synchronously; background hash jobs never replace facts.
  * Reuse exact-URL hashes, and drop old URLs before a stored re-score can see them.
  */
-export function syncPhotoUrls(listingId: number, urls: string[]) {
+export function ensurePhotoClock(d=db()) {
+  d.exec('CREATE TABLE IF NOT EXISTS listing_photo_observations(listing_id INTEGER PRIMARY KEY REFERENCES listings(id),observed_at TEXT NOT NULL)');
+}
+export function syncPhotoUrls(listingId: number, urls: string[], observedAt?:string) {
   const d=db();
-  d.transaction(()=>{
-    const old=d.query("SELECT url,phash,local_path,captured_at FROM listing_photos WHERE listing_id=?").all(listingId) as Array<{url:string;phash:string|null;local_path:string|null;captured_at:string}>;
+  ensurePhotoClock(d);
+  return d.transaction(()=>{
+    const old=d.query("SELECT url,phash,local_path,captured_at FROM listing_photos WHERE listing_id=? ORDER BY position").all(listingId) as Array<{url:string;phash:string|null;local_path:string|null;captured_at:string}>;
+    if(observedAt)d.run('INSERT INTO listing_photo_observations VALUES(?,?) ON CONFLICT(listing_id) DO UPDATE SET observed_at=excluded.observed_at WHERE excluded.observed_at>listing_photo_observations.observed_at',[listingId,observedAt]);
+    if(JSON.stringify(old.map(p=>p.url))===JSON.stringify(urls))return false;
     const byUrl=new Map(old.map(r=>[r.url,r]));
     d.run("DELETE FROM listing_photos WHERE listing_id=?",[listingId]);
     const put=d.prepare("INSERT INTO listing_photos(listing_id,url,phash,local_path,position,captured_at) VALUES(?,?,?,?,?,?)");
     for(const [i,url] of urls.entries()) { const prior=byUrl.get(url);put.run(listingId,url,prior?.phash??null,prior?.local_path??null,i,prior?.captured_at??new Date().toISOString()); }
+    return true;
   })();
 }
 

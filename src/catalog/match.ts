@@ -14,6 +14,7 @@ import { catalogCategory, EXACT_PARTS, exactPartIdentity } from "./identity.ts";
 import { DEAD_PATTERNS } from "../reference/catalog.ts";
 import { productVariants } from "../signals/variants.ts";
 import {macbookCompIdentity} from './macbook.ts';
+import {factualText} from '../signals/factual-text.ts';
 
 export interface Match {
   skuId: number | null;
@@ -149,7 +150,7 @@ export function fullestVariant(matches: string[], base: RegExp): string {
 /** Attributes that change value materially, pulled straight from text. */
 export function extractAttributes(text: string): Record<string, string | number> {
   const a: Record<string, string | number> = {};
-  const t = text.toLowerCase();
+  const t = factualText(text).toLowerCase();
 
   // RAM and VRAM first, so their GB figures can't be mistaken for storage.
   // Before this, "RTX 3050 8GB" read as 8GB of storage and "32GB 512GB" read
@@ -161,6 +162,13 @@ export function extractAttributes(text: string): Record<string, string | number>
     ?? t.match(/\b(\d{1,3})\s?(?:gb|gigs?)\s*(?:of\s*)?(?:ram|ddr[345]|memory)\b/)
     ?? t.match(/\b(\d{1,3})\s?gb\s*(?:of\s*)?(?:ddr[45]\s*)?ram\b/);
   if (ram) a.ram_gb = Number(ram[1]);
+  const kit=t.match(/\b(\d+)\s*[x×]\s*(\d+)\s*gb\b/);
+  if(kit&&/\b(?:ram|memory|ddr[345]|dimm)\b/.test(t)){
+    a.kit_layout=`${Number(kit[1])}x${Number(kit[2])}`;a.quantity=Number(kit[1]);a.ram_gb=Number(kit[1])*Number(kit[2]);
+  }
+  if(/\bnon[- ]?ecc\b/.test(t))a.ecc='non-ecc';else if(/\becc\b/.test(t))a.ecc='ecc';
+  if(/\b(?:registered|rdimm)\b/.test(t))a.memory_type='registered';else if(/\b(?:unbuffered|udimm)\b/.test(t))a.memory_type='unbuffered';
+  if(/\bsodimm\b|\blaptop memory\b/.test(t))a.memory_form='sodimm';
 
   // "(12 GB)" trailing a card name is VRAM, not system memory.
   const vramMatch =
@@ -192,7 +200,7 @@ export function extractAttributes(text: string): Record<string, string | number>
     );
   if (explicit) {
     a.storage_gb = explicit[2] === "tb" ? Number(explicit[1]) * 1024 : Number(explicit[1]);
-  } else {
+  } else if(!/\b(?:ddr[345]|sodimm|rdimm|memory kit)\b/.test(t)||/\b(?:phone|iphone|pixel|galaxy|laptop|macbook|gaming pc)\b/.test(t)) {
     const claimed = new Set([a.ram_gb, a.vram_gb].filter(Boolean));
     const all = [...t.matchAll(/\b(\d{1,4})\s?(gb|tb)\b/g)]
       .map((m) => (m[2] === "tb" ? Number(m[1]) * 1024 : Number(m[1])))
@@ -249,6 +257,10 @@ export function extractAttributes(text: string): Record<string, string | number>
     GPU_BASE,
   );
   if (gpu) a.gpu = gpu;
+  else {
+    const integrated=t.match(/\b(?:intel\s+)?(?:uhd|hd)\s+graphics\s*\d*|\b(?:integrated graphics|igpu|no dedicated gpu)\b/);
+    if(integrated)a.gpu=integrated[0].trim();
+  }
 
   // Model year only. Exclude dates the seller mentions in passing ("reset on
   // 8/12/2026", "installed 7/8/2026") and anything at or past the current year.
@@ -281,6 +293,7 @@ export function extractAttributes(text: string): Record<string, string | number>
  * machine. A whole machine must never match a component SKU.
  */
 export function matchSku(title: string, description = "", categoryHint?: string): Match {
+  title=factualText(title);description=factualText(description);
   const text = `${title} ${description}`;
   const attributes = extractAttributes(text);
   const d = db();
@@ -309,6 +322,7 @@ export function matchSku(title: string, description = "", categoryHint?: string)
   aliasRows = aliasRows.map(r => ({ ...r, category: catalogCategory(r.category, r.model), alias: r.alias || norm(`${r.brand} ${r.model}`) }));
   aliasRows=aliasRows.filter(r=>macbookCompIdentity(title,`${r.brand} ${r.model}`));
   if (categoryHint && EXACT_PARTS.has(categoryHint)) aliasRows = aliasRows.filter(r => r.category === categoryHint);
+  if(categoryHint==='gpu'||categoryHint==='component')aliasRows=aliasRows.filter(r=>r.category===categoryHint);
 
   // A whole machine is not the sum of a component SKU. Filter parts out.
   const WHOLE = new Set(["prebuilt", "laptop", "phone", "tablet", "console"]);
@@ -377,6 +391,7 @@ export function matchSku(title: string, description = "", categoryHint?: string)
     const tv = variantsIn(n, h.category);
     const mv = variantsIn(norm(h.model), h.category);
     for (const v of tv) if (!mv.has(v)) return false;
+    if(h.category==='gpu'&&[...mv].some(v=>!tv.has(v)))return false;
     return true;
   });
 
@@ -458,6 +473,7 @@ export function matchSku(title: string, description = "", categoryHint?: string)
     const tv = variantsIn(n, r.category);
     const mv = variantsIn(norm(r.model), r.category);
     if ([...tv].some((v) => !mv.has(v))) continue;
+    if(r.category==='gpu'&&[...mv].some(v=>!tv.has(v)))continue;
 
     const matched = mt.filter((w) => tokens.has(w)).length;
     const overlap = matched / mt.length;

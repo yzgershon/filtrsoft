@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {db} from '../db/index.ts';
-import {ensureEnrichment} from '../db/enrichment.ts';
+import {ensureEnrichment,dueDetails} from '../db/enrichment.ts';
 import {upsertListingFacts} from '../db/listings.ts';
 import {marketplaceItemKey} from '../sources/item-url.ts';
 
@@ -17,15 +17,15 @@ export type RepairTarget=z.infer<typeof repairTargetSchema>;
 export function repairTargets(sources:string[],limit=40):RepairTarget[] {
   ensureEnrichment();const d=db(),at=new Date().toISOString(),since=new Date(Date.now()-28*86400000).toISOString();
   return sources.filter(s=>source.safeParse(s).success).flatMap(s=>{
-    const rows=d.query(`SELECT l.*,v.call FROM listings l
+    const probes=d.query(`SELECT l.*,v.call FROM listings l
       JOIN verdicts v ON v.id=(SELECT MAX(id) FROM verdicts WHERE listing_id=l.id)
       LEFT JOIN listing_enrichment e ON e.listing_id=l.id
       WHERE l.source=? AND l.delisted_at IS NULL AND v.call!='OUT_OF_SCOPE'
         AND COALESCE(l.posted_at,l.last_seen,l.captured_at)>=?
-        AND ((v.call IN ('BUY','VERIFY') AND (l.next_probe_at IS NULL OR l.next_probe_at<=?))
-          OR (length(COALESCE(l.description,''))<40 AND (e.next_attempt_at IS NULL OR e.next_attempt_at<=?)))
+        AND v.call IN ('BUY','VERIFY') AND (l.next_probe_at IS NULL OR l.next_probe_at<=?)
       ORDER BY CASE v.call WHEN 'BUY' THEN 0 WHEN 'VERIFY' THEN 1 ELSE 2 END,
-        COALESCE(e.attempted_at,''),l.captured_at DESC LIMIT ?`).all(s,since,at,at,Math.min(60,limit)) as any[];
+        COALESCE(e.attempted_at,''),l.captured_at DESC LIMIT ?`).all(s,since,at,Math.min(6,limit)) as any[];
+    const rows=[...new Map([...probes,...dueDetails(s,limit)].map(r=>[r.id,r])).values()].slice(0,Math.min(60,limit));
     return rows.flatMap(l=>{
       const parsed=repairTargetSchema.safeParse({source:l.source,sourceId:l.source_id,url:l.url,title:l.title,description:l.description??'',
         askingPriceCents:l.asking_price_cents,location:l.location,postedAt:l.posted_at,observedAt:l.last_seen??l.captured_at,
