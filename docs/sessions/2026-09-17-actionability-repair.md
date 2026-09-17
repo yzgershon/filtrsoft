@@ -1,5 +1,15 @@
 # Listing evidence, availability and delivery repair
 
+## Final live-data regression: disclosed screen damage
+
+Fresh OfferUp #7579 said "fully operable - there is a crack on the screen" but
+had no damage signal and retained a working-screen profit estimate. Engine
+**0.3.38** adds a quoted DAMAGED_DISPLAY blocker, separate from NON_WORKING.
+It excludes negated damage, screen protectors and explicit repairs and does not
+invent a repair bill. A real-input end-to-end regression verifies RISK for this
+listing. The engine bump schedules existing stored disclosures for review; this
+server rule needs no new collector protocol.
+
 ## Completed desktop cycle and Mercari follow-up
 
 OMEN job **43** completed at **18:32:55 UTC**, all three sources reporting ok,
