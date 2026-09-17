@@ -1,6 +1,7 @@
 import {evidenceHash} from "./provenance.ts";
 import {pricingSignature} from "../db/revisions.ts";
-import {recoveryPlan} from '../agent/recovery.ts';
+import {recoveryPlan,type ReadReceipt} from '../agent/recovery.ts';
+import {readReceipt,recordDetailAttempt} from '../db/enrichment.ts';
 import {textFacts} from '../signals/factual-text.ts';
 import {closedDomain,boundedDecision} from '../verdict/bounded.ts';
 /**
@@ -78,7 +79,7 @@ export interface CheckOptions {
 export function runPipeline(
   listing: RawListing,
   vision: VisionResult | null,
-  opts: { econ?: UserEconomics; driveMinutes?: number; clusterSize?: number;bounded?:boolean } = {},
+  opts: { econ?: UserEconomics; driveMinutes?: number; clusterSize?: number;bounded?:boolean;recovery?:ReadReceipt|null } = {},
 ): { signals: SignalReport; match: Match; verdict: VerdictResult } {
   const vText = visionToText(vision);
 
@@ -155,7 +156,7 @@ export function runPipeline(
     economics:{version:1,hash:evidenceHash({economics,driveMinutes:opts.driveMinutes??15}),values:{...economics},
       driveMinutes:opts.driveMinutes??15,scope:opts.econ || opts.driveMinutes!=null?'personal':'canonical'}};
   verdict.textEvidence=textFacts(`${listing.title}\n${listing.description}`);
-  verdict.recovery=recoveryPlan({...listing,verdict,call:verdict.call}).blockers;
+  verdict.recovery=recoveryPlan({...listing,verdict,call:verdict.call,recovery:opts.recovery}).blockers;
   return { signals, match, verdict };
 }
 
@@ -303,12 +304,15 @@ export async function checkFetched(listing: RawListing, opts: CheckOptions = {})
     }
   }
   const evidenceId = listingId ?? (db().query("SELECT id FROM listings WHERE source=? AND source_id=?").get(listing.source,listing.sourceId) as {id:number}|null)?.id;
+  const extraction=rawObject(rawObject(listing.raw).extraction);
+  if(listingId&&!opts.storedListingId&&listing.source==='craigslist'&&typeof extraction.complete==='boolean')
+    recordDetailAttempt(listingId,'read',Date.now(),{complete:extraction.complete,reason:extraction.complete?'complete':'incomplete'});
   let vision = evidenceId && photosUnchanged(evidenceId, listing.photoUrls)
     ? loadCurrentVision(evidenceId,VISION_MODEL,PROMPT_VERSION) : null;
 
   // Paid work is optional; preserving applicable stored evidence is not.
   const cluster = clusterSize(listing.sellerRef);
-  let out = runPipeline(listing, vision, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster });
+  let out = runPipeline(listing, vision, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster,recovery:evidenceId?readReceipt(evidenceId):null });
   emit("signals", { signals: out.signals.signals, category: out.signals.category,
     listingQuality: out.signals.listingQuality, sellerSophistication: out.signals.sellerSophistication });
   emit("valued", { match: out.match, verdict: out.verdict });
@@ -357,7 +361,7 @@ export async function checkFetched(listing: RawListing, opts: CheckOptions = {})
             `INSERT INTO vision_results (listing_id, model, payload, duration_ms, created_at, cost_micros, photo_fingerprint, prompt_version)
              VALUES ($lid,$model,$p,0,$now,0,$fp,$pv)`,
           ).run({ $lid: listingId, $model: VISION_MODEL, $p: JSON.stringify(hit), $now: now(), $fp: fp, $pv: PROMPT_VERSION });
-          out = runPipeline(listing, vision, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster });
+          out = runPipeline(listing, vision, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster,recovery:evidenceId?readReceipt(evidenceId):null });
           emit("vision", { vision, verdict: out.verdict, cached: "photos" });
         }
       }
@@ -377,7 +381,7 @@ export async function checkFetched(listing: RawListing, opts: CheckOptions = {})
             $fp: fp, $pv: PROMPT_VERSION,
             $reservation: vision.budgetReservationId ?? null,
           });
-          out = runPipeline(listing, vision, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster });
+          out = runPipeline(listing, vision, { econ, driveMinutes: opts.driveMinutes, clusterSize: cluster,recovery:evidenceId?readReceipt(evidenceId):null });
           emit("vision", { vision, verdict: out.verdict, cached: false });
         }
       }
@@ -435,7 +439,7 @@ export function checkStored(
   };
 
   const out = runPipeline(listing, loadCurrentVision(listingId,VISION_MODEL,PROMPT_VERSION), {
-    econ: opts.econ, driveMinutes: opts.driveMinutes, clusterSize: clusterSize(r.seller_ref),
+    econ: opts.econ, driveMinutes: opts.driveMinutes, clusterSize: clusterSize(r.seller_ref),recovery:readReceipt(listingId),
   });
   return { ...out, listing };
 }
@@ -497,4 +501,4 @@ export function checkStored(
 // 0.3.33: preserve item/quantity/price pairs in placeholder inventory ads.
 // Never compare the headline $1 with a median assembled from different items.
 // 0.3.36: ambiguous MacBook families cannot pool Intel and Apple Silicon sales.
-export const ENGINE_VERSION = "0.3.39";
+export const ENGINE_VERSION = "0.3.40";

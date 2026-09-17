@@ -116,4 +116,12 @@ test('independent photo and recovery clocks survive stale cards, retries and new
  receiveChanges({...batch,changes:[{sequence:9,listing:older,hash:contentHash(older)}]});
  assert.equal(d.query('SELECT COUNT(*) n FROM listing_photos WHERE listing_id=?').get(id).n,1);
  assert.equal(JSON.parse(d.query('SELECT payload FROM listing_recovery WHERE listing_id=?').get(id).payload).complete,true);
+ d.run('DELETE FROM listing_rechecks WHERE listing_id=?',[id]);
+ const receiptOnly={...photoUpdate,photosAt:at,recovery:{...receipt,observedAt:'2026-09-10T00:00:00.000Z'}};
+ const receiptBatch={...batch,changes:[{sequence:10,listing:receiptOnly,hash:contentHash(receiptOnly)}]};
+ assert.equal(receiveChanges(receiptBatch).acks[0].status,'applied');
+ assert.equal(d.query('SELECT reason FROM listing_rechecks WHERE listing_id=?').get(id).reason,'recovery');
+ d.run('DELETE FROM listing_rechecks WHERE listing_id=?',[id]);
+ assert.equal(receiveChanges(receiptBatch).acks[0].status,'duplicate');
+ assert.equal(d.query('SELECT * FROM listing_rechecks WHERE listing_id=?').get(id),null);
 `));

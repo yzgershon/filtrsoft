@@ -30,6 +30,21 @@ test('all missing build fields route to photos after a complete read, while exac
  expect(result.blockers.some(b=>b.field.includes('whole build')&&b.job==='comps')).toBe(true);
  expect(result.blockers.some(b=>b.field==='exact identity')).toBe(false);
 });
+
+test('stored verdict recovery uses the content-matched read receipt including photos',()=>isolated(`
+ import {db} from '@/src/db/index.ts';import {upsertListingFacts} from '@/src/db/listings.ts';
+ import {recordDetailAttempt} from '@/src/db/enrichment.ts';import {checkStored} from '@/src/engine/index.ts';
+ import {syncPhotoUrls} from '@/src/vision/merge.ts';
+ const d=db(),id=upsertListingFacts(d,{source:'mercari',sourceId:'receipt',url:'https://www.mercari.com/us/item/receipt/',title:'Gaming desktop PC',description:'Well cared for computer, selling because I upgraded.',askingPriceCents:50000,location:null,postedAt:null,photoCount:1}).id;
+ syncPhotoUrls(id,['https://cdn.invalid/pc.jpg']);
+ assert.ok(checkStored(id).verdict.recovery.some(b=>b.field==='seller text'));
+ recordDetailAttempt(id,'read',Date.now(),{complete:true});
+ const complete=checkStored(id).verdict;
+ assert.ok(!complete.recovery.some(b=>b.field==='seller text'));
+ assert.ok(complete.recovery.some(b=>b.field==='gpu'&&b.job==='photos'));
+ d.run("UPDATE listings SET description=description||' Seller changed specifications.' WHERE id=?",[id]);
+ assert.ok(checkStored(id).verdict.recovery.some(b=>b.field==='seller text'));
+`));
 test('full descriptions preserve tiers and disclosures beyond old worker limits; truncation and absent boundaries stay incomplete',()=>{
  const description='2 sticks $40\n\n4 sticks $70\n'+('Seller paragraph.\n'.repeat(350))+'Screen is cracked';
  for(const parse of [parseMercariDetail,parseOfferUpDetail])expect(parse('Description\n'+description+'\nDelivery\nOther item RTX 5090').description).toContain('Screen is cracked');
@@ -44,7 +59,9 @@ test('current seller facts exclude trade wishes, compatibility, removed and hist
  expect(extractAttributes('No RTX 4090 included. Compatible with Ryzen 9 9950X.')).not.toHaveProperty('gpu');
  expect(extractAttributes('No RTX 4090 included. Compatible with Ryzen 9 9950X.')).not.toHaveProperty('cpu');
  expect(textFacts('GPU RTX 4070 Ti\nInstalled GPU RTX 3080').conflicts).toEqual(['gpu']);
- expect(textFacts('RTX 3080\nRTX 3080 Ti').conflicts).toEqual([]);
+ expect(textFacts('RTX 3080\nRTX 3080 Ti').conflicts).toEqual(['gpu']);
+ expect(textFacts('Intel i7-13700\nIntel i7-13700K').conflicts).toEqual(['cpu']);
+ expect(textFacts('RTX 3080 Ti\nRTX3080 Ti').conflicts).toEqual([]);
  expect(extractAttributes('Samsung PC4-2133P 2x16GB laptop memory ECC registered')).toMatchObject({ram_gb:32,quantity:2,kit_layout:'2x16',ecc:'ecc',memory_type:'registered'});
  expect(detectCategory('Samsung PC4-2133P 2x16GB Laptop memory')).toBe('ram');
 });

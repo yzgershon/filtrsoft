@@ -26,9 +26,9 @@ export function textFacts(text:string):{facts:TextFact[];conflicts:string[]} {
   const conflicts:string[]=[];
   for(const field of ['cpu','gpu']){
     const values=[...new Set(facts.filter(f=>f.field===field).map(f=>f.value.replaceAll(' ','')))];
-    // A short title plus its expanded suffix is not a second observation.
-    const distinct=values.filter(v=>!values.some(other=>other!==v&&other.startsWith(v)));
-    if(distinct.length>1)conflicts.push(field);
+    // Base and suffixed variants are different products. A seller may have
+    // shortened a title, but that is not proof that conflicting names agree.
+    if(values.length>1)conflicts.push(field);
   }
   const ecc=facts.filter(f=>f.field==='ecc').map(f=>f.value);
   if(ecc.some(v=>/^non/.test(v))&&ecc.includes('ecc'))conflicts.push('ecc');
