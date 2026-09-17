@@ -152,7 +152,11 @@ export function extractAttributes(text: string): Record<string, string | number>
   const a: Record<string, string | number> = {};
   const t = factualText(text).toLowerCase();
   const screen=t.match(/\b(\d{1,2}(?:\.\d)?)\s*(?:-\s*inch\b|inches\b|inch\b|["“”″])/);
-  if(screen)a.screen_inches=Number(screen[1]);
+  // A GPU's bracket height or a case dimension is not a display diagonal.
+  if(screen){
+    const before=t.slice(Math.max(0,screen.index!-30),screen.index),after=t.slice(screen.index!+screen[0].length,screen.index!+screen[0].length+25);
+    if(/\b(?:laptop|notebook|macbook|thinkpad|chromebook|monitor|touchscreen)\b/.test(t)||/\b(?:screen|display|diagonal)(?:\s+size)?\s*[:=]?\s*$/.test(before)||/^\s*(?:screen|display|diagonal)\b/.test(after))a.screen_inches=Number(screen[1]);
+  }
   const gpuCores=t.match(/\b(\d{1,2})\s*(?:-?\s*cores?|c)\s*gpu\b|\b(\d{1,2})-gpu\b/);
   if(gpuCores)a.gpu_cores=Number(gpuCores[1]??gpuCores[2]);
 
@@ -179,6 +183,7 @@ export function extractAttributes(text: string): Record<string, string | number>
     t.match(/\b(?:rtx|gtx|rx)\s?\d{3,4}\s?(?:ti\s*super|super|ti|xtx|xt)?\s*\(?\s*(\d{1,2})\s?gb\b(?!\s*(?:ram|ddr[345]|memory)\b)/)
     ?? t.match(/\bvram\s*[:=]\s*(\d{1,2})\s?gb\b/);
   if (vramMatch) a.vram_gb = Number(vramMatch[1]);
+  if(vramMatch&&a.ram_gb===a.vram_gb&&!/\b(?:laptop|notebook|macbook|desktop|gaming pc|ram|ddr[345])\b/.test(t))delete a.ram_gb;
 
   // Storage: prefer an explicit drive mention; otherwise take the largest GB
   // figure that isn't already claimed by RAM or VRAM.
@@ -204,9 +209,10 @@ export function extractAttributes(text: string): Record<string, string | number>
     );
   if (explicit) {
     a.storage_gb = explicit[2] === "tb" ? Number(explicit[1]) * 1024 : Number(explicit[1]);
-  } else if(!/\b(?:ddr[345]|sodimm|rdimm|memory kit)\b/.test(t)||/\b(?:phone|iphone|pixel|galaxy|laptop|macbook|gaming pc)\b/.test(t)) {
+  } else if(!/\b(?:laptop memory|memory modules?|memory kit)\b/.test(t)&&
+    (!/\b(?:ddr[345]|sodimm|rdimm|graphics card|quadro|geforce|radeon|rtx|gtx|vram)\b/.test(t)||/\b(?:phone|iphone|pixel|galaxy|laptop|notebook|macbook|desktop|gaming pc)\b/.test(t))) {
     const claimed = new Set([a.ram_gb, a.vram_gb].filter(Boolean));
-    const all = [...t.matchAll(/\b(\d{1,4})\s?(gb|tb)\b/g)]
+    const all = [...t.matchAll(/\b(\d{1,4})\s?(gb|tb)\b(?!\s*\/\s*s\b|\s+per\s+second\b)/g)]
       .map((m) => (m[2] === "tb" ? Number(m[1]) * 1024 : Number(m[1])))
       .filter((n) => !claimed.has(n));
     // Sellers abbreviate phone capacity as "256G" constantly. Require at

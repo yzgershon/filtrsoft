@@ -89,7 +89,17 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
-### September 17, evidence recovery release — final live audit in progress
+### September 17, evidence recovery release — final audit follow-up
+
+**Current installed state:** OMEN is running, not maintenance-stopped. Runtime merge `79ce68284207` preserves all desktop ancestry and passed 39 focused tests, typecheck and doctor. Production confirms its original node `bc3313ad-0a65-4020-922c-e9a30505da21`; Gaming desktop stays primary, five-minute fallback grace, 30-minute rest after cycles, laptop paused. Configuration/env/launcher hashes match baseline. Job 49 is collecting automatically.
+
+Functional main `e594d57` / engine **0.3.42** is active on Railway deployment `91d3a408-81b7-419d-8908-8c208da148d6`; CI `35284919930` passed including containers. At **23:16:12 UTC**, production scoring was **0 pending / 0 failed**, health **464 ms**, database OK, matching web assets. Verified maintenance backup SHA `690490bce50f3e44c66f9b4d29dee9ea6feefef7539361e2a70ca9a6fa0f78d7`, 2,036 listings / 32,777 comps / zero FK violations.
+
+The frozen 250-row production receipt saved at 23:11:58 UTC shows **two PASS, one supported RISK, one separately retired and 246 remaining unresolved**. All 249 unretired rows have 0.3.42 provenance; retired #7743 retains its historical verdict. Seller text 82→151; complete receipts 58; above-low catalog matches 52→57. No new BUY/VERIFY or natural alert; false-recommendation rate is not estimable. One baseline chair was misclassified as a tablet and remains disclosed in the denominator. Two comp passes acknowledged **491 new observations**. See the detailed [measured report](docs/EVIDENCE-RECOVERY-2026-09-17.md).
+
+An additional 20-row unknown audit found equivalent CPU punctuation falsely flagged as contradictory and GPU dimensions/bandwidth mislabelled as screen/storage. Candidate **0.3.43** corrects those fields with failing-before regressions. Validation/release/runtime follow-up is pending; do not confuse this candidate with the installed 0.3.42 runtime. Local vision remains disabled after Qwen3.5-9B failed acceptance. Production durable backup remains space-blocked. No new spending or laptop resume.
+
+### September 17, preceding evidence recovery checkpoint (superseded above)
 
 All five requested workstreams are implemented. Engine 0.3.41 is live from main `e722cc7`; Railway deployment `1d917447-dfe1-4489-81c2-fccc5aa1811e` succeeded, CI `35282590824` passed including containers. OMEN runtime `87f23490ab16` completed bounded verification with the same node. At 22:58:31 UTC production scoring reached **0 pending / 0 failures**, public health 368 ms. Laptop stays persistently paused; desktop primary, 30-minute rest, five-minute fallback grace.
 

@@ -26,7 +26,7 @@ export function textFacts(text:string):{facts:TextFact[];conflicts:string[]} {
   for(const [field,re] of Object.entries(patterns))for(const m of clean.matchAll(re))facts.push({field,value:m[0].trim().toLowerCase().replace(/\s+/g,' '),quote:m[0].trim(),source:'seller-text'});
   const conflicts:string[]=[];
   for(const field of ['cpu','gpu','phoneModel']){
-    const values=[...new Set(facts.filter(f=>f.field===field).map(f=>f.value.replaceAll(' ','')))];
+    const values=[...new Set(facts.filter(f=>f.field===field).map(f=>f.value.replace(/[\s-]/g,'')))];
     // Base and suffixed variants are different products. A seller may have
     // shortened a title, but that is not proof that conflicting names agree.
     if(values.length>1)conflicts.push(field);

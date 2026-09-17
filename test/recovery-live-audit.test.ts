@@ -17,6 +17,21 @@ test('a hidden bracket is unknown, not proof the card has no display outputs',()
   expect(evaluateRisk('gpu','Mining card',v).find(r=>r.code==='DISPLAY_OUTPUTS')?.state).toBe('failed');
 });
 
+test('equivalent CPU punctuation is not a conflict, while suffix differences remain conflicts',()=>{
+  expect(textFacts('Intel Core i5-10400F SRH3D CPU. For sale: Intel Core i5 10400F.').conflicts).not.toContain('cpu');
+  expect(textFacts('Intel i5-10400. Intel i5 10400F.').conflicts).toContain('cpu');
+});
+
+test('component dimensions, GPU bandwidth and laptop memory kits are not machine storage or displays',()=>{
+  const gpu=extractAttributes('nVIDIA Quadro RTX 5000 16GB graphics card\nMemory Configuration 16 GB Memory Bandwidth 448 GB/s Display Support Display Connectors 4 x DisplayPort 1.4 Dimensions Height 4.4" Length 10.5"');
+  expect(gpu.screen_inches).toBeUndefined();expect(gpu.storage_gb).toBeUndefined();expect(gpu.ram_gb).toBeUndefined();expect(gpu.vram_gb).toBe(16);
+  expect(extractAttributes('NVIDIA RTX A2000 Graphics Card 6gb').storage_gb).toBeUndefined();
+  const kit=extractAttributes('Samsung PC4-2133P 2x16GB Laptop memory\nPair of matching 16GB memory modules. Sold as pair total 32GB.');
+  expect(kit).toMatchObject({ram_gb:32,kit_layout:'2x16',quantity:2});expect(kit.storage_gb).toBeUndefined();
+  expect(extractAttributes('MacBook Air 13" M5 16GB RAM 512GB SSD')).toMatchObject({screen_inches:13,storage_gb:512});
+  expect(extractAttributes('Samsung Galaxy S24 256GB')).toMatchObject({storage_gb:256});
+});
+
 test('store financing availability is not an outstanding balance; a separate debt still fails',()=>{
   const state=(s:string)=>evaluateRisk('phone',s,null).find(r=>r.code==='FINANCING')?.state;
   expect(state('Store warranty and financing available')).toBe('unresolved');
