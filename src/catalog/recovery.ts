@@ -17,8 +17,8 @@ export function enqueueIdentity(row:any,at=Date.now()){
  ON CONFLICT(listing_id) DO UPDATE SET fingerprint=excluded.fingerprint,state='queued',reason=excluded.reason,attempts=0,next_at=excluded.next_at,owner=NULL,lease_until=NULL,sku_id=NULL,query=NULL,evidence=NULL,updated_at=excluded.updated_at WHERE fingerprint!=excluded.fingerprint`,[row.id,fingerprint,stamp,stamp]);
 }
 export function enqueueUnresolvedIdentities(at=Date.now()){
- installIdentityJobs();const rows=db().query(`SELECT l.* FROM listings l JOIN verdicts v ON v.id=(SELECT MAX(id) FROM verdicts WHERE listing_id=l.id) WHERE v.call='INSUFFICIENT_DATA' AND l.delisted_at IS NULL AND COALESCE(l.last_seen,l.captured_at)>=? ORDER BY l.id`).all(new Date(at-28*86400000).toISOString()) as any[];
- for(const row of rows)enqueueIdentity(row,at);return rows.length;
+ installIdentityJobs();const rows=db().query(`SELECT l.id,l.title,l.description,l.delisted_at FROM listings l JOIN verdicts v ON v.id=(SELECT MAX(id) FROM verdicts WHERE listing_id=l.id) WHERE v.call='INSUFFICIENT_DATA' AND l.delisted_at IS NULL AND COALESCE(l.last_seen,l.captured_at)>=? ORDER BY l.id`).all(new Date(at-28*86400000).toISOString()) as any[];
+ db().transaction(()=>{for(const row of rows)enqueueIdentity(row,at);})();return rows.length;
 }
 export function claimIdentity(owner:string,at=Date.now(),ids?:number[]){
  installIdentityJobs();return db().transaction(()=>{

@@ -18,6 +18,8 @@ export function handleRecoverySnapshot(c:Context){
      recovery:has('listing_recovery')?d.query('SELECT * FROM listing_recovery WHERE listing_id=?').get(id):null,
      enrichment:has('listing_enrichment')?d.query('SELECT * FROM listing_enrichment WHERE listing_id=?').get(id):null,
      availability:has('listing_availability')?d.query('SELECT * FROM listing_availability WHERE listing_id=?').get(id):null,
-     identityJob:has('identity_jobs')?d.query('SELECT * FROM identity_jobs WHERE listing_id=?').get(id):null};
+     identityJob:has('identity_jobs')?d.query('SELECT * FROM identity_jobs WHERE listing_id=?').get(id):null,
+     lastAttempt:has('listing_recovery_attempts')?d.query('SELECT * FROM listing_recovery_attempts WHERE listing_id=?').get(id):null,
+     request:has('cohort_recovery_requests')?d.query('SELECT * FROM cohort_recovery_requests WHERE listing_id=?').get(id):null};
  })}))());
 }

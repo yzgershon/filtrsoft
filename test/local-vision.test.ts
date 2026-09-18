@@ -14,4 +14,6 @@ test('local vision refuses cloud endpoints, busy GPUs and changed models without
   await assert.rejects(readLocalPhotos(['photo.bin'],opts));assert.equal(requests,1);
   requests=0;opts.request=async()=>{requests++;return new Response(JSON.stringify(requests===1?{models:[{name:opts.model,digest:opts.digest}]}:{done:true,message:{content:JSON.stringify({fields:[],unreadable:true})}}));};
   const result=await readLocalPhotos(['photo.bin','photo.bin'],opts);assert.equal(result.usage,'evaluation-only');assert.equal(result.imageHashes.length,2);assert.deepEqual(result.unreadableImages,[0,1]);assert.equal(requests,3);
+  const traces=[];requests=0;opts.request=async()=>{requests++;return new Response(JSON.stringify(requests===1?{models:[{name:opts.model,digest:opts.digest}]}:{done:true,done_reason:'length',eval_count:2048,message:{content:JSON.stringify({fields:[],unreadable:true})}}));};
+  await assert.rejects(readLocalPhotos(['photo.bin'],{...opts,trace:t=>traces.push(t)}),/truncated/);assert.equal(traces.length,1);assert.equal(JSON.parse(traces[0].raw).eval_count,2048);
 `));

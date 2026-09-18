@@ -12,7 +12,7 @@ export function evaluateFacts(expected:Record<string,string[]>,result:ReturnType
  const errors:Array<{field:string;value:string;kind:'placeholder'|'misplaced'|'fragment'|'visible-misfiled'|'unsupported'}>=[];
  for(const [field,values] of wanted){const correct=[...values].filter(value=>facts.some(f=>f.field===field&&normalize(f.value)===value)).length;fields[field]={correct,missed:values.size-correct,wrong:0};}
  for(const f of facts){const value=normalize(f.value);if(wanted.get(f.field)?.has(value))continue;
-  const kind=placeholder(f.value)?'placeholder':all.includes(value)?'misplaced':supportedLabels.map(normalize).includes(value)?'visible-misfiled':value.length>=3&&all.some(v=>v.startsWith(value+' ')||v.endsWith(' '+value))?'fragment':'unsupported';
+  const kind=placeholder(f.value)?'placeholder':all.includes(value)?'misplaced':supportedLabels.map(normalize).includes(value)?'visible-misfiled':value.length>=3&&all.some(v=>(' '+v+' ').includes(' '+value+' '))?'fragment':'unsupported';
   errors.push({field:f.field,value:f.value,kind});if(kind!=='placeholder'){fields[f.field]??={correct:0,missed:0,wrong:0};fields[f.field].wrong++;}
  }
  const correct=Object.values(fields).reduce((n,f)=>n+f.correct,0),missed=Object.values(fields).reduce((n,f)=>n+f.missed,0),wrong=Object.values(fields).reduce((n,f)=>n+f.wrong,0);

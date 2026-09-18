@@ -44,6 +44,14 @@ test('manufacturer codes are quoted, suffixes conflict and configuration never g
  expect(sourceIdentity('Intel i5-10400F CPU + motherboard bundle','','component').identity).toBeNull();
  expect(sourceIdentity('HP 27-CB0244 All in One','Ryzen 7 5700U','prebuilt').identity?.model).toBe('27-CB0244');
 });
+
+test('new exact cohort identity queries outrank repeated generic demand without bypassing query backoff',()=>isolated(`
+ import {db,now} from '@/src/db/index.ts';import {upsertListingFacts} from '@/src/db/listings.ts';import {enqueueIdentity,recoverIdentities} from '@/src/catalog/recovery.ts';import {ensureEnrichment} from '@/src/db/enrichment.ts';import {collectionPriority,startCollection,finishCollection} from '@/src/sources/comp-priority.ts';
+ const d=db();ensureEnrichment();d.run("INSERT INTO skus(category,brand,model,created_at) VALUES('gpu','NVIDIA','RTX 4070 Ti',?)",[now()]);
+ let legion=0;for(let i=0;i<5;i++){const exact=i===4,id=upsertListingFacts(d,{source:'facebook',sourceId:String(i+1),url:'https://www.facebook.com/marketplace/item/'+(i+1)+'/',title:exact?'Lenovo Legion 5 Gaming Laptop':'NVIDIA RTX 4070 Ti graphics card',description:exact?'Model 15ACH6. Ryzen 7 5800H RTX 3050 Ti 16GB RAM 1TB SSD':'Used',askingPriceCents:100000,location:null,postedAt:null,photoCount:0}).id;d.run('INSERT INTO cohort_recovery_requests VALUES(?,?)',[id,now()]);d.run("INSERT INTO verdicts(listing_id,engine_version,call,payload,created_at) VALUES(?,'fixture','INSUFFICIENT_DATA','{}',?)",[id,now()]);if(exact){legion=id;enqueueIdentity(d.query('SELECT * FROM listings WHERE id=?').get(id));}}
+ const result=recoverIdentities(1,{ids:[legion],enqueue:false})[0];assert.equal(collectionPriority(10)[0].demandQuery,result.query);assert.equal(collectionPriority(10,Date.now(),true).length,1);
+ const attempt=startCollection(result.skuId,result.query);finishCollection(attempt,{fetched:0,parsed:0,accepted:0,saved:0});assert.equal(collectionPriority(10,Date.now(),true).length,0);
+`));
 test('a broad Legion alias cannot swallow a precise seller model before identity resolution',()=>isolated(`
  import {db,now} from '@/src/db/index.ts';import {matchSku} from '@/src/catalog/match.ts';
  db().run("INSERT INTO skus(category,brand,model,created_at) VALUES('laptop','Lenovo','Legion 5',?)",[now()]);
