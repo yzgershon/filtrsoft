@@ -4,11 +4,15 @@
 
 ### Final audit follow-up
 
-Candidate engine **0.3.43** additionally normalizes equivalent CPU punctuation without collapsing suffixes, keeps GPU VRAM distinct from system RAM, and rejects bracket dimensions, bandwidth and laptop-memory kit capacities as display/storage specifications. These errors were found in a second 20-row remaining-unknown review; the CPU and dimension regressions demonstrably failed before correction. The same frozen-facts counterfactual remains 250 INSUFFICIENT_DATA (p50 1.632 ms, p95 41.197 ms, maximum 410.430 ms). The deployment/runtime receipt below is the verified 0.3.42 checkpoint until the follow-up finishes.
+Engine **0.3.43**, functional main **`4834b3214a7f0a161a420350bfa6b6b83847224c`**, additionally normalizes equivalent CPU punctuation without collapsing suffixes, keeps GPU VRAM distinct from system RAM, and rejects bracket dimensions, bandwidth and laptop-memory kit capacities as display/storage specifications. These errors were found in a second 20-row remaining-unknown review; the CPU and dimension regressions demonstrably failed before correction. The same frozen-facts counterfactual remains 250 INSUFFICIENT_DATA (p50 1.352 ms, p95 33.189 ms, maximum 391.460 ms). **407 tests / 1,345 assertions**, typecheck and build passed; [CI 35286589225](https://github.com/yzgershon/filtrsoft/actions/runs/35286589225) including containers passed. Railway `cfad9f6f-b8a3-49e8-8361-967429f6b6f4` is active. The 0.3.42 runtime/cohort checkpoint below remains a separate receipt; final runtime and scoring results are recorded in HANDOFF.
 
-Functional source `e594d57ace6cf495309dcee2c17dd62f06857ae3`, engine **0.3.42**, is deployed. [CI 35284919930](https://github.com/yzgershon/filtrsoft/actions/runs/35284919930) passed tests, typecheck, production build and both container verification/build steps. Railway deployment `91d3a408-81b7-419d-8908-8c208da148d6` is active. Production assets remain `index-C0OAYHY3.js` and `index-LTRDxhkn.css`.
+Final production scoring completed with **zero pending / zero failures** at **23:36:53 UTC**, engine 0.3.43, database OK, health **480 ms**. Installed runtime `15370943a9c7` is online with the original node and empty outboxes. Detailed runtime and job 49 measurements appear below.
 
-The installed OMEN runtime is `C:\Dev\filtrsoft-agent`, merge **`79ce68284207cf3c197b129d612ef5e4d0b5e029`**, retaining the original `4acecefff1fb` ancestry. It resumed through the existing launcher at **23:09:10 UTC**. Production confirmed its new revision and original node at 23:09:56 UTC. Configuration, environment and launcher SHA-256 hashes match their pre-maintenance values. The laptop still reports `paused`; Gaming desktop remains primary, with a five-minute fallback grace and **30 minutes of rest after a completed automatic cycle**.
+### Earlier 0.3.42 checkpoint
+
+Functional source `e594d57ace6cf495309dcee2c17dd62f06857ae3`, engine **0.3.42**, was the preceding deployment. [CI 35284919930](https://github.com/yzgershon/filtrsoft/actions/runs/35284919930) passed tests, typecheck, production build and both container verification/build steps. Railway deployment `91d3a408-81b7-419d-8908-8c208da148d6` served that source. Production assets remain `index-C0OAYHY3.js` and `index-LTRDxhkn.css`.
+
+At that checkpoint the installed OMEN runtime was `C:\Dev\filtrsoft-agent`, merge **`79ce68284207cf3c197b129d612ef5e4d0b5e029`**, retaining the original `4acecefff1fb` ancestry. It resumed through the existing launcher at **23:09:10 UTC**. Production confirmed its new revision and original node at 23:09:56 UTC. Configuration, environment and launcher SHA-256 hashes matched their pre-maintenance values. The laptop remained `paused`; Gaming desktop remained primary, with a five-minute fallback grace and **30 minutes of rest after a completed automatic cycle**.
 
 Before the update, the supervisor and its owned processes exited through its stop mechanism. The consistent, restore-verified backup contained **2,036 listings, 32,777 comps, 602 SKUs and zero foreign-key violations**, SHA-256 `690490bce50f3e44c66f9b4d29dee9ea6feefef7539361e2a70ca9a6fa0f78d7`. All 2,004 listings present before the measured automatic cycle remain present. No archive import, reset, reinstall, profile replacement or private configuration publication occurred.
 
@@ -49,13 +53,13 @@ At least 20 manually annotated real image cases, at least three categories, at l
 
 ## Frozen-facts counterfactual
 
-Engine 0.3.42 scored the exact same 250 listings against the frozen database: **250 remain INSUFFICIENT_DATA, zero valued transitions, zero new recommendations, zero retirements**. No fresh source reads or comp imports are included. Per-listing score latency was p50 **1.344 ms**, p95 **32.915 ms**, maximum **398.917 ms**. Recovery selection took 62–105 ms per source; of 40 selected per source, 34 Facebook, 11 Mercari and 20 OfferUp descriptions exceeded the former 40-character cutoff. This demonstrates repaired eligibility, not successful evidence recovery.
+Engine 0.3.43 scored the exact same 250 listings against the frozen database: **250 remain INSUFFICIENT_DATA, zero valued transitions, zero new recommendations, zero retirements**. No fresh source reads or comp imports are included. Per-listing score latency was p50 **1.352 ms**, p95 **33.189 ms**, maximum **391.460 ms**. Recovery selection took 63–89 ms per source; of 40 selected per source, 34 Facebook, 11 Mercari and 20 OfferUp descriptions exceeded the former 40-character cutoff. This demonstrates repaired eligibility, not successful evidence recovery.
 
 ## Frozen cohort after real collection
 
 The original manifest was frozen at **20:55:52 UTC**: 200 collector browser-source rows and 50 production Craigslist rows, stratified across source/category/blocker. Manifest SHA-256 is `4938bbb2f72a47f163e3f1430336adf2ca9299c3f6dbbe0205609d20f1202228`. IDs were never replaced. A later scope audit found one chair misclassified as a tablet; keep it in the reproducible denominator of 250 and disclose that the actual tech denominator is 249. It is not a recovery success.
 
-The owner-visible production receipt saved at **23:11:58 UTC** contains all 250 IDs. Reads occurred across several minutes, so this is an observation window rather than an atomic production snapshot. All 249 unretired rows have engine 0.3.42 provenance; the already-retired row retains its historical 0.3.41 verdict. The isolated counterfactual above is the controlled comparison.
+The final owner-visible production receipt saved at **23:37:04 UTC** contains all 250 IDs. Reads occurred across several minutes, so this is an observation window rather than an atomic production snapshot. All 250 rows have engine 0.3.43 provenance, including the separately retired row. The isolated counterfactual above is the controlled comparison.
 
 | Mutually exclusive outcome | Listings |
 |---|---:|
@@ -67,9 +71,9 @@ The owner-visible production receipt saved at **23:11:58 UTC** contains all 250 
 
 Stored calls alone are 247 INSUFFICIENT_DATA, two PASS and one RISK; the 247 includes the separately retired item. There are **zero new BUY or VERIFY recommendations**, and no naturally useful alert was generated by these transitions. The false-recommendation rate cannot be estimated with zero recommendations. Do not present that as 100% accuracy or a solved backlog.
 
-- Rows with nonempty seller text increased **82 → 151**. Nonempty text is not a completeness certificate. The local receipt has **58 complete-read certificates** in the frozen cohort, including 57 successful reads from the dedicated batch and one earlier read.
+- Rows with nonempty seller text increased **82 → 151**. Nonempty text is not a completeness certificate. The local receipt has **59 complete-read certificates** in the frozen cohort, including 57 successful reads from the dedicated batch and two automatic-cycle reads.
 - Catalog matches above low confidence increased **52 → 57**. This is catalog resolution, not proof of every exact machine configuration.
-- Availability: **66 checked, one gone, nine unknown, 174 unchecked**. The counterfactual's original “live” definition was merely not recorded gone. No universal source-freshness claim is warranted.
+- Availability: **67 checked, one gone, nine unknown, 173 unchecked**. The counterfactual's original “live” definition was merely not recorded gone. No universal source-freshness claim is warranted.
 - Twenty remaining-unknown examples were manually reviewed from their seller facts and verdict evidence, five per source, then a second 20-row review used the final production receipt. Some changed as full text arrived: the Acer Nitro now states i7-13620H/RTX 4060/16 GB/512 GB but still lacks a resolved exact catalog identity; the Legion 5 now states 15ACH6/5800H/3050 Ti/16 GB/1 TB but still lacks matching sold evidence. GPU/RAM bundles, professional GPU catalog gaps and ambiguous multi-offer listings remain unresolved. These reviews are not fresh source visits. Numeric/CPU punctuation defects found in the second review are addressed by the final follow-up above.
 
 ### Audit of every changed call
@@ -84,6 +88,25 @@ Stored calls alone are 247 INSUFFICIENT_DATA, two PASS and one RISK; the 247 inc
 The initial 0.3.41 audit showed three PASS and three RISK transitions. It exposed three issues that were corrected before the final receipt: pooled laptop screen/core variants, a store financing offer mistaken for outstanding debt, and cached photo text saying ports were not visible mistaken for evidence of physically absent ports. Final 0.3.42 returns the conflicting iPhone 14 Pro/Plus, uncertain Radeon port case and unsupported M1 laptop comparison to INSUFFICIENT_DATA. No cached vision payload was edited to manufacture a result.
 
 ## Collection, uploads and recovery throughput
+
+### Second automatic cycle and final installed runtime
+
+Automatic **job 49** completed **23:10:43–23:31:34 UTC**, **20 minutes 51 seconds**, all three sources `ok`, no pending outbox/reports. This was on the 0.3.42 runtime before the final parsing-only update.
+
+| Source | New unique listings | Detail attempts | Complete reads | Gone | Failed/incomplete | Acknowledged snapshots |
+|---|---:|---:|---:|---:|---:|---:|
+| Facebook | 15 | 40 | 35 | 0 | 5 | 61 |
+| OfferUp | 7 | 40 | 36 | 0 | 4 | 53 |
+| Mercari | 18 | 40 | 37 | 3 | 0 | 64 |
+| Total | **40** | **120** | **108** | **3** | **9** | **178** |
+
+Its 138 distinct availability observations were **126 alive, three gone and nine unknown**. It acquired complete changed text for **71 existing listings**, approximately **204 per collector hour**, versus **115 new unique listings per collector hour**. Zero complete unchanged repeats were recorded. All **2,036 pre-cycle rows remain**, with **2,076 total** afterward. The two measured cycles support observed evidence throughput; they do not demonstrate long-term valuation recovery.
+
+After the job completed, its supervisor-owned processes exited and a new consistent backup was restore-verified: **2,076 listings / 32,777 comps / 602 SKUs / zero FK violations**, SHA-256 **`6435828f4e914b4c81b44e88307fe1909f6e65e95bcee34262a550f67001d0c0`**. Runtime merge **`15370943a9c7de6cd88f17811fc05057b08b7cd8`** contains functional 0.3.43 plus the retained desktop commits. Its **41 focused tests / 120 assertions**, typecheck and doctor passed.
+
+Under the single collector lease, a normal retry-eligible Mercari detail read on the installed final runtime captured **180 characters and five photos**, with a complete receipt, positive availability and **one acknowledged durable change** at **23:33:34 UTC**. The existing launcher resumed the supervisor; production confirmed the same node and new revision at **23:34:18 UTC**. Listing outbox was empty, all comp transfers terminal (`applied`/`duplicate`), SQLite quick-check OK and zero FK violations. The existing Windows logon/daily recovery setup remains enabled. No laptop takeover occurred.
+
+### First measured cycle
 
 Automatic **job 48**, **22:12:38–22:32:38 UTC**, completed all three source stages with `ok` using compatible runtime `cd1a53a54ab3`. Later release fixes were applied and the same evidence re-scored in production.
 
@@ -129,7 +152,7 @@ Strict field/value scoring: development **two correct, 19 missed, 16 mismatched/
 
 ## Validation and remaining limits
 
-- Final functional release: **405 tests passed, zero failed, 1,334 assertions across 46 files**; typecheck and production build passed. Installed merged runtime: 39 focused collector/sync/actionability/ownership/audit tests passed, typecheck passed, doctor passed. Doctor verifies installation paths/tools, not marketplace authentication.
+- Final functional release: **407 tests passed, zero failed, 1,345 assertions across 46 files**; typecheck and production build passed. Installed merged runtime: 41 focused collector/sync/actionability/ownership/audit tests passed, typecheck passed, doctor passed. Doctor verifies installation paths/tools, not marketplace authentication.
 - Regressions include the original long-description exclusion on both queues; long/full/truncated text; unchanged-page advancement; retry ownership, timeout and interruption; independent observation clocks and idempotent sync; exact comp routing; bounded unknowns with sparse/stale/mismatched evidence and crossing intervals; damaged/conflicting condition precedence; live-audit financing, port, display/core and Unicode failures.
 - Production cold cutovers did include 20-second timeouts and one 502 earlier in this release session. Later health responses were sub-second. Do not claim every request remained fast or that a warm latency proves cold-start behavior.
 - **Durable production backup remains blocked by physical space**, approximately 97 MB free despite reusable SQLite pages. No destructive cleanup or storage purchase was performed. Local restore-verified backups are not a substitute for a production-account backup.
@@ -138,7 +161,7 @@ Strict field/value scoring: development **two correct, 19 missed, 16 mismatched/
 
 ## Reproducibility artifacts
 
-Private artifacts remain outside Git in `C:\Dev\filtrsoft-recovery-data`: `cohort-250-before.json`, `cohort-250-counterfactual-after.json`, `production-details-041.json`, `production-details-final.json`, `cohort-production-042-summary.json`, `cycle-48-summary.json`, `cohort-run-result.json`, `unicode-panel-verified.json`, full test logs and the `vision` evaluation directory. Runtime/startup receipts live in `C:\Dev\filtrsoft-runner-state`. Do not publish the private environment, database or browser profiles.
+Private artifacts remain outside Git in `C:\Dev\filtrsoft-recovery-data`: `cohort-250-before.json`, `cohort-250-counterfactual-after.json`, `production-details-041.json`, `production-details-final.json`, `cohort-production-043-summary.json`, `cycle-48-summary.json`, `cycle-49-summary.json`, `cohort-run-result.json`, `unicode-panel-verified.json`, full test logs and the `vision` evaluation directory. Runtime/startup receipts live in `C:\Dev\filtrsoft-runner-state`. Do not publish the private environment, database or browser profiles.
 
 ## Compatibility and controls
 
