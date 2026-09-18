@@ -15,6 +15,10 @@ export function sourceIdentity(title:string,description:string,category:string):
  if(category==='laptop'){
   const legion=/\bLegion\s+(5i?)\b/i.exec(text);
   if(/\bLenovo\b/i.test(text)&&legion)for(const m of text.matchAll(/\b((?:15|16|17)(?:ACH|IAH|ARH|ITH|IRH|APH|AHP)\d{1,2}[A-Z]*(?:-[A-Z0-9]+)?)\b/gi))add('Lenovo','Legion','Legion '+legion[1].toLowerCase()+' '+m[1].toUpperCase(),m[0]);
+  if(/\bLenovo\b/i.test(text)){
+   for(const m of text.matchAll(/\bLOQ\s+((?:15|16|17)[A-Z]{3}\d{1,2}[A-Z]*)\b/gi))add('Lenovo','LOQ','LOQ '+m[1].toUpperCase(),m[0]);
+   for(const m of text.matchAll(/\bYoga\s+([679]i?)\s+(2[- ]in[- ]1\s+)?((?:13|14|15|16)[A-Z]{3}\d{1,2}[A-Z]*)\b/gi))add('Lenovo','Yoga','Yoga '+m[1].toLowerCase()+(m[2]?' 2-in-1':'')+' '+m[3].toUpperCase(),m[0]);
+  }
   if(/\bAcer\b/i.test(text)&&/\bNitro\b/i.test(text))for(const m of text.matchAll(/\b(AN(?:V?(?:15|16|17)|5(?:15|16|17))-\d{2}(?:-[A-Z0-9]{3,6})?)\b/gi))add('Acer','Nitro','Nitro '+m[1].toUpperCase(),m[0]);
  }
  if(category==='prebuilt'&&/\bHP\b/i.test(text))for(const m of text.matchAll(/\b((?:22|24|27)-[a-z]{2}\d{4}(?:[a-z]{0,2}))\b/gi))add('HP','All-in-One',m[1].toUpperCase(),m[0]);

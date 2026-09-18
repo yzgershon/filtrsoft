@@ -408,6 +408,7 @@ export function resolveCategory(title: string): string | null {
   // "I got a gaming desktop instead" must not price that laptop as a tower.
   // Keep the dimensional laptop names separate from OMEN 30L/40L/45L towers.
   if (isPortableOmen(title)) return "laptop";
+  if(/\bLenovo\s+LOQ\s+(?:15|16|17)[A-Z]{3}\d{1,2}\b/i.test(title))return 'laptop';
   if(/\bdesktop\s+(?:memory|ram)\b/i.test(title) && !/\b(?:gaming pc|desktop computer|laptop|notebook)\b/i.test(title))return 'ram';
   // Legion 5/7 laptop titles often end with RAM/SSD specs and omit "laptop".
   // T5/T7 towers and Go handhelds must never borrow that portable identity.

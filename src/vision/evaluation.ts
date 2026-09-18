@@ -2,7 +2,7 @@ import type {reconcileReads} from './local-lab.ts';
 /** Separate extraction errors from presentation errors. None of these scoring
  * classifications changes or writes a production fact. Expected annotations
  * stay frozen and exact suffix/capacity/ECC differences are never normalized away. */
-const normalize=(s:string)=>s.toLowerCase().trim().replace(/[®™]/g,'').replace(/\s+/g,' ').replace(/(\d)\s+(gb|tb|mhz|mt\/s)/g,'$1$2').replace(/\s*[x×]\s*/g,'x').replace(/^[()]|[()]$/g,'').replace(/^(\d+)gbx(\d+)$/,'$2x$1gb');
+const normalize=(s:string)=>s.toLowerCase().trim().replace(/[®™]|\((?:r|tm)\)/g,'').replace(/\s+/g,' ').replace(/(\d)\s+(mb|gb|tb|mhz|mt\/s)/g,'$1$2').replace(/\s*[x×]\s*/g,'x').replace(/^[()]|[()]$/g,'').replace(/^(\d+)gbx(\d+)$/,'$2x$1gb');
 const placeholder=(s:string)=>/^(?:unknown|unreadable|not (?:visible|readable|specified|available)|n\/a|none|unspecified|cannot (?:read|determine))(?:\s*\([^)]*\))?\.?$/i.test(s.trim());
 export function evaluateFacts(expected:Record<string,string[]>,result:ReturnType<typeof reconcileReads>|null,supportedLabels:string[]=[]){
  const wanted=new Map(Object.entries(expected).map(([k,v])=>[k,new Set(v.map(normalize))]));
