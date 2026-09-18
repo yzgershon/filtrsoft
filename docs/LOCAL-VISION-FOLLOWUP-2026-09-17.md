@@ -2,7 +2,7 @@
 
 ## Decision
 
-Production local photo fact ingestion remains disabled. Neither installed model passed the original zero unsupported identity/quantity/ECC, 95% precision and 80% recall gates on development and fresh holdout. No paid fallback, new budget, or deployment scope was enabled. The 4070 Ti had sufficient capacity for both measured models; failure is factual accuracy, with some additional idle-GPU deferrals. A larger model is not established as more accurate.
+Production local photo fact ingestion remains disabled. None of the three tested models passed the original zero unsupported identity/quantity/ECC, 95% precision and 80% recall gates on development and fresh holdout. No paid fallback, new budget, or deployment scope was enabled. The 4070 Ti had sufficient capacity for all three measured models; failure is factual accuracy, with some additional idle-GPU deferrals. A larger model is not established as more accurate.
 
 ## Data and audit method
 
@@ -107,8 +107,51 @@ C/M/W = correct/missed/wrong. A dash means no denominator, not a pass.
 
 ## Reproducibility and limits
 
-- Ollama 0.34.1 already installed; official [Qwen3-VL 4B Instruct](https://ollama.com/library/qwen3-vl:4b-instruct) downloaded under the existing explicit approval. Additional 8B download remains unapproved and was not performed.
+- Ollama 0.34.1 already installed; official [Qwen3-VL 4B Instruct](https://ollama.com/library/qwen3-vl:4b-instruct) downloaded under the existing explicit approval. Yish subsequently approved the official [Qwen3-VL 8B Instruct](https://ollama.com/library/qwen3-vl:8b-instruct) 6.1 GB download, which completed; its frozen comparison is below.
 - Qwen3.5-9B digest: `6488c96fa5faab64bb65cbd30d4289e20e6130ef535a93ef9a49f42eda893ea7`. Qwen3-VL-4B Instruct digest: `ee4b975b58c17ce268cd19d40db35d5edc64603035d2ffc1fee1968eb0947f7b`.
 - Loopback-only runtime, pinned installed digest, original photo hashes, deterministic temperature, schema, raw HTTP output, stop reasons/token counts, per-image timings, conflict fields and GPU samples are retained privately. `keep_alive:0` unloads each request; paused/busy GPUs defer rather than force inference.
 - Private evidence: `C:\Dev\filtrsoft-recovery-data\followup\vision-final-audit.json`, corresponding raw result/trace files, development and holdout manifests, and `final-vision-audit.ts`. Never commit private photos or account exports.
 - Tiny sample, snapshot photos, strict typed extraction and GPU-deferred cases limit coverage. No strongest-model claim, generalized production accuracy, ECC validation, or natural recommendation result follows from this experiment.
+
+## Approved 8B comparison, 02:35 UTC
+
+The same prompt, development annotations and pre-existing fresh holdout were used without further tuning. No new software, paid API, or production writer was enabled. All 25 development cases completed. Two holdout cases were GPU-deferred and remain failures, not abstentions. This larger model also failed factual accuracy, not demonstrated VRAM capacity.
+
+| Split | Cases | Precision | Recall | Unsupported | Abstained | Failed | Median / p95 seconds | Peak total GPU MiB |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| qwen3vl-8b-development-strict | 25 | 32.9% | 64.1% | 33 | 13 | 0 | 8.00 / 21.33 | 10154 |
+| qwen3vl-8b-fresh-heldout | 8 | 19.0% | 40.0% | 23 | 3 | 2 | 22.68 / 26.82 | 10058 |
+
+8B digest: `0533d74300e4f9bc367d675d4e64ffd073d50ff16a2b4096cc2e8a1cf8c96319`. All completed retained traces ended with `stop`; no out-of-memory failure. GPU guard was unchanged even after competing applications were paused. Original results and `vision-final-audit.json` remain intact; the uniformly audited three-model comparison is `vision-final-audit-v2.json`.
+
+### qwen3vl-8b-development-strict: per-field results
+
+| Field | C / M / W | Precision | Recall |
+|---|---:|---:|---:|
+| model | 5 / 9 / 14 | 26.3% | 35.7% |
+| ram | 5 / 1 / 1 | 83.3% | 83.3% |
+| kitLayout | 5 / 0 / 0 | 100.0% | 100.0% |
+| memorySpeed | 4 / 0 / 12 | 25.0% | 100.0% |
+| memoryType | 4 / 2 / 2 | 66.7% | 66.7% |
+| cpu | 0 / 0 / 11 | 0.0% | — |
+| ecc | 0 / 0 / 5 | 0.0% | — |
+| quantity | 0 / 0 / 2 | 0.0% | — |
+| gpu | 1 / 2 / 2 | 33.3% | 33.3% |
+| vram | 1 / 0 / 1 | 50.0% | 100.0% |
+| storage | 0 / 0 / 1 | 0.0% | — |
+
+### qwen3vl-8b-fresh-heldout: per-field results
+
+| Field | C / M / W | Precision | Recall |
+|---|---:|---:|---:|
+| model | 0 / 6 / 14 | 0.0% | 0.0% |
+| ram | 2 / 1 / 1 | 66.7% | 66.7% |
+| memorySpeed | 1 / 2 / 2 | 33.3% | 33.3% |
+| memoryType | 0 / 1 / 2 | 0.0% | 0.0% |
+| gpu | 2 / 1 / 10 | 16.7% | 66.7% |
+| vram | 1 / 1 / 1 | 50.0% | 50.0% |
+| cpu | 1 / 0 / 2 | 33.3% | 100.0% |
+| storage | 1 / 0 / 1 | 50.0% | 100.0% |
+| ecc | 0 / 0 / 1 | 0.0% | — |
+
+No model meets the original gates. The 8B results do not establish it as the smartest option for this task; the 9B and 4B runs also remain far below acceptance. All three models remain installed for reproducibility, but the production fact writer remains disabled.

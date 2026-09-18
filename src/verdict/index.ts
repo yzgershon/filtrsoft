@@ -24,6 +24,7 @@ import type { VisionResult } from "../vision/index.ts";
 import { isScamFarm, scamSignals, scamHeadline } from "./scam.ts";
 import { listingInventory } from "../signals/listing-offers.ts";
 import { valueInventory, type PricedOffer } from "../valuation/inventory.ts";
+import {factualText} from '../signals/factual-text.ts';
 
 const OUT_OF_SCOPE = /\b(lens|dslr|mirrorless|camera body|tripod|nikon|canon ef|sigma \d|tamron|zeiss|leica|scanner|camcorder)\b/i;
 
@@ -592,6 +593,15 @@ export function buildVerdict(input: {
       questions: ["Which of these items are still available, and what is the total price for the quantity I choose?"],
     };
   }
+
+  const componentText=factualText(`${input.title}\n${input.description}`);
+  const mixedParts=['component','gpu','ram'].includes(match.category??signals.category)
+    && /\b(?:ram|ddr[345]|memory)\b/i.test(componentText)
+    && /\b(?:processor|cpu|i[3579][- ]?\d{4,5}|ryzen\s+[3579])\b/i.test(componentText)
+    && /\b(?:ram|memory)\s+(?:and|with|\+)\s+(?:(?:a|an|my|the)\s+)?(?:processor|cpu)\b|\b(?:cpu|processor)\s+(?:and|with|\+)\s+(?:\d+\s*gb\s*)?(?:ddr[345]\s*)?(?:ram|memory)\b|\bddr[345]\s+(?:and|with|\+)\s+i[3579]\b/i.test(componentText);
+  if(mixedParts)return {...base,valuation:{status:'no_comps',lowCents:null,highCents:null,medianCents:null,compCount:0,confidence:'low'},retail:null,
+    call:'INSUFFICIENT_DATA',confidence:'high',headline:'The whole component bundle needs matching evidence.',
+    reasoning:'The asking price includes a processor and memory. Sales for only the processor cannot establish the bundle value.',decidingUnknown:'matching component-bundle sold evidence'};
 
   if (signals.missingValueFields.length) {
     return {

@@ -53,6 +53,8 @@ export const NO_DISPLAY_OUTPUT = [
   /\bcmp\s*\d+hx\b/i, /\bmi\d{2,3}\b/i, /\bradeon\s+instinct\b/i,
 ];
 
+import {factualText} from '../signals/factual-text.ts';
+import {coordinatedDamageDenial,memoryCompatibilityDenial} from '../signals/condition.ts';
 export function findContradictions(text: string): Contradiction[] {
   const out: Contradiction[] = [];
   const t = text.toLowerCase();
@@ -89,7 +91,7 @@ export function findContradictions(text: string): Contradiction[] {
     }
     // --- memory generation vs platform ---
     for (const ddr of ["DDR3", "DDR4", "DDR5"] as const) {
-      if (new RegExp(`\\b${ddr}\\b`, "i").test(text) && !plat.memory.includes(ddr)) {
+      if (new RegExp(`\\b${ddr}\\b`, "i").test(factualText(text)) && !plat.memory.includes(ddr)) {
         out.push({
           code: "IMPOSSIBLE_SPEC_CLAIM",
           evidence: `Claims ${ddr} but ${plat.socket} supports ${plat.memory.join(" or ")} only.`,
@@ -107,6 +109,7 @@ export function findContradictions(text: string): Contradiction[] {
   let damage: string | null = null;
   for (const m of t.matchAll(DAMAGE)) {
     const before = t.slice(Math.max(0, m.index! - 40), m.index!);
+    if(coordinatedDamageDenial(before)||memoryCompatibilityDenial(m[0],t.slice(m.index!+m[0].length)))continue;
     if (NEGATED.test(before)) continue;           // "zero scratches or dents"
     if (/\b(or|and)\s+$/.test(before) && /\b(no|zero|without|free of)\b/.test(before)) continue;
     // Quote a readable window, not the bare token — "c" is not evidence.

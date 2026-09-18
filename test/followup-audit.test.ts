@@ -3,6 +3,28 @@ import {conditionDisclosure} from '../src/signals/condition.ts';
 import {textFacts} from '../src/signals/factual-text.ts';
 import {extractAttributes} from '../src/catalog/match.ts';
 import {isolated} from './isolated.ts';
+import {findContradictions} from '../src/reference/compatibility.ts';
+test('denied compatibility and omitted sale parts are not damage or installed specifications',()=>{
+ const board='GIGABYTE B860 motherboard. Like new. No bent, broken or missing pin as photo #2, #3 shown. Only works with DDR5 RAM, and does not work with DDR4 RAM.';
+ expect(conditionDisclosure(board).broken).toBeNull();expect(findContradictions(board).some(c=>c.code==='CONDITION_CONTRADICTION')).toBe(false);
+ expect(findContradictions('Intel i5-10400F. This sale is ONLY for 1x CPU and there is no DDR5 DDR4 RAM, GPU, motherboard, PSU for this sale.').some(c=>c.code==='IMPOSSIBLE_SPEC_CLAIM')).toBe(false);
+ expect(conditionDisclosure('Does not work with the supplied power adapter.').broken).not.toBeNull();
+ expect(findContradictions('Intel i5-10400F with 16GB DDR5 RAM').some(c=>c.code==='IMPOSSIBLE_SPEC_CLAIM')).toBe(true);
+});
+test('professional GPU capacity stays exact across card wording and mixed sold variants',()=>isolated(`
+ import {db,now} from '@/src/db/index.ts';import {extractAttributes} from '@/src/catalog/match.ts';import {valueSku} from '@/src/valuation/index.ts';
+ const d=db(),at=now();d.run("INSERT INTO skus(id,category,brand,model,created_at) VALUES(1,'gpu','NVIDIA','RTX A2000',?)",[at]);
+ for(const [i,title] of ['NVIDIA RTX A2000 Graphics Card 6gb','NVIDIA RTX A2000 6GB','NVIDIA RTX A2000 12GB','NVIDIA RTX A2000 6GB'].entries())d.run("INSERT INTO comps(source,source_item_id,raw_title,sold_price_cents,condition_norm,sold_at,captured_at,sku_id,raw_json) VALUES('ebay',?,?,25000,'used',?,?,1,json_object('soldAt',?))",[String(i),title,at,at,at]);
+ const attributes=extractAttributes('NVIDIA RTX A2000 Graphics Card 6gb','gpu');assert.equal(attributes.vram_gb,6);assert.equal(valueSku(1,{category:'gpu',attributes}).compCount,3);
+`));
+test('a CPU plus RAM sale cannot be valued from CPU-only sales',()=>isolated(`
+ import {db,now} from '@/src/db/index.ts';import {runPipeline} from '@/src/engine/index.ts';
+ const d=db(),at=now();d.run("INSERT INTO skus(id,category,brand,model,created_at) VALUES(1,'component','Intel','i5-12400F',?)",[at]);
+ for(let i=0;i<5;i++)d.run("INSERT INTO comps(source,source_item_id,raw_title,sold_price_cents,condition_norm,sold_at,captured_at,sku_id,raw_json) VALUES('ebay',?,'Intel i5-12400F CPU processor',10000,'used',?,?,1,json_object('soldAt',?))",[String(i),at,at,at]);
+ const listing={source:'facebook',sourceId:'123',url:'https://www.facebook.com/marketplace/item/123/',title:'16 GB DDR4 AND I5 12400F Processor',description:'Selling my RAM and processor from a build. DDR4 RAM (2x8) @ 2666 MHz. Intel i5 12400f desktop processor. Selling for $200.',askingPriceCents:20000,location:null,postedAt:null,photoUrls:[],attributes:{},raw:{}};
+ const result=runPipeline(listing,null).verdict;assert.equal(result.call,'INSUFFICIENT_DATA');assert.equal(result.valuation.medianCents,null);assert.match(result.decidingUnknown,/bundle/);
+ const single=runPipeline({...listing,title:'Intel i5-12400F processor',description:'CPU only. No RAM included.'},null).verdict;assert.equal(single.call,'PASS');
+`));
 test('coordinated negated pin damage is not a defect; later asserted damage still is',()=>{
  expect(conditionDisclosure('No bent, broken or missing pin as photo #2, #3 shown.').broken).toBeNull();
  expect(conditionDisclosure('No broken pins. Fully tested.').broken).toBeNull();

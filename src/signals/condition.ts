@@ -1,6 +1,10 @@
 /** Seller disclosures override an ordinary working-unit comp price. In the
  * September 17 live audit an explicitly untested liquidation GPU was a BUY.
  * Keep quotations and negations local so "not sold for parts" is not a defect. */
+export const coordinatedDamageDenial=(before:string)=>/\b(?:no|not|without)\s+(?:any\s+)?(?:(?:bent|broken|missing|damaged|defective)\s*(?:,\s*|(?:or|and)\s+))*$/i.test(before);
+// A stated DDR-generation restriction is compatibility, not a broken board.
+// Do not suppress an actual failure with a supplied charger or other accessory.
+export const memoryCompatibilityDenial=(match:string,after:string)=>/^does(?:n't| not) work$/i.test(match)&&/^\s+with\s+DDR[345]\b/i.test(after);
 export function conditionDisclosure(text:string):{broken:string|null;untested:string|null;displayDamage:string|null} {
   let broken:string|null=null,untested:string|null=null,displayDamage:string|null=null;
   for(const clause of text.split(/[\n.!?;]+/).map(s=>s.trim()).filter(Boolean)) {
@@ -23,7 +27,8 @@ export function conditionDisclosure(text:string):{broken:string|null;untested:st
       // A coordinated denial shares its negation: "No bent, broken or
       // missing pin" was falsely marking the audited B860 as damaged.
       // Only damage adjectives may intervene, never "but" or another claim.
-      if(/^(?:broken|defective)$/i.test(m[0]) && /\b(?:no|not|without)\s+(?:any\s+)?(?:(?:bent|broken|missing|damaged|defective)\s*(?:,\s*|(?:or|and)\s+))*$/i.test(before))continue;
+      if(/^(?:broken|defective)$/i.test(m[0]) && coordinatedDamageDenial(before))continue;
+      if(memoryCompatibilityDenial(m[0],clause.slice(m.index!+m[0].length)))continue;
       if(/\b(?:warranty|warrantied|protection|coverage|against|replaced|repaired)\b/i.test(before) && /^(broken|defective)$/i.test(m[0]))continue;
       // A missing packaging/accessory does not establish a broken device.
       if(/^(?:broken|defective)$/i.test(m[0]) && /^\s+(?:box|packaging|case clip|cable|charger|screen protector)\b/i.test(clause.slice(m.index!+m[0].length)))continue;
