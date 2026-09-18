@@ -190,7 +190,8 @@ export function extractAttributes(text: string,categoryHint?:string): Record<str
   // "(12 GB)" trailing a card name is VRAM, not system memory.
   const vramMatch =
     t.match(/\b(?:rtx|gtx|rx)\s?\d{3,4}\s?(?:ti\s*super|super|ti|xtx|xt)?\s*\(?\s*(\d{1,2})\s?gb\b(?!\s*(?:ram|ddr[345]|memory)\b)/)
-    ?? t.match(/\bvram\s*[:=]\s*(\d{1,2})\s?gb\b/);
+    ?? t.match(/\bvram\s*[:=]\s*(\d{1,2})\s?gb\b/)
+    ?? (categoryHint==='gpu'?t.match(/\b(?:rtx\s*a\d{3,4}|quadro\s*(?:rtx\s*)?\d{3,4}|radeon\s*pro\s*wx\s*\d{3,4})\s*(?:(?:graphics\s+card|gpu)\s*)?\(?\s*(\d{1,2})\s*gb\b/):null);
   if (vramMatch) a.vram_gb = Number(vramMatch[1]);
   if(vramMatch&&a.ram_gb===a.vram_gb&&!/\b(?:laptop|notebook|macbook|desktop|gaming pc|ram|ddr[345])\b/.test(t))delete a.ram_gb;
 

@@ -5,6 +5,7 @@ export function factualText(text:string):string {
     line=line.replace(/\b(?:storage|ram)\s+(?:is|:)\s*either\s+\d+\s*(?:GB|TB)\s+or\s+\d+\s*(?:GB|TB)[^.;]*/gi,'');
     line=line.replace(/\b(?:upgraded|switched|changed)\s+from\s+.+?\s+to\s+/gi,'');
     line=line.replace(/\b(?:looking to trade for|will trade for|would trade for|want to trade for|looking for|wanted|compatible with|supports?|works with|used to (?:have|use)|previously (?:had|used)|originally (?:had|came with))\b[^.!?;]*/gi,'');
+    line=line.replace(/\b(?:no|without|does not (?:have|include)|doesn't (?:have|include)|not including|removed)\s+(?:(?:an?|the)\s+)?(?:ddr[345]?|ram|memory|cpu|gpu|motherboard|psu)\b[^;.!?]*/gi,'');
     line=line.replace(/\b(?:no|without|does not (?:have|include)|doesn't (?:have|include)|not including|removed)\s+(?:(?:an?|the)\s+)?(?:rtx|gtx|rx|ryzen|intel core|i[3579])\b[^,;.!?]*/gi,'');
     return line;
   }).join('\n');
