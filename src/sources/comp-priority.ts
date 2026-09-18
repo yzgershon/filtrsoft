@@ -32,7 +32,7 @@ export function collectionPriority(limit=20,at=Date.now(),identityOnly=false) {
   recoverIdentities(40,{at});
   ensureEnrichment();
   const cohort=new Set((db().query('SELECT listing_id FROM cohort_recovery_requests').all() as {listing_id:number}[]).map(r=>r.listing_id));
-  const recovered=new Set((db().query("SELECT query FROM identity_jobs WHERE state='resolved' AND json_extract(evidence,'$.created')=1 AND listing_id IN (SELECT listing_id FROM cohort_recovery_requests)").all() as {query:string}[]).map(r=>r.query));
+  const recovered=new Set((db().query("SELECT query FROM identity_jobs WHERE state='resolved' AND json_extract(evidence,'$.identity') IS NOT NULL AND json_array_length(json_extract(evidence,'$.quotes'))>0 AND listing_id IN (SELECT listing_id FROM cohort_recovery_requests)").all() as {query:string}[]).map(r=>r.query));
   const d=db(),demand=new Map<number,number>(),queries=new Map<number,Map<string,number>>();
   const unresolved=d.query(`SELECT l.id,l.title,l.description FROM listings l JOIN verdicts v ON v.id=(SELECT MAX(id) FROM verdicts WHERE listing_id=l.id)
     WHERE l.delisted_at IS NULL AND COALESCE(l.posted_at,l.last_seen,l.captured_at)>=strftime('%Y-%m-%dT%H:%M:%fZ','now','-28 days')

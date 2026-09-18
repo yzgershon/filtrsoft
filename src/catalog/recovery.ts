@@ -8,13 +8,16 @@ import {textFacts} from '../signals/factual-text.ts';
 import {exactDemandQuery} from '../sources/comp-query.ts';
 import {ensureEnrichment} from '../db/enrichment.ts';
 export const identityFingerprint=(r:any)=>createHash('sha256').update(JSON.stringify([r.title,r.description??'',r.delisted_at??null])).digest('hex');
+const RESOLVER_VERSION=2;
+let identitySchemaReady=false;
 export function installIdentityJobs(){ensureEnrichment();db().exec(`CREATE TABLE IF NOT EXISTS comp_identity_demand(listing_id INTEGER PRIMARY KEY,state TEXT NOT NULL,reason TEXT NOT NULL,updated_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS identity_jobs(listing_id INTEGER PRIMARY KEY REFERENCES listings(id),fingerprint TEXT NOT NULL,state TEXT NOT NULL,reason TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,next_at TEXT NOT NULL,owner TEXT,lease_until TEXT,sku_id INTEGER,query TEXT,evidence TEXT,updated_at TEXT NOT NULL);
- CREATE INDEX IF NOT EXISTS identity_due ON identity_jobs(next_at,lease_until);`);}
+ CREATE INDEX IF NOT EXISTS identity_due ON identity_jobs(next_at,lease_until);`);
+ if(!identitySchemaReady){if(!(db().query('PRAGMA table_info(identity_jobs)').all() as {name:string}[]).some(c=>c.name==='resolver_version'))db().exec('ALTER TABLE identity_jobs ADD COLUMN resolver_version INTEGER NOT NULL DEFAULT 1');identitySchemaReady=true;}}
 export function enqueueIdentity(row:any,at=Date.now()){
  installIdentityJobs();const fingerprint=identityFingerprint(row),stamp=new Date(at).toISOString();
- db().run(`INSERT INTO identity_jobs(listing_id,fingerprint,state,reason,next_at,updated_at) VALUES(?,?,'queued','Current seller facts need deterministic identity resolution',?,?)
- ON CONFLICT(listing_id) DO UPDATE SET fingerprint=excluded.fingerprint,state='queued',reason=excluded.reason,attempts=0,next_at=excluded.next_at,owner=NULL,lease_until=NULL,sku_id=NULL,query=NULL,evidence=NULL,updated_at=excluded.updated_at WHERE fingerprint!=excluded.fingerprint`,[row.id,fingerprint,stamp,stamp]);
+ db().run(`INSERT INTO identity_jobs(listing_id,fingerprint,state,reason,next_at,updated_at,resolver_version) VALUES(?,?,'queued','Current seller facts need deterministic identity resolution',?,?,?)
+ ON CONFLICT(listing_id) DO UPDATE SET fingerprint=excluded.fingerprint,state='queued',reason=excluded.reason,attempts=0,next_at=excluded.next_at,owner=NULL,lease_until=NULL,sku_id=NULL,query=NULL,evidence=NULL,updated_at=excluded.updated_at,resolver_version=excluded.resolver_version WHERE fingerprint!=excluded.fingerprint OR resolver_version!=excluded.resolver_version`,[row.id,fingerprint,stamp,stamp,RESOLVER_VERSION]);
 }
 export function enqueueUnresolvedIdentities(at=Date.now()){
  installIdentityJobs();const rows=db().query(`SELECT l.id,l.title,l.description,l.delisted_at FROM listings l JOIN verdicts v ON v.id=(SELECT MAX(id) FROM verdicts WHERE listing_id=l.id) WHERE v.call='INSUFFICIENT_DATA' AND l.delisted_at IS NULL AND COALESCE(l.last_seen,l.captured_at)>=? ORDER BY l.id`).all(new Date(at-28*86400000).toISOString()) as any[];

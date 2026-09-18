@@ -1,5 +1,14 @@
 import {test,expect} from 'bun:test';import {isolated} from './isolated.ts';
 import {reconcileReads,evaluateRead,gpuAvailable} from '../src/vision/local-lab.ts';
+import {evaluateFacts} from '../src/vision/evaluation.ts';
+
+test('evaluation accepts typography while preserving model suffixes and capacities',()=>{
+ const fields=[{field:'cpu' as const,value:'Intel(R) Core(TM) i5-1335U',quote:'Intel(R) Core(TM) i5-1335U'},
+ {field:'vram' as const,value:'128 MB',quote:'128 MB'},
+ {field:'model' as const,value:'12G-P5-3657-KR',quote:'12G-P5-3657-KR'}];
+ const metrics=evaluateFacts({cpu:['Intel Core i5-1335U'],vram:['128MB'],model:['12G-P5-3657-RX']},reconcileReads([{fields,unreadable:false}]));
+ expect(metrics.correct).toBe(2);expect(metrics.unsupported).toBe(1);expect(metrics.missed).toBe(1);
+});
 test('photo conflicts stay separate and unsupported claims count against evaluation',()=>{
   const read=reconcileReads([{fields:[{field:'gpu',value:'RTX 4070 Ti',quote:'RTX 4070 Ti'}],unreadable:false},{fields:[{field:'gpu',value:'RTX 4070',quote:'RTX 4070'},{field:'ram',value:'32GB',quote:'32GB'}],unreadable:true}]);
   expect(read.conflicts).toEqual(['gpu']);expect(read.unreadableImages).toEqual([1]);expect(evaluateRead({gpu:['RTX 4070 Ti'],cpu:['9700X']},read)).toEqual({correct:1,missed:1,unsupported:2});

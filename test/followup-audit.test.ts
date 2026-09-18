@@ -30,3 +30,25 @@ test('availability observation acquires the write transaction before reading acr
  d.query=(sql)=>{const statement=query(sql);if(!sql.includes('SELECT l.probe_failures'))return statement;return {get(...args){const row=statement.get(...args);try{other.run("UPDATE listings SET title='GPU observed' WHERE id=1");}catch(e){assert.match(String(e),/locked|BUSY/i);}competed=true;return row;}};};
  recordProbe(1,'alive');assert.equal(competed,true);assert.equal(query('SELECT outcome FROM listing_availability WHERE listing_id=1').get().outcome,'alive');other.close();
 `));
+test('quoted Yoga and LOQ manufacturer identities cannot collapse to a different generation or GPU',()=>isolated(`
+ import {db,now} from '@/src/db/index.ts';import {sourceIdentity} from '@/src/catalog/source-identity.ts';import {detectCategory} from '@/src/signals/index.ts';import {matchSku} from '@/src/catalog/match.ts';
+ const yoga='Lenovo Laptop- Yoga 7 2-in-1 14AHP9 - Type 83DK',loq='LENOVO LOQ 15ARP9 RYZEN 5 16GB / 512GB RTX4050';
+ db().run("INSERT INTO skus(category,brand,model,created_at) VALUES('laptop','Lenovo','Yoga 2',?),('gpu','NVIDIA','RTX 4050',?)",[now(),now()]);
+ assert.equal(detectCategory(loq),'laptop');assert.equal(sourceIdentity(yoga,'','laptop').identity.model,'Yoga 7 2-in-1 14AHP9');
+ assert.equal(sourceIdentity(loq,'','laptop').identity.model,'LOQ 15ARP9');assert.equal(matchSku(yoga,'','laptop').skuId,null);
+`));
+test('catalog transfer retains obsolete history but stops retrying only after current facts were acknowledged',()=>isolated(`
+ import {db,now} from '@/src/db/index.ts';import {upsertListingFacts} from '@/src/db/listings.ts';import {enqueueIdentity,recoverIdentities} from '@/src/catalog/recovery.ts';import {captureCatalog} from '@/src/sync/catalog.ts';
+ const d=db(),target='https://fixture.invalid',id=upsertListingFacts(d,{source:'facebook',sourceId:'123',url:'https://www.facebook.com/marketplace/item/123/',title:'Lenovo Legion 5 laptop',description:'Model 15ACH6',askingPriceCents:70000,location:null,postedAt:null,photoCount:0}).id;
+ const resolve=()=>{enqueueIdentity(d.query('SELECT * FROM listings WHERE id=?').get(id));recoverIdentities(1,{ids:[id],enqueue:false});captureCatalog(target);};resolve();const old=d.query('SELECT hash FROM catalog_outbox').get().hash;
+ d.run("UPDATE listings SET description='Model 15ACH6. Charger included.' WHERE id=?",[id]);resolve();assert.equal(d.query("SELECT COUNT(*) n FROM catalog_outbox WHERE state='pending'").get().n,2);
+ d.run("UPDATE catalog_outbox SET state='applied' WHERE hash!=?",[old]);captureCatalog(target);
+ assert.equal(d.query('SELECT state FROM catalog_outbox WHERE hash=?').get(old).state,'superseded');assert.equal(d.query('SELECT COUNT(*) n FROM catalog_outbox').get().n,2);
+`));
+test('a resolver revision requeues old terminal work once and keeps current retry backoff',()=>isolated(`
+ import {db} from '@/src/db/index.ts';import {upsertListingFacts} from '@/src/db/listings.ts';import {enqueueIdentity,recoverIdentities} from '@/src/catalog/recovery.ts';
+ const d=db(),id=upsertListingFacts(d,{source:'facebook',sourceId:'1',url:'https://www.facebook.com/marketplace/item/1/',title:'Acer Nitro laptop',description:'i7-13620H RTX4060',askingPriceCents:70000,location:null,postedAt:null,photoCount:0}).id;
+ const row=d.query('SELECT * FROM listings WHERE id=?').get(id);enqueueIdentity(row);recoverIdentities(1,{ids:[id],enqueue:false});
+ const retry=d.query('SELECT next_at FROM identity_jobs').get().next_at;enqueueIdentity(row);assert.equal(d.query('SELECT state FROM identity_jobs').get().state,'missing-model');assert.equal(d.query('SELECT next_at FROM identity_jobs').get().next_at,retry);
+ d.run('UPDATE identity_jobs SET resolver_version=1');enqueueIdentity(row);assert.equal(d.query('SELECT state FROM identity_jobs').get().state,'queued');assert.equal(d.query('SELECT resolver_version FROM identity_jobs').get().resolver_version,2);
+`));
