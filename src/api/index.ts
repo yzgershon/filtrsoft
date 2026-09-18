@@ -1,4 +1,6 @@
 import {accountSync} from './account-sync.ts';
+import {handleOffhostBackup} from './offhost-backup.ts';
+import {handleRecoverySnapshot} from './recovery-snapshot.ts';
 import {handleCompSync} from './comp-sync.ts';
 import {handleCollectionHealth,handleCollectorHeartbeat,handleCollectionPolicy} from './collection-health.ts';
 import { dismissedIds, setDismissed, listDismissed } from "./dismissals.ts";
@@ -319,6 +321,8 @@ function badUrl(url: string | undefined): string | null {
  * Still HTTP 200: the container IS up and should not be restart-looped over
  * this. `canPrice` is the field to alert on.
  */
+app.get('/v1/owner/backup',handleOffhostBackup);
+app.get('/v1/owner/recovery-snapshot',handleRecoverySnapshot);
 app.get("/v1/health", async (c) => {
   const storage=storageStatus(DB_PATH);
   let stats: Record<string, unknown> = { db: "unavailable" };

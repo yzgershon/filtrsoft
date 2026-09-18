@@ -89,6 +89,18 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
+### September 17/18, recovery follow-up in progress: baseline and safe export support
+
+Development is isolated in `C:\Dev\filtrsoft-followup-20260917`, branch `codex/recovery-followup-20260917`, based on main `e235c4f`. The installed checkout and its two measured-documentation working changes are preserved. Do not reset to the older checkpoint.
+
+Fresh inspection at 00:37 UTC found the desktop supervisor and collector absent, despite stale status files showing job 50. Resumed the unchanged `C:\Dev\filtrsoft-runner-state\start.cjs`; the original desktop node reported online at 00:38 UTC and began automatic job 51. Laptop remains connected but **paused**. This is recovery from an observed stop, not proof of its cause.
+
+Owner health at 00:38 UTC: engine 0.3.43, scoring complete/zero failures, physical production free **97,198,080 bytes**. Scheduled Claude reads and the interactive paid-read gate are **both enabled**; daily budget $2, recorded UTC-day spend $1.0021, latest read 00:38:00. Desktop visionLimit=0 does not disable these server paths. Approval to pause both Railway switches and to download a second local model has been requested; neither is yet claimed done. Existing cached Claude facts remain intact.
+
+The original 250 cohort IDs and all old artifacts are preserved. New local baseline at 00:45 UTC is restore-verified, SHA `5c5019251f622df6f38c900ebecf09750b99bac71b38a959b2f1b8841b9b2859`, 2,131 listings / 33,002 comps / 602 SKUs / zero FK violations, under `C:\Dev\filtrsoft-recovery-data\followup`. It is an **OMEN ingestion backup**, not a production backup. OMEN had 748 GB free; the 97 MB constraint applies to Railway.
+
+First support change adds an owner-session-only, bounded compressed logical snapshot stream, with one read transaction, physical-headroom/deadline guards, backpressure, no server-side whole-database copy, and a new-path checksum/count/integrity/FK-verified restore tool. The collector upload token cannot export accounts. A bounded owner evidence endpoint keeps explicit frozen listing IDs reproducible. Original same-volume backup guard is unchanged. Live production backup is still unverified until download and restoration complete. Identity resolver and vision follow-up remain outstanding; no new recovery outcomes are claimed.
+
 ### September 17, evidence recovery complete — verified production and OMEN
 
 **Live engine 0.3.43, functional main `4834b3214a7f0a161a420350bfa6b6b83847224c`.** [CI 35286589225](https://github.com/yzgershon/filtrsoft/actions/runs/35286589225) passed including containers; Railway `cfad9f6f-b8a3-49e8-8361-967429f6b6f4` deployed that source. At **23:36:53 UTC**, production reported **0 pending scores / 0 failures**, database OK, health **480 ms**. Web assets match `index-C0OAYHY3.js` / `index-LTRDxhkn.css`. Subsequent documentation-only commits do not change that functional release.
