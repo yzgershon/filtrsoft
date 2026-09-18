@@ -152,6 +152,14 @@ export function fullestVariant(matches: string[], base: RegExp): string {
 export function extractAttributes(text: string,categoryHint?:string): Record<string, string | number> {
   const a: Record<string, string | number> = {};
   const t = factualText(text).toLowerCase();
+  // Preserve a stated board maker and VRAM generation. A GTX 1650 chip
+  // bucket alone was pooling ASUS GDDR6 with MSI/Zotac GDDR5 in the live audit.
+  if(categoryHint==='gpu'){
+    const brands=[...new Set(t.match(/\b(?:asus|msi|gigabyte|zotac|evga|pny|sapphire|powercolor|xfx|asrock|gainward|palit|inno3d)\b/g)??[])];
+    if(brands.length===1)a.board_brand=brands[0]!;
+    const memory=[...new Set(t.match(/\bgddr[3-7]x?\b/g)??[])];
+    if(memory.length===1)a.vram_type=memory[0]!;
+  }
   const screen=t.match(/\b(\d{1,2}(?:\.\d)?)\s*(?:-\s*inch\b|inches\b|inch\b|["“”″])/);
   // A GPU's bracket height or a case dimension is not a display diagonal.
   if(screen){
@@ -306,7 +314,7 @@ export function extractAttributes(text: string,categoryHint?:string): Record<str
 export function matchSku(title: string, description = "", categoryHint?: string): Match {
   title=factualText(title);description=factualText(description);
   const text = `${title} ${description}`;
-  const attributes = extractAttributes(text);
+  const attributes = extractAttributes(text,categoryHint);
   const d = db();
 
   // Dead-category patterns fire regardless of whether a SKU resolves.

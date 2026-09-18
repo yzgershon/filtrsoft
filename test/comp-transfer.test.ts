@@ -11,4 +11,8 @@ test('comp transfer remaps catalog identity, rejects variants and duplicate owne
   ensureCompOutbox(d);const target='https://fixture.invalid';d.run('INSERT INTO comp_outbox(target,hash,payload) VALUES(?,?,?)',[target,good.hash,JSON.stringify(good)]);
   globalThis.fetch=async()=>{throw new Error('network failed');};await assert.rejects(flushComps(d,target,'Bearer fixture'));assert.equal(d.query('SELECT status FROM comp_outbox').get().status,'pending');
   globalThis.fetch=async()=>new Response(JSON.stringify({acks:[{hash:good.hash,status:'duplicate'}]}));assert.equal(await flushComps(d,target,'Bearer fixture'),1);assert.equal(d.query('SELECT status FROM comp_outbox').get().status,'duplicate');
+  d.run("UPDATE comp_outbox SET status='pending'");d.exec('CREATE TABLE catalog_outbox(target TEXT,hash TEXT,payload TEXT,state TEXT)');d.run('INSERT INTO catalog_outbox VALUES(?,?,?,?)',[target,'catalog',JSON.stringify({identity:sku}),'pending']);
+  let requests=0;globalThis.fetch=async()=>{requests++;return new Response(JSON.stringify({acks:[{hash:good.hash,status:'rejected',reason:'fixture rejection'}]}));};
+  assert.equal(await flushComps(d,target,'Bearer fixture'),0);assert.equal(requests,0);assert.equal(d.query('SELECT status FROM comp_outbox').get().status,'pending');
+  d.run("UPDATE catalog_outbox SET state='applied'");assert.equal(await flushComps(d,target,'Bearer fixture'),0);assert.equal(requests,1);assert.equal(d.query('SELECT status FROM comp_outbox').get().status,'rejected');
 `));

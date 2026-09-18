@@ -16,7 +16,7 @@ export function textFacts(text:string):{facts:TextFact[];conflicts:string[]} {
   const clean=factualText(text),facts:TextFact[]=[];
   const patterns:Record<string,RegExp>={
     cpu:/\b(?:i[3579][- ]\d{4,5}[a-z0-9]*|ryzen\s+[3579]\s+\d{4}[a-z0-9]*)\b/gi,
-    gpu:/\b(?:rtx|gtx|rx)\s?\d{3,4}\s*(?:ti\s*super|super|ti|xtx|xt)?\b/gi,
+    gpu:/\b(?:rtx|gtx|rx)\s?\d{3,4}\s*(?:ti\s*super|super|ti|xtx|xt|s(?=-))?\b/gi,
     ram:/\b\d{1,3}\s*(?:gb|gigs?)\s*(?:of\s*)?(?:ram|memory|ddr[345])\b/gi,
     storage:/\b\d{1,4}\s*(?:gb|tb)\s*(?:ssd|hdd|nvme|storage)\b/gi,
     kitLayout:/\b\d+\s*[x×]\s*\d+\s*gb\b/gi,

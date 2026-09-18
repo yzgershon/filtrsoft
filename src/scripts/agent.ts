@@ -80,6 +80,7 @@ while(true) {
       const timer=setInterval(()=>void heartbeat('online'),15000);
       try{await backupIfDue();
         if(!workWaiting&&!isPaused())await maintenanceTask('cohort',['run','src/scripts/cohort-recovery.ts'],{intervalMs:60000,timeoutMs:300000,cancelled:()=>isPaused()||workWaiting});
+        if(!workWaiting&&!isPaused()&&process.env.FILTRSOFT_AGENT_COMPS==='1')await maintenanceTask('identity-comps',['run','comps:refresh','--identity-only'],{intervalMs:900000,timeoutMs:360000,cancelled:()=>isPaused()||workWaiting});
         if(!workWaiting&&!isPaused()&&process.env.FILTRSOFT_AGENT_COMPS==='1')await maintenanceTask('comps',['run','comps:refresh'],{intervalMs:3600_000,timeoutMs:360_000,cancelled:()=>isPaused()||workWaiting});
       }finally{clearInterval(timer);}
     }

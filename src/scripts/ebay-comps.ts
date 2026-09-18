@@ -1,4 +1,4 @@
-import {startCollection,finishCollection} from "../sources/comp-priority.ts";
+import {startCollection,finishCollection,collectionPriority} from "../sources/comp-priority.ts";
 /**
  * bun run ebay:comps [--query "rtx 3080"] [--skus N] [--headless]
  *
@@ -35,7 +35,7 @@ const targets = named
   ? [{ id: named.id, label: `${named.brand} ${named.model}`, query: queryForSku(named), category: named.category }]
   : single
   ? [{ id: null as number | null, label: single, query: single }]
-  : skusNeedingComps(Number(arg("skus")) || 8).map((s) => ({
+  : (has('identity-only')?collectionPriority(Number(arg('skus'))||3,Date.now(),true):skusNeedingComps(Number(arg("skus")) || 8)).map((s) => ({
       id: s.id, label: `${s.brand} ${s.model} (${s.comps} comps)`,
       query: s.demandQuery ?? queryForSku(s), category: s.category,
     }));

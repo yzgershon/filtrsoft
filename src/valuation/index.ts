@@ -204,6 +204,12 @@ export function valueSku(
       return ['cpu','gpu','ram_gb','screen_inches','gpu_cores'].every(k=>wanted[k]==null || got[k]!=null && normalize(wanted[k])===normalize(got[k]));});
   }
 
+  if((opts?.category??identity?.category)==='gpu' && opts?.attributes){
+    const wanted=opts.attributes;
+    raw=raw.filter(r=>{const got=extractAttributes(r.raw_title,'gpu');
+      return ['board_brand','vram_type','vram_gb'].every(k=>wanted[k]==null || got[k]!=null && wanted[k]===got[k]);});
+  }
+
   if(opts?.buildConfiguration) {
     const wanted=opts.buildConfiguration;
     const norm=(value:string|number)=>String(value).toLowerCase().replace(/nvidia|geforce|amd|radeon/g,'').replace(/[^a-z0-9]/g,'');

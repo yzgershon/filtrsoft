@@ -3,6 +3,14 @@ import {sourceIdentity} from '../src/catalog/source-identity.ts';
 import {compMatchesQuery} from '../src/sources/ebay.ts';
 import {extractAttributes} from '../src/catalog/match.ts';
 
+test('owner recovery accepts the HTTPS site behind TLS termination and rejects foreign origins',()=>isolated(`
+ process.env.FILTRSOFT_OWNER_REF='owner-device-fixture';process.env.FILTRSOFT_SITE_URL='https://filtrsoft.com';
+ import {app} from '@/src/api/index.ts';import {db,now} from '@/src/db/index.ts';const d=db();
+ d.run("INSERT INTO users(id,email,created_at,last_seen_at) VALUES(1,'fixture@example.invalid',?,?)",[now(),now()]);d.run("INSERT INTO sessions(token,user_id,created_at,expires_at) VALUES('fixture-session',1,?,'2099-01-01')",[now()]);d.run('INSERT INTO account_devices(device_ref,user_id,created_at) VALUES(?,1,?)',[process.env.FILTRSOFT_OWNER_REF,now()]);
+ const post=origin=>app.request('http://filtrsoft.com/v1/owner/recovery',{method:'POST',headers:{cookie:'filtrsoft_session=fixture-session',origin,'content-type':'application/x-www-form-urlencoded'},body:'ids=1'});
+ assert.equal((await post('https://attacker.invalid')).status,403);assert.equal((await post('https://filtrsoft.com')).status,200);
+`));
+
 test('known laptop query preserves display constraint without a literal laptop word',()=>{
  const query='Lenovo Legion 5 15ACH6 Ryzen 7 5800H RTX 3050 Ti 16GB RAM 1TB SSD 15.6-inch';
  expect(extractAttributes(query,'laptop').screen_inches).toBe(15.6);
@@ -36,6 +44,14 @@ test('manufacturer codes are quoted, suffixes conflict and configuration never g
  expect(sourceIdentity('Intel i5-10400F CPU + motherboard bundle','','component').identity).toBeNull();
  expect(sourceIdentity('HP 27-CB0244 All in One','Ryzen 7 5700U','prebuilt').identity?.model).toBe('27-CB0244');
 });
+
+test('new exact cohort identity queries outrank repeated generic demand without bypassing query backoff',()=>isolated(`
+ import {db,now} from '@/src/db/index.ts';import {upsertListingFacts} from '@/src/db/listings.ts';import {enqueueIdentity,recoverIdentities} from '@/src/catalog/recovery.ts';import {ensureEnrichment} from '@/src/db/enrichment.ts';import {collectionPriority,startCollection,finishCollection} from '@/src/sources/comp-priority.ts';
+ const d=db();ensureEnrichment();d.run("INSERT INTO skus(category,brand,model,created_at) VALUES('gpu','NVIDIA','RTX 4070 Ti',?)",[now()]);
+ let legion=0;for(let i=0;i<5;i++){const exact=i===4,id=upsertListingFacts(d,{source:'facebook',sourceId:String(i+1),url:'https://www.facebook.com/marketplace/item/'+(i+1)+'/',title:exact?'Lenovo Legion 5 Gaming Laptop':'NVIDIA RTX 4070 Ti graphics card',description:exact?'Model 15ACH6. Ryzen 7 5800H RTX 3050 Ti 16GB RAM 1TB SSD':'Used',askingPriceCents:100000,location:null,postedAt:null,photoCount:0}).id;d.run('INSERT INTO cohort_recovery_requests VALUES(?,?)',[id,now()]);d.run("INSERT INTO verdicts(listing_id,engine_version,call,payload,created_at) VALUES(?,'fixture','INSUFFICIENT_DATA','{}',?)",[id,now()]);if(exact){legion=id;enqueueIdentity(d.query('SELECT * FROM listings WHERE id=?').get(id));}}
+ const result=recoverIdentities(1,{ids:[legion],enqueue:false})[0];assert.equal(collectionPriority(10)[0].demandQuery,result.query);assert.equal(collectionPriority(10,Date.now(),true).length,1);
+ const attempt=startCollection(result.skuId,result.query);finishCollection(attempt,{fetched:0,parsed:0,accepted:0,saved:0});assert.equal(collectionPriority(10,Date.now(),true).length,0);
+`));
 test('a broad Legion alias cannot swallow a precise seller model before identity resolution',()=>isolated(`
  import {db,now} from '@/src/db/index.ts';import {matchSku} from '@/src/catalog/match.ts';
  db().run("INSERT INTO skus(category,brand,model,created_at) VALUES('laptop','Lenovo','Legion 5',?)",[now()]);
@@ -59,7 +75,8 @@ test('identity-required becomes a resolved catalog, exact sold query, acknowledg
  const result=recoverIdentities(1,{ids:[id],enqueue:false})[0];assert.equal(result.state,'resolved');assert.ok(result.created);assert.ok(result.query.includes('15ACH6'));assert.ok(result.query.includes('1TB SSD'));
  const priceable=collectionPriority(20).find(r=>r.demandQuery===result.query); // stored verdict is established below for scheduling
  const v=checkStored(id).verdict;d.run('INSERT INTO verdicts(listing_id,engine_version,call,payload,created_at) VALUES(?,?,?,?,?)',[id,'before','INSUFFICIENT_DATA',JSON.stringify(v),now()]);
- assert.ok(collectionPriority(20).some(r=>r.demandQuery===result.query));
+ d.run('INSERT INTO cohort_recovery_requests VALUES(?,?)',[id,now()]);
+ assert.ok(collectionPriority(20,Date.now(),true).some(r=>r.demandQuery===result.query));
  const at=Date.now(),date=new Date(at-86400000).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}),attempt=startCollection(result.skuId,result.query);
  const raw=Array.from({length:5},(_,i)=>({href:'https://www.ebay.com/itm/'+(100000000000+i),title:result.query,text:['Sold '+date,'$500.00','Pre-Owned'],img:null}));
  const parsed=raw.map(r=>parseSoldRow(r,at)).filter(Boolean);assert.equal(parsed.length,5);assert.ok(parsed.every(c=>compMatchesQuery(c.title,result.query,'laptop').ok));

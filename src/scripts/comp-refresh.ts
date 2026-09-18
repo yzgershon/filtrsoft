@@ -13,7 +13,7 @@ console.log(`Acknowledged ${await flushCatalog(target,`Bearer ${token}`)} catalo
 // newly saved rows. A later invocation queues them before any further visits.
 captureNewComps(d,target,start);await flushComps(d,target,`Bearer ${token}`);
 let ok=false;
-try {const result=await runCommand(process.execPath,['run','ebay:comps','--skus','3'],{timeoutMs:300000});console.log(result.tail);ok=result.ok;}
+try {const result=await runCommand(process.execPath,['run','ebay:comps','--skus','3',...(process.argv.includes('--identity-only')?['--identity-only']:[])],{timeoutMs:300000});console.log(result.tail);ok=result.ok;}
 finally {
  // The query planner can resolve further identities. Synchronize those catalog
  // keys before their newly collected sales reach the server's strict receiver.

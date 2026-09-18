@@ -20,6 +20,10 @@ export function conditionDisclosure(text:string):{broken:string|null;untested:st
     for(const m of candidates) {
       const before=clause.slice(Math.max(0,m.index!-35),m.index);
       if(/\b(?:not|never|isn't|is not)\s+(?:(?:being|sold|selling|a|an|as)\s+)*$/i.test(before))continue;
+      // A coordinated denial shares its negation: "No bent, broken or
+      // missing pin" was falsely marking the audited B860 as damaged.
+      // Only damage adjectives may intervene, never "but" or another claim.
+      if(/^(?:broken|defective)$/i.test(m[0]) && /\b(?:no|not|without)\s+(?:any\s+)?(?:(?:bent|broken|missing|damaged|defective)\s*(?:,\s*|(?:or|and)\s+))*$/i.test(before))continue;
       if(/\b(?:warranty|warrantied|protection|coverage|against|replaced|repaired)\b/i.test(before) && /^(broken|defective)$/i.test(m[0]))continue;
       // A missing packaging/accessory does not establish a broken device.
       if(/^(?:broken|defective)$/i.test(m[0]) && /^\s+(?:box|packaging|case clip|cable|charger|screen protector)\b/i.test(clause.slice(m.index!+m[0].length)))continue;

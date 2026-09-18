@@ -15,7 +15,10 @@ export function recordProbe(id:number,outcome:'alive'|'gone'|'unknown',at=Date.n
     d.run('UPDATE listings SET last_probed_at=?,next_probe_at=?,probe_failures=? WHERE id=?',
       [new Date(at).toISOString(),new Date(at+delay).toISOString(),failures,id]);
     d.run(`INSERT INTO listing_availability VALUES(?,?,?) ON CONFLICT(listing_id) DO UPDATE SET observed_at=excluded.observed_at,outcome=excluded.outcome`,[id,new Date(at).toISOString(),outcome]);
-  })();
+  // A deferred read snapshot cannot upgrade after another writer commits,
+  // even with busy_timeout. Job 52 hit that race against agent bookkeeping.
+  // Take the write reservation first, then read and persist one observation.
+  }).immediate();
 }
 
 export function dueProbes(source:string,limit:number,at=Date.now()) {
