@@ -29,8 +29,9 @@ export function captureNewComps(d:Database,target:string,initialId:number) {
 }
 export async function flushComps(d:Database,target:string,authorization:string) {
   ensureCompOutbox(d);let sent=0;
+  const hasCatalog=Boolean(d.query("SELECT 1 FROM sqlite_schema WHERE name='catalog_outbox'").get());
   for(let batch=0;batch<20;batch++) {
-    const rows=d.query("SELECT hash,payload FROM comp_outbox WHERE target=? AND status='pending' LIMIT 25").all(target) as {hash:string;payload:string}[];
+    const rows=d.query(`SELECT hash,payload FROM comp_outbox o WHERE target=? AND status='pending' ${hasCatalog?`AND NOT EXISTS(SELECT 1 FROM catalog_outbox c WHERE c.target=o.target AND c.state='pending' AND json_extract(c.payload,'$.identity.category')=json_extract(o.payload,'$.sku.category') AND json_extract(c.payload,'$.identity.brand')=json_extract(o.payload,'$.sku.brand') AND json_extract(c.payload,'$.identity.model')=json_extract(o.payload,'$.sku.model'))`:''} LIMIT 25`).all(target) as {hash:string;payload:string}[];
     if(!rows.length)return sent;
     const response=await fetch(target+'/v1/collector/comps',{method:'POST',headers:{authorization,'content-type':'application/json'},
       body:JSON.stringify({items:rows.map(r=>({hash:r.hash,...JSON.parse(r.payload)}))}),signal:AbortSignal.timeout(20000)});
@@ -39,7 +40,7 @@ export async function flushComps(d:Database,target:string,authorization:string) 
     if(!Array.isArray(body.acks))throw new Error('Missing comp acknowledgements');
     const hashes=new Set(rows.map(r=>r.hash));let acknowledged=0;
     for(const ack of body.acks)if(hashes.delete(ack.hash)&&['applied','duplicate','rejected'].includes(ack.status)) {
-      d.run('UPDATE comp_outbox SET status=?,reason=? WHERE target=? AND hash=?',[ack.status,ack.reason??null,target,ack.hash]);acknowledged++;sent++;
+      d.run('UPDATE comp_outbox SET status=?,reason=? WHERE target=? AND hash=?',[ack.status,ack.reason??null,target,ack.hash]);acknowledged++;if(ack.status!=='rejected')sent++;
     }
     if(acknowledged!==rows.length)throw new Error('Incomplete comp acknowledgement; queue retained');
   }

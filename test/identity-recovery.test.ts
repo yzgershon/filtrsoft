@@ -67,7 +67,8 @@ test('identity-required becomes a resolved catalog, exact sold query, acknowledg
  const result=recoverIdentities(1,{ids:[id],enqueue:false})[0];assert.equal(result.state,'resolved');assert.ok(result.created);assert.ok(result.query.includes('15ACH6'));assert.ok(result.query.includes('1TB SSD'));
  const priceable=collectionPriority(20).find(r=>r.demandQuery===result.query); // stored verdict is established below for scheduling
  const v=checkStored(id).verdict;d.run('INSERT INTO verdicts(listing_id,engine_version,call,payload,created_at) VALUES(?,?,?,?,?)',[id,'before','INSUFFICIENT_DATA',JSON.stringify(v),now()]);
- assert.ok(collectionPriority(20).some(r=>r.demandQuery===result.query));
+ d.run('INSERT INTO cohort_recovery_requests VALUES(?,?)',[id,now()]);
+ assert.ok(collectionPriority(20,Date.now(),true).some(r=>r.demandQuery===result.query));
  const at=Date.now(),date=new Date(at-86400000).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}),attempt=startCollection(result.skuId,result.query);
  const raw=Array.from({length:5},(_,i)=>({href:'https://www.ebay.com/itm/'+(100000000000+i),title:result.query,text:['Sold '+date,'$500.00','Pre-Owned'],img:null}));
  const parsed=raw.map(r=>parseSoldRow(r,at)).filter(Boolean);assert.equal(parsed.length,5);assert.ok(parsed.every(c=>compMatchesQuery(c.title,result.query,'laptop').ok));

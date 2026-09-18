@@ -27,11 +27,12 @@ export function finishCollection(id:number,counts:{fetched:number;parsed:number;
  * Repeated empty or duplicate-only pulls back off exponentially up to seven days.
  * An interrupted attempt also backs off so a crashing query cannot monopolize chunks.
  */
-export function collectionPriority(limit=20,at=Date.now()) {
+export function collectionPriority(limit=20,at=Date.now(),identityOnly=false) {
   installDemand();
   recoverIdentities(40,{at});
   ensureEnrichment();
   const cohort=new Set((db().query('SELECT listing_id FROM cohort_recovery_requests').all() as {listing_id:number}[]).map(r=>r.listing_id));
+  const recovered=new Set((db().query("SELECT query FROM identity_jobs WHERE state='resolved' AND json_extract(evidence,'$.created')=1 AND listing_id IN (SELECT listing_id FROM cohort_recovery_requests)").all() as {query:string}[]).map(r=>r.query));
   const d=db(),demand=new Map<number,number>(),queries=new Map<number,Map<string,number>>();
   const unresolved=d.query(`SELECT l.id,l.title,l.description FROM listings l JOIN verdicts v ON v.id=(SELECT MAX(id) FROM verdicts WHERE listing_id=l.id)
     WHERE l.delisted_at IS NULL AND COALESCE(l.posted_at,l.last_seen,l.captured_at)>=strftime('%Y-%m-%dT%H:%M:%fZ','now','-28 days')
@@ -58,6 +59,8 @@ export function collectionPriority(limit=20,at=Date.now()) {
     if(!macbookCompIdentity(identity,identity))return [];
     const choices=[...(queries.get(s.id)?.keys()??[])];
     return (choices.length?choices:[undefined]).flatMap(demandQuery=>{
+    const exactRecovered=Boolean(demandQuery&&recovered.has(demandQuery))||recovered.has(exactDemandQuery(s,{}));
+    if(identityOnly&&!exactRecovered)return [];
     const attempts=d.query(`SELECT started_at,finished_at,saved,error FROM comp_collection_attempts WHERE ${demandQuery?'query=?':'sku_id=?'} ORDER BY id DESC LIMIT 10`).all(demandQuery??s.id) as {started_at:string;finished_at:string|null;saved:number;error:string|null}[];
     let empty=0;for(const a of attempts){if(a.finished_at && a.saved>0 && !a.error)break;empty++;}
     const last=attempts[0],delay=empty?Math.min(7*86400000,3600000*2**(empty-1)):6*3600000;
@@ -65,7 +68,7 @@ export function collectionPriority(limit=20,at=Date.now()) {
     const r=raw.get(s.id),age=r?.newest?Math.max(0,(at-Date.parse(r.newest))/86400000):90;
     const n=demandQuery?(queries.get(s.id)?.get(demandQuery)??0):(demand.get(s.id)??0);
     const waiting=last?Math.max(0,(at-Date.parse(last.started_at))/86400000):0;
-    return [{...s,demandQuery,comps:r?.comps??0,demand:n,age,lastAttempt:last?.started_at??'',acceptedYield:last?.saved??0,priority:Math.min(40,n)*2+waiting}];
+    return [{...s,demandQuery,comps:r?.comps??0,demand:n,age,lastAttempt:last?.started_at??'',acceptedYield:last?.saved??0,priority:(exactRecovered?100:0)+Math.min(40,n)*2+waiting}];
     });
   }).sort((a,b)=>b.priority-a.priority || (a.status==='ok'?1:0)-(b.status==='ok'?1:0) || b.age-a.age
     || a.compCount-b.compCount || a.lastAttempt.localeCompare(b.lastAttempt) || b.acceptedYield-a.acceptedYield || a.id-b.id)
