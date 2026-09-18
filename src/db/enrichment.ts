@@ -9,7 +9,8 @@ export function ensureEnrichment(d=db()) {
     CREATE TABLE IF NOT EXISTS collector_priorities(listing_id INTEGER PRIMARY KEY,call TEXT NOT NULL,expires_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS listing_availability(listing_id INTEGER PRIMARY KEY,observed_at TEXT NOT NULL,outcome TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS listing_recovery(listing_id INTEGER PRIMARY KEY REFERENCES listings(id),observed_at TEXT NOT NULL,payload TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS listing_recovery_attempts(listing_id INTEGER PRIMARY KEY REFERENCES listings(id),fingerprint TEXT NOT NULL,attempted_at TEXT NOT NULL)`);
+    CREATE TABLE IF NOT EXISTS listing_recovery_attempts(listing_id INTEGER PRIMARY KEY REFERENCES listings(id),fingerprint TEXT NOT NULL,attempted_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS cohort_recovery_requests(listing_id INTEGER PRIMARY KEY REFERENCES listings(id),requested_at TEXT NOT NULL)`);
 }
 
 export function recordDetailAttempt(id:number,outcome:'read'|'empty'|'failed'|'gone',at=Date.now(),evidence?:{complete:boolean;durationMs?:number;reason?:string}) {
@@ -47,17 +48,19 @@ export function readReceipt(id:number):ReadReceipt|null {
  * back off, and oldest attempts win within a priority band, preventing starvation. */
 export function dueDetails(source:string,limit=20,at=Date.now(),all=false):any[] {
   ensureEnrichment();
-  const rows=db().query(`SELECT l.*,COALESCE(p.call,v.call) call,v.payload,e.attempted_at,e.next_attempt_at,r.payload recovery,a.fingerprint attempt_fingerprint,
+  const rows=db().query(`SELECT l.*,COALESCE(p.call,v.call) call,v.payload,e.attempted_at,e.next_attempt_at,r.payload recovery,a.fingerprint attempt_fingerprint,c.requested_at recovery_requested_at,
     (SELECT url FROM listing_photos WHERE listing_id=l.id ORDER BY position LIMIT 1) thumb,
     COALESCE((SELECT json_group_array(url) FROM listing_photos WHERE listing_id=l.id),'[]') photos
     FROM listings l LEFT JOIN verdicts v ON v.id=(SELECT MAX(id) FROM verdicts WHERE listing_id=l.id)
     LEFT JOIN listing_enrichment e ON e.listing_id=l.id
     LEFT JOIN listing_recovery r ON r.listing_id=l.id
     LEFT JOIN listing_recovery_attempts a ON a.listing_id=l.id
+    LEFT JOIN cohort_recovery_requests c ON c.listing_id=l.id
     LEFT JOIN collector_priorities p ON p.listing_id=l.id AND p.expires_at>?
     WHERE l.source=? AND l.delisted_at IS NULL AND l.url IS NOT NULL
       AND COALESCE(l.posted_at,l.last_seen,l.captured_at)>=?
-    ORDER BY CASE COALESCE(p.call,v.call) WHEN 'BUY' THEN 0 WHEN 'VERIFY' THEN 1 WHEN 'INSUFFICIENT_DATA' THEN 2 ELSE 3 END,
+    ORDER BY CASE WHEN c.listing_id IS NOT NULL THEN 0 ELSE 1 END,
+      CASE COALESCE(p.call,v.call) WHEN 'BUY' THEN 0 WHEN 'VERIFY' THEN 1 WHEN 'INSUFFICIENT_DATA' THEN 2 ELSE 3 END,
       COALESCE(e.attempted_at,''),l.captured_at DESC,l.id DESC`).all(new Date(at).toISOString(),source,new Date(at-28*86400000).toISOString()) as any[];
   return rows.filter(r=>{
     if(['furniture','accessory'].includes(resolveProductType(r.title).kind) || r.call==='OUT_OF_SCOPE')return false;

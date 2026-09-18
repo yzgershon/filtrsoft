@@ -200,7 +200,7 @@ export function valueSku(
     const normalize=(x:string|number)=>String(x).toLowerCase().replace(/[^a-z0-9]/g,'');
     // A Legion 5 is a family spanning very different CPUs and GPUs. Known
     // configuration dimensions must agree; unnamed dimensions are not proof.
-    raw=raw.filter(r=>{const got=extractAttributes(r.raw_title);
+    raw=raw.filter(r=>{const got=extractAttributes(r.raw_title,'laptop');
       return ['cpu','gpu','ram_gb','screen_inches','gpu_cores'].every(k=>wanted[k]==null || got[k]!=null && normalize(wanted[k])===normalize(got[k]));});
   }
 

@@ -273,7 +273,7 @@ export function compMatchesQuery(
   // eBay's accessibility label can concatenate its badge with the maker.
   title=title.replace(/^NEW LISTING\s*/i,'');
   if(skuCategory==='laptop'){
-    const wanted=extractAttributes(query),got=extractAttributes(title);
+    const wanted=extractAttributes(query,'laptop'),got=extractAttributes(title,'laptop');
     for(const key of ['screen_inches','gpu_cores'])if(wanted[key]!=null && wanted[key]!==got[key])return {ok:false,why:`laptop ${key} is missing or different`};
   }
   const identityQuery=skuCategory==='laptop'?query.replace(/\b\d{1,2}(?:\.\d)?-inch\b|\b\d{1,2}-core GPU\b/gi,''):query;

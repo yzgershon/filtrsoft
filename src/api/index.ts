@@ -1,6 +1,8 @@
 import {accountSync} from './account-sync.ts';
 import {handleOffhostBackup} from './offhost-backup.ts';
 import {handleRecoverySnapshot} from './recovery-snapshot.ts';
+import {handleCatalogSync} from './catalog-sync.ts';
+import {handleRecoveryForm,handleRecoveryRequest} from './recovery-request.ts';
 import {handleCompSync} from './comp-sync.ts';
 import {handleCollectionHealth,handleCollectorHeartbeat,handleCollectionPolicy} from './collection-health.ts';
 import { dismissedIds, setDismissed, listDismissed } from "./dismissals.ts";
@@ -235,6 +237,7 @@ const PUBLIC_PREFIXES = [
 const AGENT_PATHS = [
   /^\/v1\/collector\/heartbeat$/,
   /^\/v1\/collector\/comps$/,
+  /^\/v1\/collector\/catalog$/,
   /^\/v1\/jobs\/next$/,
   /^\/v1\/jobs\/diagnostics$/,
   /^\/v1\/jobs\/\d+$/,
@@ -323,6 +326,9 @@ function badUrl(url: string | undefined): string | null {
  */
 app.get('/v1/owner/backup',handleOffhostBackup);
 app.get('/v1/owner/recovery-snapshot',handleRecoverySnapshot);
+app.get('/v1/owner/recovery',handleRecoveryForm);
+app.post('/v1/owner/recovery',handleRecoveryRequest);
+app.post('/v1/collector/catalog',handleCatalogSync);
 app.get("/v1/health", async (c) => {
   const storage=storageStatus(DB_PATH);
   let stats: Record<string, unknown> = { db: "unavailable" };

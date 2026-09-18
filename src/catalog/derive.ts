@@ -252,9 +252,10 @@ export function findOrCreateSku(d: DerivedSku): { id: number; created: boolean }
   const existing = db().query(
     `SELECT id FROM skus
       WHERE category = $cat
+        AND LOWER(brand)=LOWER($brand)
         AND REPLACE(REPLACE(LOWER(model), ' ', ''), '-', '') = $flat
       LIMIT 1`,
-  ).get({ $cat: d.category, $flat: flat }) as { id: number } | null;
+  ).get({ $cat: d.category, $brand:d.brand, $flat: flat }) as { id: number } | null;
   if (existing) return { id: existing.id, created: false };
 
   const r = db().run(
