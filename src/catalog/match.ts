@@ -15,6 +15,7 @@ import { DEAD_PATTERNS } from "../reference/catalog.ts";
 import { productVariants } from "../signals/variants.ts";
 import {macbookCompIdentity} from './macbook.ts';
 import {factualText} from '../signals/factual-text.ts';
+import {sourceIdentity} from './source-identity.ts';
 
 export interface Match {
   skuId: number | null;
@@ -148,14 +149,14 @@ export function fullestVariant(matches: string[], base: RegExp): string {
 }
 
 /** Attributes that change value materially, pulled straight from text. */
-export function extractAttributes(text: string): Record<string, string | number> {
+export function extractAttributes(text: string,categoryHint?:string): Record<string, string | number> {
   const a: Record<string, string | number> = {};
   const t = factualText(text).toLowerCase();
   const screen=t.match(/\b(\d{1,2}(?:\.\d)?)\s*(?:-\s*inch\b|inches\b|inch\b|["“”″])/);
   // A GPU's bracket height or a case dimension is not a display diagonal.
   if(screen){
     const before=t.slice(Math.max(0,screen.index!-30),screen.index),after=t.slice(screen.index!+screen[0].length,screen.index!+screen[0].length+25);
-    if(/\b(?:laptop|notebook|macbook|thinkpad|chromebook|monitor|touchscreen)\b/.test(t)||/\b(?:screen|display|diagonal)(?:\s+size)?\s*[:=]?\s*$/.test(before)||/^\s*(?:screen|display|diagonal)\b/.test(after))a.screen_inches=Number(screen[1]);
+    if(categoryHint==='laptop'||/\b(?:laptop|notebook|macbook|thinkpad|chromebook|monitor|touchscreen)\b/.test(t)||/\b(?:screen|display|diagonal)(?:\s+size)?\s*[:=]?\s*$/.test(before)||/^\s*(?:screen|display|diagonal)\b/.test(after))a.screen_inches=Number(screen[1]);
   }
   const gpuCores=t.match(/\b(\d{1,2})\s*(?:-?\s*cores?|c)\s*gpu\b|\b(\d{1,2})-gpu\b/);
   if(gpuCores)a.gpu_cores=Number(gpuCores[1]??gpuCores[2]);
@@ -316,6 +317,16 @@ export function matchSku(title: string, description = "", categoryHint?: string)
     attributes,
     ...(deadReason ? { deadReason } : {}),
   };
+
+  // A precise model in the description must not be swallowed by a broad title
+  // alias (Legion 5 vs Legion 5 15ACH6). The durable resolver creates missing
+  // identities; matching alone never invents a catalog row from this evidence.
+  const explicit=sourceIdentity(title,description,categoryHint??'');
+  if(explicit.conflict)return {...base,skuId:null,brand:null,model:null,category:null,liquidity:null,confidence:'low',method:'none'};
+  if(explicit.identity){const s=explicit.identity;
+    const found=d.query("SELECT id,liquidity,model FROM skus WHERE category=? AND LOWER(brand)=LOWER(?) AND REPLACE(REPLACE(LOWER(model),' ',''),'-','')=? ORDER BY id LIMIT 1").get(s.category,s.brand,s.model.toLowerCase().replace(/[ -]/g,'')) as {id:number;liquidity:string|null;model:string}|null;
+    return {...base,skuId:found?.id??null,brand:s.brand,model:found?.model??s.model,category:s.category,liquidity:found?.liquidity??null,confidence:found?'medium':'low',method:found?'derived':'none'};
+  }
 
   // --- 1. Exact alias hit. Fastest path, and the one the catalog grows into.
   const n = norm(title);

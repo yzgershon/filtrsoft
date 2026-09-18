@@ -43,6 +43,8 @@ import { pruneSessions } from "./auth.ts";
 import { checkStored, ENGINE_VERSION } from "../engine/index.ts";
 import { db, now } from "../db/index.ts";
 import { scorePending } from "../db/scoring.ts";
+import {recoverIdentities} from '../catalog/recovery.ts';
+import {recoverCraigslistCohort} from '../crawler/cohort-pass.ts';
 import { retireRepeatedAppliances } from "../db/retire-appliances.ts";
 
 /** Gap between ticks. A tick is 5 requests when nothing is new. */
@@ -325,6 +327,8 @@ function recordTick(
 
 export function startCrawlLoop() {
   startServerBackups();
+  const recovery=async()=>{try{recoverIdentities(20);if(ENABLED)await recoverCraigslistCohort();}catch(e){console.error('evidence recovery pass failed',String(e));}finally{setTimeout(()=>void recovery(),60000).unref?.();}};
+  setTimeout(()=>void recovery(),30000).unref?.();
   const deliver=async()=>{try{const n=await runAlerts();if(n)console.log(`alerts: sent ${n}`);}
     catch(e){console.error('alerts failed',String(e));}finally{setTimeout(()=>void deliver(),30000).unref?.();}};
   setTimeout(()=>void deliver(),30000).unref?.();

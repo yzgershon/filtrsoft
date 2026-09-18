@@ -89,6 +89,24 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
+### September 17/18, recovery follow-up in progress: baseline and safe export support
+
+Development is isolated in `C:\Dev\filtrsoft-followup-20260917`, branch `codex/recovery-followup-20260917`, based on main `e235c4f`. The installed checkout and its two measured-documentation working changes are preserved. Do not reset to the older checkpoint.
+
+Fresh inspection at 00:37 UTC found the desktop supervisor and collector absent, despite stale status files showing job 50. Resumed the unchanged `C:\Dev\filtrsoft-runner-state\start.cjs`; the original desktop node reported online at 00:38 UTC and began automatic job 51. Laptop remains connected but **paused**. This is recovery from an observed stop, not proof of its cause.
+
+Owner health at 00:38 UTC: engine 0.3.43, scoring complete/zero failures, physical production free **97,198,080 bytes**. Scheduled Claude reads and the interactive paid-read gate are **both enabled**; daily budget $2, recorded UTC-day spend $1.0021, latest read 00:38:00. Desktop visionLimit=0 does not disable these server paths. Approval to pause both Railway switches and to download a second local model has been requested; neither is yet claimed done. Existing cached Claude facts remain intact.
+
+The original 250 cohort IDs and all old artifacts are preserved. New local baseline at 00:45 UTC is restore-verified, SHA `5c5019251f622df6f38c900ebecf09750b99bac71b38a959b2f1b8841b9b2859`, 2,131 listings / 33,002 comps / 602 SKUs / zero FK violations, under `C:\Dev\filtrsoft-recovery-data\followup`. It is an **OMEN ingestion backup**, not a production backup. OMEN had 748 GB free; the 97 MB constraint applies to Railway.
+
+Support main `a97527798b7cf72b2ab05d0a90e2215603c52c1b` passed CI `35292678386` including containers; Railway `03fd8932-08b7-4fb9-bfae-fb81885a5f4d` is active. Owner-session-only snapshot streaming uses one read transaction, physical-headroom/deadline guards, backpressure and no server-side whole-database copy. Collector upload tokens cannot export accounts. Original same-volume backup guard is unchanged.
+
+**Production backup succeeded:** snapshot began 00:54:17 UTC, downloaded 2,261,039,664 compressed bytes to the OMEN and restored with integrity checks and zero FK violations. Private `C:\Dev\filtrsoft-recovery-data\followup\production-before.jsonl.gz` SHA `3fb5f6f62bdc732458f9d2a4edd2ac9228a34bd8ab9a4b6551638cbd7c109939`; restore receipt beside `production-before.db`: 9,500 listings / 33,155 comps / 620 SKUs / 846,543 verdicts. This contains private account data; never commit or publish it. No second full copy was made on Railway.
+
+The new production baseline uses the same original 250 IDs: **3 PASS, 1 FAIR, 1 RISK, 2 unavailable, 243 unresolved**, 59 complete receipts and 151 descriptions. Autonomous collection between the preceding final receipt and this backup accounts for the extra PASS/FAIR/retirement; do not credit those to this follow-up's unreleased resolver. Frozen original SHA remains `4938bbb2f72a47f163e3f1430336adf2ca9299c3f6dbbe0205609d20f1202228`. Additional implementation/vision outcomes remain unverified.
+
+Engine candidate **0.3.44** implements leased deterministic identity jobs, exact manufacturer aliases, independent server validation and durable catalog acknowledgements, cohort-prioritized reads with existing completeness/backoff guards, bounded Craigslist recovery and idle desktop chunks. Exact laptop queries now retain screen constraints without requiring the literal word laptop. Broad Legion aliases cannot swallow an explicit 15ACH6/15ACH6H distinction. Both matching regressions fail on preserved `e235c4f` and pass here; the end-to-end fixture resolves identity, schedules the exact query, accepts matching sold evidence, acknowledges transfers and produces a supported PASS. **417 tests / 1,362 assertions, typecheck and build passed**. No corresponding live recovery gain is claimed until deployment/runtime/same-cohort verification.
+
 ### September 17, evidence recovery complete — verified production and OMEN
 
 **Live engine 0.3.43, functional main `4834b3214a7f0a161a420350bfa6b6b83847224c`.** [CI 35286589225](https://github.com/yzgershon/filtrsoft/actions/runs/35286589225) passed including containers; Railway `cfad9f6f-b8a3-49e8-8361-967429f6b6f4` deployed that source. At **23:36:53 UTC**, production reported **0 pending scores / 0 failures**, database OK, health **480 ms**. Web assets match `index-C0OAYHY3.js` / `index-LTRDxhkn.css`. Subsequent documentation-only commits do not change that functional release.
