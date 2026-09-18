@@ -3,6 +3,14 @@ import {sourceIdentity} from '../src/catalog/source-identity.ts';
 import {compMatchesQuery} from '../src/sources/ebay.ts';
 import {extractAttributes} from '../src/catalog/match.ts';
 
+test('owner recovery accepts the HTTPS site behind TLS termination and rejects foreign origins',()=>isolated(`
+ process.env.FILTRSOFT_OWNER_REF='owner-device-fixture';process.env.FILTRSOFT_SITE_URL='https://filtrsoft.com';
+ import {app} from '@/src/api/index.ts';import {db,now} from '@/src/db/index.ts';const d=db();
+ d.run("INSERT INTO users(id,email,created_at,last_seen_at) VALUES(1,'fixture@example.invalid',?,?)",[now(),now()]);d.run("INSERT INTO sessions(token,user_id,created_at,expires_at) VALUES('fixture-session',1,?,'2099-01-01')",[now()]);d.run('INSERT INTO account_devices(device_ref,user_id,created_at) VALUES(?,1,?)',[process.env.FILTRSOFT_OWNER_REF,now()]);
+ const post=origin=>app.request('http://filtrsoft.com/v1/owner/recovery',{method:'POST',headers:{cookie:'filtrsoft_session=fixture-session',origin,'content-type':'application/x-www-form-urlencoded'},body:'ids=1'});
+ assert.equal((await post('https://attacker.invalid')).status,403);assert.equal((await post('https://filtrsoft.com')).status,200);
+`));
+
 test('known laptop query preserves display constraint without a literal laptop word',()=>{
  const query='Lenovo Legion 5 15ACH6 Ryzen 7 5800H RTX 3050 Ti 16GB RAM 1TB SSD 15.6-inch';
  expect(extractAttributes(query,'laptop').screen_inches).toBe(15.6);
