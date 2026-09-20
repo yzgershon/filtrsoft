@@ -89,6 +89,24 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
+### September 20: collector browser focus isolation
+
+Yish reported fullscreen games losing focus whenever the crawler opened Chrome.
+Off-screen coordinates hid Chrome but did not prevent activation. Automatic
+headed Windows browsers now start on a private `FiltrsoftCollector` Win32 desktop
+through a small native launcher compiled by Windows' existing .NET compiler.
+Both shared marketplace/eBay/retail launches and Facebook's separate launcher
+use it. Manual sign-ins remain visible; the user's input desktop is never
+switched. A failed native launch fails the crawl rather than opening on Default.
+
+Verified on the OMEN: 15 targeted tests passed, extended native crash-cleanup
+test passed, typecheck passed, and 298 focus observations across repeated
+launches showed no foreground change. Real Mercari search returned 20 card links;
+item `m87685110404` returned its GPU heading and complete item text using the
+existing profile. DB, identity, outbox, profiles and scheduling are not changed by
+this fix. No actual fullscreen game was opened for testing. Details and local QA
+receipt paths: `docs/COLLECTOR-FOCUS-2026-09-20.md`.
+
 ### September 17/18, recovery follow-up in progress: baseline and safe export support
 
 **02:36 UTC checkpoint:** `0a7aee8183ac078f37894b35a4eb148a3708b0e3` / engine 0.3.46 passed CI `35299263831` including containers. Active Railway deployment `5078981e-adf8-480e-b083-00a802d23043`; paid settings approved by Yish and live health now verifies **visionEnabled=false, loopEnabled=false**, spend **$1.9024/$2**, last paid read 01:40:35 UTC. Cached facts untouched. Runtime merge `209b9f96d6fd706f85cce1d9827c591f47160f9e` resumed after verified backup SHA `64c172356bd62a3071918fe7f63a592e6289dde7b9d447d65acdc5f92dc4ee98`, 2,164 listings / 33,767 comps. Original identity/startup/config preserved; automatic job **53** is running. Exact Legion query actually fetched 122 results, accepted **zero** due to configuration/model differences; no valuation recovery claimed. WX3200 and Yoga queries stored and acknowledged 77 sales. Acer Nitro chassis remains unstated.

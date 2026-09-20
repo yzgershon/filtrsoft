@@ -88,6 +88,14 @@ upload acknowledgement and failed-host handoff before retiring the laptop role.
 
 ## Daily operation
 
+On Windows, automatic headed Chrome launches use the private
+`FiltrsoftCollector` Win32 desktop. They retain the same persistent profiles and
+headed rendering without opening windows on the gaming desktop. Manual login
+still opens visibly. The launcher compiles a small helper with Windows' existing
+.NET compiler on first use, caches it under runner state by source hash, and
+fails the crawl if isolation cannot start. It never falls back to a foreground
+window. See `COLLECTOR-FOCUS-2026-09-20.md` for verification and recovery details.
+
 Windows must be signed in and awake; turning off the display is fine. No power
 settings are changed by the installer. The supervisor restores a crashed worker,
 and configured logon startup recovers after the next Windows sign-in. A remote
