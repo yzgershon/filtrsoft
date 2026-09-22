@@ -3,7 +3,7 @@
 **Master plan AND current state. Update before you stop working.** A stale line
 here is worse than a missing one, because a fresh session will believe it.
 
-**Last updated 2026-09-17.** Read section 0 first and in order; it is the record
+**Last updated 2026-09-22.** Read section 0 first and in order; it is the record
 of every session since the rename and it supersedes anything below it that
 disagrees. Sections 1 onward are older material kept for the reasoning, not for
 current numbers.
@@ -88,6 +88,14 @@ and it supersedes anything below that disagrees with it.** Section 2 onward is
 older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
+
+### September 22, Claude full-project prompt prepared on the laptop
+
+Yish requested a self-contained prompt for Claude Opus 5.5 to audit and improve all of Filtrsoft, settle its operating workflow and evaluate GPT-6 Luna against the locally installed model he calls Gemma 31B. See **docs/CLAUDE-FULL-PROJECT-PROMPT-2026-09-22.md**. This is a handoff artifact, not a new implementation or deployment. No billable model calls, installations, collector starts, configuration changes or messages to another session were performed.
+
+Read-only fetch reached **origin/main b8fa54c**, whose newer committed September 17/18 checkpoint supersedes the older laptop notes below: functional **3367d18 / 0.3.47**, installed **e73d1879**, same cohort **6 PASS / 4 FAIR / 5 RISK / 15 unavailable / 220 insufficient**, with **229 complete reads / 15 unavailable / six deferred**. Identity resolution is now implemented, off-host production backup succeeded, and both paid Claude paths were approved paused and verified off at that recorded checkpoint. Production physical headroom and model factual accuracy remained limitations. These are fetched report observations, not new live measurements on September 22. Inspect actual current runtime and any Gemma work not published in main before deciding remaining work. Do not repeat the superseded missing-resolver or no-production-backup diagnoses.
+
+Official OpenAI model/pricing pages checked September 22 confirm **gpt-6-luna** supports image input and structured outputs, with standard short-context rates **$0.10/M input, $0.01/M cached input, $0.50/M output**. The prompt cites those sources, requires current account/access and measured image-token cost validation, and retains an explicit paid benchmark/operating budget boundary. Anthropic's current Opus page confirms Opus 5.5. Neither provider's capabilities establish Filtrsoft-specific accuracy; no model benchmark or migration was performed here. Prompt and HANDOFF are saved locally for copying to Claude without triggering production.
 
 ### September 17, active engine, availability and notifications repair
 
