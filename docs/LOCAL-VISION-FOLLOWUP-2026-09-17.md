@@ -1,5 +1,7 @@
 # Local photo evaluation follow-up, September 17–18, 2026
 
+**Interpretation superseded by the September 18 [benchmark audit](VISION-BENCHMARK-AUDIT-2026-09-18.md).** The three Qwen development reports were included in the same retrospective review as Gemma and OpenAI. The old scorer mixes factual errors with incomplete names, representation mismatches and missing annotations; some Qwen claims remain unadjudicated. The categorical factual-failure language below is historical, not a valid broad rejection of these model families. Photo ingestion remains unvalidated and disabled pending a corrected benchmark.
+
 ## Decision
 
 Production local photo fact ingestion remains disabled. None of the three tested models passed the original zero unsupported identity/quantity/ECC, 95% precision and 80% recall gates on development and fresh holdout. No paid fallback, new budget, or deployment scope was enabled. The 4070 Ti had sufficient capacity for all three measured models; failure is factual accuracy, with some additional idle-GPU deferrals. A larger model is not established as more accurate.

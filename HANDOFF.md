@@ -3,7 +3,7 @@
 **Master plan AND current state. Update before you stop working.** A stale line
 here is worse than a missing one, because a fresh session will believe it.
 
-**Last updated 2026-09-17.** Read section 0 first and in order; it is the record
+**Last updated 2026-09-20.** Read section 0 first and in order; it is the record
 of every session since the rename and it supersedes anything below it that
 disagrees. Sections 1 onward are older material kept for the reasoning, not for
 current numbers.
@@ -89,23 +89,191 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
-### September 20: collector browser focus isolation
+### September 20: View collector button added to the desktop control
 
-Yish reported fullscreen games losing focus whenever the crawler opened Chrome.
-Off-screen coordinates hid Chrome but did not prevent activation. Automatic
-headed Windows browsers now start on a private `FiltrsoftCollector` Win32 desktop
-through a small native launcher compiled by Windows' existing .NET compiler.
-Both shared marketplace/eBay/retail launches and Facebook's separate launcher
-use it. Manual sign-ins remain visible; the user's input desktop is never
-switched. A failed native launch fails the crawl rather than opening on Default.
+Yish asked to access the hidden collector desktop. Added **View collector** to
+`C:\Dev\Filtrsoft-Control\Filtrsoft-Control.ps1` and **V** to its terminal menu.
+It opens a native toolbar on `FiltrsoftCollector`, with **Back to my desktop**,
+an **Esc** shortcut and a **two-minute automatic return**. Chrome windows on
+that private desktop are temporarily moved into view; normal return restores
+their positions. No browsers on Default are moved or closed. A view with no
+browser waits for the next one; viewing never starts, pauses or resumes collection.
 
-Verified on the OMEN: 15 targeted tests passed, extended native crash-cleanup
-test passed, typecheck passed, and 298 focus observations across repeated
-launches showed no foreground change. Real Mercari search returned 20 card links;
-item `m87685110404` returned its GPU heading and complete item text using the
-existing profile. DB, identity, outbox, profiles and scheduling are not changed by
-this fix. No actual fullscreen game was opened for testing. Details and local QA
-receipt paths: `docs/COLLECTOR-FOCUS-2026-09-20.md`.
+The companion source is `CollectorViewer.cs`, compiled by the existing Windows
+.NET compiler into a source-hashed executable under `bin`. No installs or runtime
+changes were needed. An independent process returns to Default if the viewer
+crashes, and returns/closes a hung viewer after about two minutes. It waits through
+lock/UAC screens without switching or unlocking them. Windows Forms initializes
+only after an MTA thread attaches to the private desktop: an STA thread creates
+an OLE window too early and causes SetThreadDesktop error 170. Keep this ordering.
+
+Measured: read-only Check passes with View enabled and input still Default;
+actual view showed two existing collector Chrome windows; Back returned to
+Default; Escape hotkey registered. Abrupt viewer termination returned to Default
+through the separate guard in about **145 ms** in the final build. The updated
+main control window was opened (PID 14736), its own rendered image inspected,
+and the View button is visible. The existing desktop shortcut still opens this
+script. Current collection continued through these tests: job **77**,
+`mercari/recovery-1`, collector PID **36488**, revision **88363b9c04ff**, no current
+error at **00:20:13 UTC September 21 / 8:20 PM Eastern September 20**. No pause,
+resume, database, profile, schedule or production-setting mutation by this task.
+
+Backups of the original control files: `Filtrsoft-Control\backups\20260920-201154`.
+Tests/images: `Filtrsoft-Control\qa`; instructions: `Filtrsoft-Control\README.md`.
+Chrome Remote Desktop rendering of the alternate desktop was not independently
+verified; if it shows a blank view, the two-minute return remains available.
+
+### September 20: fullscreen-game focus fix applied to the OMEN collector
+
+Yish reported that crawl launches minimized his fullscreen game. Off-screen
+Chrome coordinates hide a window but do not prevent foreground activation.
+Implemented and applied local commit **88363b9c04ff** on the existing runtime
+branch, preserving its `e73d187` ancestry. Isolated source checkout:
+`C:\Dev\filtrsoft-focus-20260920`, branch `codex/collector-focus-20260920`.
+Shared marketplace/eBay/retail launches and Facebook's separate launcher now
+start automatic headed Chrome on a private **FiltrsoftCollector Win32 desktop**.
+Manual sign-in stays visible. The helper uses Windows' existing .NET compiler,
+preserves Playwright's pipes, and owns Chrome in a kill-on-close job. It never
+switches the user's input desktop or falls back to foreground Chrome on failure.
+No software was installed, and no production deployment/settings were changed.
+
+Measured: **15 targeted tests passed**, then the extended native test passed
+with abrupt-host termination and profile reuse after a crash; typecheck passed.
+Real Chrome rendering, interaction, saved cookie persistence, separate Facebook
+launch, missing-browser failure and profile release passed. **298 observations
+over 35 seconds** during repeated starts showed no foreground change and zero
+Chrome foreground samples; test windows were on the private desktop. A real
+Mercari search returned **20 card links**, and `m87685110404` returned its
+Sapphire RX 7900 XTX heading and complete item panel. Those probes did not ingest
+or upload data. No actual exclusive-fullscreen game was opened for testing.
+
+The desktop was running when this task began. Temporarily paused at
+23:37:32 UTC, stopped through the existing supervisor stop flag, made a
+restore-verified snapshot (**3,409 listings / 34,222 comps**), fast-forwarded the
+stopped runtime and checked preservation. Database bytes, all three outbox table
+hashes, sync identity, node ID, private environment, launcher and config were
+unchanged. Browser profiles were reused, not reset. Doctor passed. Restarted
+through **Filtrsoft Daily Crawl**, then removed only this task's temporary pause.
+Production at **23:53:39 UTC** confirmed Gaming desktop **online** with revision
+`88363b9c04ff`, still preferred with five-minute fallback, and **Yishai XPS paused**.
+Local PID 36488, supervisor 38200, zero restarts and no current error. Vision stays
+disabled and no model was loaded. The existing Pause/Resume desktop control works
+with the unchanged launcher and pause mechanism.
+
+A second 35-second observation after resuming captured **302 samples** while the
+installed collector opened Chrome on the private desktop. The same foreground
+PID stayed active throughout; again zero Chrome foreground samples. Combined
+with the development check, **600 observations** showed no foreground change.
+
+Code/details: `C:\Dev\filtrsoft-agent\docs\COLLECTOR-FOCUS-2026-09-20.md`.
+Receipts, preservation hashes and verified backup:
+`C:\Dev\filtrsoft-runner-state\focus-qa-20260920`.
+This is a local collector fix, not a claim that main or Railway was updated.
+Preserve it when merging future main updates. All pre-existing uncommitted vision
+and documentation work in this follow-up checkout remains untouched except for
+this appended continuation entry.
+
+### September 20: desktop Pause/Resume control added
+
+Yish requested an app/button to pause and resume collection, with terminal access. Built a standalone Windows PowerShell/Windows Forms control under `C:\Dev\Filtrsoft-Control`, using already-installed Windows components. Desktop shortcut: `C:\Users\yzger\OneDrive\Desktop\Filtrsoft Collector.lnk`. Its window has Pause, Resume, current local status, heartbeat time and an Open terminal link. `Filtrsoft Terminal.cmd` provides P/R/S/Q keyboard controls. Closing either window does not change the collector state.
+
+Actions delegate to the installed runtime's `src/scripts/pause.ts`. Resume starts the existing `Filtrsoft Daily Crawl` scheduled launcher before removing the pause flag, so startup failures leave the pause intact. No new collector, Python installation, credential copy, startup change or production configuration change. All runtime/data/profile/identity/outbox paths remain unchanged; controls affect this desktop only.
+
+Verified configuration and scheduled-task paths, Windows Forms construction, paused button state, terminal open/quit, icon/shortcut readback and idempotent Pause. Tests preserved the original pause timestamp. After opening the live control window, the pause flag was cleared; the agent did not invoke Resume from the terminal. **Final verification at 23:19:31 UTC: Gaming desktop online/READY with a fresh production heartbeat, laptop still paused.** This supersedes the earlier persistent-pause state below. Receipt: `C:\Dev\filtrsoft-runner-state\2026-09-20-desktop-control-verified.json`. Read `C:\Dev\Filtrsoft-Control\README.md` for use and the script's read-only Check/Status modes.
+
+### September 20: desktop collector persistently paused at Yish's request
+
+Ran the installed runtime's `bun run src/scripts/pause.ts --on`. The machine-local flag is `C:\Users\yzger\.filtrsoft\paused`; it survives restarts and scheduled/logon startup. The existing pause command closed collector Chrome processes matched by their Filtrsoft profile path. No collector Chrome processes remained in the verification query.
+
+Verified at **19:43:53 UTC** (3:43 p.m. Eastern): local status **paused** and fresh production heartbeat at 19:43:48.728 reports **Gaming desktop paused, jobId=null**. Interrupted job 75 records expected pause/cancellation errors. **Yishai XPS remains paused.** Gaming desktop remains preferred, fallback grace stays five minutes, and no Ollama model is loaded. Receipt: `C:\Dev\filtrsoft-runner-state\2026-09-20-pause-requested.json`.
+
+Preserve the pause until Yish asks to resume. Resume only with the existing `bun run src/scripts/pause.ts --off` in `C:\Dev\filtrsoft-agent`; do not reinstall or reset anything. Database, outbox, node identity, browser profiles and startup configuration were preserved. Historical September 18 online status below is superseded by this pause.
+
+### September 18: fresh baseline complete; Gemma stronger here, neither accepted for unattended ingestion
+
+Yish authorized the fresh baseline first. **100 calls per model, 222 original input photos, 615 pooled claims reviewed; completed 20:46 UTC.** Read [FRESH-HAIKU-GEMMA-BASELINE-2026-09-18.md](docs/FRESH-HAIKU-GEMMA-BASELINE-2026-09-18.md) for the full protocol, corrections, caveats and evidence paths.
+
+- **Primary result:** 91 fresh core listings / 230 required facts after five possible photo-reuse exclusions and four exploratory exclusions. Gemma versus Haiku: conservative source support **95.4% vs 76.6%**, raw recall **80.0% vs 73.9%**, usable precision **90.4% vs 54.6%**, usable recall **77.4% vs 60.4%**. Unsupported sensitive assertions: **6 vs 46**, plus unsupported model identities: **0 vs 13**. Neither passes the existing 95% precision / 80% recall / zero-sensitive-error gate. Unsupported includes unprinted inference as well as definite misreads. Keep Gemma as the leading local candidate; this is not an overall intelligence or full condition/risk evaluation.
+- **Runtime/cost:** Gemma4:31b-it-qat completed 100/100 valid responses in **2 h 21 m 53 s**, median 79.30 s and 2.43 decode tokens/s, with cold load/unload per case. Haiku claude-haiku-4-5-20251001 completed 100 calls in 3 m 9 s; 98 were schema-valid. Measured cost **$0.4705**, all ledger entries settled, $2 cap respected.
+- **Comparison limits:** Anthropic SDK 0.120.0 converted enum/length constraints to descriptions while Ollama retained strict schema. Raw scores include schema-failed outputs; do not claim a clean intrinsic formatting comparison. Assistant-reviewed references, imperfect blinding, no standalone CPU or positive ECC cohort, and incomplete historical-photo coverage limit conclusions. Report includes all-100/fresh-95/core-91 scores and uniform source/family corrections. Frozen input and runner hashes remain unchanged.
+- **Resources:** sampled free RAM minimum 5.33 GiB; GPU maximum 75 C / 11,747 MiB total used. Ollama reported 8.07 GiB on GPU plus 11.04 GiB outside GPU. Guards never triggered; inference and sampling processes are DONE. No model remained loaded. Do not rerun this baseline automatically.
+- **Evidence:** C:\Dev\filtrsoft-recovery-data\followup\fresh-baseline-20260918 contains score-final.json, measurements-final.json, input-integrity-audit.json, collector-final.json, schema-adapter-audit.json, adjudications.ts and the frozen provider outputs. All 222 photo hashes were reverified. Evaluator: 18 tests / 39 assertions; budget: 2 / 5; scorer: 9 / 29 passed.
+- **Final production boundary:** at 20:47:28 UTC desktop was primary and online, heartbeat 20:47:25, no error, visionLimit=0. XPS stayed paused and fallback remained five minutes. Both paid paths remained off; production spend $1.9024 and last read 01:40:35.623 UTC were unchanged. Collector e73d18795a25 stayed clean. No DB/profile/identity/outbox reset, deploy, push, training or OpenAI request. Preserve earlier dirty files and commits.
+- **Next:** improve validation and normalize schema enforcement during development, then test another untouched holdout. Training labels must be source-verified; do not train on this baseline and then claim a fresh score. No automatic production enablement.
+
+### September 18: fine-tuning research complete; fresh Haiku/Gemma comparison held for this discussion
+
+Yish requested a full comparison of Haiku 4.5 API against installed Gemma 4 31B QAT on fresh images, then explicitly asked to wait and research training with Astra first. Read `docs/VISION-FINETUNING-FEASIBILITY-2026-09-18.md`. **Research only: no new inference, training, dataset freeze, installation, download or paid job.** The requested fresh comparison is preserved as the next experiment, not silently canceled or already completed.
+
+Gemma image/text LoRA/QLoRA is documented by Google and Unsloth. Astra can help draft and review image/answer examples and tooling; teacher answers are not ground truth and cannot guarantee perfect extraction. Ollama serves exported weights; a Modelfile alone is not training. A separate Google unquantized QAT checkpoint exists (~62.6 GB on disk), but training, merge, quantization and multimodal export all need validation. Keep the installed QAT model as the untouched baseline.
+
+Unsloth reports **22 GB VRAM for 31B QLoRA**, with configuration-dependent additional image/sequence requirements. This host has 12 GB VRAM/32 GB RAM; its successful inference offload is not proof of viable training. Training CPU offload exists, but no practical 31B vision-training configuration has been validated here. Smaller E2B/E4B training is a possible separate pilot; larger-GPU 31B training would need a verified free allocation or an explicitly budgeted one-off session. No recurring spend. PATH search found no Python/py/uv training entry point; WSL reports not installed. Bundled runtimes were not exhaustively inventoried; do not reinstall or assume all software absent.
+
+Recommended sequence: fresh paired baseline first; separate reviewed training data only if needed; another untouched final acceptance set if baseline errors inform training. Exclude previous images and near-duplicate/repost groups, freeze references before outputs, review without model names, and retain all failed requests. "Unseen" can be established for our workflow, not the providers' undisclosed pretraining corpora. Preserve 95% precision/80% recall/zero unsupported sensitive-fact gates; no production writer accepted. The Haiku lab request does not re-enable recurring Claude paths.
+
+OpenAI budget ledger hash remains `5e5e6885e5a0694c7ebdf263d65423de270816f85a3fff33b9a843088d6c606c`: $4.467635 conservative total / $0.532365 guard headroom from original $5. No new training-data budget inferred. Installed collector checkout clean; collector state, database, identity, outbox, profiles and paused laptop configuration untouched. Research documents are local; no push/release/deploy. Resume the fresh comparison after this training discussion, with its own bounded lab budget and preserved production pause.
+
+### September 18, 16:35 UTC: corrected local-model retest complete; Gemma 31B leads screening
+
+Yish requested another test of the stronger installed local models. Read `docs/LOCAL-VISION-FAIR-RETEST-2026-09-18.md`. New lab-only `src/vision/evidence-evaluation.ts` and `test/evidence-evaluation.test.ts`: **18 tests / 39 assertions and TypeScript validation passed**. Frozen input manifest `evidence-retest-v1.json` has 14 exposed-development cases, 15 source images, 48 required semantic facts, SHA `07ef0a45521263b53deb3233c8058f13e347d323cdf090deaa9ad70b57138c4f`; it is not a new holdout. Original evaluator/results remain preserved. New references check quote/photo evidence and separate roles, partials and missing annotations. Final source review also separates factual errors from field/format differences and counts explicitly printed kit constituents without inferred totals. Post-freeze unknown/contradiction handling is applied uniformly offline and does not alter inference inputs.
+
+**Final source-reviewed coverage:** Gemma26 **40/48** (13/14 completed; SSD output repetition failed), Qwen3.5-9B **40/48** (14/14), Gemma31 **43/48** (14/14 after one disclosed resource recovery). These are semantic coverage counts, not precision or production passes. Confirmed transcription errors / unsupported or unverifiable core claims / attribution mistakes: Gemma26 **1/6/3**, Qwen **1/10/3**, Gemma31 **1/2/2**. One tiny ThinkPad family-logo claim remains unresolved, not falsely penalized. Gemma31 correctly reads the SSD front/back identity and capacity and clear screen hardware; its real Hynix error inserts G into `HMCG66AGBSA092N BA`. Its two unsupported exact screen specs remain unverified, not proven false. Its two attribution mistakes concern duplicate selected-option labels; the primary capacity is correct. Negative cases without unsupported core specs: **3/4, 2/4, 3/4**, respectively.
+
+Gemma31's warm batch exhausted the 2 GiB available-RAM guard after three successes; unloading restored ~19 GiB. The completed 11-case continuation unloads after every request and preserves the aborted attempt. Median completed-case times: **8.40s / 6.09s / 87.32s**, with Gemma31 mixing warm and cold execution. Its cold continuation median is 60.83s including 18.52s loading; this different case mix cannot establish cold-versus-warm speed. Decode median 2.48 tokens/s; 20.456 GB reported model size with 8.912 GB VRAM. RAM offload is usable but slow and needs bounded execution. Windows counters explained baseline GPU activity as remote desktop/DWM/ChatGPT, consistent with Yish having nothing else running. Only lab guard handling changed; installed idle guard remains intact.
+
+**Next:** Gemma31 is the lead candidate for a new, untouched, balanced holdout and a safe evidence-to-fact path; no automatic writer is accepted. Original 95% precision/80% recall/zero unsupported sensitive-fact gates remain. Review exact identifiers, source legibility, attribution and runtime memory; investigate Gemma26's repeat/truncation separately. Final private receipt: `C:\Dev\filtrsoft-recovery-data\followup\evidence-retest-review-final.json`, with hashes, all claims, rules, raw run paths and runtime receipts. Development results are exposed and cannot become a holdout later.
+
+At **16:34:49 UTC**, Gaming desktop remained primary/online working job59, revision `e73d18795a25`, production heartbeat **16:34:26 UTC**, fallback five minutes. Laptop paused/offline, `visionLimit=0`, no Ollama models loaded. Recent logs at 16:35 acknowledge **10 each Mercari/Facebook/OfferUp** changes; latest OfferUp pass **9 read/1 unavailable/0 failed**. Local status still retains a TimeoutError, so do not claim an error-free complete cycle. Installed runtime checkout is clean. No installs, new paid calls, production photo writes, state reset, push or deployment. OpenAI ledger hash unchanged, **$4.467635** conservative spent / **$0.532365** guard headroom of original $5. Both Claude switches were not changed/invoked or independently reverified by this collector diagnostic. Follow-up checkout changes are local and preserve previous uncommitted documents.
+
+### September 18, 15:26 UTC: benchmark audit invalidates broad model-rejection conclusions
+
+Yish challenged the poor scores across local and OpenAI candidates. Read **`docs/VISION-BENCHMARK-AUDIT-2026-09-18.md` before making any further model decision**. The legacy grader penalizes correct combined text, partial names, added visible brand/qualifiers and facts missing from nonexhaustive gold; it ignores evidence quotes and image attribution. Flat reconciliation calls kit-total/module-capacity pairs and product-name/part-number pairs conflicts. Original prompt scope differs from answer-key item-selection rules. **Old percentages are reproducible strict field-match results, not reliable factual-accuracy or hallucination rates. Prior categorical model rejection is superseded.** Raw results remain intact; no threshold was lowered and no model is newly declared production-ready.
+
+Audit covered 17 saved development reports, three dataset inventories and ten offline characterization probes. **578 image/hash checks found zero mapping errors.** Development has 27 unique photos in 29 occurrences, 13 small-source occurrences, 32/41 expected values from RAM cases, and 11/41 values in a synthetic case reusing two existing photos. Missing positive CPU/storage/ECC development coverage and tiny exposed holdouts limit generalization. The old grader can award perfect precision to a correct-looking value with a fabricated quote or wrong photo attribution; permissive string matching alone would not fix it.
+
+**Measured old wrong-flag review:** Astra seven = four supported shortened names, one speed/timing representation, two visible unselected-option claims (its actual quote resolves the initially ambiguous 32GB value). Terra five = three partial names, one representation, one unresolved GDDR7 scope/legibility question. Luna seven includes one confirmed 6000-to-5600 misread. Gemma26 twelve = eleven annotation/representation/partial/field issues plus one confirmed X5-to-X6 misread. Gemma31 three = two occurrences of the same incomplete correct SKU prefix plus an exact CPU claim unverified in its 261-pixel source. These classifications do **not** constitute corrected scores, validate every quote/previously accepted fact, or make partial SKUs complete. Qwen runs received the same review rules; remaining unreviewed claims stay unresolved. Genuine capacity/part-number/footnote errors in the prior cloud holdout remain disqualifying evidence for those individual facts.
+
+Gemma31 all 29 responses stopped normally; reviewed runtime logs show actual Gemma4 renderer/parser and variable visual token batches, not evidence of a universal 224px bottleneck. Median 28.470s/photo includes 19.226s reported loading because `keep_alive:0` reloads every photo. Report cold/warm timing separately; 7.767s median after subtracting each request's load is **not** a measured warm run. Thinking-mode accuracy remains unmeasured. Resource deferrals are distinct from model mistakes and never successful abstentions.
+
+**Next:** implement the documented evidence-aware rubric and reviewed annotations before further inference, then retry local candidates and use a new untouched, balanced holdout. Separate transcription, object/variant attribution and normalized usable facts; preserve partials/unknowns, exact suffixes and actual conflicts. Validate quotes/photo provenance, explicitly annotate quantity/kit/module roles, group related images, and review missing-gold claims without model names. The audit and protocol are complete; the replacement scorer and new runs are **not** complete. Original 95%/80% and zero unsupported identity/quantity/ECC gates remain. Private evidence is under `C:\Dev\filtrsoft-recovery-data\followup\benchmark-*`; old outputs/manifests are preserved.
+
+**No new inference or spending.** Ledger remains 370 settled calls / **$4.467635 conservative total of the original $5**, leaving **$0.532365** guard headroom. Do not reset the ledger. At **15:25:59 UTC**, Gaming desktop primary/working job58, revision `e73d18795a25`, production heartbeat **15:25:52 UTC**, fallback five minutes. Laptop online but **paused**; local last error null, `visionLimit=0`, no Ollama model loaded. No changes to installed collector/database/profiles/identity/outbox/launcher, no release/push/deploy. Both Claude switches were not changed or invoked and are not independently exposed by this collector diagnostic. Documentation remains local in the existing follow-up checkout; earlier uncommitted documentation is preserved.
+
+### September 18, 15:03 UTC: seven OpenAI vision models measured; no automatic writer accepted
+
+Yish privately saved the key and explicitly approved other OpenAI model tests. **Key entry is complete**, superseding the pending-key checkpoint below. Read `docs/OPENAI-VISION-COMPARISON-2026-09-18.md`. Tested **GPT-5.6 Luna/Terra/Sol, GPT-6 Astra, GPT-5.4 nano/mini and GPT-4.1 mini** using the same 25-case / 29-photo / 41-field audited-v3 development set and original strict prompt. All seven baselines completed. Strongest original-prompt coverage: Sol and Astra **78.05% recall**; neither passed precision. Original Gemma results and raw evidence remain preserved.
+
+Generic field-contract clarification v4, without case answers, improved development results: Luna low **85.29% precision / 70.73% recall**, Luna medium **88.57% / 75.61%**, Terra low **87.50% / 85.37%**, Sol low **88.10% / 90.24%**. Original photos, annotations, reconciliation and thresholds stayed frozen. Strict scores include presentation/field-assignment errors and must not be presented as literal hallucination rates. Source review identified several such ambiguities, including expanded visible names and a printed per-module capacity omitted from the frozen kit annotation.
+
+A genuinely new screening set was selected, deduplicated and annotated before inference: **nine listings / 17 images / 16 expected fields**, frozen **14:53:44 UTC**, SHA `0c1802bd909aaf08c4330198ce056d1761d3f503809bddc5fc0853b42ea2c6e1`. Same v4 prompt: Sol **61.90% / 81.25%**, Terra **57.89% / 68.75%**, Luna medium **40.91% / 56.25%** strict precision/recall. Important real failures persist independently of formatting: Sol read an **8GB** module as **16GB** in the wide shot then correctly read 8GB in the close-up; Terra misread an exact SSD identifier and attached a **1TB definition footnote** to a **2TB** drive; Luna changed RAM/drive part numbers and Backup Plus to Expansion. **No candidate meets automatic-ingestion gates.** No production facts were written. The small screening set has no positive CPU/ECC examples and is now exposed, so future acceptance needs another untouched, broader holdout after source-association, conflict-handling and representation improvements. Grouped-photo inference remains untested; current calls read one photo at a time.
+
+**Budget:** 14 complete reports / **370 paid image requests**, zero transport/parser/truncation failures, 370 unique response IDs, zero unsettled reservations. Standard usage estimate **$3.23322216**; conservative ledger total **$4.467635 of $5**. Provider billing is authoritative. Preserve `C:\Dev\filtrsoft-recovery-data\followup\openai-eval-budget.json`; the guard has **$0.532365 remaining**, not a new $5 allowance. Key remains private at `C:\Dev\filtrsoft-data\openai-eval.env`; never print or commit it. Private adapters `openai-multi-vision-run.ts` and `openai-tuned-vision-run.ts` use the shared durable reservation guard, whole-run lock, no paid retries, `store=false`, standard tier, no tools and 8,192 max output tokens. Five additional offline budget tests passed. `openai-comparison-final-audit.json` reconciles report costs to the ledger; all raw responses, hashes and failed historical local-model attempts remain intact. No live API evaluator remains running.
+
+**Operational receipt at 15:03:11 UTC:** Gaming desktop primary/online, revision **`e73d18795a25`**, heartbeat **15:02:57 UTC**, 30-minute collection rest interval, five-minute fallback. Laptop is online but remains **persistently paused**. Desktop last error null, `visionLimit=0`, no loaded Ollama models. Installed log ends with **job57** all three marketplaces `ok`, final OfferUp and Mercari batches each acknowledging **10 durable changes**. Runtime checkout remains clean; installed database, profiles, identities, configuration and startup preserved. No recurring OpenAI vision, Claude invocation/configuration change, reset, install, deployment or release. Both Claude switches were last independently verified off at the prior release; this collector diagnostic does not expose both. Local documentation changes remain uncommitted in the existing follow-up checkout. Receipt `openai-runtime-final.json`.
+
+### September 18, 13:18 UTC: Gemma 31B baseline measured; thinking/API tests need follow-up
+
+Yish explicitly requested **Gemma 4 31B QAT** and offered an existing **$5 OpenAI API test budget** if local accuracy is insufficient. Read `docs/GEMMA31-AND-OPENAI-EVALUATION-2026-09-18.md`. The official 18.85 GB model is downloaded, digest `e0812a55773bfeac846b2d605b4d93638b8dfa7119d9587f3d91475afc78185e`; installed Ollama now reports **0.34.2**, with no runtime install performed here. Baseline completed **25 cases / 29 images**, zero request failures, **19.71 minutes**. Median photo **28.470 seconds**, load **19.226 seconds**, decoding **2.75 tokens/second**. Placement **8.912 GB GPU + 11.544 GB outside GPU memory**, minimum available RAM **3.754 GiB**. Thinking was disabled in this baseline.
+
+**Current audited result: 88.89% precision / 58.54% recall**, 24 correct / 17 missed / three wrong. Remaining errors: one unsupported CPU claim on an unreadable screen, two instances of an incomplete exact Crucial part number. It fails the original 95% / 80% / zero sensitive unsupported gates. Original frozen-v2 score **81.48% / 56.41%** remains preserved. Manual source-photo review found two annotation omissions: the synthetic kit case omitted visible 6000 MT/s, and the GPU case omitted visible board identifier EVGA110 REV 1.0. Additive v3 audit re-scored **all three Gemmas consistently**, with no evaluator/threshold changes or new inference: 12B **53.19% / 60.98%**, 26B **63.64% / 51.22%**, 31B above. These are already exposed development cases, not a new holdout. Evidence: `gemma31-annotation-audit.json`, `development-manual-v3-audit.json` SHA `86096bb671dca21e49262ea490eb66c8aac65cc159a36836c327b0917b7227ae`, original raw outputs intact.
+
+**Thinking-mode accuracy is unmeasured.** Initial non-streamed attempt hit the client's socket timeout after 359.963 seconds, before a usable result; the owned evaluator was stopped and its model unloaded. Preserve `gemma31-thinking-interruption.json` and `.partial`. Fixed private runner **`gemma31-thinking-stream-run.ts`** uses streaming, no socket-idle timeout, 30-minute total deadline and 4,096-token bound with unchanged GPU/RAM guards. Its first four-case attempt deferred all four requests before inference: GPU 24–30% despite no loaded model. Do not report these deferrals as an accuracy failure. Yish was asked to pause competing activity. No evaluation process/model remains running at this checkpoint. To retry, use `alternative-smoke-cases.json` and a **new output filename**, retaining failed attempts.
+
+Official API documentation confirms **`gpt-5.6-luna`** image input, low reasoning and structured output, standard **$0.20 input / $1.20 output per million tokens**. Prepared `openai-vision-run.ts` has a **$1 initial persistent spending cap**, reserves before sending and retains uncertain charges; five offline budget tests passed. All 29 images passed both preflights, with **$0.725 total worst-case reservations**. **No API requests sent yet; private key entry is pending in `C:\Dev\filtrsoft-data\openai-eval.env`.** Never print or commit that file. Once privately configured, run with `development-manual-v3-audit.json`, a new output path and `--live`; no further spending approval is needed within this existing budget. Account model access is not yet verified. This is evaluation authorization only, not recurring paid production vision. Require a newly annotated untouched holdout after any development pass.
+
+**Final operational verification at 13:18:14 UTC:** Gaming desktop remains primary, online, revision **`e73d18795a25`**, production heartbeat **13:18:00 UTC**, five-minute fallback. Laptop remains **paused/offline**, desktop `visionLimit=0`, last error null, Ollama loaded-model list empty. Job55 completed all three marketplaces `ok`; its final Mercari batch acknowledged **10 durable changes** during testing. Receipt `gemma31-runtime-final.json`. No collector state reset, database/profile/identity/startup change, production photo writing, paid Claude invocation, release or deployment. Documentation changes remain local and uncommitted in this follow-up checkout. Private model artifacts and all test evidence are retained.
+
+### September 17/18, 03:59 UTC: approved non-Qwen downloads and measured RAM offload
+
+Yish **approved downloading candidate models, including larger models that use system RAM**. Read `docs/LOCAL-VISION-OFFLOAD-2026-09-18.md` and the updated alternatives note. Installed through existing Ollama **0.34.1**: GLM-OCR BF16, official PaddleOCR-VL 1.6 GGUF, Gemma 4 12B QAT, **Gemma 4 26B-A4B QAT**, and **Mistral Small 3.2 24B**; approximately **42 GB** of model artifacts, all digests and raw outputs retained privately. Existing Qwen models preserved. No runtime install/reinstall, spending, production photo writes, collector reset or deployment.
+
+**Hybrid GPU/CPU execution is verified on this 12 GB VRAM / 32 GB RAM OMEN.** Gemma 26B allocation **9.223 GB GPU + 6.638 GB outside GPU memory**, minimum available system RAM **9.16 GiB**. Its complete 25-case / 29-image development run gave **60.61% strict field precision / 51.28% recall**, eight unsupported outputs, zero request failures; median **18.407 seconds/photo**, mostly **15.910 seconds reload**, median generation **43.25 tokens/second**. Gemma 12B was entirely GPU-resident in Ollama's allocation report and faster (**4.990 seconds/photo**, **50.53 tokens/second**) but **51.06% / 61.54%**, 14 unsupported outputs. Mistral 24B also fit (**9.350 GB GPU + 6.705 GB CPU/RAM**) but four-case smoke median **49.625 seconds/photo**, **4.31 tokens/second**, critical invented/misapplied hardware facts. Its subset scores are not directly comparable to the 25-case results. GLM-OCR hit repetition/termination failures in both chat and native API trials; Paddle completed four native OCR cases but misread 6000 as 5000 MT/s and X5 as X6. No configuration passes the unchanged acceptance gates; writer stays off. Larger **Gemma 31B QAT (~19 GB)** remains an untested option, not an installed or validated model. Previously exposed holdout cases were not reused as fresh validation.
+
+**Final 03:58:58 UTC:** Ollama loaded-model list empty. Production shows Gaming desktop primary/online, revision **`e73d18795a25`**, heartbeat **03:58:56 UTC**, fallback five minutes. Laptop status remains **paused** (offline at final snapshot). Desktop `visionLimit=0`, last error null; job54 completed all three sources `ok`, final Mercari batch acknowledged **10 durable changes** during testing. Paid paths were not changed or invoked; both switches were last independently verified off in the preceding release, not re-exposed by this collector-only diagnostic. Private evidence: `followup/alternative-summary.json`, download receipts, per-model raw traces, and `alternative-runtime-final.json`. Model files and raw results retained. Documentation only in this checkout, uncommitted; installed collector/database/profiles/identities/startup preserved.
+
+### September 17/18, 03:24 UTC: research beyond Qwen (superseded by approved tests above)
+
+Yish asked for better local-model options. Read `docs/LOCAL-VISION-ALTERNATIVES-2026-09-17.md`. Only the three Qwen models have measured Filtrsoft results so far; this research does not establish a winner. First proposed comparison: **GLM-OCR BF16 (2.2 GB), official PaddleOCR-VL 1.6 GGUF + projector (1.82 GB), Gemma 4 12B QAT (7.2 GB)**, approximately **11.2 GB** total downloads, sequential local inference. Alternative families reviewed include Ministral 3, MiniCPM-V, InternVL3.5 and GLM-4.6V-Flash. Installed Ollama **0.34.1**, actual GPU **12,282 MiB**; Gemma full GPU fit and Paddle's installed-runtime multimodal support remain unmeasured. No new download/install, inference, production change or runtime restart occurred. Additional model downloads require Yish's approval; none is inferred from the prior Qwen approvals. Keep paid paths and production photo writing off. A dedicated OCR trial is new: earlier OCR-first work still used Qwen, and its crop was a fixed center rather than detected text. Preserve prior outputs; use the previously exposed holdout only for comparison and create a new untouched holdout after tuning. Original accuracy gates remain unchanged. This research checkpoint is local documentation only, not another deployment.
 
 ### September 17/18, recovery follow-up in progress: baseline and safe export support
 
