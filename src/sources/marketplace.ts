@@ -382,6 +382,9 @@ export type ProbeVerdict = { gone: boolean; reason: string } | null;
 const GONE_TEXT = [
   // Facebook
   /this (listing|item|content) isn'?t available/i,
+  // Inventory listings show "$1,000 · Out of Stock" beside the price (live
+  // item 4201, September 22). A restock is re-sighted in search and restored.
+  /(?:^|\n)[\s·]*out of stock\s*(?:\n|$)/i,
   /listing (is )?(no longer|not) available/i,
   /this page isn'?t available/i,
   /content not found/i,

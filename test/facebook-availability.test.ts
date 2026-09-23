@@ -25,6 +25,14 @@ describe('Facebook detail availability',()=>{
   expect(probeVerdict({url:ou,finalUrl:'https://offerup.com/',text:'Home\nBrowse',actions:[]})?.gone).toBe(true);
   expect(probeVerdict({url:ou,finalUrl:'https://offerup.com/search?q=rtx',text:'Results',actions:[]})?.gone).toBe(true);
  });
+ test('an inventory listing marked Out of Stock is gone; the words in prose are not',()=>{
+  const heading='ASUS GeForce RTX 5070 Ti PRIME OC Edition Graphics Card SEALED';
+  const oos={...page,heading,itemText:`${heading}\n$1,000\n \n · Out of Stock\nListed in Littleton, MA\nDetails\nCondition\nNew`,text:''};
+  oos.text=oos.itemText;
+  expect(probeVerdict(oos)?.gone).toBe(true);
+  const prose={...oos,itemText:`${heading}\n$1,000\nMessage\nDetails\nWas out of stock everywhere so I bought two, selling the spare.`};prose.text=prose.itemText;
+  expect(probeVerdict(prose)?.gone).toBe(false);
+ });
  test('a title-only description is still this item when the panel is scoped',()=>{
   // The heading appears twice because the seller's text is the title itself.
   expect(probeVerdict(page)).toBeNull();
