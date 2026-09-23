@@ -274,6 +274,37 @@ export function offPlatformDomain(text: string): string | null {
 const OBFUSCATED_CONTACT =
   /\d{3}\s*[\^*#~=+]{1,3}\s*\d{3}\s*[\^*#~=+]{1,3}\s*\d{4}|\d{3}\s*[._]{2,}\s*\d{3}\s*[._]{2,}\s*\d{4}/;
 
+/**
+ * ⚠ THE SAME NUMBER, SPELLED OUT. September 22 on the OMEN: an RTX 3090 at 45%
+ * of market read *"I don't check my OfferUp messages often. Serious buyer only
+ * five two zero, two eight three, seven eight three three"* and was a VERIFY.
+ * Words defeat the platform's digit filter exactly as `^^` does.
+ *
+ * A full number is required: at least ten digits in one run of number words
+ * and digit groups, three or more of them written as words. Counting, sizes and
+ * prices never produce that run; `two 8GB sticks` has one word and no run.
+ */
+const DIGIT_WORD: Record<string, string> = {zero:"0",oh:"0",one:"1",two:"2",three:"3",four:"4",five:"5",six:"6",seven:"7",eight:"8",nine:"9"};
+export function spelledContact(text: string): string | null {
+  const tokens = [...String(text ?? "").matchAll(/[A-Za-z]+|\d+|[^A-Za-z\d]+/g)].map((m) => ({ s: m[0], at: m.index! }));
+  let start = -1, digits = 0, words = 0, end = -1;
+  const flush = (): string | null => {
+    const hit = digits >= 10 && words >= 3 ? text.slice(tokens[start]!.at, end) : null;
+    start = -1; digits = 0; words = 0; return hit;
+  };
+  for (const t of tokens) {
+    const word = DIGIT_WORD[t.s.toLowerCase()];
+    if (word !== undefined || /^\d{1,4}$/.test(t.s)) {
+      if (start < 0) start = tokens.indexOf(t);
+      digits += word !== undefined ? 1 : t.s.length; if (word !== undefined) words++;
+      end = t.at + t.s.length;
+    } else if (start >= 0 && !/^[\s,.\-()/]+$/.test(t.s)) {
+      const hit = flush(); if (hit) return hit;
+    }
+  }
+  return start >= 0 ? flush() : null;
+}
+
 const RANDOM_TITLE_SUFFIX = /\s([A-Z0-9]{4})\s*$/;
 
 /** Does the trailing token look generated rather than like a model number? */
@@ -494,7 +525,7 @@ export function analyze(l: RawListing, opts?: { clusterSize?: number; visionText
    */
   const spaced = SPACED_DOMAIN.test(text);
   const outside = LOCAL_MARKET.has(l.source) ? offPlatformDomain(text) : null;
-  const contact = OBFUSCATED_CONTACT.exec(text)?.[0] ?? null;
+  const contact = OBFUSCATED_CONTACT.exec(text)?.[0] ?? spelledContact(text);
   if (spaced || outside || contact) {
     signals.push({
       code: "OFF_PLATFORM_REDIRECT", severity: "blocker", polarity: "negative",

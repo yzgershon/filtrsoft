@@ -501,4 +501,6 @@ export function checkStored(
 // 0.3.33: preserve item/quantity/price pairs in placeholder inventory ads.
 // Never compare the headline $1 with a median assembled from different items.
 // 0.3.36: ambiguous MacBook families cannot pool Intel and Apple Silicon sales.
-export const ENGINE_VERSION = "0.3.47";
+// 0.3.48: phone numbers spelled out in words are an off-platform redirect, and
+// a below-market price only earns VERIFY when the deal would pay for the trip.
+export const ENGINE_VERSION = "0.3.48";
