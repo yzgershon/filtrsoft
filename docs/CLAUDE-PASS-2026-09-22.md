@@ -49,8 +49,8 @@ Merged branch `claude/full-pass-2026-09-22` = main `b8fa54c` + runtime
 | F2 | Removed Facebook items were never retired | `probeVerdict` returned "no opinion" on any URL mismatch **before** the redirect-away check; Facebook sends removed items to `/marketplace/` (logged out: `login/?next=/marketplace/` instead of the item). 133 active Facebook listings in `failed` detail state, 96 after ≥3 attempts; every `facebook/recovery-1` batch reported `0/N` and failed the source → **"attention"** | Wasted browser time every cycle; stale listings kept for 28 days; source health noise | Fixed `efd6e7f`; **installed on the OMEN** (job #107 all sources `ok`) |
 | F3 | Title-only Facebook listings could never be read | Seller text equal to the title repeats the h1; the Mercari carousel guard (`matches>1 && !itemText`) returned "unknown"; the Facebook worker never supplied the scoped panel | Same as F2; real listings never priced | Fixed `efd6e7f` (`detailItemText`); installed |
 | F4 | Facebook detail failures were silent | Only `0/6 ... refreshed` reached `agent.log` | Every diagnosis needed a browser session | Fixed: each unread item logs its reason; installed |
-| F5 | Production re-scores every listing every hour and after every comp write | `pricingSignature` = revision + UTC hour; health went 0 → 11,031 pending at 01:00; drain ≈10 listings/s ≈ 19 min/hour; delisted/expired rows included | CPU/WAL churn on a small volume; `complete=false` a third of each hour | Fixed `256149d`: pricing changes re-price only live rows in the 28-day feed window; engine changes still re-score history. Needs main deploy |
-| F6 | `scoringStatus()` runs a full-table count every second | `scorePending` returns it on each 1 s pass | Constant read load | Fixed `256149d`: the per-second loop skips the count (`withStatus=false`); health still counts on request. Needs main deploy |
+| F5 | Production re-scores every listing every hour and after every comp write | `pricingSignature` = revision + UTC hour; health went 0 → 11,031 pending at 01:00; drain ≈10 listings/s ≈ 19 min/hour; delisted/expired rows included | CPU/WAL churn on a small volume; `complete=false` a third of each hour | Fixed `256149d`: pricing changes re-price only live rows in the 28-day feed window; engine changes still re-score history. Deployed September 23 |
+| F6 | `scoringStatus()` runs a full-table count every second | `scorePending` returns it on each 1 s pass | Constant read load | Fixed `256149d`: the per-second loop skips the count (`withStatus=false`); health still counts on request. Deployed September 23 |
 | F7 | The 3-minute server crawl is intended | ~5 requests/1.4 s per tick for ~90 s Craigslist latency; `discovered` stores listings *seen* (1,234), not new ones | Metric reads like waste; it is not | Document; optional metric rename |
 | F8 | Luna account limit is **200,000 TPM**, not the documented tier-1 500k | 429 bodies in the benchmark | Any production integration needs pacing | Benchmark runner paces; adapter exposes `rateLimitWaitMs` |
 | F9 | Luna accepts `temperature` only with reasoning `none` | 400 `Unsupported parameter` at `low` | Reasoning efforts cannot be made deterministic | Recorded; `none` benchmarked at temperature 0 |
@@ -158,16 +158,35 @@ unchanged; the script now checks exit codes instead.
 | P | Item | Acceptance | Status |
 |---|---|---|---|
 | P0 | Deploy F2–F4 to the installed collector via safe maintenance | Recovery batches report reasons; failed Facebook rows fall; retirements are URL-evidenced | **Done** (two receipts above) |
-| P0 | Merge this branch to main and deploy | CI green incl. containers; production engine/assets verified | CI green; **merge needs Yish** (PR #1; this session may not push to main) |
+| P0 | Merge this branch to main and deploy | CI green incl. containers; production engine/assets verified | **Done** September 23 (`f5e19b0`, engine 0.3.48 live 03:16 UTC) |
 | P1 | AI routing decision from the benchmark | Workload table with measured quality/latency/cost | **Done** (evaluation report) |
-| P1 | Luna shadow mode for photo reads | Budget approved; `utc-day` cap; provenance stored; no verdict effect | Waiting for an operating budget |
-| P2 | Score only live listings on hourly expiry; historical rows on engine change | Hourly re-score limited to feed rows; health `complete` most of the hour | Code done (`256149d`); verify after deploy |
-| P2 | Cache `scoringStatus` instead of recounting every second | No per-second full count | Code done (`256149d`); verify after deploy |
+| P1 | Luna shadow mode for photo reads | Budget approved; `utc-day` cap; provenance stored; no verdict effect | **Running** display-only since 03:43 UTC September 23 (`7607701`); Gemma verification runs when the PC is idle |
+| P2 | Score only live listings on hourly expiry; historical rows on engine change | Hourly re-score limited to feed rows; health `complete` most of the hour | **Deployed**; a pricing change queued 5,906 instead of ~11,000 |
+| P2 | Cache `scoringStatus` instead of recounting every second | No per-second full count | **Deployed** (`256149d`) |
 | P2 | Fresh untouched photo holdout (incl. rotated labels, CPU and ECC positives) | Frozen before any reader sees it; unchanged gates | Needed before any photo fact writer |
 | P3 | Field-aware agreement normalization (`DDR4-3600` = `3600`) | Recall rises with no new unsupported claims on the holdout | Not started |
 | P3 | Rename the `discovered` crawl metric (F7) | Reads as listings seen | Optional |
 
-## Decisions for Yish
+## September 23 follow-up (after Yish's decisions)
+
+Yish: "lets do luna high + gemma. Merge PR #1. 2. yes. 3. ... its fine". So: PR #1 merged,
+the Luna operating budget approved (hard cap $0.50 per UTC day), key location accepted.
+
+| Step | Receipt |
+|---|---|
+| PR #1 merged (merge commit, runtime lineage kept) | `f5e19b0`; production engine **0.3.48** at 03:16 UTC |
+| Engine re-score after deploy | 11,497 pending → 0 in ~13 min (03:16–03:29) |
+| Scoring load after deploy | a pricing revision at 03:38 queued **5,906** re-prices (feed window only) instead of ~11,000 |
+| PR #2 shadow photo reading | `7607701`, CI green, 501 pass / 1 skip; web bundle `index-C7WAhG9Z.js` live 03:42 UTC |
+| Collector update 3 | `6546a82` → `7607701` at 03:43 UTC; 54 installed tests pass, typecheck, doctor, identities preserved; backup restore-verified (4,635 listings); env keys appended while stopped: `FILTRSOFT_PHOTO_SHADOW`, `FILTRSOFT_PHOTO_SHADOW_GEMMA`, `FILTRSOFT_OPENAI_ENV_FILE` (the key itself not copied) |
+| First Luna pass | 10 listings read, **$0.0131** (avg $0.0013, 1.7–12.3 s); 26 recent listings not worth a read; 192 galleries over 6 photos skipped |
+| First Gemma pass | refused correctly: "someone is using this PC"; 6 readings waiting |
+| Sync to production | job #110 (~04:15 UTC): every push acknowledged, no rejection; a capture on a copy of the collector database showed 20 of 23 readings already uploaded, the 3 newest queued for the next job |
+
+Smoke test before install (scratch copy, no paid call): real Facebook photo downloads
+decoded and fingerprinted; Gemma refused while the PC was in use (GPU 31%, input 46 s ago).
+
+## Decisions for Yish (as of September 22; resolved September 23 above)
 
 1. **Merge PR #1** (https://github.com/yzgershon/filtrsoft/pull/1) or allow this
    workflow to push to `main`; Railway then deploys 0.3.48 and the scoring change.
