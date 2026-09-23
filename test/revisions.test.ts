@@ -63,6 +63,27 @@ test('scoring prioritizes new seller facts and live recommendations ahead of his
   scorePending(1,score);assert.equal(order.at(-1),ids[0]);assert.equal(scoringStatus().complete,true);
 `));
 
+test('pricing changes re-price only the feed window; engine changes still re-score history',()=>isolated(`
+  import {db} from '@/src/db/index.ts';
+  import {upsertListingFacts} from '@/src/db/listings.ts';
+  import {scorePending,scoringStatus} from '@/src/db/scoring.ts';
+  const d=db(),old=new Date(Date.now()-40*86_400_000).toISOString(),ids=[];
+  for(const [i,postedAt] of [null,null,old].entries())ids.push(upsertListingFacts(d,{source:'audit',sourceId:String(i),url:'https://example.invalid/'+i,title:'Unknown tech',description:'',askingPriceCents:10000,location:null,postedAt,photoCount:0}).id);
+  d.run('UPDATE listings SET delisted_at=? WHERE id=?',[new Date().toISOString(),ids[1]]);
+  const scored=[],score=id=>{scored.push(id);return {call:'INSUFFICIENT_DATA'};};
+  scorePending(10,score);assert.equal(scoringStatus().complete,true);assert.equal(scored.length,3);
+  d.run("UPDATE pricing_revision SET revision=revision+1");
+  assert.equal(scoringStatus().pending,1);scored.length=0;
+  assert.equal(scorePending(10,score).checked,1);assert.deepEqual(scored,[ids[0]]);assert.equal(scoringStatus().complete,true);
+  // A re-sighted listing leaves the delisted set and is re-priced again.
+  d.run("UPDATE listings SET delisted_at=NULL WHERE id=?",[ids[1]]);assert.equal(scoringStatus().pending,1);
+  scorePending(10,score);
+  // An engine change reaches history: delisted and expired rows are re-scored too.
+  d.run('UPDATE listings SET delisted_at=? WHERE id=?',[new Date().toISOString(),ids[1]]);
+  d.run("UPDATE scoring_state SET engine='old'");assert.equal(scoringStatus().pending,3);
+  // The per-second loop can skip the full-table count.
+  const bare=scorePending(1,score,250,false);assert.equal(bare.checked,1);assert.equal(bare.pending,undefined);
+`));
 test('scoring yields after its time budget without losing pending work',()=>isolated(`
   import {db} from '@/src/db/index.ts';
   import {upsertListingFacts} from '@/src/db/listings.ts';

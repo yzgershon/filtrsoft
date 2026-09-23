@@ -9,22 +9,39 @@ import {storeVerdict,type VerdictPayload} from "./verdicts.ts";
  * corrected recommendations after deployment. Read new evidence and live
  * BUY/VERIFY first, then other feed rows, without dropping the historical work.
  */
-export function scorePending(limit=400,score:(id:number)=>VerdictPayload=id=>checkStored(id).verdict,maxMs=250) {
+/**
+ * What needs a new verdict. An engine change or an explicit recheck re-scores
+ * every listing, history included. A pricing change (new comps, catalog edits,
+ * or the hourly expiry in pricingSignature) only re-prices listings the feed can
+ * still show: not delisted and seen within 28 days, the feed's own window.
+ *
+ * September 22: production went from 0 to 11,031 pending at every UTC hour and
+ * after every comp upload, draining at ~10/s for ~19 minutes. On the September
+ * 17 production copy about 45% of rows were delisted or older than the window,
+ * so this roughly halves that work without changing any price the feed shows.
+ * A listing that comes back (re-sighted, un-delisted) carries an old signature
+ * and is re-scored then.
+ */
+const PENDING=`(s.engine IS NOT $engine OR v.engine_version IS NOT $engine OR q.listing_id IS NOT NULL
+      OR (s.signature IS NOT $signature AND l.delisted_at IS NULL AND COALESCE(l.posted_at,l.last_seen,l.captured_at)>=$since))`;
+const feedWindowStart=(at:number)=>new Date(at-28*86_400_000).toISOString();
+
+export function scorePending(limit=400,score:(id:number)=>VerdictPayload=id=>checkStored(id).verdict,maxMs=250,withStatus=true) {
   const started=performance.now();
   const d=db(),signature=pricingSignature(d),at=now(),target=`${ENGINE_VERSION}|${signature}`;
   const rows=d.query(`SELECT l.id,q.requested_at FROM listings l
     LEFT JOIN scoring_state s ON s.listing_id=l.id
     LEFT JOIN listing_rechecks q ON q.listing_id=l.id
     LEFT JOIN verdicts v ON v.id=(SELECT MAX(id) FROM verdicts WHERE listing_id=l.id)
-    WHERE (s.signature IS NOT ? OR s.engine IS NOT ? OR v.engine_version IS NOT ? OR q.listing_id IS NOT NULL)
-      AND (s.attempt_signature IS NOT ? OR s.retry_at IS NULL OR s.retry_at<=?)
+    WHERE ${PENDING}
+      AND (s.attempt_signature IS NOT $target OR s.retry_at IS NULL OR s.retry_at<=$at)
     ORDER BY CASE
       WHEN l.delisted_at IS NOT NULL THEN 4
       WHEN q.listing_id IS NOT NULL OR v.id IS NULL THEN 0
       WHEN v.call IN ('BUY','VERIFY') THEN 1
       WHEN v.call!='OUT_OF_SCOPE' THEN 2
       ELSE 3 END,
-      s.last_attempt ASC,l.id LIMIT ?`).all(signature,ENGINE_VERSION,ENGINE_VERSION,target,at,Math.max(1,limit)) as {id:number;requested_at:string|null}[];
+      s.last_attempt ASC,l.id LIMIT $limit`).all({$signature:signature,$engine:ENGINE_VERSION,$since:feedWindowStart(Date.parse(at)),$target:target,$at:at,$limit:Math.max(1,limit)}) as {id:number;requested_at:string|null}[];
   let checked=0,changed=0,failed=0;
   // Condition statistics already invalidate against pricingSignature. Clearing
   // them on every short pass repeated the same catalog aggregation each second.
@@ -55,15 +72,17 @@ export function scorePending(limit=400,score:(id:number)=>VerdictPayload=id=>che
         [row.id,target,attempts,new Date(Date.now()+Math.min(3_600_000,30_000*2**Math.min(attempts-1,8))).toISOString(),String(e).slice(0,500),at]);
     }
   }
-  return {checked,changed,failed,...scoringStatus()};
+  // The per-second background loop skips the full-table status count; health
+  // and callers that report progress still get an exact figure.
+  return {checked,changed,failed,...(withStatus?scoringStatus():{})};
 }
 
 export function scoringStatus() {
   const d=db(),signature=pricingSignature(d);
   const row=d.query(`SELECT COUNT(*) pending,SUM(CASE WHEN s.last_error IS NOT NULL THEN 1 ELSE 0 END) failures
     FROM listings l LEFT JOIN scoring_state s ON s.listing_id=l.id
+    LEFT JOIN listing_rechecks q ON q.listing_id=l.id
     LEFT JOIN verdicts v ON v.id=(SELECT MAX(id) FROM verdicts WHERE listing_id=l.id)
-    WHERE s.signature IS NOT ? OR s.engine IS NOT ? OR v.engine_version IS NOT ?
-      OR EXISTS(SELECT 1 FROM listing_rechecks q WHERE q.listing_id=l.id)`).get(signature,ENGINE_VERSION,ENGINE_VERSION) as {pending:number;failures:number|null};
+    WHERE ${PENDING}`).get({$signature:signature,$engine:ENGINE_VERSION,$since:feedWindowStart(Date.now())}) as {pending:number;failures:number|null};
   return {signature,pending:row.pending,failures:row.failures??0,complete:row.pending===0};
 }
