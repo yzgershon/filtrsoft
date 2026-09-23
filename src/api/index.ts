@@ -72,6 +72,7 @@ import {
   autoCrawlStatus,
 } from "./jobs.ts";
 import { VISION_MODEL, PROMPT_VERSION, visionConfigured } from "../vision/index.ts";
+import { loadPhotoReading } from "../vision/photo-readings.ts";
 import {
   rateLimit, clientKey, visionAllowed, visionKilled, budgetAvailable,
   singleFlight, guardStatus,
@@ -1340,7 +1341,7 @@ app.get("/v1/checks/:id", (c) => {
     verdict,
     signals,
     comps,
-    meta: {...meta, availability:availabilityView(availabilityMap().get(id),Boolean(row.delisted_at)), dismissed: dismissedIds(currentUser(c)!.id).has(id), specifications: verdict?.inventory ? {fields:[],photoStatus:proof?.visionEvidence?"recorded":"not_read",notes:["This listing contains multiple items. Use each offer’s exact seller wording below."],attributes:[]} : specifications(proof)},
+    meta: {...meta, availability:availabilityView(availabilityMap().get(id),Boolean(row.delisted_at)), dismissed: dismissedIds(currentUser(c)!.id).has(id), specifications: verdict?.inventory ? {fields:[],photoStatus:proof?.visionEvidence?"recorded":"not_read",notes:["This listing contains multiple items. Use each offer’s exact seller wording below."],attributes:[]} : specifications(proof), photoReading: loadPhotoReading(id)},
   });
 });
 

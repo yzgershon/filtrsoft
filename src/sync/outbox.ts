@@ -4,6 +4,7 @@ import { z } from "zod";
 import { rawObject } from "../db/facts.ts";
 import {ensureEnrichment} from '../db/enrichment.ts';
 import {ensurePhotoClock} from '../vision/merge.ts';
+import {photoReadingSchema,photoReading,ensurePhotoShadow} from '../vision/photo-shadow.ts';
 
 const timestamp = z.iso.datetime();
 const remoteUrl = z.url().refine(s => new URL(s).protocol === "https:");
@@ -23,6 +24,9 @@ export const snapshotSchema = z.object({
   enrichment:z.object({attemptedAt:timestamp,nextAt:timestamp,failures:z.number().int().nonnegative(),outcome:z.enum(['read','empty','failed','gone']),fingerprint:z.string().regex(/^[a-f0-9]{64}$/).optional()}).nullable().optional(),
   recovery:recoveryReceiptSchema.nullable().optional(),
   photosAt:timestamp.nullable().optional(),
+  // Display-only shadow photo reading, never an engine fact. Omitted when
+  // absent so snapshots of listings without one keep their existing hashes.
+  photoReading:photoReadingSchema.optional(),
 });
 export type Snapshot = z.infer<typeof snapshotSchema>;
 export const batchSchema = z.object({version:z.literal(2),clientId:z.uuid(),changes:z.array(z.object({
@@ -49,6 +53,7 @@ export function captureChanges(d:Database,target:string,source:string) {
   ensureSync(d);
   ensureEnrichment(d);
   ensurePhotoClock(d);
+  ensurePhotoShadow(d);
   return d.transaction(()=>{
     d.run("INSERT OR IGNORE INTO sync_identity VALUES(1,?)",[randomUUID()]);
     const rows=d.query("SELECT * FROM listings WHERE source=? ORDER BY id").all(source) as any[];
@@ -62,13 +67,14 @@ export function captureChanges(d:Database,target:string,source:string) {
       if(enrichment&&attempt)enrichment.fingerprint=attempt.fingerprint;
       const recovery=d.query('SELECT payload FROM listing_recovery WHERE listing_id=?').get(l.id) as {payload:string}|null;
       const photoClock=d.query('SELECT observed_at FROM listing_photo_observations WHERE listing_id=?').get(l.id) as {observed_at:string}|null;
+      const reading=photoReading(d,l.id);
       const snapshot:Snapshot=snapshotSchema.parse({source:l.source,sourceId:l.source_id,url:l.url,title:l.title,
         description:l.description??"",askingPriceCents:l.asking_price_cents,location:l.location,postedAt:l.posted_at,
         sellerRef:l.seller_ref,observedAt:l.last_seen??l.captured_at,capturedAt:l.captured_at,detailAt:l.updated_at,
         retiredAt:l.delisted_at,retireReason:l.delist_reason,raw:rawObject(l.raw_json),photos,
         vision:v?.photo_fingerprint&&v?.prompt_version?{model:v.model,promptVersion:v.prompt_version,fingerprint:v.photo_fingerprint,payload:v.payload,createdAt:v.created_at}:null,
         availability:availability?{...availability,nextAt:l.next_probe_at,failures:l.probe_failures}:null,enrichment,
-        ...(recovery?{recovery:JSON.parse(recovery.payload)}:{}),...(photoClock?{photosAt:photoClock.observed_at}:{})});
+        ...(recovery?{recovery:JSON.parse(recovery.payload)}:{}),...(photoClock?{photosAt:photoClock.observed_at}:{}),...(reading?{photoReading:reading}:{})});
       const hash=contentHash(snapshot);
       const previous=d.query("SELECT hash FROM sync_local_state WHERE target=? AND listing_id=?").get(target,l.id) as {hash:string}|null;
       if(previous?.hash===hash) continue;

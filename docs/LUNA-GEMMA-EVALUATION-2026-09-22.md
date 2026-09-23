@@ -16,8 +16,9 @@ Single-reader output is suitable only as a visibly unverified suggestion.
 - **Luna alone is not safe.** On sideways or upside-down label text it invents whole
   products that are not in the photo, at every effort (details below). Gemma's
   errors are digit-level misreads of text that is really there.
-- **Nothing is enabled in production.** Luna needs an operating budget that is not
-  approved, and a fresh untouched holdout must pass before any fact writer.
+- **Display only.** Approved September 23 as shadow mode under a $0.50/day cap (see
+  *Rollout status*). No reading reaches a fact or a call; a fresh untouched holdout must
+  pass before any fact writer.
 
 ## What was run
 
@@ -129,7 +130,16 @@ checked against the photo and corrected, which lowered every Luna effort that ma
 This is single-reviewer adjudication, not an independent panel. The set is now exposed
 to four readers and cannot serve as acceptance evidence again.
 
-## Recommended rollout (needs Yish's approval)
+## Rollout status (September 23)
+
+Yish approved Luna `high` + Gemma agreement and the operating budget (hard cap $0.50 per
+UTC day). Implemented as **display-only shadow mode** (`src/vision/photo-shadow.ts`):
+settings pinned to this benchmark by `test/photo-shadow.test.ts`; listings limited to
+the measured 1–6 photo range; Gemma runs only with the GPU idle and nobody at the PC;
+readings sync to the Specs tab and never reach facts, valuations or calls. Step 3
+(fresh holdout before any fact writer) is still required.
+
+## Recommended rollout (as proposed)
 
 1. **Shadow mode** (no verdict effect): Luna `high` reads the photos of listings whose
    deciding unknown is a spec or identity (about 47% of fresh listings). Store results

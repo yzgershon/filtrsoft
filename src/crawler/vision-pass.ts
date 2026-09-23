@@ -62,8 +62,10 @@ interface Candidate { id: number; url: string; title: string; call: string; head
  * always name the thing being sold even when the classifier prefers the device
  * it attaches to.
  */
+// Plurals and empty packaging too: "Phone Cases Lot" and "MacBook Pro Empty
+// Box" reached the photo-shadow shortlist on 2026-09-23.
 const ACCESSORY_FOR =
-  /\b(bag|case|folio|sleeve|backpack|briefcase|strap|shoulder pad|cover|skin|screen protector|stand|mount|dock|docking station|charger|power cord|cable|adapter|carrying)\b/i;
+  /\b(bags?|cases|case|folios?|sleeves?|backpacks?|briefcases?|straps?|shoulder pad|covers?|skins?|screen protectors?|stands?|mounts?|docks?|docking station|chargers?|power cords?|cables?|adapters?|carrying|empty box|box only)\b/i;
 
 export function isAccessoryFor(title: string): boolean {
   return ACCESSORY_FOR.test(title);

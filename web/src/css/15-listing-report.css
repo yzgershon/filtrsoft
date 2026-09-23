@@ -172,6 +172,9 @@
 .spec-extra { border-top: 1px solid var(--line-soft); margin-top: 16px; }
 .spec-extra > summary { display: flex; align-items: center; gap: 10px; justify-content: space-between; min-height: 48px; font-size: 12px; cursor: pointer; }
 .spec-extra > ul { padding-left: 17px; color: var(--ink-2); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.photo-reading h3 { margin: 20px 0 0; font-size: 13px; font-weight: 600; color: var(--ink); }
+.photo-reading .spec-notice svg { vertical-align: -2px; }
+.photo-reading .spec-extra b { font-weight: 500; color: var(--ink); }
 .spec-empty { padding: 28px 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
 .spec-empty h2 { font-size: 18px; margin: 12px 0 8px; }
 .spec-empty p { color: var(--ink-2); font-size: 13px; line-height: 1.7; }

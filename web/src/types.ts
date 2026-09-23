@@ -41,6 +41,7 @@ export interface Signal { code: string; severity: string; polarity: string; evid
 export interface Meta {
   availability?:import('../../src/db/availability.ts').Availability;
   specifications?: import('../../src/engine/specifications.ts').Specifications;
+  photoReading?: (import('../../src/vision/photo-shadow.ts').PhotoReading&{photosChanged:boolean|null})|null;
   dismissed?: boolean;
   category?: string; daysOnMarket?: number | null; description?: string;
   missingValueFields?: string[];

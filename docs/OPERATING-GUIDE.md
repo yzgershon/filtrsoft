@@ -1,6 +1,6 @@
 # Filtrsoft daily operating guide
 
-Current as of September 23, 2026. Detailed history lives in `HANDOFF.md`; this page is
+Current as of September 23, 2026 (photo readings added). Detailed history lives in `HANDOFF.md`; this page is
 what to do, not what happened.
 
 ## What runs where
@@ -29,11 +29,13 @@ never takes focus from a game. Manual sign-ins still open visibly.
 
 Engine 0.3.48 no longer sends VERIFY for tiny-margin items (a $10 GTX 960) and treats
 phone numbers spelled out in words as an off-platform redirect (RISK). It runs on the
-OMEN collector now; production gets it when the September 22 pull request is merged.
+OMEN collector and in production (deployed September 23, 03:16 UTC).
 
 ## When something changes on the OMEN
 
-- **Gaming:** nothing to do. Collection uses the private desktop; no local AI model runs.
+- **Gaming:** nothing to do. Collection uses the private desktop. The local photo reader
+  (Gemma) waits until you have been away for 10 minutes with the GPU idle, and stops
+  when you return (see *Photo readings* below).
 - **Pause / resume:** desktop shortcut *Filtrsoft Collector* (Pause, Resume, View
   collector), or in `C:\Dev\filtrsoft-agent`: `bun run pause --on` / `bun run pause --off`.
 - **Sleep, reboot, network loss:** the supervisor restarts the worker; the logon task and
@@ -55,13 +57,32 @@ OMEN collector now; production gets it when the September 22 pull request is mer
   `bun --env-file=C:/Dev/filtrsoft-data/collector.env run agent:status --remote`.
 - A source shown as "attention" now comes with a reason per item in `agent.log`.
 
-## Paid AI
+## Photo readings (shadow mode, approved September 23)
 
-No paid model runs in production. Both Claude paths were verified paused at the
-September 17/18 checkpoint (not re-verified on September 22). GPT-6 Luna was
-benchmarked only (`docs/LUNA-GEMMA-EVALUATION-2026-09-22.md`). If an operating budget is
-approved, photo reads run in shadow mode under a hard daily cap; when the cap is reached
-the work waits unresolved, it never falls back to a more expensive model.
+The OMEN reads listing photos in the background and shows the result in a listing's
+**Specs** tab under **Read from photos**. It never changes BUY/VERIFY/RISK or a price.
+
+- **GPT-6 Luna (high)** reads new Facebook, OfferUp and Mercari listings with 1–6 photos
+  whose call a photo could settle (a missing spec or exact model), plus BUY and VERIFY.
+  Budget: **hard cap $0.50 per UTC day** (expected about $0.20–0.30/day, ~$8/month). At
+  the cap, reads wait for the next day; nothing falls back to another model.
+- **Gemma 31B** on the OMEN re-reads the same photos. Only facts both readers report the
+  same way are shown as **Both readers agree**; differences are shown as **Readers
+  disagree**; everything else is collapsed as one reader only, unchecked.
+- **Gaming:** Gemma starts only when nobody has touched the keyboard or mouse for 10
+  minutes *and* the GPU is idle. If you come back it stops within about 20 seconds and
+  unloads. To keep the GPU free even while away, create an empty file
+  `C:\Dev\filtrsoft-runner-state\pause-gpu` (delete it to allow reads again). Pausing
+  the collector also stops both readers.
+- **Check spend:** in `C:\Dev\filtrsoft-agent`,
+  `bun --env-file=C:/Dev/filtrsoft-data/collector.env run photo:shadow --status`
+  (today, this month, reads, waiting for Gemma). Per-pass logs:
+  `C:\Dev\filtrsoft-runner-state\maintenance-photo-shadow.log` and `…photo-verify.log`.
+- **Turn off:** remove `FILTRSOFT_PHOTO_SHADOW=1` (Luna) or `FILTRSOFT_PHOTO_SHADOW_GEMMA=1`
+  (Gemma) from `collector.env` and restart through the maintenance script.
+
+Both paid Claude paths stay paused (verified at the September 17/18 checkpoint). No paid
+model runs on Railway.
 
 ## Where changes go
 

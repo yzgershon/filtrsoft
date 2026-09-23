@@ -45,6 +45,7 @@
     "mc:detail": "bun run src/scripts/mc-detail.ts",
     "vision": "bun run src/scripts/vision.ts",
     "vision:local-eval": "bun run src/scripts/local-vision-eval.ts",
+    "photo:shadow": "bun run src/scripts/photo-shadow.ts",
     "agent:status": "bun run src/scripts/agent-status.ts",
     "agent:doctor": "bun run src/scripts/agent-doctor.ts",
     "agent:install": "bun run src/scripts/agent-install.ts",
