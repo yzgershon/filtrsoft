@@ -89,9 +89,13 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
+### September 23, photo readings in shadow mode (Luna high + Gemma 31B)
+
+Yish merged the pass (PR #1 → `f5e19b0`, production engine **0.3.48** at 03:16 UTC), approved **Luna high + Gemma agreement** and an operating budget with a **hard cap of $0.50 per UTC day**, and said the OpenAI key's location in `openai-eval.env` is fine (no rotation). PR #2 (`7607701`) adds display-only shadow reading: `src/vision/photo-shadow.ts` (benchmark-pinned settings, 1–6 photos, spend ledger scope `photo-shadow-luna-high`), `photo:shadow --luna|--gemma|--status`, Gemma only with the GPU idle and nobody at the PC for 10 minutes (aborts within ~20 s on return, `pause-gpu` file, or collector pause), sync field `photoReading` → server table `photo_readings` → Specs tab "Read from photos". **Nothing reaches facts, valuations or calls**; a fresh holdout is still required before any fact writer. Collector settings: `FILTRSOFT_PHOTO_SHADOW=1`, `FILTRSOFT_PHOTO_SHADOW_GEMMA=1`, `FILTRSOFT_OPENAI_ENV_FILE=C:/Dev/filtrsoft-data/openai-eval.env` (the key itself is not copied). Production scoring after 0.3.48: engine re-score of 11,497 rows took ~13 min; a pricing change now queues ~5,900 re-prices instead of ~11,000.
+
 ### September 22–23, Claude full pass on the OMEN (checkpoint)
 
-**Ledger: docs/CLAUDE-PASS-2026-09-22.md. Model decision: docs/LUNA-GEMMA-EVALUATION-2026-09-22.md. Daily use: docs/OPERATING-GUIDE.md.** Branch `claude/full-pass-2026-09-22`, PR https://github.com/yzgershon/filtrsoft/pull/1, CI green at `6546a82`, **not merged** (this session was not permitted to push to `main`). Production still runs engine **0.3.47**.
+**Ledger: docs/CLAUDE-PASS-2026-09-22.md. Model decision: docs/LUNA-GEMMA-EVALUATION-2026-09-22.md. Daily use: docs/OPERATING-GUIDE.md.** Branch `claude/full-pass-2026-09-22`, PR https://github.com/yzgershon/filtrsoft/pull/1, CI green at `6546a82`; **merged by Yish's instruction on September 23 as `f5e19b0`** (production engine 0.3.48 from 03:16 UTC).
 
 - **Runtime preserved first.** The unpublished OMEN runtime `88363b9c04ff` (and twelve runtime-only commits: Windows startup, eBay login state, WAL contention, doctor, private-desktop launcher) was published unchanged as `origin/omen/runtime-88363b9-2026-09-22` and merged into the branch. Uncommitted September 18–20 evaluation work from `C:\Dev\filtrsoft-followup-20260917` is preserved in the branch; that checkout was not touched.
 - **OMEN collector updated twice through safe maintenance** (idle check, owned stop, restore-verified backup, fast-forward, installed tests + typecheck + doctor, identity/config/env hash preservation, restart via *Filtrsoft Daily Crawl*): `88363b9` → `9fbcc72` → **`6546a82`** at 02:01 UTC September 23. Receipts in `C:\Dev\filtrsoft-recovery-data\claude-20260922\maintenance-*-receipt.json`. Runtime branch name unchanged.
@@ -101,7 +105,7 @@ older material kept for the reasoning behind decisions, not for current state.
 - **GPT-6 Luna benchmark done** within the approved $5 cap (committed $1.164). No single reader passes the photo-fact gates; **Luna `high` + Gemma 31B agreement** kept 134 claims with zero unsupported. Luna invents products on rotated labels. **Nothing enabled**; shadow mode needs an operating budget (≈$8/month, cap $0.50/day suggested) that Yish has not approved.
 - New code: `src/ai/pricing.ts`, `src/ai/spend-cap.ts` (reserve-before-call SQLite ledger with caps that cannot change without approval text), `src/ai/openai-responses.ts` (Responses adapter, strict schema, no retries, 429 pacing). No production caller yet; paid calls are not in the test suite.
 - Laptop collector and both paid Claude paths were not touched (still paused as of the September 17/18 checkpoint; not re-verified).
-- **Open for Yish:** merge PR #1; decide the Luna operating budget; the OpenAI key is in `C:\Dev\filtrsoft-data\openai-eval.env` (not `collector.env`) and, if it is the one pasted into the laptop chat, it still works and should be rotated.
+- **Resolved September 23** (entry above): PR #1 merged, Luna operating budget approved, key location confirmed fine by Yish.
 
 ### September 22 (later), Claude session: run the full pass on the OMEN
 
