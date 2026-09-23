@@ -89,6 +89,10 @@ older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
 
+### September 22 (later), Claude session: run the full pass on the OMEN
+
+A laptop Claude session could not reach the OMEN (no SSH, RDP or WinRM). It measured the OMEN online at **unpublished revision `88363b9c04ff`**, which is not the recorded `e73d1879`. Yish chose to run the full pass on the OMEN and approved a **$5 hard-capped GPT-6 Luna benchmark**. **Start with docs/OMEN-CLAUDE-START-2026-09-22.md.** No code, deployment, collector or paid-call changes were made.
+
 ### September 22, Claude full-project prompt prepared on the laptop
 
 Yish requested a self-contained prompt for Claude Opus 5.5 to audit and improve all of Filtrsoft, settle its operating workflow and evaluate GPT-6 Luna against the locally installed model he calls Gemma 31B. See **docs/CLAUDE-FULL-PROJECT-PROMPT-2026-09-22.md**. This is a handoff artifact, not a new implementation or deployment. No billable model calls, installations, collector starts, configuration changes or messages to another session were performed.
