@@ -67,6 +67,9 @@ export function storeVerdictWithDb(
   verdict: VerdictPayload,
   createdAt: string,
 ): StoreVerdictResult {
+  // As with listing facts, acquire the writer before reading the prior answer.
+  // A deferred read-to-write upgrade can fail instantly with BUSY_SNAPSHOT
+  // when the collector's reporting process commits to the same WAL database.
   return d.transaction(()=>{
   const payload = JSON.stringify(verdict);
   const confidence = verdict.confidence ?? null;
@@ -104,5 +107,5 @@ export function storeVerdictWithDb(
   // payload growth. The new latest stays plain JSON.
   if(latest){const archived=encodeVerdictPayload(latest.payload);if(archived!==latest.payload)d.run('UPDATE verdicts SET payload=? WHERE id=?',[archived,latest.id]);}
   return { inserted: true, refreshed: false, id: Number(r.lastInsertRowid) };
-  })();
+  }).immediate();
 }

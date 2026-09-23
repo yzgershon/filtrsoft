@@ -11,10 +11,11 @@ import { runEbayWorker } from "../sources/ebay.ts";
 
 for await (const ev of runEbayWorker("login", { headless: false, background: false })) {
   if (ev.type === "log") console.log(`  ${ev.msg}`);
-  else if (ev.type === "error") console.error(`\x1b[31m  ${ev.msg}\x1b[0m`);
+  else if (ev.type === "error") {console.error(`\x1b[31m  ${ev.msg}\x1b[0m`);process.exitCode=1;}
   else if (ev.type === "done") {
     console.log(ev.stats.loggedIn
-      ? "\n\x1b[32msigned in — sold listings are readable.\x1b[0m Run `bun run ebay:comps` next."
-      : "\n\x1b[31mstill signed out.\x1b[0m Sold search redirects to the login page.");
+      ? "\n\x1b[32msigned-in account header verified.\x1b[0m Run `bun run ebay:comps` to verify sold search."
+      : "\n\x1b[33msign-in could not be verified.\x1b[0m Run `bun run ebay:login` again to continue manually.");
+    if(!ev.stats.loggedIn)process.exitCode=1;
   }
 }

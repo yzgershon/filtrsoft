@@ -1,0 +1,35 @@
+{
+  "startedAt": "2026-09-15T21:10:21.8363894Z",
+  "finishedAt": "2026-09-15T21:10:32.1309498Z",
+  "elapsedSeconds": 10.3,
+  "recovered": true,
+  "supervisorRetained": true,
+  "nodeIdentityRetained": true,
+  "before": {
+    "pid": 34068,
+    "childPid": 6656,
+    "restarts": 0,
+    "updatedAt": "2026-09-15T21:10:21.519Z"
+  },
+  "after": {
+    "pid": 34068,
+    "childPid": 31696,
+    "restarts": 1,
+    "updatedAt": "2026-09-15T21:10:31.859Z"
+  },
+  "status": {
+    "pid": 31696,
+    "host": "YishPC",
+    "platform": "win32",
+    "arch": "x64",
+    "updatedAt": "2026-09-15T21:10:32.12Z",
+    "status": "online",
+    "revision": "43c4fa744134",
+    "api": "https://filtrsoft.com",
+    "database": "C:\\Dev\\filtrsoft-data\\ingestion.db",
+    "lastPollAt": "2026-09-15T21:10:32.119Z",
+    "lastError": null,
+    "progress": "starting",
+    "jobId": null
+  }
+}

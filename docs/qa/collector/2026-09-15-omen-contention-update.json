@@ -1,0 +1,304 @@
+{
+  "measuredAt": "2026-09-16T01:44:57.449Z",
+  "ci": {
+    "url": "https://github.com/yzgershon/filtrsoft/actions/runs/35044877858",
+    "head": "a91943a1c8986f6e15ee4dd0c24e96bfa1916ae9",
+    "conclusion": "success",
+    "windowsTests": {
+      "pass": 375,
+      "fail": 0,
+      "assertions": 1229
+    },
+    "linuxAndOfflineContainerTests": {
+      "pass": 374,
+      "skip": 1,
+      "fail": 0
+    },
+    "typecheck": "passed",
+    "frontendBuild": "passed",
+    "productionImage": "passed"
+  },
+  "runtimeSwitch": {
+    "startedAt": "2026-09-16T01:42:46.1635983+00:00",
+    "oldRevision": "43c4fa7441340abdfb27dd8d00f6ec4fbc854679",
+    "newRevision": "a91943a1c8986f6e15ee4dd0c24e96bfa1916ae9",
+    "oldSupervisor": {
+      "pid": 2416,
+      "childPid": 13984,
+      "restarts": 0,
+      "updatedAt": "2026-09-16T01:42:45.433Z"
+    },
+    "before": {
+      "pid": 13984,
+      "host": "YishPC",
+      "platform": "win32",
+      "arch": "x64",
+      "updatedAt": "2026-09-16T01:42:41.876Z",
+      "status": "online",
+      "revision": "43c4fa744134",
+      "api": "https://filtrsoft.com",
+      "database": "C:\\Dev\\filtrsoft-data\\ingestion.db",
+      "lastPollAt": "2026-09-16T01:42:41.875Z",
+      "lastError": null,
+      "progress": "waiting",
+      "jobId": null
+    },
+    "backup": "filtrsoft-2026-09-16T01-38-27-624Z-814e19c0-700d-4b7d-8412-3d8aa7d48ef2.db",
+    "backupSha256": "43d7c9bdd015a69911dd56b55e428657da57a510fd483439f65ad14a061f336f",
+    "switchedAt": "2026-09-16T01:42:59.9647623+00:00"
+  },
+  "manualOfferUp": {
+    "startedAt": "2026-09-16T01:44:06.163Z",
+    "revision": "a91943a1c898",
+    "before": {
+      "listings": {
+        "n": 216
+      },
+      "queued": {
+        "n": 0
+      }
+    },
+    "crawl": {
+      "ok": true,
+      "tail": "$ bun run src/scripts/marketplace-crawl.ts --source offerup --query \"rtx 4070\" --limit \"3\"\n\u001b[1mofferup\u001b[0m (local-basis) · 1 query(s)\n  offerup: rtx 4070\n  \u001b[1mrtx 4070\u001b[0m: 45 links -> 44 cards\n{\"type\":\"search-quality\",\"source\":\"offerup\",\"query\":\"rtx 4070\",\"links\":45,\"parsed\":44,\"known\":0,\"eligible\":36,\"rejected\":8,\"selected\":3}\n\n44 cards seen · 3 analysed · 8 out of scope\n  INSUFFICIENT_DATA 3",
+      "timedOut": false,
+      "cancelled": false
+    },
+    "push": {
+      "ok": true,
+      "tail": "$ bun run src/scripts/push.ts --source offerup\n3 offerup changes queued -> https://filtrsoft.com\nacknowledged 3 durable changes",
+      "timedOut": false,
+      "cancelled": false
+    },
+    "after": {
+      "listings": {
+        "n": 219
+      },
+      "queued": {
+        "n": 0
+      }
+    },
+    "finishedAt": "2026-09-16T01:44:32.732Z",
+    "resumedAt": "2026-09-16T01:44:32.733Z"
+  },
+  "status": {
+    "pid": 26920,
+    "host": "YishPC",
+    "platform": "win32",
+    "arch": "x64",
+    "updatedAt": "2026-09-16T01:44:46.507Z",
+    "status": "online",
+    "revision": "a91943a1c898",
+    "api": "https://filtrsoft.com",
+    "database": "C:\\Dev\\filtrsoft-data\\ingestion.db",
+    "lastPollAt": "2026-09-16T01:44:46.506Z",
+    "lastError": null,
+    "progress": "starting",
+    "jobId": null
+  },
+  "supervisor": {
+    "pid": 9184,
+    "childPid": 26920,
+    "restarts": 0,
+    "updatedAt": "2026-09-16T01:44:57.429Z"
+  },
+  "nodeId": "bc3313ad-0a65-4020-922c-e9a30505da21",
+  "local": {
+    "listings": [
+      {
+        "source": "facebook",
+        "count": 229
+      },
+      {
+        "source": "mercari",
+        "count": 251
+      },
+      {
+        "source": "offerup",
+        "count": 219
+      }
+    ],
+    "comps": {
+      "count": 31939
+    },
+    "integrity": [
+      {
+        "quick_check": "ok"
+      }
+    ],
+    "foreignKeyViolations": 0,
+    "syncIdentity": {
+      "client_id": "7c09031a-1f31-4057-a6ba-b89c33755c26"
+    },
+    "queuedListingChanges": [],
+    "compTransfers": [
+      {
+        "status": "applied",
+        "count": 39
+      }
+    ],
+    "jobReports": [
+      {
+        "status": "acknowledged",
+        "count": 512
+      }
+    ],
+    "terminalJobReports": [
+      {
+        "job": 15,
+        "created_at": "2026-09-15T21:09:35.373Z",
+        "status": "acknowledged",
+        "result": "done",
+        "sources": "{\"facebook\":\"ok\",\"offerup\":\"ok\",\"mercari\":\"ok\"}"
+      },
+      {
+        "job": 16,
+        "created_at": "2026-09-15T22:00:26.719Z",
+        "status": "acknowledged",
+        "result": "done",
+        "sources": "{\"facebook\":\"ok\",\"offerup\":\"ok\",\"mercari\":\"ok\"}"
+      },
+      {
+        "job": 17,
+        "created_at": "2026-09-15T22:51:30.487Z",
+        "status": "acknowledged",
+        "result": "done",
+        "sources": "{\"facebook\":\"ok\",\"offerup\":\"ok\",\"mercari\":\"ok\"}"
+      },
+      {
+        "job": 18,
+        "created_at": "2026-09-15T23:42:28.870Z",
+        "status": "acknowledged",
+        "result": "done",
+        "sources": "{\"facebook\":\"ok\",\"offerup\":\"ok\",\"mercari\":\"ok\"}"
+      },
+      {
+        "job": 19,
+        "created_at": "2026-09-16T00:32:15.142Z",
+        "status": "acknowledged",
+        "result": "failed",
+        "sources": "{\"facebook\":\"ok\",\"offerup\":\"offerup/search-graphics-card: atabase is locked\\u001b[0m\\n    \\u001b[31mfailed: database is locked\\u001b[0m\\n    \\u001b[31mfailed: database is locked\\u001b[0m\\n    \\u001b[31mfailed: database is locked\\u001b[0m\\n    \\u001b[31mfailed: database is locked\\u001b[0m\\n    \\u001b[31mfailed: database is locked\\u001b[0m\\n    \\u001b[31mfailed: database is locked\\u001b[0m\\n\\n73 cards seen · 0 analysed · 1 out of scope\\nerror: script \\\"ou:crawl\\\" exited with code 1\",\"mercari\":\"ok\"}"
+      },
+      {
+        "job": 20,
+        "created_at": "2026-09-16T01:25:19.717Z",
+        "status": "acknowledged",
+        "result": "done",
+        "sources": "{\"facebook\":\"ok\",\"offerup\":\"ok\",\"mercari\":\"ok\"}"
+      }
+    ]
+  },
+  "productionHealth": {
+    "at": "2026-09-16T01:44:54.905Z",
+    "nodes": [
+      {
+        "id": "bc3313ad-0a65-4020-922c-e9a30505da21",
+        "label": "Gaming desktop",
+        "revision": "a91943a1c898",
+        "seenAt": "2026-09-16T01:44:43.929Z",
+        "online": true,
+        "nodeId": "bc3313ad-0a65-4020-922c-e9a30505da21",
+        "status": "online",
+        "jobId": null,
+        "pending": {},
+        "maintenance": {
+          "backup": {
+            "status": "done",
+            "attemptedAt": "2026-09-15T20:53:31.688Z",
+            "finishedAt": "2026-09-15T20:53:32.833Z",
+            "nextAt": "2026-09-16T20:53:32.833Z",
+            "note": "Completed and verified"
+          },
+          "comps": {
+            "status": "done",
+            "attemptedAt": "2026-09-16T00:54:08.465Z",
+            "finishedAt": "2026-09-16T00:54:31.902Z",
+            "nextAt": "2026-09-16T04:54:31.902Z",
+            "note": "Completed and verified"
+          }
+        }
+      },
+      {
+        "id": "3d4eccad-5df9-47fe-8830-b555bb7a508f",
+        "label": "Yishai XPS",
+        "revision": "43c4fa744134",
+        "seenAt": "2026-09-15T16:36:19.976Z",
+        "online": false,
+        "nodeId": "3d4eccad-5df9-47fe-8830-b555bb7a508f",
+        "status": "working",
+        "jobId": 13,
+        "pending": {},
+        "maintenance": {
+          "backup": {
+            "status": "done",
+            "attemptedAt": "2026-09-15T15:03:38.306Z",
+            "finishedAt": "2026-09-15T15:03:40.453Z",
+            "nextAt": "2026-09-16T15:03:40.453Z",
+            "note": "Completed and verified"
+          },
+          "comps": {
+            "status": "done",
+            "attemptedAt": "2026-09-15T15:03:40.461Z",
+            "finishedAt": "2026-09-15T15:04:07.059Z",
+            "nextAt": "2026-09-15T19:04:07.059Z",
+            "note": "Completed and verified"
+          }
+        }
+      }
+    ],
+    "sources": [
+      {
+        "source": "facebook",
+        "status": "healthy",
+        "lastSearchAt": "2026-09-16T01:21:28.926Z",
+        "lastSuccessAt": "2026-09-16T01:21:28.926Z",
+        "newestCaptureAt": "2026-09-16T01:21:31.377Z",
+        "lastUploadAt": "2026-09-16T01:23:26.360Z",
+        "issue": null,
+        "activeStage": null
+      },
+      {
+        "source": "offerup",
+        "status": "healthy",
+        "lastSearchAt": "2026-09-16T01:21:45.964Z",
+        "lastSuccessAt": "2026-09-16T01:21:45.964Z",
+        "newestCaptureAt": "2026-09-16T01:44:28.435Z",
+        "lastUploadAt": "2026-09-16T01:24:18.790Z",
+        "issue": null,
+        "activeStage": null
+      },
+      {
+        "source": "mercari",
+        "status": "healthy",
+        "lastSearchAt": "2026-09-16T01:22:04.549Z",
+        "lastSuccessAt": "2026-09-16T01:22:04.549Z",
+        "newestCaptureAt": "2026-09-16T01:22:01.740Z",
+        "lastUploadAt": "2026-09-16T01:25:17.198Z",
+        "issue": null,
+        "activeStage": null
+      }
+    ],
+    "policy": {
+      "preferredNode": null,
+      "fallbackMinutes": 5
+    },
+    "server": {
+      "source": "craigslist",
+      "enabled": true,
+      "backup": {
+        "status": "failed",
+        "attemptedAt": "2026-09-16T01:24:49.191Z",
+        "finishedAt": "2026-09-16T01:24:49.191Z",
+        "nextAt": "2026-09-16T02:24:49.191Z",
+        "note": "Not enough verified free space for a safe backup"
+      },
+      "storage": {
+        "totalBytes": 4685873152,
+        "freeBytes": 97583104,
+        "pressure": "low",
+        "databaseBytes": 4447391744,
+        "walBytes": 4363112
+      }
+    }
+  }
+}

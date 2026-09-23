@@ -113,8 +113,10 @@ The laptop half runs through `bun run agent`, which polls `/v1/jobs/next` every
 - **Windows: `child.kill()` does not kill a process tree.** Use
   `taskkill /pid X /T /F`. A surviving Chrome renderer keeps the profile
   locked and the next crawl cannot open it.
-- **Crawl browsers open OFF-SCREEN** (`--window-position=-32000,-32000`), so
-  automation never steals focus while he is using the machine.
+- **Windows automatic headed browsers use the private `FiltrsoftCollector`
+  desktop.** Off-screen coordinates alone do not prevent foreground activation.
+  Keep manual sign-in visible (`background: false`) and never switch the input
+  desktop. See `docs/COLLECTOR-FOCUS-2026-09-20.md`.
 
 ---
 

@@ -101,7 +101,11 @@ for await (const ev of runMarketWorker(source, {
         }
       } catch (e) {
         failures++;
-        console.error(`    \x1b[31mfailed: ${(e as Error).message.slice(0, 70)}\x1b[0m`);
+        // Keep SQLite's extended code: the old generic "database is locked"
+        // hid whether a write timed out or a stale WAL snapshot was rejected.
+        const code=(e as {code?:unknown})?.code;
+        const detail=typeof code==='string'&&/^SQLITE_[A-Z_]+$/.test(code)?` [${code}]`:'';
+        console.error(`    \x1b[31mfailed: ${(e as Error).message.slice(0, 70)}${detail}\x1b[0m`);
       }
     }
     if(!has('dry'))recordDiscovery(source,ev.query,{cards:cards.length,known:cards.length-fresh.length,eligible:inScope.length,selected:Math.min(limit,inScope.length),saved:analysed-beforeSaved,failed:failures-beforeFailed});

@@ -28,6 +28,7 @@ import {acquireProfileLease} from "./profile-lease.mjs";
 import { chromium } from "playwright-core";
 import { mkdirSync, existsSync } from "node:fs";
 import readline from "node:readline";
+import { backgroundLaunchOptions } from './windows-desktop.mjs';
 
 const [, , command, optsJson] = process.argv;
 const opts = JSON.parse(optsJson ?? "{}");
@@ -54,7 +55,7 @@ mkdirSync(opts.profileDir, { recursive: true });
 const releaseProfile=acquireProfileLease(opts.profileDir);
 const ctx = await chromium.launchPersistentContext(opts.profileDir, {
   timeout:60_000,
-  executablePath: opts.chromePath,
+  ...await backgroundLaunchOptions({background:opts.background??true,headless:opts.headless??false,executablePath:opts.chromePath}),
   headless: opts.headless ?? false,
   viewport: { width: 1280, height: 900 },
   locale: "en-US",
