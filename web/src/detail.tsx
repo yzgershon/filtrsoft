@@ -2,6 +2,7 @@ import {LoadBoundary} from './load-boundary.tsx';
 import {sellerClick} from './seller-click.ts';
 import {availabilityLabel} from './availability.ts';
 import {SpecificationSheet} from "./specifications.tsx";
+import {PhotoReading} from "./photo-reading.tsx";
 const PriceHistory=lazy(()=>import('./listing-workspace.tsx').then(m=>({default:m.PriceHistory})));
 const InspectionWorkspace=lazy(()=>import('./listing-workspace.tsx').then(m=>({default:m.InspectionWorkspace})));
 import { Popup, motionAllowed, type Dismiss } from "./popup.tsx";
@@ -621,7 +622,7 @@ export function Report({listing,verdict,signals,comps=[],meta,stage,reading,chec
         {reading>0&&<div className="reading" role="status"><span className="spin"/>Reading {reading} photos</div>}
         {stage<3&&<div className="prog" aria-hidden="true">{[0,1,2].map(i=><span className={`step ${stage>i?'on':''}`} key={i}><i/></span>)}</div>}
       </div>
-      <div className="detail-panel" id={`${prefix}-specs-panel`} role="tabpanel" aria-labelledby={`${prefix}-specs-tab`} hidden={tab!=='specs'}><SpecificationSheet specs={meta?.specifications} inventory={!!verdict?.inventory}/></div>
+      <div className="detail-panel" id={`${prefix}-specs-panel`} role="tabpanel" aria-labelledby={`${prefix}-specs-tab`} hidden={tab!=='specs'}><SpecificationSheet specs={meta?.specifications} inventory={!!verdict?.inventory}/><PhotoReading reading={meta?.photoReading}/></div>
       <div className="detail-panel" id={`${prefix}-evidence-panel`} role="tabpanel" aria-labelledby={`${prefix}-evidence-tab`} hidden={tab!=='evidence'}>
         <SoldComparisons key={listing.url} comps={comps} count={verdict?.valuation.compCount??0}/>
         {checkId&&tab==='evidence'&&<LoadBoundary><Suspense fallback={<p role="status">Loading history…</p>}><PriceHistory key={checkId} id={checkId} placeholder={!!verdict?.inventory||listing.askingPriceCents!==null&&listing.askingPriceCents<=100}/></Suspense></LoadBoundary>}

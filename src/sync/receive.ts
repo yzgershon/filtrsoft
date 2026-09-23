@@ -4,6 +4,7 @@ import { syncPhotoUrls, fingerprintOf,ensurePhotoClock } from "../vision/merge.t
 import {rawObject} from '../db/facts.ts';
 import { batchSchema, contentHash, ensureSync, type SyncAck } from "./outbox.ts";
 import {ensureEnrichment} from '../db/enrichment.ts';
+import {ensurePhotoReadings} from '../vision/photo-readings.ts';
 
 /** Acknowledgement means facts and a scoring request are durable. Derivation and
  * thumbnails run in background queues; slow images cannot hide accepted writes.
@@ -12,10 +13,11 @@ export function receiveChanges(input:unknown):{acks:SyncAck[]} {
   const batch=batchSchema.parse(input),d=db();ensureSync(d);
   ensureEnrichment(d);
   ensurePhotoClock(d);
+  ensurePhotoReadings(d);
   // Validate the whole envelope before any writes, including replay identity.
   for(const c of batch.changes) {
     if(contentHash(c.listing)!==c.hash) throw new Error("change hash mismatch");
-    if([c.listing.observedAt,c.listing.detailAt,c.listing.photosAt,c.listing.retiredAt,c.listing.vision?.createdAt,c.listing.availability?.observedAt,c.listing.enrichment?.attemptedAt,c.listing.recovery?.observedAt].some(t=>t&&Date.parse(t)>Date.now()+300_000)) throw new Error("observation timestamp is in the future");
+    if([c.listing.observedAt,c.listing.detailAt,c.listing.photosAt,c.listing.retiredAt,c.listing.vision?.createdAt,c.listing.availability?.observedAt,c.listing.enrichment?.attemptedAt,c.listing.recovery?.observedAt,c.listing.photoReading?.updatedAt].some(t=>t&&Date.parse(t)>Date.now()+300_000)) throw new Error("observation timestamp is in the future");
     if(c.listing.vision) JSON.parse(c.listing.vision.payload);
   }
   return d.transaction(()=>{
@@ -99,6 +101,9 @@ export function receiveChanges(input:unknown):{acks:SyncAck[]} {
             status='applied';
           }
         }
+        // Display-only: stored beside the listing, no recheck, no verdict input.
+        if(l.photoReading&&d.run(`INSERT INTO photo_readings VALUES(?,?,?) ON CONFLICT(listing_id) DO UPDATE SET updated_at=excluded.updated_at,payload=excluded.payload
+          WHERE excluded.updated_at>photo_readings.updated_at`,[stored.id,l.photoReading.updatedAt,JSON.stringify(l.photoReading)]).changes)status='applied';
         const v=l.vision;
         const hashes=d.query('SELECT phash FROM listing_photos WHERE listing_id=?').all(stored.id) as {phash:string|null}[];
         if(v&&hashes.length&&hashes.every(p=>p.phash)&&fingerprintOf(hashes.map(p=>p.phash!))===v.fingerprint){

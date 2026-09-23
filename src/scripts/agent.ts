@@ -82,6 +82,10 @@ while(true) {
         if(!workWaiting&&!isPaused())await maintenanceTask('cohort',['run','src/scripts/cohort-recovery.ts'],{intervalMs:60000,timeoutMs:300000,cancelled:()=>isPaused()||workWaiting});
         if(!workWaiting&&!isPaused()&&process.env.FILTRSOFT_AGENT_COMPS==='1')await maintenanceTask('identity-comps',['run','comps:refresh','--identity-only'],{intervalMs:900000,timeoutMs:360000,cancelled:()=>isPaused()||workWaiting});
         if(!workWaiting&&!isPaused()&&process.env.FILTRSOFT_AGENT_COMPS==='1')await maintenanceTask('comps',['run','comps:refresh'],{intervalMs:3600_000,timeoutMs:360_000,cancelled:()=>isPaused()||workWaiting});
+        // Display-only photo readings. A paid Luna request is not abandoned for
+        // waiting work (it would be billed and lost); a pass is at most ten.
+        if(!workWaiting&&!isPaused()&&process.env.FILTRSOFT_PHOTO_SHADOW==='1')await maintenanceTask('photo-shadow',['run','photo:shadow','--luna','--limit','10'],{intervalMs:5*60_000,timeoutMs:15*60_000,cancelled:isPaused});
+        if(!workWaiting&&!isPaused()&&process.env.FILTRSOFT_PHOTO_SHADOW_GEMMA==='1')await maintenanceTask('photo-verify',['run','photo:shadow','--gemma','--minutes','12'],{intervalMs:5*60_000,timeoutMs:20*60_000,cancelled:()=>isPaused()||workWaiting});
       }finally{clearInterval(timer);}
     }
   } catch(error){lastError=String(error).slice(0,500);console.error(`[${new Date().toISOString()}] ${lastError}`);state('offline');}
