@@ -44,8 +44,9 @@ OMEN collector now; production gets it when the September 22 pull request is mer
 - **Installing an update:** only through the maintenance script (idle collector, owned
   stop, restore-verified backup, fast-forward, installed tests and doctor, preservation
   check, restart through *Filtrsoft Daily Crawl*). Example:
-  `C:\Dev\filtrsoft-recovery-data\claude-20260922\maintain-0348.ps1`. Never `git pull` in
-  the runtime and never reset it.
+  `powershell -NoProfile -File C:\Dev\filtrsoft-recovery-data\claude-20260922\maintain.ps1 -target <commit> -tag <name>`,
+  then read `maintenance-<name>-receipt.json` beside it. Never `git pull` in the runtime
+  and never reset it.
 
 ## Checking health
 
