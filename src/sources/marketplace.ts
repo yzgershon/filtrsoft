@@ -1,5 +1,5 @@
 import {workerEvents} from "../agent/worker.ts";
-import {sameMarketplaceItem} from './item-url.ts';
+import {sameMarketplaceItem,redirectedToIndex} from './item-url.ts';
 /**
  * OfferUp and Mercari — parsing and basis.
  *
@@ -412,14 +412,20 @@ const NO_OPINION_URL = /\/(login|signin|sign-in|checkpoint|challenge)\b/i;
 export function probeVerdict(p: { text: string; finalUrl: string; url?:string; title?:string; heading?:string; itemText?:string; actions?:string[]; error?: string }): ProbeVerdict {
   if (p.error) return null;
   const text = (p.text ?? "").trim();
-  // An empty body is a page that did not render, not a deleted listing.
-  if (text.length < 10) return null;
   if (NO_OPINION_URL.test(p.finalUrl)) return null;
   if (NO_OPINION_HEAD.test(text) || /just a moment|security verification|verify you are human/i.test(`${p.title??''}\n${text.slice(0,300)}`)) return null;
 
   // Do not read another item's price, sold badge or recommendations as this
   // item's availability. Legacy fixtures without requested URLs still work.
-  if(p.url && !sameMarketplaceItem(p.url,p.finalUrl))return null;
+  // A server redirect from the requested item to the site's own index is URL
+  // evidence of removal. Until September 22 this line returned before the
+  // redirect check below could run, so Facebook's removed items stayed
+  // "unknown" and were retried for their whole 28-day window. A mistaken
+  // retirement is restored by the next search sighting (upsertListing).
+  if(p.url && !sameMarketplaceItem(p.url,p.finalUrl))
+    return redirectedToIndex(p.url,p.finalUrl)?{gone:true,reason:'redirected from the item to the marketplace index'}:null;
+  // An empty body is a page that did not render, not a deleted listing.
+  if (text.length < 10) return null;
   // September 17's live Mercari read had the exact title on its own breadcrumb
   // line, preceded by ">", then recommendations before the real h1. Matching
   // that first copy hid the $529 item price and returned unknown availability.
