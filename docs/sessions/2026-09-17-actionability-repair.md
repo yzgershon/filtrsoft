@@ -1,5 +1,29 @@
 # Listing evidence, availability and delivery repair
 
+## Verified release outcome, 19:10 UTC
+
+Main **526de33 / engine 0.3.38** is live. Railway deployment **6509836189**
+succeeded at 18:49:40 UTC; CI **35261133021** passed the full Linux suite,
+typecheck, frontend build, verification image and production image. Local full
+suite passed **385 tests / zero failures / 1,259 assertions**. The 19:09:41 UTC
+public receipt matches all six built assets and the HTML entry, checks anonymous
+access is denied on private feed/push-status routes, and reports zero pending or
+failed scores. Production #7579 now has RISK and a quoted DAMAGED_DISPLAY blocker.
+
+Final measured signed-in feed: **3 BUY, 12 VERIFY, 30 FAIR, 172 PASS, 147 RISK,
+2,555 INSUFFICIENT_DATA**. One BUY is an existing manual override. Collection was
+active throughout; these are live counts, not a controlled comparison. The
+unknown backlog remains unresolved. Six formerly recommended Facebook/OfferUp
+items were directly verified gone after the new collector cycle; some fresh
+source-checked recommendations also appeared.
+
+Still outstanding: confirmation of the desktop's final Mercari item-panel
+follow-up, physical-phone registration/delivery (deferred by Yish), and durable
+production backup/physical space recovery. Do not claim the $529 Mercari ask was
+uploaded merely because a browser extraction read it correctly. The laptop
+collector remains paused. Final verification documentation is kept in a local
+commit after the live source release, ready for the next code push.
+
 ## Final live-data regression: disclosed screen damage
 
 Fresh OfferUp #7579 said "fully operable - there is a crack on the screen" but

@@ -1,7 +1,9 @@
 # Move collection to the gaming desktop
 
 Prepared for Yish's HP OMEN MAX 45L, Ryzen 7 9700X, 32GB DDR5 and RTX 4070 Ti.
-This is a future migration, not evidence of installation on that computer.
+The September 15 HP OMEN installation is now recorded at the top of `HANDOFF.md`.
+Use that checkpoint for actual results and unfinished checks; the procedure below
+also applies to a future clean installation.
 
 ## Code and data
 
@@ -42,8 +44,42 @@ Use the existing installer with `--prepare`, explicit `--node`, `--env-file`,
 `--database` and `--state` paths, plus `--label "Gaming desktop"`. This writes a
 reviewable configuration without installing startup. Run `bun run agent:doctor`
 with the same state/environment/database paths; it prints presence checks only.
-After setup is ready, run the installer without `--prepare` and start the generated
-`start.cjs`. Do not reuse the laptop's `node-id` file.
+After setup is ready, run the installer without `--prepare`. Start through the
+daily task as described below. Do not reuse the laptop's `node-id` file.
+
+The installer fix on the desktop setup branch creates **Filtrsoft Daily Crawl**
+when absent: daily 10 AM, current interactive user, `StartWhenAvailable`,
+`IgnoreNew` and a five-minute launcher limit. An existing task retains its schedule,
+principal and settings while its action is updated. Its old XML and any previous
+shortcut/legacy launcher are backed up in runner state.
+
+The original OMEN runtime at **43c4fa744134** predates that fix: it only
+updates an existing task, and the first installation exited 1 when none existed.
+For that revision, create the per-user task using `install-preview.json`, then
+rerun the installer. This workaround was completed on the OMEN, which is now
+updated to reviewed revision **a91943a1c898** with the installer/doctor fixes and
+tested SQLite write-contention protection. The existing task was retained. Start the
+collector with `Start-ScheduledTask -TaskName 'Filtrsoft Daily Crawl'` so it runs
+independently of the terminal or Codex command session. Verify the task returns 0
+and a fresh `supervisor.json`/`status.json` appears; invoking a shortcut alone is
+not evidence that its child survived the session.
+
+The doctor checks path presence. It does not validate the upload token or account
+sign-in. The installed fix honors `--state` and the configured Node path; always
+load `FILTRSOFT_AGENT_STATE` from the private environment file or supply `--state`
+so doctor checks the intended installation. Check authenticated
+diagnostics, actual marketplace results, and server acknowledgements separately.
+The older eBay login command can mistake a generic greeting for a signed-in
+session. The setup-branch fix requires positive account-header evidence and treats
+unconfirmed sign-in as a failed check. A successful header check still does not
+prove sold-search access; the OMEN's actual dated comps and applied server
+acknowledgements provide that evidence.
+
+If Collection is missing from Settings while signed in, the existing server
+checks whether the account owns the device named by `FILTRSOFT_OWNER_REF`.
+Inspect the production configuration and obtain approval for an owner-setting
+change. Do not reuse browser cookies, bypass this check with the collector token,
+or remove the account restriction to make the panel appear.
 
 Once the desktop appears in Settings > Collection, select **Gaming desktop** as
 primary and keep the default five-minute offline grace for the laptop fallback.
@@ -51,6 +87,14 @@ The existing job owner finishes its current job. Verify a real desktop search,
 upload acknowledgement and failed-host handoff before retiring the laptop role.
 
 ## Daily operation
+
+On Windows, automatic headed Chrome launches use the private
+`FiltrsoftCollector` Win32 desktop. They retain the same persistent profiles and
+headed rendering without opening windows on the gaming desktop. Manual login
+still opens visibly. The launcher compiles a small helper with Windows' existing
+.NET compiler on first use, caches it under runner state by source hash, and
+fails the crawl if isolation cannot start. It never falls back to a foreground
+window. See `COLLECTOR-FOCUS-2026-09-20.md` for verification and recovery details.
 
 Windows must be signed in and awake; turning off the display is fine. No power
 settings are changed by the installer. The supervisor restores a crashed worker,

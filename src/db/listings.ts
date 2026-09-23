@@ -43,7 +43,11 @@ export function upsertListingFacts(
   // A caller outside a batch transaction must not commit the new asking price
   // while losing its history on a second-statement failure. Nested Bun SQLite
   // transactions use savepoints, so the sync receiver keeps its outer boundary.
-  return d.transaction(()=>persistListingFacts(d,facts,new Date(observedAt).toISOString()))();
+  // Reserve the writer before the first SELECT. In WAL mode, another process
+  // (for example the agent reporting progress) can otherwise commit between our
+  // read and write, producing SQLITE_BUSY_SNAPSHOT without waiting for the
+  // configured busy_timeout. BEGIN IMMEDIATE can wait before taking a snapshot.
+  return d.transaction(()=>persistListingFacts(d,facts,new Date(observedAt).toISOString())).immediate();
 }
 
 function persistListingFacts(d:Database,facts:ListingFacts,observedAt:string):UpsertListingResult {

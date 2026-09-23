@@ -22,6 +22,7 @@
  * homepage first is what a person does, and it is what makes the difference.
  */
 import { openContext, emit, log, pause, scroll, profilePath } from "./launch.mjs";
+import {readEbaySignInState,waitForManualSignIn} from './ebay-login-state.mjs';
 
 const [, , command, optsJson] = process.argv;
 const opts = JSON.parse(optsJson ?? "{}");
@@ -52,18 +53,9 @@ try {
     const page = ctx.pages()[0] ?? (await ctx.newPage());
     await warm(page);
 
-    // Cheap signed-in probe that does NOT touch the sold-search URL. Checking
-    // by navigating is what created the problem this branch now avoids.
-    await page.goto("https://www.ebay.com/", { waitUntil: "domcontentloaded", timeout: 60_000 });
-    await pause(1500, 2500);
-    const greeted = await page
-      .locator('a[href*="/mys/"], #gh-ug, [data-testid="greeting"]')
-      .count()
-      .catch(() => 0);
-
-    if (greeted > 0) {
-      log("already signed in");
-      emit({ type: "done", stats: { loggedIn: true } });
+    if (await readEbaySignInState(page)) {
+      log("signed-in account header verified");
+      emit({ type: "done", stats: { loggedIn: true, verification: 'account-header' } });
     } else {
       /**
        * LAND ON THE PLAIN SIGN-IN PAGE AND THEN DO NOT TOUCH THE BROWSER.
@@ -83,43 +75,19 @@ try {
        * window stays open the whole time.
        */
       await page.goto("https://www.ebay.com/signin/", { waitUntil: "domcontentloaded", timeout: 60_000 });
-      log("NOT signed in. Sign in in the Chrome window — take as long as you need,");
+      log("Sign-in is unconfirmed. Sign in manually in the Chrome window,");
       log("including any 'I am not a robot' check. The window will stay open.");
       log("Press Enter here when you are done (or just wait; it checks on its own).");
-
-      const readline = await import("node:readline");
-      const rl = readline.createInterface({ input: process.stdin });
-      const enter = (async () => { for await (const _ of rl) break; })();
 
       /**
        * Poll passively for the signed-in state. NO NAVIGATION — it reads the
        * page Yish is already on, so a captcha in progress is never interrupted.
        */
-      const detected = (async () => {
-        for (let i = 0; i < 180; i++) {           // 180 x 5s = 15 minutes
-          await new Promise((r) => setTimeout(r, 5000));
-          const n = await page
-            .locator('a[href*="/mys/"], #gh-ug, [data-testid="greeting"]')
-            .count()
-            .catch(() => 0);
-          if (n > 0) return true;
-        }
-        return false;
-      })();
-
-      await Promise.race([enter, detected]);
-      rl.close();
-
-      // Only NOW touch the sold URL — the real test of whether it worked.
-      await page.goto(
-        "https://www.ebay.com/sch/i.html?_nkw=rtx+3080&LH_Sold=1&LH_Complete=1",
-        { waitUntil: "domcontentloaded", timeout: 60_000 },
-      );
-      await pause(2000, 3500);
-      const title = await page.title();
+      const reason=await waitForManualSignIn({input:process.stdin,readSignedIn:()=>readEbaySignInState(page)});
+      const loggedIn=await readEbaySignInState(page);
       emit({
         type: "done",
-        stats: { loggedIn: !SIGNED_OUT.test(title) && !/security measure/i.test(title), title },
+        stats: { loggedIn, verification: loggedIn?'account-header':'unconfirmed', reason },
       });
     }
   } else if (command === "sold") {

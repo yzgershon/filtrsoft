@@ -16,6 +16,7 @@ import { chromium } from "playwright-core";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { backgroundLaunchOptions } from './windows-desktop.mjs';
 
 export const profilePath = (name) =>
   process.env.FILTRSOFT_BROWSER_PROFILE_ROOT
@@ -36,7 +37,7 @@ export async function openContext({ profile, chromePath, headless = false, backg
   try {
   const context=await chromium.launchPersistentContext(dir, {
     timeout:60_000,
-    executablePath: chromePath,
+    ...await backgroundLaunchOptions({background,headless,executablePath:chromePath??chromium.executablePath()}),
     headless,
     viewport: { width: 1400, height: 950 },
     locale: "en-US",
@@ -57,10 +58,10 @@ export async function openContext({ profile, chromePath, headless = false, backg
        * Chromium ignores it, so the window would keep stealing focus while
        * appearing to be configured not to.
        *
-       * Moving it to a coordinate far outside any monitor is the thing that
-       * actually works: the page renders, the compositor runs, Cloudflare sees
-       * a real browser, and nothing ever appears on his desktop or takes the
-       * keyboard. `-32000` is the classic value because it is beyond any
+       * Off-screen coordinates only hide the window; they do NOT prevent
+       * activation. On Windows, backgroundLaunchOptions starts Chrome on a
+       * separate Win32 desktop before any window exists. Keep these coordinates
+       * as a visibility fallback on other platforms. `-32000` is beyond any
        * plausible multi-monitor arrangement while staying inside a signed
        * 16-bit window coordinate.
        */

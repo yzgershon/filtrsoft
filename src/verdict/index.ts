@@ -837,7 +837,13 @@ export function buildVerdict(input: {
   }
 
   const ratio = ask && localMarket ? ask / localMarket : 1;
-  if (ratio > 0 && ratio < 0.6) {
+  /**
+   * ⚠ ONLY WORTH VERIFYING IF THE DEAL WOULD PAY FOR THE TRIP. A $10 GTX 960
+   * at 31% of market was a VERIFY with about $27 in it (September 22). Even if
+   * the gap is real, that cannot clear the drive, so it falls through to FAIR
+   * and stays out of the stream of things he is told to act on.
+   */
+  if (ratio > 0 && ratio < 0.6 && net >= required) {
     return {
       ...money, call: "VERIFY", confidence: valuation.confidence,
       headline: `Priced at ${Math.round(ratio * 100)}% of market. Verify before driving.`,

@@ -118,6 +118,17 @@ export function parseCard(raw: { href: string; text: string; img: string | null 
  * came from; the moment something branches on `source`, the eval set stops
  * meaning anything.
  */
+/**
+ * The worker's lines already run from this item's own h1 to "Seller
+ * information", so they are the scoped item panel. Without it, a seller whose
+ * description is just the title repeats the heading, and the duplicate-title
+ * guard meant for Mercari recommendation carousels answered "unknown" forever.
+ */
+export function detailItemText(d: { heading?: string | null; bodyLines: string[] }): string | undefined {
+  const heading = d.heading?.trim();
+  return heading && d.bodyLines[0]?.trim() === heading ? d.bodyLines.join("\n") : undefined;
+}
+
 export function detailToListing(
   d: { url: string; title: string; bodyLines: string[]; photos: string[]; condition?: string | null;extraction?:import('./detail-evidence.ts').ExtractionReceipt },
   card?: FbCard,
