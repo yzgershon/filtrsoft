@@ -42,6 +42,23 @@ export interface StoreVerdictResult {
  * selected comp, risk, value and economic input is unchanged. September 13's
  * 4.42 GB production database exposed the timestamp defeating exact dedupe.
  * Only this scheduling marker is ignored; no seller evidence is normalized. */
+/**
+ * ⚠ WHAT A PERSON WOULD NOTICE: the call, why, what blocks it, and money that
+ * moved by $25 or more. On 2026-09-25 production had 88 MB free on a 4.7 GB
+ * volume and verdict history was 95% of the database: every hourly re-price
+ * rewrote comp lists and days-on-market, so nearly every re-score appended a
+ * history row (~85,000 rows in the 1.8 days before the September 17 copy).
+ * History is for decisions that changed, not for details that refreshed.
+ */
+export function materialDecision(payload:string):string {
+  try {
+    const v=JSON.parse(payload),bucket=(c:unknown)=>typeof c==='number'?Math.round(c/2500):null;
+    return JSON.stringify([v.call,v.confidence??null,v.decidingUnknown??null,v.blockers??[],bucket(v.netProfitCents),
+      bucket(v.valuation?.medianCents),bucket(v.valuation?.lowCents),bucket(v.valuation?.highCents),v.valuation?.status??null,
+      Boolean(v.inventory),v.boundedDecision?.call??null]);
+  }catch{return payload;}
+}
+
 function decisionContent(payload:string):string {
   try {
     const value=JSON.parse(payload);
@@ -89,6 +106,14 @@ export function storeVerdictWithDb(
     if(latest.engine_version===engineVersion)return {inserted:false,refreshed:false,id:latest.id};
     // An engine revision is historical evidence once a label references it.
     // Append rather than rewriting its version and timestamp under that label.
+  }
+  // Same engine, same decision, refreshed details: keep the current evidence
+  // on the latest row instead of growing history. Labels and decision views
+  // hold their own frozen copies, so nothing references this row's old bytes.
+  if (latest && latest.engine_version===engineVersion && latest.call===verdict.call && latest.confidence===confidence
+      && materialDecision(latest.payload)===materialDecision(payload)) {
+    d.run('UPDATE verdicts SET payload=? WHERE id=?',[payload,latest.id]);
+    return {inserted:false,refreshed:true,id:latest.id};
   }
 
   const r = d.query(

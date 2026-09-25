@@ -530,10 +530,16 @@ describe("verdict retention", () => {
     expect(storeVerdictWithDb(d,1,'test',later,'2026-09-13T11:00:00Z')).toEqual({inserted:false,refreshed:false,id:original.id});
     expect(JSON.parse((d.query('SELECT payload FROM verdicts').get() as {payload:string}).payload).provenance.dataRevision).toBe(first.provenance.dataRevision);
     expect(later.provenance.dataRevision).toBe('2|2026-09-13T11');
+    // 2026-09-25: refreshed evidence under the same decision updates the latest
+    // row in place (history had filled 95% of the production volume).
     const differentEvidence={...later,valuation:{...later.valuation,comps:[{id:2,priceCents:25000}]}};
-    expect(storeVerdictWithDb(d,1,'test',differentEvidence,'2026-09-13T12:00:00Z').inserted).toBe(true);
-    expect(storeVerdictWithDb(d,1,'test',later,'2026-09-13T13:00:00Z').inserted).toBe(true);
-    expect(storeVerdictWithDb(d,1,'next',later,'2026-09-13T14:00:00Z').inserted).toBe(true);
+    expect(storeVerdictWithDb(d,1,'test',differentEvidence,'2026-09-13T12:00:00Z')).toEqual({inserted:false,refreshed:true,id:original.id});
+    expect(JSON.parse((d.query('SELECT payload FROM verdicts').get() as {payload:string}).payload).valuation.comps[0].id).toBe(2);
+    // A $25+ move in value is a decision change and becomes history.
+    const repriced={...later,valuation:{...later.valuation,medianCents:30000}};
+    expect(storeVerdictWithDb(d,1,'test',repriced,'2026-09-13T13:00:00Z').inserted).toBe(true);
+    expect(storeVerdictWithDb(d,1,'next',repriced,'2026-09-13T14:00:00Z').inserted).toBe(true);
+    expect(d.query('SELECT COUNT(*) n FROM verdicts').get()).toEqual({n:3});
     d.close();
   });
   test("deduplicates same-revision answers and preserves prior engine revisions", () => {
@@ -560,11 +566,16 @@ describe("verdict retention", () => {
     expect(db.query("SELECT COUNT(*) n FROM verdicts").get()).toEqual({ n: 2 });
     expect(db.query("SELECT engine_version FROM verdicts").get()).toEqual({ engine_version: "0.1.0" });
 
+    // Headlines carry dollar amounts that move every re-price; a reworded
+    // headline under the same call refreshes the latest row in place.
     const changed = { ...first, headline: "Price dropped, but still overpriced." };
     expect(storeVerdictWithDb(db, 1, "0.1.1", changed, "2026-08-27T02:00:00.000Z")).toMatchObject({
-      inserted: true,
-      refreshed: false,
+      inserted: false,
+      refreshed: true,
     });
+    expect(db.query("SELECT COUNT(*) n FROM verdicts").get()).toEqual({ n: 2 });
+    // A different call is always history.
+    expect(storeVerdictWithDb(db, 1, "0.1.1", { ...first, call: "FAIR" }, "2026-08-27T03:00:00.000Z")).toMatchObject({ inserted: true });
     expect(db.query("SELECT COUNT(*) n FROM verdicts").get()).toEqual({ n: 3 });
     db.close();
   });

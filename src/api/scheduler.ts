@@ -41,7 +41,9 @@ import { pruneThumbs, backfillThumbs } from "../photos/thumb.ts";
 import { runAlerts } from "./alerts.ts";
 import { pruneSessions } from "./auth.ts";
 import { checkStored, ENGINE_VERSION } from "../engine/index.ts";
-import { db, now } from "../db/index.ts";
+import { db, now, DB_PATH } from "../db/index.ts";
+import { pruneVerdictHistoryBatch } from "../db/verdict-history.ts";
+import { checkpointStorage, storageStatus } from "../db/storage.ts";
 import { scorePending } from "../db/scoring.ts";
 import {recoverIdentities} from '../catalog/recovery.ts';
 import {recoverCraigslistCohort} from '../crawler/cohort-pass.ts';
@@ -333,7 +335,21 @@ export function startCrawlLoop() {
     catch(e){console.error('alerts failed',String(e));}finally{setTimeout(()=>void deliver(),30000).unref?.();}};
   setTimeout(()=>void deliver(),30000).unref?.();
   // Scoring uploaded PC evidence must continue even when server discovery is off.
-  const scoring=()=>{try{scorePending(50,undefined,undefined,false);}catch(e){console.error('scoring failed',String(e));}
+  // Verdict history retention (see pruneVerdictHistoryBatch): short steps with
+  // a WAL checkpoint between them, a full pass, then a re-check every 6 hours.
+  // With storage under pressure the first pass runs fast and scoring waits for
+  // it: an engine change re-scores every listing, and on 2026-09-25 the volume
+  // had 88 MB free before this retention freed ~2 GB of reusable pages.
+  let pruneAfter=0,pruned=0,firstPassDone=false;
+  const pressured=()=>storageStatus(DB_PATH).pressure!=='normal';
+  const prune=()=>{let wait=pressured()&&!firstPassDone?250:1500;
+    try{const r=pruneVerdictHistoryBatch(db(),{after:pruneAfter});pruned+=r.deleted;pruneAfter=r.next;
+      if(r.deleted)checkpointStorage(db(),DB_PATH);
+      if(r.done){console.log('verdict history pruned',JSON.stringify({rows:pruned,storage:storageStatus(DB_PATH)}));pruneAfter=0;pruned=0;firstPassDone=true;wait=6*3600_000;}
+    }catch(e){console.error('verdict history prune failed',String(e));wait=60_000;}
+    finally{setTimeout(prune,wait).unref?.();}};
+  setTimeout(prune,5000).unref?.();
+  const scoring=()=>{try{if(firstPassDone||!pressured())scorePending(50,undefined,undefined,false);}catch(e){console.error('scoring failed',String(e));}
     finally{setTimeout(scoring,1000).unref?.();}};
   setTimeout(scoring,5000).unref?.();
   if (!ENABLED) { console.log("crawl loop: disabled (FILTRSOFT_CRAWL=off)"); return; }
