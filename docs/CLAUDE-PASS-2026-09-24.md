@@ -65,6 +65,35 @@ over 28 days: listings with ≥$75 margin 11 (was 8 at ≥$100).
 494 Luna reads, $0.62 total (September 23 $0.45, 24 $0.13); 75 Gemma
 verifications; 256 waiting for the PC to be idle. Display-only, unchanged.
 
+## Deployment and results (2026-09-25 UTC)
+
+| Step | Receipt |
+|---|---|
+| PR #4 → `21b5c6e`, engine 0.3.49 | live 03:00; first prune pass 03:00–03:05 (scoring held); full re-score 03:05–03:21 |
+| Collector `76077010` → `21b5c6e` | safe maintenance; 70 installed tests pass, typecheck, doctor, identities preserved; backup restore-verified (5,601 listings) |
+| Review of the live 0.3.49 feed | keyboards, monitors, boxes, desks, SD cards, a VHF radio, a 2014 ThinkPad VERIFY, a NAS passed as a CPU, a Legion Go hidden by non-breaking spaces |
+| PR #5 → `8339e32`, engine 0.3.50 | live 03:37; re-score complete 03:53; 30 production titles newly out of scope, each reviewed |
+| Collector `21b5c6e` → `8339e32` | 72 installed tests pass, typecheck, doctor, preserved, backup verified |
+| Storage through two full re-scores | database file **4,447 MB before and after**, WAL 13 MB, 89 MB free: new rows reuse pruned pages |
+
+| Production feed | Before (02:57, 0.3.48) | After (03:54, 0.3.50) |
+|---|---:|---:|
+| Listings in the feed | 4,649 | **2,224** |
+| BUY | 3 | **4** |
+| VERIFY | 10 (6 were iPhone 17 Pro Max) | **7** (all in scope) |
+| FAIR / PASS / RISK | 81 / 529 / 304 | 43 / 223 / 168 |
+| INSUFFICIENT_DATA | 4,026 | 1,947 |
+
+Current deals: RTX 4090 Suprim Liquid $1,500 (net $706), RTX 5090 FE $2,800 ($723),
+RTX 3090 FE $900 ($289), MSI RTX 5070 Gaming Trio $600 ($91); VERIFY Mac Pro M2 Ultra,
+Mac mini M2, Ryzen 5 9000-series, MacBook Air M2, MacBook Pro M4 Pro, MacBook Air M4 15",
+Gaming PC RTX 3070.
+
+**Alerts were off.** The account has no push subscription and all 9 saved searches
+are paused ("needs review" after the criteria-version change), so no BUY or VERIFY
+has reached the phone. Only Yish can re-enable it on the device: More →
+Notifications → Deal notifications → Enable, then turn on "Include Verify first".
+
 ## Remaining decisions and notes for Yish
 
 1. **Six of the eleven VERIFYs were iPhone 17 Pro Max listings.** Phones are now
@@ -78,4 +107,6 @@ verifications; 256 waiting for the PC to be idle. Display-only, unchanged.
    collection, comps or photo checks during that time.
 4. Backlog: attribute-based RAM/SSD/PSU valuation (low margin), laptop family + GPU
    valuation, photo-reading holdout before facts are written, laptop RAM bounded
-   decisions.
+   decisions; a single unreadable Facebook item (1394: no price or message control)
+   fails the whole recovery stage; six "Pending ·" Facebook titles; office laptops
+   named only by "Ryzen 5" (Surface, Extensa) are still kept.
