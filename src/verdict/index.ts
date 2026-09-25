@@ -531,7 +531,7 @@ export function buildVerdict(input: {
    * "Xbox Series X" matches a SKU and would sail straight past a rule written
    * to exclude it. Being well-known is not the same as being wanted.
    */
-  if (CONSOLES.test(input.title)) {
+  if (CONSOLES.test(input.title.normalize("NFKC"))) {
     return {
       ...base, call: "OUT_OF_SCOPE", confidence: "high",
       headline: "Consoles are out of scope.",
