@@ -10,8 +10,8 @@ test('storage taxonomy and demanded configurations retain capacity, suffix and q
 });
 test('one failed exact query does not block another configuration and unresolved identity is distinct from pricing',()=>isolated(`
  import {db} from '@/src/db/index.ts';import {upsertListingFacts} from '@/src/db/listings.ts';import {collectionPriority,startCollection,finishCollection} from '@/src/sources/comp-priority.ts';
- const d=db(),at=new Date().toISOString();d.run("INSERT INTO skus(category,brand,model,attributes,created_at) VALUES('phone','Apple','iPhone 15','{}',?)",[at]);
- for(const [i,title] of ['Apple iPhone 15 128GB','Apple iPhone 15 256GB','Unknown laptop model'].entries()){
+ const d=db(),at=new Date().toISOString();d.run("INSERT INTO skus(category,brand,model,attributes,created_at) VALUES('laptop','Apple','MacBook Air M2','{}',?)",[at]);
+ for(const [i,title] of ['Apple MacBook Air M2 256GB','Apple MacBook Air M2 512GB','Unknown gaming laptop model'].entries()){
   const id=upsertListingFacts(d,{source:'fixture',sourceId:String(i),url:'https://example.invalid/'+i,title,description:'Fully functional item.',askingPriceCents:20000,location:null,postedAt:null,photoCount:0}).id;
   d.run("INSERT INTO verdicts(listing_id,engine_version,call,payload,created_at) VALUES(?,'fixture','INSUFFICIENT_DATA','{}',?)",[id,at]);
  }

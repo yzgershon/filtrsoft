@@ -504,5 +504,8 @@ export function checkStored(
 // 0.3.48: phone numbers spelled out in words are an off-platform redirect, and
 // a below-market price only earns VERIFY when the deal would pay for the trip.
 // 0.3.49: Yish's scope (2026-09-24): phones, tablets, wearables, accessories,
-// office Windows machines and pre-2020 hardware are OUT_OF_SCOPE.
+// office Windows machines and pre-2020 hardware are OUT_OF_SCOPE; laptops and
+// whole PCs are no longer priced as their GPU; GPU sales prefer, not require,
+// the board maker; minimum profit $75 (20-minute crossover) and local resale
+// at 86.5% of eBay (eBay's ~13.5% cut).
 export const ENGINE_VERSION = "0.3.49";

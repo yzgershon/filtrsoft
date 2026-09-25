@@ -45,7 +45,8 @@ console.log(`seeded skus: +${added} (${dead.n} marked dead)`);
 
 // --- 1. Yish's economics -----------------------------------------------
 //
-// ⚠ RESTATED 2026-08-31: "$100 profit with a 20 min drive."
+// ⚠ RESTATED 2026-09-24: "$75" (was "$100 profit with a 20 min drive", 2026-08-31).
+// Same 20-minute crossover: $75 flat, then $60/hr.
 //
 // The old pair ($100 local, $150 at 30 min) resolved to ~$125/hr, and with 15
 // minutes of meeting and 20 of relisting that made the CLOCK the binding term
@@ -60,7 +61,7 @@ d.query(
   `INSERT INTO user_economics (label, home_location, min_absolute_profit_cents,
      effective_hourly_floor_cents, max_drive_minutes, transaction_minutes,
      relist_minutes, prefers_channel, updated_at)
-   VALUES ('yish', 'Newton, MA', 10000, 8000, NULL, 15, 20, 'facebook', $now)
+   VALUES ('yish', 'Newton, MA', 7500, 6000, NULL, 15, 20, 'facebook', $now)
    ON CONFLICT(label) DO UPDATE SET
      min_absolute_profit_cents = excluded.min_absolute_profit_cents,
      effective_hourly_floor_cents = excluded.effective_hourly_floor_cents,
