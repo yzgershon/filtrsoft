@@ -27,9 +27,13 @@ never takes focus from a game. Manual sign-ins still open visibly.
    INSUFFICIENT_DATA means a deciding fact is missing and the app says which one.
 5. Save or dismiss, and record a purchase or pass so later outcomes can be reviewed.
 
-Engine 0.3.48 no longer sends VERIFY for tiny-margin items (a $10 GTX 960) and treats
-phone numbers spelled out in words as an off-platform redirect (RISK). It runs on the
-OMEN collector and in production (deployed September 23, 03:16 UTC).
+**What the feed carries (Yish, September 24):** GPUs and gaming PCs, laptops and
+MacBooks, and PC parts, from about 2020 on (Intel 10th gen, Ryzen 3000, RTX 20 /
+GTX 16, RX 5000, Apple M1). Phones, tablets, wearables and VR, accessories, office
+and basic Windows machines without a gaming GPU, and older hardware are marked out
+of scope and never shown. **BUY/VERIFY need at least $75 net** for a trip of up to
+20 minutes (more for longer drives), with a local sale assumed to bring the eBay sold
+price less eBay's ~13.5% cut. Engine 0.3.49.
 
 ## When something changes on the OMEN
 
@@ -52,7 +56,10 @@ OMEN collector and in production (deployed September 23, 03:16 UTC).
 
 ## Checking health
 
-- Production: `https://filtrsoft.com/v1/health` (engine, database, scoring pending).
+- Production: `https://filtrsoft.com/v1/health` (engine, database, scoring pending,
+  storage pressure). Verdict history older than 14 days is pruned automatically
+  (current verdicts and anything a decision record names are kept). The volume is
+  small: on-server backups need room for a full copy and stay off until it grows.
 - Collector: `C:\Dev\filtrsoft-runner-state\status.json` and `agent.log`, or
   `bun --env-file=C:/Dev/filtrsoft-data/collector.env run agent:status --remote`.
 - A source shown as "attention" now comes with a reason per item in `agent.log`.
