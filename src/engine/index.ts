@@ -508,4 +508,8 @@ export function checkStored(
 // whole PCs are no longer priced as their GPU; GPU sales prefer, not require,
 // the board maker; minimum profit $75 (20-minute crossover) and local resale
 // at 86.5% of eBay (eBay's ~13.5% cut).
-export const ENGINE_VERSION = "0.3.49";
+// 0.3.50: scope tightened from the live feed: peripherals, boxes, furniture,
+// memory cards and monitors are out; old ThinkPad/Latitude generations and
+// vintage Macs are pre-2020; X3D CPUs and part titles are recognised; titles
+// with non-breaking spaces reach the rules and the consoles check.
+export const ENGINE_VERSION = "0.3.50";

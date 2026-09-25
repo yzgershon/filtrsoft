@@ -61,6 +61,28 @@ describe("Yish's scope (2026-09-24)",()=>{
     expect(code('MacBook Air 2020','laptop')).toBe('keep');
     expect(code('Mac Mini 2023 M2','prebuilt')).toBe('keep');
   });
+  test('0.3.50: peripherals, boxes, furniture, media and monitors are out; bundles and parts are kept',()=>{
+    for(const [t,c,want] of [
+      ['Memorex Keyboard and Mouse Set - Gaming/Computer Accessories','unknown','accessory'],
+      ['Apple MacBook Air 13" box','laptop','accessory'],['MacBook Pro Empty Box','laptop','accessory'],
+      ['Modern Gaming, Computer, Work Desk, Waterproof metal top','unknown','not_tech'],
+      ['Standard Horizon HX890 VHF radio','unknown','not_tech'],['SanDisk Ultra 16GB SDHC Memory Cards','ram','not_ours'],
+      ['Acer Nitro 27”','unknown','not_ours'],['Synology DS720+','component','not_ours'],
+      ['Thinkpad T440p Engineering, Gaming Laptop i7, 16GB RAM, SSD','laptop','old_computer'],['Lenovo ThinkPad T490 Laptop 16GB','laptop','old_computer'],
+      ['Two Apple Macintosh Computers','unknown','old_mac'],['Beeline Intel Core i5 8th gen','unknown','old_cpu'],
+      ['AMD Ryzen 7 7800X3D','component','keep'],['ASUS PRIME X670-P WIFI ATX Motherboard - DIFFERENT FROM BOX','motherboard','keep'],
+      ['Pink 24-inch Apple iMac – Excellent Condition – Keyboard & Mouse Included','prebuilt','keep'],
+      ['Complete Gaming PC Setup – RTX 4060 Ti 16GB / i7 / 32GB RAM / Dual 144Hz Monitor','prebuilt','keep'],
+      ['OMEN Gaming,i7,24gb,RTX 3060,256gb nvme,2tb storage,27" monitor','prebuilt','keep'],
+      ['Gaming Pc barely used . no box','prebuilt','keep'],['RTX 3080 original box','gpu','keep'],['RTX 4090 new in box','gpu','keep'],
+      ['SAMA SF200 3 in 1 Case Fans with Fan Hub 120mm PC Fan','prebuilt','keep'],['Samsung PC4-2133P 16GB Laptop memory','ram','keep'],
+      ['Crucial MX500 500GB 2.5-inch Solid State Drive','storage','keep'],['DELL G15 5511 i7-11800H, 16GB RAM, RTX 3050 W/ CHARGER','laptop','keep'],
+    ] as const)expect({t,got:code(t,c,t.includes('Synology')?'Quad core CPU, 6gb RAM':undefined)}).toEqual({t,got:want});
+  });
+  test('non-breaking spaces do not hide a title from the rules',()=>{
+    expect(code('Iphone 17 pro max','phone')).toBe('phone');
+    expect(code('Sapphire RX 580 8GB','gpu')).toBe('old_gpu');
+  });
   test('era readers',()=>{
     expect(new Set(gpuEras('RTX 3080 and a spare GTX 970'))).toEqual(new Set(['new','old']));
     expect(gpuEras('Ryzen 5 7600X')).toEqual([]);
