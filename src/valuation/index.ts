@@ -71,11 +71,13 @@ export const isShippable = (category: string) =>
 
 /**
  * Facebook gross runs below eBay: local buyer pool, no buyer protection.
- * 0.85 is a STARTING ASSUMPTION, not a measured number — there is no sold-comp
- * source for Facebook anywhere. It gets replaced by real data from the outcomes
- * table once the sell side ships. See CALIBRATION finding 9.
+ * Was 0.85, a guess. Yish, 2026-09-24: "ebay takes around 13.5%" — a local
+ * buyer pays about what the seller would net on eBay, so the local price is
+ * the eBay sold price less eBay's cut. Still not a measured local price: the
+ * outcomes table replaces it once enough sales are recorded. See CALIBRATION
+ * finding 9.
  */
-const FACEBOOK_GROSS_RATIO = 0.85;
+const FACEBOOK_GROSS_RATIO = 0.865;
 
 export interface CompEvidence {
   id:number; source:string; source_item_id:string; raw_title:string; url:string|null;
@@ -159,6 +161,9 @@ export function looksLikeWholeMachine(title: string): boolean {
   return COMPONENT_FAMILIES.reduce((n, re) => n + (re.test(title) ? 1 : 0), 0) >= 2;
 }
 
+/** Same-maker GPU sales are used only when at least this many exist; otherwise the chip decides. */
+export const GPU_SAME_MAKER_MIN=5;
+
 export function valueSku(
   skuId: number | null,
   opts?: {
@@ -206,8 +211,24 @@ export function valueSku(
 
   if((opts?.category??identity?.category)==='gpu' && opts?.attributes){
     const wanted=opts.attributes;
-    raw=raw.filter(r=>{const got=extractAttributes(r.raw_title,'gpu');
-      return ['board_brand','vram_type','vram_gb'].every(k=>wanted[k]==null || got[k]!=null && wanted[k]===got[k]);});
+    /**
+     * VRAM SIZE SPLITS REAL VARIANTS (RTX 3060 8GB/12GB, 4060 Ti 8GB/16GB) and
+     * stays strict: a sale that does not state the size cannot price a size.
+     * Memory TYPE only excludes a sale that states a different one.
+     *
+     * The BOARD MAKER is preferred, not required. Requiring it left the most
+     * traded cards unpriced on 2026-09-24: a Gigabyte RTX 4060 Ti had 85 chip
+     * sales and 1 Gigabyte sale, a PNY RTX 3070 277 and 1. Premium lines
+     * (Strix, Suprim) are separated by `boardTier` below, which is where the
+     * measured 30%+ spread lives; same-tier makers differ far less.
+     */
+    const gpuOf=new Map(raw.map(r=>[r,extractAttributes(r.raw_title,'gpu')]));
+    raw=raw.filter(r=>{const got=gpuOf.get(r)!;
+      return (wanted.vram_gb==null||got.vram_gb!=null&&got.vram_gb===wanted.vram_gb)&&(wanted.vram_type==null||got.vram_type==null||got.vram_type===wanted.vram_type);});
+    if(wanted.board_brand!=null){
+      const same=raw.filter(r=>gpuOf.get(r)!.board_brand===wanted.board_brand);
+      if(same.length>=GPU_SAME_MAKER_MIN)raw=same;
+    }
   }
 
   if(opts?.buildConfiguration) {
@@ -461,8 +482,8 @@ export function netByChannel(
 }
 
 /** Same documented seeded policy, also available before a fresh DB is seeded. */
-export const DEFAULT_ECONOMICS: Readonly<UserEconomics> = Object.freeze({label:'yish',min_absolute_profit_cents:10000,
-  effective_hourly_floor_cents:8000,transaction_minutes:15,relist_minutes:20,prefers_channel:'facebook'});
+export const DEFAULT_ECONOMICS: Readonly<UserEconomics> = Object.freeze({label:'yish',min_absolute_profit_cents:7500,
+  effective_hourly_floor_cents:6000,transaction_minutes:15,relist_minutes:20,prefers_channel:'facebook'});
 export function getEconomics(label = "yish"): UserEconomics {
   const r=db().query(`SELECT label,min_absolute_profit_cents,effective_hourly_floor_cents,
     transaction_minutes,relist_minutes,prefers_channel FROM user_economics WHERE label=?`).get(label) as UserEconomics|null;

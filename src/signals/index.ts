@@ -31,6 +31,12 @@ const STALE_DAYS: Record<string, number> = {
  * getting that backwards applies the wrong value fields and the wrong risk set.
  * Matched against the TITLE first, then the full text.
  */
+export const LAPTOP_LINE=/\b(alienware\s+(?:m|x)1[5-8]|zephyrus|rog\s+(?:strix\s+)?(?:g|scar)\s?1[4-8]|rog\s+flow|tuf\s+(?:gaming\s+)?[af]1[5-7]|nitro\s+(?:v\s?)?(?:5|15|16|17)\b|predator\s+(?:helios|triton)|razer\s+blade|crosshair\s+1[5-7]|katana\s+1[5-7]|raider\s+(?:ge|18|17|16)|stealth\s+1[4-8]|victus|omen\s+1[5-7]|dell\s+g1[5-6]|legion\s+(?:slim\s+|pro\s+)?[579]i?\b|lenovo\s+loq|vivobook|zenbook|ideapad|galaxy\s+book)/i;
+// A title naming a CPU model AND a GPU model sells a system or a parts bundle, not a card.
+const CPU_MODEL=/\b(?:i[3579][- ]?\d{4,5}[a-z]{0,3}|ryzen\s?[3579]?\s?\d{4}x?3?d?|core\s+ultra\s+\d)\b/i;
+const GPU_MODEL=/\b(?:rtx|gtx|rx)\s?-?\d{3,4}|\b(?:[2-5]0[5-9]0)\b/i;
+const WHOLE_PC=/\bpc\s+(?:gaming|build|set\s?up|setup)\b|\b(?:gaming|gmaing|custom|creator|streaming|budget|high[- ]end|editing|full)\b(?:\s+[\w-]+){0,3}\s+(?:pc|computer)\b|\b(?:cyber\s?power|ibuy\s?power|skytech|maingear|alienware\s+aurora|aurora\s+r\d{1,2}|omen\s+(?:25|30|35|40|45)l|legion\s+t[57])\b|\b(?:rtx|gtx|rx)\s?\d{3,4}\b.*\b\d{1,3}\s?gb\s*(?:ram|ddr[45])?\b.*\b\d+\s?(?:tb|gb)\s*(?:ssd|nvme|hdd)\b/i;
+
 const CATEGORY_PATTERNS: Array<[Category, RegExp]> = [
   ["phone",    /\b(iphone|galaxy s\d|pixel \d|z ?flip|z ?fold|smartphone|note ?\d{2})\b/i],
   ["tablet",   /\b(ipad|galaxy tab|surface pro|tablet)\b/i],
@@ -47,6 +53,19 @@ const CATEGORY_PATTERNS: Array<[Category, RegExp]> = [
    * towers. A mobile workstation is a laptop.
    */
   ["laptop",   /\b(laptops?|macbook|thinkpad|latitude|xps|notebooks?|chromebook|inspiron|precision|elitebook|pavilion|mobile workstations?|workstation laptops?)\b/i],
+  /**
+   * Gaming laptop lines that sellers title without the word "laptop". Before
+   * 2026-09-24 "Alienware m17 R4 | RTX 3070 | i7-10870H" and "ASUS TUF F17 ...
+   * RTX3050" fell through to `gpu` and were priced against desktop card sales.
+   */
+  ["laptop",   LAPTOP_LINE],
+  /**
+   * Whole PCs titled around their parts. "RTX 4080 Super / i9 14900KF Pc
+   * Gaming" ($2,250) was valued as the card alone ($1,000) and called
+   * overpriced; "ZOTAC RTX 5070 GPU and Ryzen 7 9800X3D CPU" at $700 was a
+   * PASS although the two parts sell for about $900.
+   */
+  ["prebuilt", WHOLE_PC],
   /**
    * `all-in-one` is printer vocabulary too, and the printers won.
    * "PRINTER HP ENVY 6055E---Wireless All In One" was classified as a prebuilt
@@ -350,6 +369,10 @@ export function detectCategory(title: string, description = ""): Category {
   const part = resolveCategory(title);
   if (part && (EXACT_PARTS.has(part) || isPortableOmen(title))) return part as Category;
   if(part==='prebuilt'&&isExplicitDesktop(title))return 'prebuilt';
+  // A CPU and a GPU named together is a system (or a parts bundle), not a
+  // card; a gaming laptop line still wins. "Graphics card" keeps a pulled card.
+  if(CPU_MODEL.test(title)&&GPU_MODEL.test(title)&&!/\b(?:graphics|video)\s+card\b/i.test(title))
+    return LAPTOP_LINE.test(title)||/\b(laptops?|notebooks?)\b/i.test(title)?'laptop':'prebuilt';
   // Whole-device and GPU evidence outranks embedded component specs. Keep the
   // compact high-precision patterns first, but do not let the broad component
   // regex fire until the grammatical resolver has had a chance to see the

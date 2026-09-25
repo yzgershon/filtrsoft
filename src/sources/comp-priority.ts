@@ -4,6 +4,7 @@ import {catalogCoverage} from "../valuation/coverage.ts";
 import {matchSku} from "../catalog/match.ts";
 import {usableCompSql} from "../db/comp-evidence.ts";
 import {detectCategory} from '../signals/index.ts';
+import {relevance} from '../signals/relevance.ts';
 import {textFacts} from '../signals/factual-text.ts';
 import {exactDemandQuery} from './comp-query.ts';
 export {exactDemandQuery} from './comp-query.ts';
@@ -40,8 +41,13 @@ export function collectionPriority(limit=20,at=Date.now(),identityOnly=false) {
   let weight=1;
   const add=(id:number,query?:string)=>{demand.set(id,(demand.get(id)??0)+weight);if(query){const counts=queries.get(id)??new Map<string,number>();counts.set(query,(counts.get(query)??0)+weight);queries.set(id,counts);}};
   for(const l of unresolved) {
-    weight=cohort.has(l.id)?20:1;
-    const category=detectCategory(l.title,l.description??''),m=matchSku(l.title,l.description??'',category);
+    const category=detectCategory(l.title,l.description??'');
+    // Stored collector verdicts can predate Yish's 2026-09-24 scope: phones and
+    // office laptops were taking comp collection turns from in-scope GPUs.
+    if(!relevance({title:l.title,description:l.description,category}).keep)continue;
+    // Where the money is: GPUs, CPUs and whole machines outrank cheap parts.
+    weight=(cohort.has(l.id)?20:1)*(['gpu','component','laptop','prebuilt'].includes(category)?2:1);
+    const m=matchSku(l.title,l.description??'',category);
     const conflict=textFacts(`${l.title}\n${l.description??''}`).conflicts.length>0;
     if(conflict)continue;
     if(m.skuId && m.confidence!=='low' && m.category!=='console') {
@@ -68,7 +74,10 @@ export function collectionPriority(limit=20,at=Date.now(),identityOnly=false) {
     const r=raw.get(s.id),age=r?.newest?Math.max(0,(at-Date.parse(r.newest))/86400000):90;
     const n=demandQuery?(queries.get(s.id)?.get(demandQuery)??0):(demand.get(s.id)??0);
     const waiting=last?Math.max(0,(at-Date.parse(last.started_at))/86400000):0;
-    return [{...s,demandQuery,comps:r?.comps??0,demand:n,age,lastAttempt:last?.started_at??'',acceptedYield:last?.saved??0,priority:(exactRecovered?100:0)+Math.min(40,n)*2+waiting}];
+    // A wanted model with no sales at all is the largest gain per collection
+    // turn: the RX 7900 XT, RX 6800 and GTX 1660 had listings and zero comps for days.
+    const neverPriced=n>0&&!(r?.comps)?30:0;
+    return [{...s,demandQuery,comps:r?.comps??0,demand:n,age,lastAttempt:last?.started_at??'',acceptedYield:last?.saved??0,priority:(exactRecovered?100:0)+Math.min(40,n)*2+waiting+neverPriced}];
     });
   }).sort((a,b)=>b.priority-a.priority || (a.status==='ok'?1:0)-(b.status==='ok'?1:0) || b.age-a.age
     || a.compCount-b.compCount || a.lastAttempt.localeCompare(b.lastAttempt) || b.acceptedYield-a.acceptedYield || a.id-b.id)

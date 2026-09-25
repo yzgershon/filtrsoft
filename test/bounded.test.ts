@@ -13,19 +13,17 @@ test('only an explicit exclusive seller domain can support a bounded decision; o
  expect(boundedDecision(domain,[row(128,'PASS',5000),row(256,'PASS',6000)],options,at)?.call).toBe('PASS');
 });
 
-test('the engine preserves the seller uncertainty and risk precedence with exact evidence for every alternative',()=>isolated(`
+test('scope precedes seller-bounded decisions: a phone with a closed storage domain stays out of scope',()=>isolated(`
  import {db,insertComp} from '@/src/db/index.ts';import {runPipeline} from '@/src/engine/index.ts';
  const d=db();d.run("INSERT INTO skus(id,category,brand,model,created_at) VALUES(1,'phone','Apple','iPhone 15',?)",[new Date().toISOString()]);
  for(const capacity of [128,256])for(let i=0;i<6;i++)insertComp({sku_id:1,source:'ebay',source_item_id:String(capacity)+'-'+i,raw_title:'Apple iPhone 15 '+capacity+'GB Factory Unlocked',sold_price_cents:50000,shipping_cents:0,sold_at:new Date().toISOString(),condition_norm:'used',url:'https://ebay.com/itm/'+capacity+i,raw:{soldAt:new Date().toISOString()}});
  const description='Fully working. Factory unlocked. Clean IMEI. Paid off. iCloud removed. Storage is either 128GB or 256GB only.';
  const listing={source:'facebook',sourceId:'bounded',url:'https://facebook.com/marketplace/item/bounded',title:'Apple iPhone 15',description,askingPriceCents:10000,location:null,postedAt:null,photoUrls:[],attributes:{condition:'used'},raw:{extraction:{complete:true,truncated:false}}};
+ // Phones left Yish's scope on 2026-09-24. Scope is settled before any
+ // valuation, so a closed storage domain cannot pull a phone back in.
  const result=runPipeline(listing,null).verdict;
- assert.equal(result.call,'VERIFY');assert.equal(result.boundedDecision.domain.length,2);assert.equal(result.valuation.medianCents,null);
- assert.equal(result.provenance.facts.description,description);assert.equal(result.provenance.match.attributes.storage_gb,undefined);
- for(const raw of [{},{extraction:{complete:false}},{extraction:{complete:true,truncated:true}}])assert.equal(runPipeline({...listing,raw},null).verdict.call,'INSUFFICIENT_DATA');
- assert.equal(runPipeline({...listing,description:description+' Does not power on, sold for parts.'},null).verdict.call,'RISK');
- d.run("UPDATE comps SET raw_title='Apple iPhone 14 256GB Unlocked' WHERE source_item_id LIKE '256-%'");
- assert.equal(runPipeline(listing,null).verdict.call,'INSUFFICIENT_DATA');
+ assert.equal(result.call,'OUT_OF_SCOPE');assert.equal(result.boundedDecision,undefined);
+ assert.equal(result.provenance.facts.description,description);
 `));
 test('sparse, stale, missing configurations, mixed outcomes and crossing profit ranges remain unresolved',()=>{
  const valid=[row(128),row(256)];

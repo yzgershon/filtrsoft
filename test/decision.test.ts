@@ -33,7 +33,7 @@ test('a persisted decision keeps its exact comp observations after the database 
   assert.equal((await request('/v1/checks/'+r.listingId+'?drive=-1')).status,400);
 `));
 test('concurrent personal economics never replace canonical shared decisions',()=>isolated(fixture+`
-  const economics=getEconomics();assert.equal(economics.min_absolute_profit_cents,10000);
+  const economics=getEconomics();assert.equal(economics.min_absolute_profit_cents,7500);
   const [a,b]=await Promise.all([
     checkFetched(listing,{persist:true,vision:false,econ:{...economics,label:'account-a',effective_hourly_floor_cents:1},driveMinutes:0}),
     checkFetched(listing,{persist:true,vision:false,econ:{...economics,label:'account-b',effective_hourly_floor_cents:100000},driveMinutes:120})]);
@@ -43,7 +43,7 @@ test('concurrent personal economics never replace canonical shared decisions',()
   const saved=JSON.parse(d.query('SELECT payload FROM verdicts ORDER BY id DESC LIMIT 1').get().payload);
   assert.equal(saved.provenance.economics.scope,'canonical');assert.equal(saved.provenance.economics.driveMinutes,15);
   assert.equal(saved.provenance.economics.values.label,'yish');
-  assert.equal(getEconomics().effective_hourly_floor_cents,8000);
+  assert.equal(getEconomics().effective_hourly_floor_cents,6000);
   for(const body of [{url:listing.url,driveMinutes:-1},{url:listing.url,vision:'yes'},{url:listing.url,economics:{label:'a'}}])
     assert.equal((await request('/v1/checks','POST',body)).status,400);
 `));

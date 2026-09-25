@@ -1,9 +1,14 @@
 import {isUnsupportedPrinter,resolveProductType} from '../signals/product-type.ts';
+import {relevance,type RelevanceCode} from '../signals/relevance.ts';
+import {detectCategory} from '../signals/index.ts';
 
-export const CORE_QUERIES=['graphics card','gaming pc','gaming laptop','macbook','iphone'] as const;
+// Yish's scope (2026-09-24): no phones, tablets or monitors. Their searches
+// filled a third of the card slots with listings he never buys; "rtx" and
+// "mac mini" spend that capacity on GPUs, RTX systems and Apple Silicon.
+export const CORE_QUERIES=['graphics card','gaming pc','gaming laptop','macbook','rtx'] as const;
 // The two core searches retain their original cadence. One extra, rotating
 // search finds parts that those five queries never deliberately looked for.
-export const PART_QUERIES=['ddr5 ram','ryzen processor','nvme ssd','computer motherboard','ddr4 ram','pc power supply','intel core processor','pc case','computer monitor','ipad','samsung galaxy','google pixel'] as const;
+export const PART_QUERIES=['ddr5 ram','ryzen processor','nvme ssd','computer motherboard','ddr4 ram','pc power supply','intel core processor','pc case','mac mini'] as const;
 export const CORE_QUERIES_PER_CYCLE=2;
 
 export function collectionQuery(source:string,cursor:number,round:number):string {
@@ -18,8 +23,8 @@ export function collectionQuery(source:string,cursor:number,round:number):string
 export type SearchArea='computers'|'parts'|'phones'|'electronics';
 export function searchArea(query:string):SearchArea {
   if(/\b(iphone|galaxy|pixel|smartphone)\b/i.test(query))return 'phones';
-  if(/\b(graphics|geforce|radeon|gpu|ryzen|processor|cpu|ddr[345]|ram|nvme|ssd|motherboard|power supply|pc case)\b/i.test(query))return 'parts';
-  if(/\b(pc|computer|laptop|macbook|thinkpad|ipad|monitor)\b/i.test(query))return 'computers';
+  if(/\b(graphics|geforce|radeon|rtx|gpu|ryzen|processor|cpu|ddr[345]|ram|nvme|ssd|motherboard|power supply|pc case)\b/i.test(query))return 'parts';
+  if(/\b(pc|computer|laptop|macbook|mac\s?mini|thinkpad|ipad|monitor)\b/i.test(query))return 'computers';
   return 'electronics';
 }
 
@@ -44,7 +49,6 @@ export function marketplaceSearchUrl(source:'offerup'|'mercari',query:string,opt
 export const CRAIGSLIST_SEARCHES=[
   {cat:'sya',label:'computers'},
   {cat:'syp',label:'computer parts'},
-  {cat:'moa',label:'cell phones'},
   {cat:'ela',label:'electronics'},
   // PCs are sometimes miscategorized as video gaming. Search for the actual
   // hardware there instead of enumerating every console/game for rejection.
@@ -53,6 +57,8 @@ export const CRAIGSLIST_SEARCHES=[
   {cat:'vgm',label:'computers and VR',query:'pc|computer|laptop|gpu|cpu|monitor|geforce|radeon|rtx|gtx|ryzen|quest|"vr headset"'},
 ] as const;
 export const craigslistQuery=(cat:string)=>{const search=CRAIGSLIST_SEARCHES.find(s=>s.cat===cat);return search&&'query'in search?search.query:undefined;};
+
+const DESCRIPTION_CAN_RESCUE=new Set<RelevanceCode>(['office_pc','old_computer']);
 
 /** Discovery is not valuation. Skip obvious non-devices before detail visits,
  * while retaining real PC bundles, repair listings and exact seller unknowns.
@@ -73,5 +79,9 @@ export function discoveryDecision(title:string,hardwareCategory=false):{keep:boo
   // the query alone never establishes the product, specs or asking price.
   if(product.kind==='unknown'&&hardwareCategory)return {keep:true,reason:'hardware-category-needs-details'};
   if(product.kind!=='tech')return {keep:false,reason:product.kind};
+  // Out of Yish's scope on the title alone. Office PCs and old whole computers
+  // still get a detail read: a description naming an RTX card can keep them.
+  const rel=relevance({title,category:detectCategory(title)});
+  if(!rel.keep&&!DESCRIPTION_CAN_RESCUE.has(rel.code))return {keep:false,reason:rel.code};
   return {keep:true,reason:'tech'};
 }

@@ -284,6 +284,21 @@ function migrate(d: Database) {
     mark.run(econ, new Date().toISOString());
   }
 
+  /**
+   * $75 AT A 20-MINUTE DRIVE. Yish, 2026-09-24, after seeing that only ~8
+   * in-scope listings a month cleared $100: the minimum is $75. The crossover
+   * stays at 20 minutes ($60/hr), so longer trips still cost more, scaled by
+   * the same 3/4. Guarded on the previous values, like the migration above.
+   */
+  const econ75 = "2026-09-24-min-profit-75-crossover-at-20min";
+  if (!applied.get(econ75)) {
+    d.query(
+      `UPDATE user_economics SET min_absolute_profit_cents = 7500, effective_hourly_floor_cents = 6000, updated_at = ?
+        WHERE label = 'yish' AND min_absolute_profit_cents = 10000 AND effective_hourly_floor_cents = 8000`,
+    ).run(new Date().toISOString());
+    mark.run(econ75, new Date().toISOString());
+  }
+
   const name = "2026-08-27-prune-consecutive-verdict-duplicates";
   if (!applied.get(name)) {
     d.transaction(() => {

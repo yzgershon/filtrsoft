@@ -3,7 +3,7 @@
 **Master plan AND current state. Update before you stop working.** A stale line
 here is worse than a missing one, because a fresh session will believe it.
 
-**Last updated 2026-09-23.** Read section 0 first and in order; it is the record
+**Last updated 2026-09-25.** Read section 0 first and in order; it is the record
 of every session since the rename and it supersedes anything below it that
 disagrees. Sections 1 onward are older material kept for the reasoning, not for
 current numbers.
@@ -88,6 +88,10 @@ and it supersedes anything below that disagrees with it.** Section 2 onward is
 older material kept for the reasoning behind decisions, not for current state.
 
 ## 0. READ THIS FIRST — the 2026-09-04 to 09-06 sessions, in full
+
+### September 24–25, relevance and deals pass (engine 0.3.49)
+
+**Ledger: docs/CLAUDE-PASS-2026-09-24.md.** Yish's calls: carry only GPUs/gaming PCs, laptops/MacBooks and PC parts from ~2020 on (no phones, tablets, accessories, office Windows machines, pre-2020 hardware); **$75 minimum profit** (20-minute crossover, $60/hr); local resale = eBay price less eBay's ~13.5% cut; **prune verdict history older than 14 days**. Findings: 49% of the feed was out of scope; searches and detail/probe/comp queues spent capacity on it; laptops and whole PCs were priced as their GPU; requiring the same GPU board maker left the most-traded cards unpriced; deals were rare mostly because of the $100/85% thresholds; **production had 88 MB free** with verdict history ~95% of the DB and backups failing. Fixes in `src/signals/relevance.ts`, verdict scope gate, search policy (no phone/tablet/monitor searches; `rtx`, `mac mini`; 8 cards/search on Mercari/OfferUp), category detection, GPU comp rule, comp priority, economics migration, in-place verdict refresh, retention pruner. Measured and not built: MacBook RAM floor, gaming-PC part-out floor (each would add ~1 deal a month).
 
 ### September 23, photo readings in shadow mode (Luna high + Gemma 31B)
 

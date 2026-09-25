@@ -1,5 +1,7 @@
 import {db} from './index.ts';
 import {resolveProductType} from '../signals/product-type.ts';
+import {relevance} from '../signals/relevance.ts';
+import {detectCategory} from '../signals/index.ts';
 import {recoveryFingerprint,recoveryPlan,type ReadReceipt} from '../agent/recovery.ts';
 
 export function ensureEnrichment(d=db()) {
@@ -64,6 +66,9 @@ export function dueDetails(source:string,limit=20,at=Date.now(),all=false):any[]
       COALESCE(e.attempted_at,''),l.captured_at DESC,l.id DESC`).all(new Date(at).toISOString(),source,new Date(at-28*86400000).toISOString()) as any[];
   return rows.filter(r=>{
     if(['furniture','accessory'].includes(resolveProductType(r.title).kind) || r.call==='OUT_OF_SCOPE')return false;
+    // Stored collector verdicts can predate Yish's 2026-09-24 scope; never spend
+    // a browser visit on a listing the current scope already rules out.
+    if(!relevance({title:r.title,description:r.description,category:detectCategory(r.title,r.description??'')}).keep)return false;
     return (all&&(!r.next_attempt_at||Date.parse(r.next_attempt_at)<=at))||recoveryPlan(r,at).textDue;
   }).slice(0,Math.max(1,Math.min(40,limit)));
 }

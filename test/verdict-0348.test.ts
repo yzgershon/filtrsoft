@@ -27,8 +27,9 @@ const fixture=`
 `;
 describe('engine 0.3.48 VERIFY stream',()=>{
  test('a deep discount that cannot pay for the trip is FAIR, not VERIFY',()=>isolated(fixture+`
-  sku('GTX 960',3800);
-  const r=await checkFetched(listing('gtx960','Gtx 960','Works fine, pulled from my old build.',1000),{persist:false,vision:false});
+  // An in-scope card since 0.3.49 (a GTX 960 is now out of scope as pre-2020).
+  sku('GTX 1650',3800);
+  const r=await checkFetched(listing('gtx1650','Gtx 1650','Works fine, pulled from my old build.',1000),{persist:false,vision:false});
   assert.equal(r.verdict.call,'FAIR',r.verdict.headline);
  `));
  test('a deep discount with a real margin still asks to verify first',()=>isolated(fixture+`
