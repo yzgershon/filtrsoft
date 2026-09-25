@@ -6,7 +6,7 @@ test('Facebook card capture retains unknown facts and all discovery precedes bou
   assert.equal(card.description,'');assert.equal(card.postedAt,null);assert.equal(card.updatedAt,null);assert.equal(card.photoUrls.length,1);
   const plan=collectionPlan([...SOURCES],0);const firstDetail=plan.findIndex(s=>s.kind==='enrich');assert.ok(plan.slice(0,firstDetail).every(s=>s.kind==='crawl'));
   assert.ok(plan.find(s=>s.source==='facebook'&&s.kind==='crawl').args.includes('--cards-only'));
-  assert.ok(plan.filter(s=>s.name.endsWith('/details')).every(s=>s.args.at(-1)==='20'));
+  assert.ok(plan.filter(s=>s.name.endsWith('/details')).every(s=>s.args.at(-1)===(s.source==='facebook'?'20':'25')));
   const recovery=plan.filter(s=>s.name.includes('/recovery-'));
   assert.equal(recovery.length,6);assert.ok(recovery.every(s=>Number(s.args.at(-1))<=20&&s.timeoutMs<=300000));
   assert.equal(plan.filter(s=>s.kind==='crawl').length,9);assert.equal(plan.filter(s=>s.kind==='probe').length,3);

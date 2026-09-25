@@ -172,6 +172,6 @@ test('operable laptops with disclosed display damage cannot borrow an undamaged 
   for(const description of ['No cracks on the screen.','Screen has no cracks.','Not a cracked screen.','Cracked screen protector only.','A crack on the screen protector.','Cracked screen was replaced.','Replaced the cracked display.','Warranty covers cracked screens.'])assert.equal(conditionDisclosure(description).displayDamage,null,description);
   assert.equal(conditionDisclosure('Broken screen protector only.').broken,null);
   globalThis.fetch=async()=>{throw new Error('No network');};
-  const result=await checkFetched({source:'offerup',sourceId:'damage',url:'https://offerup.com/item/detail/damage',title:'HP ENVY x360 16 inch 2.8k OLED Touch AMD Ryzen 16GB RAM',description:'Used , fully operable - there is a crack on the screen .',askingPriceCents:10000,location:null,postedAt:null,updatedAt:null,photoUrls:[],attributes:{},raw:{}},{persist:false,vision:false});
+  const result=await checkFetched({source:'offerup',sourceId:'damage',url:'https://offerup.com/item/detail/damage',title:'ASUS ROG Zephyrus G14 Ryzen 9 RTX 3060 16GB RAM',description:'Used , fully operable - there is a crack on the screen .',askingPriceCents:10000,location:null,postedAt:null,updatedAt:null,photoUrls:[],attributes:{},raw:{}},{persist:false,vision:false});
   assert.equal(result.verdict.call,'RISK');assert.ok(result.verdict.blockers.some(s=>s.includes('crack on the screen')));
 `));

@@ -1,5 +1,7 @@
 import {db} from "./index.ts";
 import {ensureEnrichment} from './enrichment.ts';
+import {relevance} from '../signals/relevance.ts';
+import {detectCategory} from '../signals/index.ts';
 export function recordProbe(id:number,outcome:'alive'|'gone'|'unknown',at=Date.now()) {
   const d=db();
   ensureEnrichment(d);
@@ -23,11 +25,16 @@ export function recordProbe(id:number,outcome:'alive'|'gone'|'unknown',at=Date.n
 
 export function dueProbes(source:string,limit:number,at=Date.now()) {
   ensureEnrichment();
-  return db().query(`SELECT l.id,l.url FROM listings l
+  const rows=db().query(`SELECT l.id,l.url,l.title,l.description FROM listings l
     LEFT JOIN verdicts v ON v.id=(SELECT MAX(id) FROM verdicts WHERE listing_id=l.id)
     LEFT JOIN collector_priorities p ON p.listing_id=l.id AND p.expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now')
     WHERE l.source=? AND l.delisted_at IS NULL AND l.url IS NOT NULL AND (l.next_probe_at IS NULL OR l.next_probe_at<=?)
+      AND COALESCE(v.call,'')!='OUT_OF_SCOPE'
     ORDER BY CASE COALESCE(p.call,v.call) WHEN 'BUY' THEN 0 WHEN 'VERIFY' THEN 1 WHEN 'FAIR' THEN 2 ELSE 3 END,
       COALESCE(l.last_probed_at,'') ASC,COALESCE(l.last_seen,l.captured_at),l.id LIMIT ?`)
-    .all(source,new Date(at).toISOString(),Math.max(1,limit)) as {id:number;url:string}[];
+    .all(source,new Date(at).toISOString(),Math.max(1,limit)*4) as {id:number;url:string;title:string;description:string|null}[];
+  // A stored verdict can predate Yish's 2026-09-24 scope; availability checks
+  // are for listings he might buy.
+  return rows.filter(r=>relevance({title:r.title,description:r.description,category:detectCategory(r.title,r.description??'')}).keep)
+    .slice(0,Math.max(1,limit)).map(({id,url})=>({id,url}));
 }

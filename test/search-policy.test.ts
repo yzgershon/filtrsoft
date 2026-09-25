@@ -41,7 +41,11 @@ test('restart-safe cursor advances beyond the legacy five-query ceiling',()=>iso
 
 test('discovery rejects observed irrelevant cards but retains real devices, kits and PC bundles',()=>{
   for(const title of ['Custom Alice and wonderland birthday dress','Vintage Pokemon graphic novel','Folarin Balogun Donruss Magicians Soccer Card','Computer desk','Case for iPhone 15','RTX 4070 waterblock','PS5 Console','Nintendo Switch','HP LaserJet printer'])expect({title,keep:discoveryDecision(title).keep}).toEqual({title,keep:false});
-  for(const title of ['GTX 960','RTX 4070 Ti','32GB DDR5 6000 2x16GB RAM','8x32GB ECC RDIMM RAM','Gaming PC with keyboard and mouse','Acer Monitor, Black Desk, and Chair','MacBook for parts','iPhone 15 cracked screen','Custom Pokemon Gaming PC'])expect({title,keep:discoveryDecision(title).keep}).toEqual({title,keep:true});
+  for(const title of ['RTX 4070 Ti','32GB DDR5 6000 2x16GB RAM','8x32GB ECC RDIMM RAM','Gaming PC with keyboard and mouse','MacBook for parts','Custom Pokemon Gaming PC'])expect({title,keep:discoveryDecision(title).keep}).toEqual({title,keep:true});
+  // Out of Yish's scope since 2026-09-24, decided before a detail visit.
+  for(const [title,reason] of [['GTX 960','old_gpu'],['iPhone 15 cracked screen','phone'],['Acer Monitor, Black Desk, and Chair','not_tech'],['MacBook Pro 2015 i7 16gb 1tb','old_mac']])expect(discoveryDecision(title)).toEqual({keep:false,reason});
+  // Office PCs and old whole computers still get a detail read: the description can name an RTX card.
+  for(const title of ['Dell OptiPlex 7050 i5 16GB','Desktop PC'])expect(discoveryDecision(title).keep).toBe(true);
 });
 
 test('short hardware titles never become city names, prices or badges',()=>{

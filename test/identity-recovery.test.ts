@@ -33,7 +33,7 @@ test('catalog synchronization re-derives identity, defers stale facts and acknow
 test('cohort priority respects complete receipts, retry delay, unavailable and furniture exclusions',()=>isolated(`
  import {db,now} from '@/src/db/index.ts';import {upsertListingFacts} from '@/src/db/listings.ts';import {ensureEnrichment,dueDetails,recordDetailAttempt} from '@/src/db/enrichment.ts';
  const d=db(),ids=[];ensureEnrichment();
- for(let i=0;i<6;i++){const id=upsertListingFacts(d,{source:'facebook',sourceId:String(i+1),url:'https://www.facebook.com/marketplace/item/'+(i+1)+'/',title:i===5?'Office chair':'Lenovo laptop '+i,description:'Seller details',askingPriceCents:10000,location:null,postedAt:null,photoCount:0}).id;ids.push(id);if(i>0)d.run('INSERT INTO cohort_recovery_requests VALUES(?,?)',[id,now()]);}
+ for(let i=0;i<6;i++){const id=upsertListingFacts(d,{source:'facebook',sourceId:String(i+1),url:'https://www.facebook.com/marketplace/item/'+(i+1)+'/',title:i===5?'Office chair':'Lenovo Legion gaming laptop '+i,description:'Seller details',askingPriceCents:10000,location:null,postedAt:null,photoCount:0}).id;ids.push(id);if(i>0)d.run('INSERT INTO cohort_recovery_requests VALUES(?,?)',[id,now()]);}
  recordDetailAttempt(ids[2],'read',Date.now(),{complete:true});recordDetailAttempt(ids[3],'failed');d.run('UPDATE listings SET delisted_at=? WHERE id=?',[now(),ids[4]]);
  assert.deepEqual(dueDetails('facebook',40).map(r=>r.id),[ids[1],ids[0]]);
 `));

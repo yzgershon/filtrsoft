@@ -503,4 +503,6 @@ export function checkStored(
 // 0.3.36: ambiguous MacBook families cannot pool Intel and Apple Silicon sales.
 // 0.3.48: phone numbers spelled out in words are an off-platform redirect, and
 // a below-market price only earns VERIFY when the deal would pay for the trip.
-export const ENGINE_VERSION = "0.3.48";
+// 0.3.49: Yish's scope (2026-09-24): phones, tablets, wearables, accessories,
+// office Windows machines and pre-2020 hardware are OUT_OF_SCOPE.
+export const ENGINE_VERSION = "0.3.49";

@@ -25,6 +25,7 @@ import { isScamFarm, scamSignals, scamHeadline } from "./scam.ts";
 import { listingInventory } from "../signals/listing-offers.ts";
 import { valueInventory, type PricedOffer } from "../valuation/inventory.ts";
 import {factualText} from '../signals/factual-text.ts';
+import {relevance} from "../signals/relevance.ts";
 
 const OUT_OF_SCOPE = /\b(lens|dslr|mirrorless|camera body|tripod|nikon|canon ef|sigma \d|tamron|zeiss|leica|scanner|camcorder)\b/i;
 
@@ -536,6 +537,18 @@ export function buildVerdict(input: {
       headline: "Consoles are out of scope.",
       reasoning: `Yish's call on 2026-09-04: consoles are hard to resell, so Filtrsoft does not carry them. That includes their games and controllers, which trade in the same market for less. Nothing here is a judgement about the listing.`,
     };
+  }
+
+  /**
+   * What Yish trades (his call on 2026-09-24): GPUs and gaming PCs, laptops
+   * and MacBooks, PC parts, from about 2020 on. Phones, tablets, accessories,
+   * office Windows machines and older hardware filled 49% of the feed and he
+   * does not buy any of them. Like consoles, this is checked before the SKU
+   * gate: a well-known iPhone 11 matches a SKU and is still not wanted.
+   */
+  const rel = relevance({ title: input.title, description: input.description, category: signals.category });
+  if (!rel.keep) {
+    return { ...base, call: "OUT_OF_SCOPE", confidence: "high", headline: rel.headline, reasoning: rel.reason };
   }
 
   if (!match.skuId && (NOT_OUR_MARKET.test(head.head ?? input.title) || NEVER_OUR_MARKET.test(input.title))) {

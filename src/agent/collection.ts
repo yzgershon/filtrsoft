@@ -14,14 +14,21 @@ const script:Record<Source,string>={facebook:'fb:crawl',offerup:'ou:crawl',merca
 export function collectionPlan(sources:Source[],cursor:number,queries=3,limit=6,budgets:Partial<Record<Source,RecoveryBudget>>={}):CollectionStage[] {
   if(!Number.isSafeInteger(cursor)||cursor<0||!Number.isInteger(queries)||queries<1||queries>4)throw new Error('Invalid search plan');
   const plan:CollectionStage[]=[];
+  // Measured 2026-09-24 over 600 searches: Mercari and OfferUp return 70-95
+  // links with a dozen or more new in-scope cards, and a cap of 6 left most of
+  // them unread. They take 8, and their detail budget grows to 25 so a cycle
+  // still captures fewer cards than it can read. Facebook keeps 6 and 20: its
+  // logged-in browser is the fragile part.
+  const cards=(source:Source)=>source==='facebook'?limit:Math.ceil(limit*4/3);
+  const details=(source:Source)=>source==='facebook'?20:25;
   for(let round=0;round<queries;round++) for(const source of sources) {
     const query=collectionQuery(source,cursor,round);
-    plan.push({source,kind:'crawl',name:`${source}/search-${query.replaceAll(' ','-')}`,args:['run',script[source],'--query',query,'--limit',String(limit),...(source==='facebook'?['--cards-only']:[])],timeoutMs:4*60_000});
+    plan.push({source,kind:'crawl',name:`${source}/search-${query.replaceAll(' ','-')}`,args:['run',script[source],'--query',query,'--limit',String(cards(source)),...(source==='facebook'?['--cards-only']:[])],timeoutMs:4*60_000});
   }
   for(const source of sources) {
     // At most 18 new cards versus 20 detail reads lets the description backlog
     // shrink while preserving core and parts searches. Previously: 36 / 4.
-    plan.push({source,kind:'enrich',name:`${source}/details`,args:['run',source==='facebook'?'fb:detail':source==='offerup'?'ou:photos':'mc:detail','--limit','20'],timeoutMs:8*60_000});
+    plan.push({source,kind:'enrich',name:`${source}/details`,args:['run',source==='facebook'?'fb:detail':source==='offerup'?'ou:photos':'mc:detail','--limit',String(details(source))],timeoutMs:8*60_000});
     plan.push({source,kind:'probe',name:`${source}/probe`,args:['run','probe','--source',source,'--limit','6'],timeoutMs:4*60_000});
   }
   // Separate recovery capacity follows bounded fresh details and availability.

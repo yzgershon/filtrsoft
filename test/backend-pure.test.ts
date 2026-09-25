@@ -1678,7 +1678,7 @@ describe("scope: home audio never reaches a verdict", () => {
     for (const t of [
       "Gaming PC RTX 2070 Super, i5-9600K, WiFi antenna included",
       "Custom Gaming PC RTX 3070Ti Intel Core i7 11700K 32GB RAM 2.25TB",
-      "Dell OptiPlex 7040 SFF i7-6700 16GB SSD Windows 11 Pro",
+      "MacBook Pro 14 M1 Pro 16GB with charger, keyboard and speakers",
     ]) {
       expect(scopeOf(t)).not.toBe("OUT_OF_SCOPE");
     }
